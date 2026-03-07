@@ -980,7 +980,7 @@ if __name__ == '__main__':
     result = list_graph_loader("PVGAErandomGraphs_100000")
 
     for G in result[0]:
-        G = nx.from_numpy_matrix(G.toarray())
+        G = nx.from_numpy_array(G.toarray())
         plotter.plotG(G,"DD")
     # ----------------------------------------
     import plotter
@@ -988,7 +988,7 @@ if __name__ == '__main__':
     for G in result[0]:
 
 
-        G = nx.from_numpy_matrix(G.toarray())
+        G = nx.from_numpy_array(G.toarray())
         plotter.plotG(G,"DD")
     #----------------------------------------
     result_ = list_graph_loader("QM9")
@@ -996,14 +996,14 @@ if __name__ == '__main__':
     import plotter
 
     for i, G in enumerate(result[0]):
-        G = nx.from_numpy_matrix(G.toarray())
+        G = nx.from_numpy_array(G.toarray())
         plotter.plotG(G, "test_graph", plot_it=True)
 
     result=list_graph_loader("triangular_grid")
     import plotter
 
     for i, G in enumerate(result[0]):
-        G = nx.from_numpy_matrix(G.toarray())
+        G = nx.from_numpy_array(G.toarray())
         plotter.plotG(G, "test_graph")
 
     import torch_sparse
@@ -1020,7 +1020,7 @@ if __name__ == '__main__':
     for G in result[0]:
 
 
-        G = nx.from_numpy_matrix(G.toarray())
+        G = nx.from_numpy_array(G.toarray())
         plotter.plotG(G,"DD")
 
 """

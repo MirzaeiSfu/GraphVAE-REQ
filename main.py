@@ -30,8 +30,8 @@ keepThebest = False
 
 parser = argparse.ArgumentParser(description='Kernel VGAE')
 
-parser.add_argument('-e', dest="epoch_number", default=2000, help="Number of Epochs to train the model", type=int)
-parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
+parser.add_argument('-e', dest="epoch_number", default=200, help="Number of Epochs to train the model", type=int)
+parser.add_argument('-v', dest="Vis_step", default=10, help="at every Vis_step 'minibatch' the plots will be updated")
 parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
 parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
 parser.add_argument('-dataset', dest="dataset", default="grid",
@@ -332,7 +332,7 @@ def test_(number_of_samples, model, graph_size, path_to_save_g, remove_self=True
             # sample_graph = sample_graph[:g_size,:g_size]
             sample_graph[sample_graph >= 0.5] = 1
             sample_graph[sample_graph < 0.5] = 0
-            G = nx.from_numpy_matrix(sample_graph)
+            G = nx.from_numpy_array(sample_graph)
             # generated_graph_list.append(G)
             f_name = path_to_save_g + str(k) + str(g_size) + str(j) + dataset
             k += 1
@@ -364,7 +364,7 @@ def EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_na
                     allow_pickle=True)
 
 
-            logging.info(mmd_eval(generated_graphs, [nx.from_numpy_matrix(graph.toarray()) for graph in test_list_adj]))
+            logging.info(mmd_eval(generated_graphs, [nx.from_numpy_array(graph.toarray()) for graph in test_list_adj]))
     print("====================================================")
     logging.info("====================================================")
 
@@ -373,7 +373,7 @@ def EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_na
     generated_graphs = [nx.Graph(G.subgraph(max(nx.connected_components(G), key=len))) for G in generated_graphs if
                         not nx.is_empty(G)]
 
-    statistic_   = mmd_eval(generated_graphs, [nx.from_numpy_matrix(graph.toarray()) for graph in test_list_adj], diam=True)
+    statistic_   = mmd_eval(generated_graphs, [nx.from_numpy_array(graph.toarray()) for graph in test_list_adj], diam=True)
     # if writeThem_in!=None:
     #     with open(writeThem_in+'MMD.log', 'w') as f:
     #         f.write(statistic_)
@@ -605,7 +605,7 @@ else:
         if plot_testGraphs:
             print("printing the test set...")
             # for i, G in enumerate(test_list_adj):
-            #     G = nx.from_numpy_matrix(G.toarray())
+            #     G = nx.from_numpy_array(G.toarray())
             #     plotter.plotG(G, graph_save_path+"_test_graph" + str(i))
 
     print(f"[Cache] Saving to {cache_path} ...")
@@ -644,7 +644,7 @@ print("#------------------------------------------------------")
 if ideal_Evalaution:
     fifty_fifty_dataset = list_adj + test_list_adj
 
-    fifty_fifty_dataset = [nx.from_numpy_matrix(graph.toarray()) for graph in fifty_fifty_dataset]
+    fifty_fifty_dataset = [nx.from_numpy_array(graph.toarray()) for graph in fifty_fifty_dataset]
     random.shuffle(fifty_fifty_dataset)
     print("50%50 Evalaution of dataset")
     logging.info(mmd_eval(fifty_fifty_dataset[:int(len(fifty_fifty_dataset)/2)],fifty_fifty_dataset[int(len(fifty_fifty_dataset)/2):],diam=True))
@@ -808,7 +808,7 @@ for epoch in range(epoch_number):
                 sample_graph[sample_graph < 0.5] = 0
 
 
-                G = nx.from_numpy_matrix(sample_graph)
+                G = nx.from_numpy_array(sample_graph)
                 plotter.plotG(G, "generated" + dataset,
                               file_name=graph_save_path + "generatedSample_At_epoch" + str(epoch))
                 print("reconstructed graph vs Validation:")
@@ -816,11 +816,11 @@ for epoch in range(epoch_number):
                 reconstructed_adj = reconstructed_adj.cpu().detach().numpy()
                 reconstructed_adj[reconstructed_adj >= 0.5] = 1
                 reconstructed_adj[reconstructed_adj < 0.5] = 0
-                reconstructed_adj = [nx.from_numpy_matrix(reconstructed_adj[i]) for i in range(reconstructed_adj.shape[0])]
+                reconstructed_adj = [nx.from_numpy_array(reconstructed_adj[i]) for i in range(reconstructed_adj.shape[0])]
                 reconstructed_adj = [nx.Graph(G.subgraph(max(nx.connected_components(G), key=len))) for G in
                                     reconstructed_adj if not nx.is_empty(G)]
 
-                target_set = [nx.from_numpy_matrix(val_adj[i].toarray()) for i in range(len(val_adj))]
+                target_set = [nx.from_numpy_array(val_adj[i].toarray()) for i in range(len(val_adj))]
                 target_set = [nx.Graph(G.subgraph(max(nx.connected_components(G), key=len))) for G in target_set if
                             not nx.is_empty(G)]
                 reconstruc_MMD_loss = mmd_eval(reconstructed_adj, target_set[:len(reconstructed_adj)], diam=True)

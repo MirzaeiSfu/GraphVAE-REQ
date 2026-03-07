@@ -375,7 +375,7 @@ def load_graph_list(fname,remove_self=True):
     graph_list =[]
     for G in glist:
         if type(G) == np.ndarray:
-            graph = nx.from_numpy_matrix(G)
+            graph = nx.from_numpy_array(G)
         elif type(G)==nx.classes.graph.Graph:
             graph = G
         else:
@@ -465,7 +465,7 @@ if __name__ == '__main__':
     # #     print(m)
     # #     adj_orig = np.load('parmis/'+dataset+'_'+m+'/adj_orig.npy')
     # #     generated_graphs = np.load('parmis/'+dataset+'_'+m+'/adj_rec.npy')
-    # #     mmd_eval([nx.from_numpy_matrix(generated_graphs)], [nx.from_numpy_matrix(adj_orig)])
+    # #     mmd_eval([nx.from_numpy_array(generated_graphs)], [nx.from_numpy_array(adj_orig)])
     #
     from  data import  *
     # generated_graph = np.load("result_final/NetGan/adj_lobster_3000")
@@ -475,12 +475,12 @@ if __name__ == '__main__':
     # mean_node = 80
     # G = nx.random_lobster(mean_node, p1, p2)
     #
-    # mmd_eval([nx.from_numpy_matrix(generated_graph)], [G])
+    # mmd_eval([nx.from_numpy_array(generated_graph)], [G])
     #
     # #==========================
     # G = grid(random.randint(15, 15), random.randint(15, 15))
     # generated_graph = np.load("result_final/NetGan/adj_grid_3000")
-    # mmd_eval([nx.from_numpy_matrix(generated_graph)], [G])
+    # mmd_eval([nx.from_numpy_array(generated_graph)], [G])
 
     # C:\git\Graph - Generative - Models\results\GRAPHRNN
     # pred_fname = "/local-scratch/kiarash/GraphENN_remote_c/Reprted/GRIDRNN-rnn/crossEntropy_bestLR001_GraphRNN_RNN_grid_4_128_pred_3000_1.dat_nx22_"
@@ -660,7 +660,7 @@ if __name__ == '__main__':
         if model[-1]!= None:
             list_adj, _ = list_graph_loader(model[-1])
             _, test_list_adj, _, _ = data_split(list_adj)
-            test_list_adj = [nx.from_numpy_matrix(graph.toarray()) for graph in test_list_adj]
+            test_list_adj = [nx.from_numpy_array(graph.toarray()) for graph in test_list_adj]
         else:
             test_list_adj = load_graph_list(model[0])
 

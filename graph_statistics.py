@@ -17,7 +17,7 @@ triangle in the given graph"""
 #     :param adj: matrix adjacency matrix; a numpy matrix.
 #     :return: characteristic path length
 #     '''
-#     g = nx.from_numpy_matrix(adj)
+#     g = nx.from_numpy_array(adj)
 #     return g.average_shortest_path_length
 #
 #
@@ -27,7 +27,7 @@ triangle in the given graph"""
 #     :param adj: matrix adjacency matrix; a numpy matrix.
 #     :return:  a sorted list which contain the size of each coponent in the graph
 #     """
-#     G =nx.from_numpy_matrix(adj)
+#     G =nx.from_numpy_array(adj)
 #     comp = sorted(nx.connected_components(G), key=len, reverse=True)
 #     return [len(x) for x in comp]
 
@@ -122,7 +122,7 @@ def statistics_triangle_count(A_in):
     Triangle count
     """
 
-    A_graph = nx.from_numpy_matrix(A_in)
+    A_graph = nx.from_numpy_array(A_in)
     triangles = nx.triangles(A_graph)
     t = np.sum(list(triangles.values())) / 3
     return int(t)
@@ -260,7 +260,7 @@ def compute_graph_statistics(A_in):
     else:
         print("Graph is Asymetric; Directed")
 
-    A_graph = nx.from_numpy_matrix(A)
+    A_graph = nx.from_numpy_array(A)
 
 
     statistics = {}
