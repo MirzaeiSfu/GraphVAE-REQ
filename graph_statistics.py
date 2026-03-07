@@ -225,7 +225,7 @@ def statistics_edge_distribution_entropy(A_in):
 def statistics_compute_cpl(A):
     """Compute characteristic path length."""
     P = sp.csgraph.shortest_path(sp.csr_matrix(A))
-    return P[((1 - np.isinf(P)) * (1 - np.eye(P.shape[0]))).astype(np.bool)].mean()
+    return P[((1 - np.isinf(P)) * (1 - np.eye(P.shape[0]))).astype(bool)].mean()
 
 
 def compute_graph_statistics(A_in):
