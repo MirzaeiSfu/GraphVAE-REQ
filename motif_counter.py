@@ -52,7 +52,7 @@ class RelationalMotifCounter:
         self.database_name = database_name
         self.args = args
 
-        db_dir = Path('/localhome/mirzaei/ali/gvae/GraphVAE-MC/db')
+        db_dir = Path('./db')
         pickle_path = db_dir / f"{database_name}.pkl"
 
         if not pickle_path.exists():

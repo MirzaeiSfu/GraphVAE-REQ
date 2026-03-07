@@ -43,7 +43,7 @@ class RuleBasedMotifStore:
         self._initialize_structures()
         
         # Determine pickle path
-        db_dir = Path('/localhome/mirzaei/ali/gvae/GraphVAE-MC/db')
+        db_dir = Path('./db')
         db_dir.mkdir(parents=True, exist_ok=True)
         self.pickle_path = db_dir / f"{database_name}.pkl"
         
