@@ -87,7 +87,7 @@ parser.add_argument('--batch_size', type=int, default=50000,
                             '8 GB → 2000 | 16 GB → 5000 | 24 GB+ → 30000.')
 parser.add_argument('--sanity_check_local_mults',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='Run sanity check for local multiplicities using merged data.')
 #=======================================
 
@@ -624,13 +624,15 @@ if args.motif_loss:
         remove_self_loops(list_test_graphs)
         dataa = merge_datasets(list_graphs, list_test_graphs)  
     else :
-        dataa = list_graphs
+        dataa = merge_datasets(list_graphs)
 
     motif_counter = RelationalMotifCounter(database_name=args.database_name, args=args)
     wrapper = DataWrapper(dataa, motif_counter.relation_keys,node_onehot_info, device='cuda')
     counts  = motif_counter.count_batch(wrapper, batch_size=50000)
-    aggregated = counts.sum(0)
-    print(aggregated)
+    
+    if args.sanity_check_local_mults:
+        aggregated = counts.sum(0)
+        print(aggregated)
 
 
 
