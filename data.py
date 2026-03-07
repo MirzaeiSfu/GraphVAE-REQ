@@ -1,6 +1,10 @@
 
+
+from __future__ import annotations
+
 import random
 
+from typing import Dict, List, Optional
 import networkx as nx
 import numpy as np
 import torch
@@ -14,7 +18,7 @@ import warnings
 
 import dgl as dgl
 
-import ogb
+# import ogb
 
 
 def parse_index_file(filename):
@@ -140,329 +144,254 @@ def graph_load_batch(data_dir,
 
 
 class Datasets():
-  'Characterizes a dataset for PyTorch'
-  def __init__(self, list_adjs,self_for_none, list_Xs, graphlabels = None, padding =True, Max_num = None, set_diag_of_isol_Zer=True):
-        """
-        :param list_adjs: a list of adjacency in sparse format
-        :param list_Xs: a list of node feature matrix
-        :param graphlabels: a list of int, that indicate correponding class of element in list_adjs
+    'Characterizes a dataset for PyTorch'
+    def __init__(self, list_adjs, self_for_none, list_Xs, graphlabels=None, padding=True,
+                 Max_num=None, set_diag_of_isol_Zer=True,
+                 list_node_onehot=None, list_edge_onehot=None):
 
-        """
-        'Initialization'
-        if Max_num!=0 and Max_num!=None:
-            list_adjs, graphlabels, list_Xs = self.remove_largergraphs( list_adjs, graphlabels, list_Xs, Max_num)
+        if Max_num != 0 and Max_num is not None:
+            list_adjs, graphlabels, list_Xs = self.remove_largergraphs(
+                list_adjs, graphlabels, list_Xs, Max_num)
+
         self.set_diag_of_isol_Zer = set_diag_of_isol_Zer
-        self.paading = padding
-        self.list_Xs = list_Xs
-        self.labels = graphlabels
-        self.list_adjs = list_adjs
-        self.toatl_num_of_edges = 0
-        self.max_num_nodes = 0
+        self.paading               = padding
+        self.list_Xs               = list_Xs
+        self.labels                = graphlabels
+        self.list_adjs             = list_adjs
+        self.list_node_onehot      = list_node_onehot
+        self.list_edge_onehot      = list_edge_onehot
+        self.toatl_num_of_edges    = 0
+        self.max_num_nodes         = 0
+
         for i, adj in enumerate(list_adjs):
-            list_adjs[i] =  adj - sp.dia_matrix((adj.diagonal()[np.newaxis, :], [0]), shape=adj.shape)
+            list_adjs[i] = adj - sp.dia_matrix((adj.diagonal()[np.newaxis, :], [0]), shape=adj.shape)
             list_adjs[i] += sp.eye(list_adjs[i].shape[0])
             if self.max_num_nodes < adj.shape[0]:
                 self.max_num_nodes = adj.shape[0]
             self.toatl_num_of_edges += adj.sum().item()
-            # if list_Xs!=None:
-            #     self.list_adjs[i], list_Xs[i] = self.permute(list_adjs[i], list_Xs[i])
-            # else:
-            #     self.list_adjs[i], _ = self.permute(list_adjs[i], None)
-        if Max_num!=None:
+
+        if Max_num is not None:
             self.max_num_nodes = Max_num
-        self.processed_Xs = []
-        self.processed_adjs = []
-        self.num_of_edges = []
-        # for i in range(len(self.list_Xs)):
+
+        self.processed_Xs          = []
+        self.processed_adjs        = []
+        self.processed_node_onehot = []
+        self.processed_edge_onehot = []
+        self.num_of_edges          = []
+
         for i in range(self.__len__()):
-            a,x,n,_ = self.process(i,self_for_none)
+            a, x, n, _, node_oh, edge_oh = self.process(i, self_for_none)
             self.processed_Xs.append(x)
             self.processed_adjs.append(a)
+            self.processed_node_onehot.append(node_oh)
+            self.processed_edge_onehot.append(edge_oh)
             self.num_of_edges.append(n)
-        self.feature_size = self.processed_Xs[0].shape[-1]
-        self.adj_s= []
-        self.x_s = []
-        self.num_nodes = []
+
+        self.feature_size     = self.processed_Xs[0].shape[-1]
+        self.adj_s            = []
+        self.x_s              = []
+        self.node_onehot_s    = []
+        self.edge_onehot_s    = []
+        self.num_nodes        = []
+        self.subgraph_indexes = []
+        self.featureList      = None
+
+    
+    def remove_largergraphs(self, adjs, labels, Xs, max_size):
+        processed_adjs   = []
+        processed_labels = []
+        processed_Xs     = []
+        for i in range(len(adjs)):
+            if adjs[i].shape[0] <= max_size:
+                processed_adjs.append(adjs[i])
+                if labels is not None:
+                    processed_labels.append(labels[i])
+                if Xs is not None:
+                    processed_Xs.append(Xs[i])
+        return processed_adjs, processed_labels, processed_Xs
+
+    def get(self):
+        indexces = list(range(self.__len__()))
+        return ([self.processed_adjs[i] for i in indexces],
+                [self.processed_Xs[i]   for i in indexces])
+
+    def set_features(self, some_feature):
+        self.featureList = some_feature
+
+    def get_adj_list(self):
+        return self.adj_s
+
+    def get__(self, from_, to_, self_for_none, bfs=None, ignore_isolate_nodes=False):
+        adj_s            = []
+        x_s              = []
+        num_nodes        = []
+        subgraph_indexes = []
+
+        if bfs is None:
+            graphfeatures = []
+            for element in self.featureList:
+                graphfeatures.append(element[from_:to_])
+            return (self.adj_s[from_:to_], self.x_s[from_:to_],
+                    self.num_nodes[from_:to_], self.subgraph_indexes[from_:to_],
+                    graphfeatures)
+
+        for i in range(from_, to_):
+            adj, x, num_node, indexes, _, _ = self.process(
+                i, self_for_none, None, bfs, ignore_isolate_nodes)
+            adj_s.append(adj)
+            x_s.append(x)
+            num_nodes.append(num_node)
+            subgraph_indexes.append(indexes)
+
+        return adj_s, x_s, num_nodes, subgraph_indexes
+
+    def get_max_degree(self):
+        return np.max([adj.sum(-1) for adj in self.processed_adjs])
+
+    def processALL(self, self_for_none, bfs=None, ignore_isolate_nodes=False):
+        self.adj_s            = []
+        self.x_s              = []
+        self.node_onehot_s    = []
+        self.edge_onehot_s    = []
+        self.num_nodes        = []
         self.subgraph_indexes = []
 
-        self.featureList = None
+        for i in range(len(self.list_adjs)):
+            adj, x, num_node, indexes, node_oh, edge_oh = self.process(
+                i, self_for_none, None, bfs, ignore_isolate_nodes)
+            self.adj_s.append(adj)
+            self.x_s.append(x)
+            self.node_onehot_s.append(node_oh)
+            self.edge_onehot_s.append(edge_oh)
+            self.num_nodes.append(num_node)
+            self.subgraph_indexes.append(indexes)
 
-  def remove_largergraphs(self, adjs, labels, Xs, max_size):
-      processed_adjs = []
-      processed_labels = []
-      processed_Xs=[]
-
-      for i in range(len(adjs)):
-          if adjs[i].shape[0]<=max_size:
-              processed_adjs.append(adjs[i])
-              if labels!=None:
-                  processed_labels.append(labels[i])
-              if Xs!=None:
-                  processed_Xs.append(Xs[i])
-      return processed_adjs,processed_labels,processed_Xs
-  def get(self):
-      indexces = list(range(self.__len__()))
-      return [self.processed_adjs[i] for i in indexces], [self.processed_Xs[i] for i in indexces]
-
-  def set_features(self, some_feature, ):
-      self.featureList = some_feature
-      # self.labels = labels
-
-
-  def get_adj_list(self):
-      return self.adj_s
-
-  def get__(self,from_, to_, self_for_none, bfs=None, ignore_isolate_nodes = False):
-      adj_s = []
-      x_s = []
-      num_nodes = []
-      subgraph_indexes = []
-      # padded_to = max([self.list_adjs[i].shape[1] for i in range(from_, to_)])
-      # padded_to = 225
-      if bfs==None:
-          graphfeatures = []
-          for element in self.featureList:
-              graphfeatures.append(element[from_:to_])
-          return self.adj_s[from_:to_], self.x_s[from_:to_], self.num_nodes[from_:to_], self.subgraph_indexes[from_:to_], graphfeatures
-
-      for i in range(from_, to_):
-          # bfs = self.max_num_nodes
-          adj, x, num_node, indexes = self.process(i, self_for_none,None, bfs, ignore_isolate_nodes)#, padded_to)
-          adj_s.append(adj)
-          x_s.append(x)
-          num_nodes.append(num_node)
-          subgraph_indexes.append(indexes)
-
-      return adj_s, x_s, num_nodes, subgraph_indexes
-
-
-  def get_max_degree(self):
-      return np.max([adj.sum(-1) for adj in self.processed_adjs])
-  def processALL(self, self_for_none, bfs=None, ignore_isolate_nodes = False):
-      self.adj_s = []
-      self.x_s = []
-      self.num_nodes = []
-      self.subgraph_indexes = []
-      # padded_to = max([self.list_adjs[i].shape[1] for i in range(from_, to_)])
-      # padded_to = 225
-
-      from_ = 0
-      to_ = len(self.list_adjs)
-      for i in range(from_, to_):
-          # bfs = self.max_num_nodes
-          adj, x, num_node, indexes = self.process(i, self_for_none,None, bfs, ignore_isolate_nodes)#, padded_to)
-          self.adj_s.append(adj)
-          self.x_s.append(x)
-          self.num_nodes.append(num_node)
-          self.subgraph_indexes.append(indexes)
-
-  def __len__(self):
-        'Denotes the total number of samples'
+    def __len__(self):
         return len(self.list_adjs)
 
-  def process(self,index,self_for_none, padded_to=None, bfs_max_length = None, ignore_isolate_nodes=True):
-      # self.featureList = None
+    def process(self, index, self_for_none, padded_to=None,
+                bfs_max_length=None, ignore_isolate_nodes=True):
 
-      if bfs_max_length!=None:
-        bfs_max_length = min(bfs_max_length, self.max_num_nodes)
+        if bfs_max_length is not None:
+            bfs_max_length = min(bfs_max_length, self.max_num_nodes)
 
-      num_nodes = self.list_adjs[index].shape[0]
-      if self.paading == True:
-          max_num_nodes = self.max_num_nodes if padded_to==None else padded_to
-      else:
-          max_num_nodes = num_nodes
-      adj_padded = lil_matrix((max_num_nodes,max_num_nodes)) # make the size equal to maximum graph
-      if max_num_nodes==num_nodes:
-          adj_padded = lil_matrix(self.list_adjs[index], dtype=np.int8)
-      else:
-        adj_padded[:num_nodes, :num_nodes] = self.list_adjs[index][:, :]
-      # adj_padded -= sp.dia_matrix((adj_padded.diagonal()[np.newaxis, :], [0]), shape=adj_padded.shape)
-      adj_padded.setdiag(0)
-      nodeDegree = adj_padded.sum(-1)
-      if not ignore_isolate_nodes:
-          nodeDegree+=1
+        num_nodes = self.list_adjs[index].shape[0]
+        if self.paading:
+            max_num_nodes = self.max_num_nodes if padded_to is None else padded_to
+        else:
+            max_num_nodes = num_nodes
 
-      if self_for_none:
-          adj_padded.setdiag(1)
-      else:
-          if max_num_nodes != num_nodes:
-              adj_padded[:num_nodes, :num_nodes] += sp.eye(num_nodes)
-          else:
-              adj_padded += sp.eye(num_nodes)
-      # adj_padded+= sp.eye(max_num_nodes)
+        adj_padded = lil_matrix((max_num_nodes, max_num_nodes))
+        if max_num_nodes == num_nodes:
+            adj_padded = lil_matrix(self.list_adjs[index], dtype=np.int8)
+        else:
+            adj_padded[:num_nodes, :num_nodes] = self.list_adjs[index][:, :]
+        adj_padded.setdiag(0)
+        nodeDegree = adj_padded.sum(-1)
+        if not ignore_isolate_nodes:
+            nodeDegree += 1
+        if self_for_none:
+            adj_padded.setdiag(1)
+        else:
+            if max_num_nodes != num_nodes:
+                adj_padded[:num_nodes, :num_nodes] += sp.eye(num_nodes)
+            else:
+                adj_padded += sp.eye(num_nodes)
 
+        if type(self.list_Xs[index]) != np.ndarray:
+            diag = np.ones(max_num_nodes)
+            if self.set_diag_of_isol_Zer:
+                diag[num_nodes:] = 0
+            X = np.identity(max_num_nodes)
+            np.fill_diagonal(X, diag)
+            featureVec = np.array(adj_padded.sum(1)) / max_num_nodes
+            X = numpy.concatenate([X, featureVec], 1)
+        else:
+            X = self.list_Xs[index]
+        X = torch.tensor(X).float()
 
+        # ── node onehot: (N, D) → (max_num_nodes, D) ─────────────────────
+        node_oh_padded = None
+        if self.list_node_onehot is not None and self.list_node_onehot[index] is not None:
+            noh = self.list_node_onehot[index]          # (N, D)
+            D   = noh.shape[1]
+            node_oh_padded = np.zeros((max_num_nodes, D), dtype=np.float32)
+            node_oh_padded[:num_nodes, :] = noh
 
-      if type(self.list_Xs[index]) != np.ndarray:
-          # if the feature is not exist we use identical matrix
-          # X = np.identity( max_num_nodes)
-          diag = np.ones(max_num_nodes)
-          if (self.set_diag_of_isol_Zer==True):
-            diag[num_nodes:]=0
-          X = np.identity( max_num_nodes)
-          np.fill_diagonal(X, diag)
+        # ── edge onehot: (C, N, N) → (C, max_num_nodes, max_num_nodes) ───
+        edge_oh_padded = None
+        if self.list_edge_onehot is not None and self.list_edge_onehot[index] is not None:
+            eoh = self.list_edge_onehot[index]          # (C, N, N)
+            C   = eoh.shape[0]
+            edge_oh_padded = np.zeros((C, max_num_nodes, max_num_nodes), dtype=np.float32)
+            edge_oh_padded[:, :num_nodes, :num_nodes] = eoh
 
-          featureVec = np.array(adj_padded.sum(1)) / max_num_nodes
-          X= numpy.concatenate([X,featureVec], 1)
+        bfs_indexes = set()
+        if bfs_max_length is not None:
+            while len(bfs_indexes) < bfs_max_length:
+                indexes     = set(range(adj_padded.shape[0])).difference(
+                                  bfs_indexes).difference(np.where(nodeDegree == 0)[0])
+                source_indx = list(indexes)[np.random.randint(len(indexes))]
+                bfs_index   = scipy.sparse.csgraph.breadth_first_order(adj_padded, source_indx)
+                portionSize = min(len(bfs_index[0]), int(bfs_max_length / 5))
+                if portionSize + len(bfs_indexes) >= bfs_max_length:
+                    bfs_indexes = bfs_indexes.union(
+                        bfs_index[0][:(bfs_max_length - len(bfs_indexes))])
+                else:
+                    bfs_indexes = bfs_indexes.union(bfs_index[0][:portionSize])
+            bfs_indexes = list(bfs_indexes)
 
-          # # X = adj_padded.sum(-1)
-          # X = np.concatenate((np.identity( max_num_nodes),adj_padded.sum(-1)),1)
-      else:
-          #ToDo: deal with data with diffrent number of nodes
-          X = self.list_Xs[index]
+        if len(bfs_indexes) == 0:
+            bfs_indexes = list(range(max_num_nodes))
 
-      # adj_padded, X = self.permute(adj_padded, X)
+        return adj_padded, X, num_nodes, bfs_indexes, node_oh_padded, edge_oh_padded
 
-      # # Converting sparse matrix to sparse tensor
-      # coo = adj_padded.tocoo()
-      # values = coo.data
-      # indices = np.vstack((coo.row, coo.col))
-      # i = torch.LongTensor(indices)
-      # v = torch.FloatTensor(values)
-      # shape = coo.shape
-      # adj_padded = torch.sparse.FloatTensor(i, v, torch.Size(shape)).to_dense()
-      X = torch.tensor(X).float()
-      # adj_padded, X = permute([adj_padded], [X])
-      # adj_padded = adj_padded[0]
-      # X = X[0]
-      bfs_indexes =set()
-      if bfs_max_length!=None:
-          while(len(bfs_indexes)<bfs_max_length):
-              indexes = set(range(adj_padded.shape[0])).difference(bfs_indexes).difference(np.where(nodeDegree==0)[0])
+    def shuffle(self):
+        indx = list(range(len(self.list_adjs)))
+        np.random.shuffle(indx)
 
-              source_indx = list(indexes)[np.random.randint(len(indexes))]
-              bfs_index = scipy.sparse.csgraph.breadth_first_order(adj_padded, source_indx)
-              portionSize = min(len(bfs_index[0]),int(bfs_max_length/5))
-              if (portionSize+len(bfs_indexes)>=bfs_max_length):
-                  bfs_indexes =bfs_indexes.union(bfs_index[0][:(bfs_max_length-len(bfs_indexes))])
-              else:
-                  bfs_indexes = bfs_indexes.union(bfs_index[0][:portionSize])
-          bfs_indexes = list(bfs_indexes)
+        if self.list_Xs is not None:
+            self.list_Xs = [self.list_Xs[i] for i in indx]
+        else:
+            warnings.warn("X is empty")
 
-      if len(bfs_indexes)==0:
-          bfs_indexes = list(range(max_num_nodes))
+        self.list_adjs = [self.list_adjs[i] for i in indx]
 
-          # nodeDegree = adj_padded.sum(-1)
-          # indexes = set(range(adj_padded.shape[0]))
-          # non_isolate_nodes = list(set(range(adj_padded.shape[0])).difference(np.where(nodeDegree<2)[0]))
-          # source_indx = non_isolate_nodes[np.random.randint(len(non_isolate_nodes))]
-          # bfs_indexes = scipy.sparse.csgraph.breadth_first_order(adj_padded, source_indx)
-          # bfs_indexes = np.concatenate((bfs_indexes[0],np.where(nodeDegree<2)[0]))
-      # none_selected = set(range(adj_padded.shape[0])).difference(set(bfs_indexes))
+        if self.list_node_onehot is not None:
+            self.list_node_onehot = [self.list_node_onehot[i] for i in indx]
+        if self.list_edge_onehot is not None:
+            self.list_edge_onehot = [self.list_edge_onehot[i] for i in indx]
 
-      # index = bfs_indexes + list(none_selected)
-      # adj_padded= adj_padded[:,index]
-      # adj_padded = adj_padded[index, :]
-      # X = X[:,index]
-      # X = X[index, :]
+        if self.featureList is not None:
+            for el_i, element in enumerate(self.featureList):
+                self.featureList[el_i] = element[indx]
+        else:
+            warnings.warn("Graph structural feature is an empty Set")
 
-      return adj_padded, X, num_nodes,bfs_indexes
-  # def process(self,index,self_for_none, padded_to=None,):
-  #
-  #     num_nodes = self.list_adjs[index].shape[0]
-  #     if self.paading == True:
-  #         max_num_nodes = self.max_num_nodes if padded_to==None else padded_to
-  #     else:
-  #         max_num_nodes = num_nodes
-  #     adj_padded = lil_matrix((max_num_nodes,max_num_nodes)) # make the size equal to maximum graph
-  #     if max_num_nodes==num_nodes:
-  #         adj_padded = lil_matrix(self.list_adjs[index], dtype=np.int8)
-  #     else:
-  #       adj_padded[:num_nodes, :num_nodes] = self.list_adjs[index][:, :]
-  #     adj_padded -= sp.dia_matrix((adj_padded.diagonal()[np.newaxis, :], [0]), shape=adj_padded.shape)
-  #     if self_for_none:
-  #       adj_padded += sp.eye(max_num_nodes)
-  #     else:
-  #         if max_num_nodes != num_nodes:
-  #             adj_padded[:num_nodes, :num_nodes] += sp.eye(num_nodes)
-  #         else:
-  #             adj_padded += sp.eye(num_nodes)
-  #     # adj_padded+= sp.eye(max_num_nodes)
-  #
-  #
-  #
-  #
-  #     if self.list_Xs == None:
-  #         # if the feature is not exist we use identical matrix
-  #         X = np.identity( max_num_nodes)
-  #         node_degree = adj_padded.sum(0)
-  #         X = np.concatenate((node_degree.transpose(), X),1 )
-  #
-  #     else:
-  #         #ToDo: deal with data with diffrent number of nodes
-  #         X = self.list_Xs[index].toarray()
-  #
-  #     # adj_padded, X = self.permute(adj_padded, X)
-  #
-  #     # Converting sparse matrix to sparse tensor
-  #     coo = adj_padded.tocoo()
-  #     values = coo.data
-  #     indices = np.vstack((coo.row, coo.col))
-  #     i = torch.LongTensor(indices)
-  #     v = torch.FloatTensor(values)
-  #     shape = coo.shape
-  #     adj_padded = torch.sparse.FloatTensor(i, v, torch.Size(shape)).to_dense()
-  #     X = torch.tensor(X, dtype=torch.int8)
-  #
-  #     return adj_padded.reshape(1,*adj_padded.shape), X.reshape(1, *X.shape), num_nodes
+        if self.labels is not None:
+            self.labels = [self.labels[i] for i in indx]
+        else:
+            warnings.warn("Label is an empty Set")
 
-  # def permute(self, list_adj, X):
-  #           p = list(range(list_adj.shape[0]))
-  #           np.random.shuffle(p)
-  #           # for i in range(list_adj.shape[0]):
-  #           #     list_adj[:, i] = list_adj[p, i]
-  #           #     X[:, i] = X[p, i]
-  #           # for i in range(list_adj.shape[0]):
-  #           #     list_adj[i, :] = list_adj[i, p]
-  #           #     X[i, :] = X[i, p]
-  #           list_adj[:, :] = list_adj[p, :]
-  #           list_adj[:, :] = list_adj[:, p]
-  #           if X !=None:
-  #               X[:, :] = X[p, :]
-  #               X[:, :] = X[:, p]
-  #           return list_adj , X
+        if len(self.subgraph_indexes) > 0:
+            self.adj_s            = [self.adj_s[i]            for i in indx]
+            self.x_s              = [self.x_s[i]              for i in indx]
+            self.node_onehot_s    = [self.node_onehot_s[i]    for i in indx]
+            self.edge_onehot_s    = [self.edge_onehot_s[i]    for i in indx]
+            self.num_nodes        = [self.num_nodes[i]        for i in indx]
+            self.subgraph_indexes = [self.subgraph_indexes[i] for i in indx]
 
-  def shuffle(self):
-
-
-      indx = list(range(len(self.list_adjs)))
-      np.random.shuffle(indx)
-
-      if  self.list_Xs !=None:
-        self.list_Xs=[self.list_Xs[i] for i in indx]
-      else:
-          warnings.warn("X is empty")
-
-      self.list_adjs=[self.list_adjs[i] for i in indx]
-
-      # if the graphs have extracted features
-      if self.featureList !=None:
-          for el_i , element in enumerate(self.featureList):
-              self.featureList[el_i] = element[indx]
-      else:
-          warnings.warn("Graph structureal feature is an empty Set")
-
-      if self.labels != None:
-          self.labels= [self.labels[i] for i in indx]
-      else:
-           warnings.warn("Label is an empty Set")
-
-      if len(self.subgraph_indexes)>0:
-          self.adj_s= [self.adj_s[i] for i in indx]
-          self.x_s = [self.x_s[i] for i in indx]
-          self.num_nodes = [self.num_nodes[i] for i in indx]
-          self.subgraph_indexes = [self.subgraph_indexes[i] for i in indx]
-
-
-  def __getitem__(self, index):
-        'Generates one sample of data'
-        # return self.processed_adjs[index], self.processed_Xs[index],torch.tensor(self.list_adjs[index].todense(), dtype=torch.float32)
+    def __getitem__(self, index):
         return self.processed_adjs[index], self.processed_Xs[index]
+
+
 # generate a list of graph
 def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, limited_to=None):
   list_adj = []
   list_x =[]
   list_labels = []
+  list_node_feature = []    
+  list_edge_feature = []    
 
   if graph_type=="IMDBBINARY":
       data = dgl.data.GINDataset(name='IMDBBINARY', self_loop=False)
@@ -527,31 +456,95 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
       # np.save('PROTEINS.npy', graphs_to_writeOnDisk, allow_pickle=True)
   elif graph_type == "QM9":
-      data = dgl.data.QM9Dataset(label_keys=['mu'])
-      for i, graph in enumerate(data):
-          # if i==1000:
-          #     break
-          adj = dgl.to_homo(graph[0]).adjacency_matrix().to_dense().numpy()
-          list_adj.append(scipy.sparse.csr_matrix(adj))
-          list_x.append(None)
-          # list_labels.append(labels[i].cpu().item())
+    #   data = dgl.data.QM9Dataset(label_keys=['mu'])
+    #   for i, graph in enumerate(data):
+    #       # if i==1000:
+    #       #     break
+    #       adj = graph[0].adj().to_dense().cpu().numpy()
+    #       list_adj.append(scipy.sparse.csr_matrix(adj))
+    #       list_x.append(None)
+    #       list_labels.append(None)
+    #       print(i)
 
-  elif graph_type=="ogbg-molbbbp":
-      # https://ogb.stanford.edu/docs/graphprop/
-      from ogb.graphproppred import DglGraphPropPredDataset, collate_dgl
-      d_name = "ogbg-molbbbp"  # ogbg-molhiv   'ogbg-code2' ogbg-ppa
-      dataset = DglGraphPropPredDataset(name=d_name)
+        from torch_geometric.datasets import QM9
+        data = QM9(root="./data/QM9")
+
+        # ── node feature metadata ─────────────────────────────────
+        # Two columns: col-0 = atom_type (0-4), col-1 = num_h (0-3)
+        node_feature_info = {
+            0: {'feature_name': 'atom_type'},
+            1: {'feature_name': 'num_h'},
+        }
+
+        # ── edge feature metadata ─────────────────────────────────
+        # One edge feature: bond_type encoded in col-2 of list_edge_feature[i]
+        # Scan dataset once to find all unique bond-type values globally
+        all_bond_vals = set()
+        for mol in data:
+            if mol.edge_attr is not None and mol.edge_attr.size(0) > 0:
+                all_bond_vals.update(
+                    torch.argmax(mol.edge_attr, dim=1).tolist()
+                )
+        edge_feature_info = {
+            0: {
+                'feature_name':  'bond_type',
+                'unique_values': sorted(int(v) for v in all_bond_vals),
+            }
+        }
+
+        for i, mol in enumerate(data):
+            if i % 10000 == 0:
+                print(f"QM9 loading: {i}/{len(data)}")
+
+            N          = mol.num_nodes
+            edge_index = mol.edge_index
+
+            # adjacency
+            adj = scipy.sparse.csr_matrix(
+                (np.ones(edge_index.size(1)),
+                 (edge_index[0].numpy(), edge_index[1].numpy())),
+                shape=(N, N)
+            )
+            list_adj.append(adj)
+            list_x.append(None)
+            list_labels.append(None)
+
+            # node features  →  (N, 2)  int array
+            X         = mol.x
+            atom_type = torch.argmax(X[:, 0:5], dim=1)
+            num_h     = torch.clamp(X[:, 10].long(), max=3)
+            list_node_feature.append(
+                torch.stack([atom_type, num_h], dim=1).numpy().astype(np.int64)
+            )
+
+            # edge features  →  (E, 3)  int array  [src, dst, bond_type]
+            if mol.edge_attr is not None and mol.edge_attr.size(0) > 0:
+                bond_type = torch.argmax(mol.edge_attr, dim=1)
+                list_edge_feature.append(
+                    torch.stack([edge_index[0], edge_index[1], bond_type], dim=1)
+                    .numpy().astype(np.int64)
+                )
+            else:
+                list_edge_feature.append(None)
 
 
-      list_adj = []
-      for graph, label in dataset:
-          list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
-          # list_x.append(graph.ndata['feat'])
-          list_x.append(None)
-          list_labels.append(label.cpu().item())
+    #   print("done")
+#   elif graph_type=="ogbg-molbbbp":
+#       # https://ogb.stanford.edu/docs/graphprop/
+#       from ogb.graphproppred import DglGraphPropPredDataset, collate_dgl
+#       d_name = "ogbg-molbbbp"  # ogbg-molhiv   'ogbg-code2' ogbg-ppa
+#       dataset = DglGraphPropPredDataset(name=d_name)
 
-      # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
-      # np.save('ogbg-molbbbp.npy', graphs_to_writeOnDisk, allow_pickle=True)
+
+#       list_adj = []
+#       for graph, label in dataset:
+#           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
+#           # list_x.append(graph.ndata['feat'])
+#           list_x.append(None)
+#           list_labels.append(label.cpu().item())
+
+#       # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
+#       # np.save('ogbg-molbbbp.npy', graphs_to_writeOnDisk, allow_pickle=True)
 
 
       # list_labels = [adj.sum() for adj in list_adj]
@@ -793,68 +786,97 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 
 
 
-  def return_subset(A,X,Y, limited_to):
-      indx = list(range(len(A)))
-      random.shuffle(indx)
-      A = [A[i] for i in indx]
-      X = [X[i] for i in indx]
-      if Y!=None and len(Y)!=0 : Y = [Y[i] for i in indx]
-
-      if limited_to != None:
-
-          A = A[:limited_to]
-          X = X[:limited_to]
-          if Y!=None and len(Y)!=0 : Y = Y[:limited_to]
-      return A,X,Y
+  def return_subset(A, X, Y, NF, EF, limited_to):
+        indx = list(range(len(A)))
+        random.shuffle(indx)
+        A  = [A[i]  for i in indx]
+        X  = [X[i]  for i in indx]
+        NF = [NF[i] for i in indx]
+        EF = [EF[i] for i in indx]
+        if Y is not None and len(Y) != 0:
+            Y = [Y[i] for i in indx]
+        if limited_to is not None:
+            A, X, NF, EF = A[:limited_to], X[:limited_to], NF[:limited_to], EF[:limited_to]
+            if Y is not None and len(Y) != 0:
+                Y = Y[:limited_to]
+        return A, X, Y, NF, EF
 
 
   if return_labels ==True:
       if len(list_labels)==0:
           list_labels = None
 
-  return return_subset(list_adj, list_x, list_labels, limited_to)
+  list_adj, list_x, list_labels, list_node_feature, list_edge_feature = \
+      return_subset(list_adj, list_x, list_labels, list_node_feature, list_edge_feature, limited_to)
 
-def data_split(graph_lis, list_x=None, list_label=None):
-    #suffle the data
+  return (list_adj, list_x, list_labels,
+          list_node_feature, list_edge_feature,
+          node_feature_info, edge_feature_info)
+
+def data_split(graph_lis, list_x=None, list_label=None,
+               list_node_onehot=None, list_edge_onehot=None):
+
     random.seed(123)
     index = list(range(len(graph_lis)))
     random.shuffle(index)
+
     graph_lis = [graph_lis[i] for i in index]
 
-    if list_x!=None:
+    if list_x is not None:
         list_x = [list_x[i] for i in index]
-
-    if list_label!=None:
+    if list_label is not None:
         list_label = [list_label[i] for i in index]
+    if list_node_onehot is not None:
+        list_node_onehot = [list_node_onehot[i] for i in index]
+    if list_edge_onehot is not None:
+        list_edge_onehot = [list_edge_onehot[i] for i in index]
 
-    #----------------------------------------
+    # ── split ────────────────────────────────────────────────────
+    n       = len(graph_lis)
+    n_train = int(0.8 * n)
 
-    graph_test_len = len(graph_lis)
+    def split(lst):
+        if lst is None:
+            return None, None
+        return lst[:n_train], lst[n_train:]
 
-    graph_train = graph_lis[0:int(0.8 * graph_test_len)]  # train
-    # graph_validate = graph_lis[0:int(0.2 * graph_test_len)]  # validate
-    graph_test = graph_lis[int(0.8 * graph_test_len):]  # test on a hold out test set
+    graph_train,      graph_test      = split(graph_lis)
+    list_x_train,     list_x_test     = split(list_x)
+    list_label_train, list_label_test = split(list_label)
+    list_noh_train,   list_noh_test   = split(list_node_onehot)
+    list_eoh_train,   list_eoh_test   = split(list_edge_onehot)
 
-    list_x_train = list_x_test = None
-    if list_x!=None:
-        list_x_train = list_x[0:int(0.8 * graph_test_len)]  # train
-        list_x_test = list_x[int(0.8 * graph_test_len):]
-
-    list_label_train = list_label_test = None
-    if list_label!=None:
-        list_label_train = list_label[0:int(0.8 * graph_test_len)]  # train
-        list_label_test = list_label[int(0.8 * graph_test_len):]
-
-    return  graph_train, graph_test, list_x_train , list_x_test,list_label_train, list_label_test
+    return (graph_train,      graph_test,
+            list_x_train,     list_x_test,
+            list_label_train, list_label_test,
+            list_noh_train,   list_noh_test,
+            list_eoh_train,   list_eoh_test)
 
 # list_adj, list_x = list_graph_loader("grid")
 # list_graph = Datasets(list_adj,self_for_none, None)
 
-def BFS(list_adj):
+def BFS(list_adj, list_node_feature=None, list_edge_feature=None):
     for i, _ in enumerate(list_adj):
-        bfs_index = scipy.sparse.csgraph.breadth_first_order(list_adj[i],0)
-        list_adj[i] =list_adj[i][bfs_index[0],:][:,bfs_index[0]]
-    return list_adj
+        order = scipy.sparse.csgraph.breadth_first_order(list_adj[i], 0)[0]
+
+        # adjacency
+        list_adj[i] = list_adj[i][order, :][:, order]
+
+        # node features: rows are nodes → reorder rows
+        if list_node_feature is not None and list_node_feature[i] is not None:
+            list_node_feature[i] = list_node_feature[i][order, :]
+
+        # edge features: remap src/dst node indices
+        if list_edge_feature is not None and list_edge_feature[i] is not None:
+            inv_order = np.empty_like(order)
+            inv_order[order] = np.arange(len(order))
+
+            ef = list_edge_feature[i].copy()
+            ef[:, 0] = inv_order[ef[:, 0]]   # remap src
+            ef[:, 1] = inv_order[ef[:, 1]]   # remap dst
+            list_edge_feature[i] = ef
+
+    return list_adj, list_node_feature, list_edge_feature
 
 def BFSWithAug(list_adj,X_s, label_s, number_of_per = 1):
     list_adj_ = []
@@ -1001,3 +1023,285 @@ if __name__ == '__main__':
         G = nx.from_numpy_matrix(G.toarray())
         plotter.plotG(G,"DD")
 
+"""
+DataWrapper
+===========
+Reads directly from GraphVAE Datasets objects (list_graphs / list_test_graphs)
+and produces a preprocessor-compatible object for
+RelationalMotifCounter.count_batch().
+
+Usage
+-----
+    merged = merge_datasets(list_graphs, list_test_graphs)  # sanity check
+    merged = merge_datasets(list_graphs)                    # training only
+
+    wrapper = DataWrapper(
+        merged,
+        motif_counter.relation_keys,
+        node_onehot_info = node_onehot_info,
+        device           = 'cuda',
+    )
+    counts     = motif_counter.count_batch(wrapper, batch_size=5000)
+    aggregated = counts.sum(0)
+"""
+
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  Merge helper
+# ════════════════════════════════════════════════════════════════════════
+
+def merge_datasets(train_dataset, test_dataset=None):
+    """
+    Merge one or two Datasets objects into a plain dict of padded lists.
+
+    Parameters
+    ----------
+    train_dataset : Datasets
+    test_dataset  : Datasets | None
+        # ── SANITY CHECK MERGE BLOCK ─────────────────────────────────
+        # Pass test_dataset to merge train + test (sanity check mode).
+        # Set test_dataset=None or omit it for training-only mode.
+        # ── END SANITY CHECK MERGE BLOCK ─────────────────────────────
+    """
+    sources = [train_dataset]
+    if test_dataset is not None:
+        sources.append(test_dataset)
+
+    def _get_list(ds, attr, default_len):
+        lst = getattr(ds, attr, None)
+        if lst:
+            return list(lst)
+        return [None] * default_len
+
+    merged = {
+        'processed_adjs':        [],
+        'processed_Xs':          [],
+        'processed_node_onehot': [],
+        'processed_edge_onehot': [],
+    }
+
+    for ds in sources:
+        n = len(ds.processed_adjs)
+        merged['processed_adjs']        += list(ds.processed_adjs)
+        merged['processed_Xs']          += list(ds.processed_Xs)
+        merged['processed_node_onehot'] += _get_list(ds, 'processed_node_onehot', n)
+        merged['processed_edge_onehot'] += _get_list(ds, 'processed_edge_onehot', n)
+
+    merged['max_num_nodes'] = max(ds.max_num_nodes for ds in sources)
+
+    n_train = len(train_dataset.processed_adjs)
+    n_test  = len(test_dataset.processed_adjs) if test_dataset is not None else 0
+    print(f"  [merge_datasets] {n_train} train"
+          + (f" + {n_test} test = {n_train + n_test} total" if n_test else " (training only)")
+          + f"  |  N_max={merged['max_num_nodes']}")
+
+    return merged
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  feature_onehot_mapping  built directly from node_onehot_info
+# ════════════════════════════════════════════════════════════════════════
+
+def _build_fom(node_onehot_info: Dict) -> Dict:
+    """
+    Build feature_onehot_mapping = {col_idx: {val_int: oh_col_idx}}
+    directly from node_onehot_info.
+
+    node_onehot_info structure:
+        {oh_col_idx: {'feature_name': str, 'value': int}}
+
+    e.g.  {0: {'feature_name': 'atom_type', 'value': 0},
+           1: {'feature_name': 'atom_type', 'value': 1},
+           ...
+           5: {'feature_name': 'num_h',     'value': 0},
+           ...}
+
+    col_idx is the ORDER of first appearance of each feature name
+    (atom_type appears first → col 0, num_h appears second → col 1).
+    This matches the column order in list_node_feature exactly because
+    both are produced from the same loop in list_graph_loader.
+
+    Result for QM9:
+        {0: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4},   # atom_type
+         1: {0: 5, 1: 6, 2: 7, 3: 8}}           # num_h
+    """
+    name_to_col: Dict[str, int] = {}
+    col_counter = 0
+    mapping: Dict[int, Dict[int, int]] = {}
+
+    for oh_col in sorted(node_onehot_info.keys()):
+        meta = node_onehot_info[oh_col]
+        name = meta['feature_name']
+        val  = int(meta['value'])
+
+        # assign col_idx on first encounter of this feature name
+        if name not in name_to_col:
+            name_to_col[name] = col_counter
+            col_counter += 1
+
+        col_idx = name_to_col[name]
+        if col_idx not in mapping:
+            mapping[col_idx] = {}
+        mapping[col_idx][val] = int(oh_col)
+
+    return mapping
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  DataWrapper
+# ════════════════════════════════════════════════════════════════════════
+
+class DataWrapper:
+    """
+    Stacks already-padded Datasets lists into pin-memory CPU tensors
+    matching the DataPreprocessor interface expected by count_batch.
+
+    Parameters
+    ----------
+    merged : dict           — output of merge_datasets()
+    relation_keys : list    — motif_counter.relation_keys  e.g. ['edges']
+    node_onehot_info : dict — from build_onehot_features()
+                              {oh_col: {'feature_name': str, 'value': int}}
+    device : str
+    """
+
+    def __init__(
+        self,
+        merged:           dict,
+        relation_keys:    List[str],
+        node_onehot_info: Optional[Dict] = None,
+        device:           str = 'cuda',
+    ):
+        self.device        = device
+        self.relation_keys = relation_keys
+
+        # ── feature_onehot_mapping ────────────────────────────────────
+        if node_onehot_info:
+            self.feature_onehot_mapping = _build_fom(node_onehot_info)
+            print(f"  [DataWrapper] feature_onehot_mapping:")
+            for col, val_map in sorted(self.feature_onehot_mapping.items()):
+                print(f"    col {col} → {val_map}")
+        else:
+            self.feature_onehot_mapping = {}
+            print("  [DataWrapper] Warning: node_onehot_info not provided "
+                  "— feature_onehot_mapping is empty.")
+
+        adjs     = merged['processed_adjs']
+        Xs       = merged['processed_Xs']
+        node_ohs = merged['processed_node_onehot']
+        edge_ohs = merged['processed_edge_onehot']
+        N_max    = int(merged['max_num_nodes'])
+
+        self.num_graphs = len(adjs)
+        self.N_max      = N_max
+
+        print(f"  [DataWrapper] Stacking {self.num_graphs} graphs  N_max={N_max} ...")
+
+        # ── features (G, N_max, F) ────────────────────────────────────
+        self.all_features = _stack_2d(Xs, N_max)
+
+        # ── node one-hot (G, N_max, D) ────────────────────────────────
+        has_noh = any(x is not None for x in node_ohs)
+        if has_noh:
+            D = next(x for x in node_ohs if x is not None).shape[-1]
+            self.all_feat_onehot  = _stack_2d(node_ohs, N_max, D=D)
+            self.total_onehot_dim = D
+        else:
+            self.all_feat_onehot  = torch.zeros(
+                self.num_graphs, N_max, 1).pin_memory()
+            self.total_onehot_dim = 1
+
+        # ── adjacency {rel: (G, N_max, N_max)} ───────────────────────
+        stacked_adj  = _stack_adj(adjs, N_max)
+        self.all_adj = {rk: stacked_adj for rk in relation_keys}
+
+        # ── edge one-hot list[(G, C, N_max, N_max)] ──────────────────
+        has_eoh = any(x is not None for x in edge_ohs)
+        if has_eoh:
+            C           = next(x for x in edge_ohs if x is not None).shape[0]
+            stacked_eoh = _stack_3d(edge_ohs, C, N_max)
+            self.all_edge          = [stacked_eoh]
+            self.has_edge_features = True
+        else:
+            self.all_edge          = None
+            self.has_edge_features = False
+
+        print(f"  [DataWrapper] Ready."
+              f"  features={tuple(self.all_features.shape)}"
+              f"  onehot={tuple(self.all_feat_onehot.shape)}"
+              f"  adj={tuple(stacked_adj.shape)}"
+              + (f"  edge={tuple(self.all_edge[0].shape)}"
+                 if self.all_edge else "  edge=None"))
+
+    # ------------------------------------------------------------------
+    #  DataPreprocessor-compatible interface (called by count_batch)
+    # ------------------------------------------------------------------
+
+    def get_batch(self, start: int, end: int):
+        """
+        Returns
+        -------
+        feat_b        (B, N_max, F)
+        feat_onehot_b (B, N_max, D)
+        adj_b         {rel: (B, N_max, N_max)}
+        edge_b        list[(B, C, N_max, N_max)] | None
+        """
+        dev = self.device
+        kw  = dict(non_blocking=True)
+        feat_b        = self.all_features[start:end].to(dev, **kw)
+        feat_onehot_b = self.all_feat_onehot[start:end].to(dev, **kw)
+        adj_b         = {rk: self.all_adj[rk][start:end].to(dev, **kw)
+                         for rk in self.relation_keys}
+        edge_b        = ([e[start:end].to(dev, **kw) for e in self.all_edge]
+                         if self.all_edge is not None else None)
+        return feat_b, feat_onehot_b, adj_b, edge_b
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  Stacking helpers
+# ════════════════════════════════════════════════════════════════════════
+
+def _t(x) -> torch.Tensor:
+    if torch.is_tensor(x):
+        return x.float().cpu()
+    return torch.tensor(np.asarray(x, dtype=np.float32))
+
+
+def _stack_2d(lst, N_max: int, D: int = None) -> torch.Tensor:
+    """
+    Stack list of (N_i, D) tensors/arrays (or None) → (G, N_max, D).
+    D is inferred from first non-None entry if not provided.
+    """
+    first = next(x for x in lst if x is not None)
+    D = D or _t(first).shape[-1]
+    out = torch.zeros(len(lst), N_max, D)
+    for g, x in enumerate(lst):
+        if x is None:
+            continue
+        t = _t(x)
+        n = min(t.shape[0], N_max)
+        out[g, :n] = t[:n]
+    return out.pin_memory()
+
+
+def _stack_adj(adjs, N_max: int) -> torch.Tensor:
+    """Stack list of sparse/dense (N_i, N_i) → (G, N_max, N_max)."""
+    out = torch.zeros(len(adjs), N_max, N_max)
+    for g, a in enumerate(adjs):
+        t = torch.tensor(a.toarray(), dtype=torch.float32) if sp.issparse(a) else _t(a)
+        n = min(t.shape[0], N_max)
+        out[g, :n, :n] = t[:n, :n]
+    return out.pin_memory()
+
+
+def _stack_3d(edge_ohs, C: int, N_max: int) -> torch.Tensor:
+    """Stack list of (C, N_i, N_i) | None → (G, C, N_max, N_max)."""
+    out = torch.zeros(len(edge_ohs), C, N_max, N_max)
+    for g, x in enumerate(edge_ohs):
+        if x is None:
+            continue
+        t = _t(x)
+        n = min(t.shape[1], N_max)
+        out[g, :, :n, :n] = t[:, :n, :n]
+    return out.pin_memory()
