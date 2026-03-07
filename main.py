@@ -30,11 +30,11 @@ keepThebest = False
 
 parser = argparse.ArgumentParser(description='Kernel VGAE')
 
-parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Epochs to train the model", type=int)
+parser.add_argument('-e', dest="epoch_number", default=2000, help="Number of Epochs to train the model", type=int)
 parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
 parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
 parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
-parser.add_argument('-dataset', dest="dataset", default="QM9",
+parser.add_argument('-dataset', dest="dataset", default="grid",
                     help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, triangular_grid, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, grid, community, citeseer, lobster, DD")  # citeceer: ego; DD:protein
 parser.add_argument('-graphEmDim', dest="graphEmDim", default=1024, help="the dimention of graph Embeding LAyer; z")
 parser.add_argument('-graph_save_path', dest="graph_save_path", default=None,
@@ -65,7 +65,7 @@ parser.add_argument('-ideal_Evalaution', dest="ideal_Evalaution" , default=False
 parser.add_argument('--database_name', type=str, default='qm9')
 parser.add_argument('--graph_type', type=str, default='homogeneous',
                     choices=['homogeneous', 'heterogeneous'])
-parser.add_argument('--motif_loss', type=bool, default=True)
+parser.add_argument('--motif_loss', type=bool, default=False)
 parser.add_argument('--rule_prune', type=bool, default=False)
 parser.add_argument('--interactive', action='store_true', default=False)
 parser.add_argument('--device', type=str, default='cuda',
@@ -87,7 +87,7 @@ parser.add_argument('--batch_size', type=int, default=50000,
                             '8 GB → 2000 | 16 GB → 5000 | 24 GB+ → 30000.')
 parser.add_argument('--sanity_check_local_mults',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='Run sanity check for local multiplicities using merged data.')
 #=======================================
 

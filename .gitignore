@@ -7,5 +7,10 @@ data/geometric/
 data/QM9/
 db/
 dataset/
+dataset_cached/
 graph_cache/
 saved_state/
+
+# Python bytecode/cache
+__pycache__/
+*.py[cod]
