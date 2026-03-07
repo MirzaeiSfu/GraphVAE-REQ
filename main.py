@@ -360,7 +360,8 @@ def EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_na
     graphs_to_writeOnDisk = [nx.to_numpy_array(G) for G in generated_graphs]
     if (onlyTheBigestConCom==False):
         if Save_generated:
-            np.save(graph_save_path + 'generatedGraphs_adj_' + str(_f_name) + '.npy', graphs_to_writeOnDisk,
+            np.save(graph_save_path + 'generatedGraphs_adj_' + str(_f_name) + '.npy',
+                    np.array(graphs_to_writeOnDisk, dtype=object),
                     allow_pickle=True)
 
 
@@ -380,11 +381,14 @@ def EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_na
     logging.info(statistic_)
     if Save_generated:
         graphs_to_writeOnDisk = [nx.to_numpy_array(G) for G in generated_graphs]
-        np.save(graph_save_path + 'Single_comp_generatedGraphs_adj_' + str(_f_name) + '.npy', graphs_to_writeOnDisk,
+        np.save(graph_save_path + 'Single_comp_generatedGraphs_adj_' + str(_f_name) + '.npy',
+                np.array(graphs_to_writeOnDisk, dtype=object),
                 allow_pickle=True)
 
         graphs_to_writeOnDisk = [G.toarray() for G in test_list_adj]
-        np.save(graph_save_path + 'testGraphs_adj_.npy', graphs_to_writeOnDisk, allow_pickle=True)
+        np.save(graph_save_path + 'testGraphs_adj_.npy',
+                np.array(graphs_to_writeOnDisk, dtype=object),
+                allow_pickle=True)
     return  statistic_
 
 def get_subGraph_features(org_adj, subgraphs_indexes, kernel_model):
@@ -650,7 +654,9 @@ if ideal_Evalaution:
     logging.info(mmd_eval(fifty_fifty_dataset[:int(len(fifty_fifty_dataset)/2)],fifty_fifty_dataset[int(len(fifty_fifty_dataset)/2):],diam=True))
 
     graphs_to_writeOnDisk = [nx.to_numpy_array(G) for  G in fifty_fifty_dataset]
-    np.save(graph_save_path+dataset+'_dataset.npy', graphs_to_writeOnDisk, allow_pickle=True)
+    np.save(graph_save_path+dataset+'_dataset.npy',
+            np.array(graphs_to_writeOnDisk, dtype=object),
+            allow_pickle=True)
 print("#------------------------------------------------------")
 
 SubGraphNodeNum = subgraphSize if subgraphSize != None else list_graphs.max_num_nodes
