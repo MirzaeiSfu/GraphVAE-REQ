@@ -11,6 +11,9 @@ from stat_rnn import mmd_eval
 import time
 import timeit
 import dgl
+from util import *
+from motif_store import RuleBasedMotifStore
+from motif_counter import RelationalMotifCounter
 
 np.random.seed(0)
 random.seed(0)
@@ -31,7 +34,7 @@ parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Ep
 parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
 parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
 parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
-parser.add_argument('-dataset', dest="dataset", default="triangular_grid",
+parser.add_argument('-dataset', dest="dataset", default="QM9",
                     help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, triangular_grid, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, grid, community, citeseer, lobster, DD")  # citeceer: ego; DD:protein
 parser.add_argument('-graphEmDim', dest="graphEmDim", default=1024, help="the dimention of graph Embeding LAyer; z")
 parser.add_argument('-graph_save_path', dest="graph_save_path", default=None,
@@ -56,6 +59,40 @@ parser.add_argument('-plot_testGraphs', dest="plot_testGraphs", default=True, he
                     type=float)
 parser.add_argument('-ideal_Evalaution', dest="ideal_Evalaution" , default=False, help="if you want to comapre the 50%50 subset of dataset comparision?!", type=bool)
 
+
+
+#=======================================
+parser.add_argument('--database_name', type=str, default='qm9')
+parser.add_argument('--graph_type', type=str, default='homogeneous',
+                    choices=['homogeneous', 'heterogeneous'])
+parser.add_argument('--motif_loss', type=bool, default=True)
+parser.add_argument('--rule_prune', type=bool, default=False)
+parser.add_argument('--interactive', action='store_true', default=False)
+parser.add_argument('--device', type=str, default='cuda',
+                    choices=['cuda', 'cpu'])
+
+# Graph index selection: run counting only on a slice of graph_data_list
+parser.add_argument('--graph_index_start', type=int, default=None,
+                    help='First graph index to count (inclusive). '
+                            'Only valid when dataset has more than one graph.')
+parser.add_argument('--graph_index_end', type=int, default=None,
+                    help='Last graph index to count (inclusive). '
+                            'Only valid when dataset has more than one graph.')
+
+# Batched GPU counting for multi-graph datasets (e.g. QM9)
+parser.add_argument('--batch_size', type=int, default=50000,
+                    help='Number of graphs to process simultaneously on GPU. '
+                            'Only used for multi-graph datasets (QM9). '
+                            'Tune to your VRAM: '
+                            '8 GB → 2000 | 16 GB → 5000 | 24 GB+ → 30000.')
+parser.add_argument('--sanity_check_local_mults',
+                    action='store_true',
+                    default=False,
+                    help='Run sanity check for local multiplicities using merged data.')
+#=======================================
+
+
+
 args = parser.parse_args()
 ideal_Evalaution = args.ideal_Evalaution
 encoder_type = args.encoder_type
@@ -76,6 +113,42 @@ use_feature = args.use_feature
 
 graph_save_path = args.graph_save_path
 graph_save_path = args.graph_save_path
+
+
+
+#===========***************************************============================
+
+
+# ================================
+# Core settings
+# ================================
+database_name = args.database_name
+graph_type = args.graph_type
+motif_loss = args.motif_loss
+rule_prune = args.rule_prune
+interactive = args.interactive
+device = args.device
+
+# ================================
+# Graph slice selection
+# ================================
+graph_index_start = args.graph_index_start
+graph_index_end = args.graph_index_end
+
+# ================================
+# Batched GPU counting
+# ================================
+batch_size = args.batch_size
+
+
+#========**********************************===============================
+
+
+
+
+
+
+
 
 if graph_save_path == None:
     graph_save_path = "MMD_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + args.model + "BFS" + str(
@@ -393,40 +466,177 @@ def getBack(var_grad_fn):
 # test_(5, "results/multiple graph/cora/model" , [x**2 for x in range(5,10)])
 
 
+
+
+
+
 # load the data
 
-list_adj, list_x, list_label = list_graph_loader(dataset, return_labels=True)  # , _max_list_size=80)
-# list_adj = list_adj[:400]
-# list_x = list_x[:400]
-# list_label = list_label[:400]
 
-if args.bfsOrdering == True:
-    list_adj = BFS(list_adj)
+cache_dir  = "dataset_cached"
+os.makedirs(cache_dir, exist_ok=True)        
+cache_path = os.path.join(cache_dir, f"{dataset}.pkl")
 
-# list_adj, list_x, list_label = list_graph_loader(dataset, return_labels=True, _max_list_size=80)
-
-# list_adj, _ = permute(list_adj, None)
 self_for_none = True
-if (decoder_type) in ("FCdecoder"):  # ,"FC_InnerDOTdecoder"
+if (decoder_type) in ("FCdecoder"): 
     self_for_none = True
 
-if len(list_adj) == 1:
-    test_list_adj = list_adj.copy()
-    list_graphs = Datasets(list_adj, self_for_none, list_x, None)
+if os.path.exists(cache_path):
+    print(f"[Cache] Loading '{dataset}' from {cache_path}")
+    logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
+    with open(cache_path, "rb") as _f:
+        _cache = pickle.load(_f)
+
+    list_adj          = _cache["list_adj"]
+    list_x            = _cache["list_x"]
+    list_label        = _cache["list_label"]
+    list_node_feature = _cache["list_node_feature"]
+    list_edge_feature = _cache["list_edge_feature"]
+    node_feature_info = _cache["node_feature_info"]
+    edge_feature_info = _cache["edge_feature_info"]
+    list_node_onehot  = _cache["list_node_onehot"]
+    list_edge_onehot  = _cache["list_edge_onehot"]
+    node_onehot_info  = _cache["node_onehot_info"]
+    edge_onehot_info  = _cache["edge_onehot_info"]
+
+    if _cache["single_graph"]:
+        test_list_adj = list_adj.copy()
+        list_graphs   = Datasets(list_adj, self_for_none, list_x, None)
+    else:
+        list_x_train     = _cache["list_x_train"]
+        list_x_test      = _cache["list_x_test"]
+        list_label_train = _cache["list_label_train"]
+        list_label_test  = _cache["list_label_test"]
+        list_noh_train   = _cache["list_noh_train"]
+        list_noh_test    = _cache["list_noh_test"]
+        list_eoh_train   = _cache["list_eoh_train"]
+        list_eoh_test    = _cache["list_eoh_test"]
+        test_list_adj    = _cache["test_list_adj"]
+
+        val_adj = list_adj[:int(len(test_list_adj))]
+        list_graphs = Datasets(list_adj, self_for_none, list_x_train, list_label,
+                               Max_num=None, set_diag_of_isol_Zer=False,
+                               list_node_onehot=list_noh_train,
+                               list_edge_onehot=list_eoh_train)
+        list_test_graphs = Datasets(test_list_adj, self_for_none, list_x_test, list_label_test,
+                                    Max_num=list_graphs.max_num_nodes, set_diag_of_isol_Zer=False,
+                                    list_node_onehot=list_noh_test,
+                                    list_edge_onehot=list_eoh_test)
+
 else:
-    max_size = None
-    # list_label = None
-    list_adj, test_list_adj, list_x_train, list_x_test, _ ,list_label_test= data_split(list_adj, list_x,list_label)
-    val_adj = list_adj[:int(len(test_list_adj))]
-    list_graphs = Datasets(list_adj, self_for_none, list_x_train, list_label, Max_num=max_size,
-                           set_diag_of_isol_Zer=False)
-    list_test_graphs = Datasets(test_list_adj, self_for_none, list_x_test, list_label_test, Max_num=list_graphs.max_num_nodes,
-                           set_diag_of_isol_Zer=False)
-    if plot_testGraphs:
-        print("printing the test set...")
-        # for i, G in enumerate(test_list_adj):
-        #     G = nx.from_numpy_matrix(G.toarray())
-        #     plotter.plotG(G, graph_save_path+"_test_graph" + str(i))
+    print(f"[Cache] No cache found for '{dataset}'. Running data pipeline ...")
+    logging.info(f"[Cache] No cache found for '{dataset}'. Running data pipeline ...")
+
+    (list_adj, list_x, list_label,
+     list_node_feature, list_edge_feature,
+     node_feature_info, edge_feature_info) = list_graph_loader(dataset, return_labels=True)
+
+    # list_adj   = list_adj[:400]
+    # list_x     = list_x[:400]
+    # list_label = list_label[:400]
+
+    list_adj, list_node_feature, list_edge_feature = BFS(
+        list_adj, list_node_feature, list_edge_feature
+    )
+
+    list_node_onehot, list_edge_onehot, node_onehot_info, edge_onehot_info = \
+        build_onehot_features(list_node_feature, list_edge_feature, list_adj,
+                              node_feature_info, edge_feature_info)
+
+    # list_adj, list_x, list_label = list_graph_loader(dataset, return_labels=True, _max_list_size=80)
+    # list_adj, _ = permute(list_adj, None)
+
+    _cache = {
+        "list_adj":          list_adj,
+        "list_x":            list_x,
+        "list_label":        list_label,
+        "list_node_feature": list_node_feature,
+        "list_edge_feature": list_edge_feature,
+        "node_feature_info": node_feature_info,
+        "edge_feature_info": edge_feature_info,
+        "list_node_onehot":  list_node_onehot,
+        "list_edge_onehot":  list_edge_onehot,
+        "node_onehot_info":  node_onehot_info,
+        "edge_onehot_info":  edge_onehot_info,
+        "single_graph":      len(list_adj) == 1,
+    }
+
+    if len(list_adj) == 1:
+        test_list_adj = list_adj.copy()
+        list_graphs   = Datasets(list_adj, self_for_none, list_x, None)
+    else:
+        max_size = None
+        # list_label = None
+
+        (list_adj,         test_list_adj,
+         list_x_train,     list_x_test,
+         list_label_train, list_label_test,
+         list_noh_train,   list_noh_test,
+         list_eoh_train,   list_eoh_test) = data_split(
+            graph_lis        = list_adj,
+            list_x           = list_x,
+            list_label       = list_label,
+            list_node_onehot = list_node_onehot,
+            list_edge_onehot = list_edge_onehot,
+        )
+
+        _cache.update({
+            "list_adj":         list_adj,       
+            "test_list_adj":    test_list_adj,
+            "list_x_train":     list_x_train,
+            "list_x_test":      list_x_test,
+            "list_label_train": list_label_train,
+            "list_label_test":  list_label_test,
+            "list_noh_train":   list_noh_train,
+            "list_noh_test":    list_noh_test,
+            "list_eoh_train":   list_eoh_train,
+            "list_eoh_test":    list_eoh_test,
+        })
+
+        val_adj = list_adj[:int(len(test_list_adj))]
+        list_graphs = Datasets(list_adj, self_for_none, list_x_train, list_label,
+                               Max_num=max_size, set_diag_of_isol_Zer=False,
+                               list_node_onehot=list_noh_train,
+                               list_edge_onehot=list_eoh_train)
+        list_test_graphs = Datasets(test_list_adj, self_for_none, list_x_test, list_label_test,
+                                    Max_num=list_graphs.max_num_nodes, set_diag_of_isol_Zer=False,
+                                    list_node_onehot=list_noh_test,
+                                    list_edge_onehot=list_eoh_test)
+        if plot_testGraphs:
+            print("printing the test set...")
+            # for i, G in enumerate(test_list_adj):
+            #     G = nx.from_numpy_matrix(G.toarray())
+            #     plotter.plotG(G, graph_save_path+"_test_graph" + str(i))
+
+    print(f"[Cache] Saving to {cache_path} ...")
+    logging.info(f"[Cache] Saving to {cache_path} ...")
+    with open(cache_path, "wb") as _f:
+        pickle.dump(_cache, _f)
+    print("[Cache] Saved successfully.")
+    logging.info("[Cache] Saved successfully.")
+
+
+
+if args.motif_loss:
+    RuleBasedMotifStore(database_name=args.database_name, args=args) 
+    if args.sanity_check_local_mults:
+        remove_self_loops(list_graphs)
+        remove_self_loops(list_test_graphs)
+        dataa = merge_datasets(list_graphs, list_test_graphs)  
+    else :
+        dataa = list_graphs
+
+    motif_counter = RelationalMotifCounter(database_name=args.database_name, args=args)
+    wrapper = DataWrapper(dataa, motif_counter.relation_keys,node_onehot_info, device='cuda')
+    counts  = motif_counter.count_batch(wrapper, batch_size=50000)
+    aggregated = counts.sum(0)
+    print(aggregated)
+
+
+
+
+
+
 
 print("#------------------------------------------------------")
 if ideal_Evalaution:
