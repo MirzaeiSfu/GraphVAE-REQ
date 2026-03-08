@@ -85,7 +85,8 @@ class GraphTransformerDecoder_FC(torch.nn.Module):
 
 
 class kernelGVAE(torch.nn.Module):
-    def __init__(self, ker, encoder, decoder, AutoEncoder, graphEmDim=4096):
+    def __init__(self, ker, encoder, decoder, AutoEncoder, graphEmDim=4096, 
+                 node_feature_decoder=None, edge_feature_decoder=None):
         super(kernelGVAE, self).__init__()
         self.embeding_dim = graphEmDim
         self.kernel = ker  # TODO: bin and width whould be determined if kernel is his
@@ -95,6 +96,10 @@ class kernelGVAE(torch.nn.Module):
 
         self.stochastic_mean_layer = node_mlp(self.embeding_dim, [self.embeding_dim])
         self.stochastic_log_std_layer = node_mlp(self.embeding_dim, [self.embeding_dim])
+
+        self.node_feature_decoder = node_feature_decoder   
+        self.edge_feature_decoder = edge_feature_decoder   
+
 
     def forward(self, graph, features, batchSize, subgraphs_indexes):
         """
@@ -108,7 +113,17 @@ class kernelGVAE(torch.nn.Module):
         reconstructed_adj = torch.sigmoid(reconstructed_adj_logit)
 
         kernel_value = self.kernel(reconstructed_adj)
-        return reconstructed_adj, samples, mean, log_std, kernel_value, reconstructed_adj_logit
+
+        node_feat_logits = self.node_feature_decoder(samples) \
+            if self.node_feature_decoder is not None else None
+        edge_feat_logits = self.edge_feature_decoder(samples) \
+            if self.edge_feature_decoder is not None else None
+
+
+    #    return reconstructed_adj, samples, mean, log_std, kernel_value, reconstructed_adj_logit
+        return (reconstructed_adj, samples, mean, log_std, kernel_value, reconstructed_adj_logit,
+            node_feat_logits, edge_feat_logits)
+
 
     def reparameterize(self, mean, log_std):
         if self.AutoEncoder == True:

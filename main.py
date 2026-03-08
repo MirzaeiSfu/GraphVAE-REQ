@@ -30,11 +30,11 @@ keepThebest = False
 
 parser = argparse.ArgumentParser(description='Kernel VGAE')
 
-parser.add_argument('-e', dest="epoch_number", default=200, help="Number of Epochs to train the model", type=int)
-parser.add_argument('-v', dest="Vis_step", default=10, help="at every Vis_step 'minibatch' the plots will be updated")
+parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Epochs to train the model", type=int)
+parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
 parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
 parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
-parser.add_argument('-dataset', dest="dataset", default="grid",
+parser.add_argument('-dataset', dest="dataset", default="QM9",
                     help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, triangular_grid, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, grid, community, citeseer, lobster, DD")  # citeceer: ego; DD:protein
 parser.add_argument('-graphEmDim', dest="graphEmDim", default=1024, help="the dimention of graph Embeding LAyer; z")
 parser.add_argument('-graph_save_path', dest="graph_save_path", default=None,
@@ -65,7 +65,7 @@ parser.add_argument('-ideal_Evalaution', dest="ideal_Evalaution" , default=False
 parser.add_argument('--database_name', type=str, default='qm9')
 parser.add_argument('--graph_type', type=str, default='homogeneous',
                     choices=['homogeneous', 'heterogeneous'])
-parser.add_argument('--motif_loss', type=bool, default=False)
+parser.add_argument('--motif_loss', type=bool, default=True)
 parser.add_argument('--rule_prune', type=bool, default=False)
 parser.add_argument('--interactive', action='store_true', default=False)
 parser.add_argument('--device', type=str, default='cuda',
@@ -686,8 +686,31 @@ else:
     print("requested decoder is not implemented")
     exit(1)
 
-model = kernelGVAE(kernel_model, encoder, decoder, AutoEncoder,
-                   graphEmDim=graphEmDim)  # parameter namimng, it should be dimentionality of distriburion
+
+if (subgraphSize == None):
+    list_graphs.processALL(self_for_none=self_for_none)
+    adj_list = list_graphs.get_adj_list()
+    graphFeatures, _ = get_subGraph_features(adj_list, None, kernel_model)
+    list_graphs.set_features(graphFeatures)
+
+# added for feature decoding, it is not used in the paper, but I implemented it to check if it can help the model to learn better or not, but it did not help and I did not report it in the paper. 
+# I implemented it as a simple MLP that takes the graph embedding as input and outputs the node and edge features, and then I added a loss term to the total loss 
+#=====================-------=-==-=-=-===-*****%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@@
+if not list_graphs.node_onehot_s or list_graphs.edge_onehot_s[0] is None:
+    raise RuntimeError("Node or edge one-hot features are missing.")
+
+node_onehot_dim = list_graphs.node_onehot_s[0].shape[-1]  
+edge_onehot_dim = list_graphs.edge_onehot_s[0].shape[0] 
+
+node_feat_decoder = NodeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, node_onehot_dim)
+edge_feat_decoder = EdgeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, edge_onehot_dim)
+#=====================-------=-==-=-=-===-*****%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@@
+
+
+model = kernelGVAE(kernel_model, encoder, decoder, AutoEncoder, graphEmDim=graphEmDim,
+                   node_feature_decoder=node_feat_decoder,
+                   edge_feature_decoder=edge_feat_decoder)
+
 model.to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr)
@@ -712,11 +735,6 @@ print(model)
 logging.info(model.__str__())
 min_loss = float('inf')
 
-if (subgraphSize == None):
-    list_graphs.processALL(self_for_none=self_for_none)
-    adj_list = list_graphs.get_adj_list()
-    graphFeatures, _ = get_subGraph_features(adj_list, None, kernel_model)
-    list_graphs.set_features(graphFeatures)
 
 # 50%50 Evaluation
 
@@ -772,8 +790,11 @@ for epoch in range(epoch_number):
         org_adj_dgl = [dgl.from_scipy(graph) for graph in org_adj]
         org_adj_dgl = dgl.batch(org_adj_dgl).to(device)
         pos_wight = torch.true_divide(sum([x.shape[-1] ** 2 for x in subgraphs]) - subgraphs.sum(), subgraphs.sum())
-
-        reconstructed_adj, prior_samples, post_mean, post_log_std, generated_kernel_val, reconstructed_adj_logit = model(
+        
+        # added for feature decoding 
+        # reconstructed_adj, prior_samples, post_mean, post_log_std, generated_kernel_val, reconstructed_adj_logit = model(
+        (reconstructed_adj, prior_samples, post_mean, post_log_std, generated_kernel_val, reconstructed_adj_logit,
+            node_feat_logits, edge_feat_logits) = model(
             org_adj_dgl.to(device), x_s.to(device), batchSize, subgraphs_indexes)
         kl_loss, reconstruction_loss, acc, kernel_cost, each_kernel_loss,log_sigma_values = OptimizerVAE(reconstructed_adj,
                                                                                         generated_kernel_val,
@@ -784,8 +805,29 @@ for epoch in range(epoch_number):
                                                                                         reconstructed_adj_logit,
                                                                                         pos_wight, 2)
 
-        loss = kernel_cost
+        # Added loss for feature decoding ============================================        
+        #=============================================================================
+        target_node_oh = torch.stack(
+            [torch.tensor(list_graphs.node_onehot_s[i]) for i in range(from_, to_)]
+        ).to(device)   
+        target_edge_oh = torch.stack(
+            [torch.tensor(list_graphs.edge_onehot_s[i]) for i in range(from_, to_)]
+        ).to(device)   
 
+        node_feat_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            node_feat_logits, target_node_oh
+        )
+        edge_feat_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            edge_feat_logits, target_edge_oh
+        )
+
+        alpha_node_feat = 1.0   
+        alpha_edge_feat = 1.0
+
+        loss = kernel_cost + alpha_node_feat * node_feat_loss + alpha_edge_feat * edge_feat_loss
+    #    
+    #   loss = kernel_cost  # Graph generation loss without feature decoding
+ 
         tmp = [None for x in range(len(functions))]
         pltr.add_values(step, [acc.cpu().item(), loss.cpu().item(), *each_kernel_loss], tmp,
                         redraw=redraw)  # ["Accuracy", "loss", "AUC"])

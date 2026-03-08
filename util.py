@@ -167,6 +167,44 @@ class edge_mlp(torch.nn.Module):
         for i, weight in enumerate(self.mlp_layers):
             self.mlp_layers[i] = init.xavier_uniform_(weight)
 
+#=======================================================================================
+# Added for edge feature decoding
+
+class NodeFeatureDecoder(torch.nn.Module):
+    def __init__(self, graphEmDim, max_nodes, node_D, hidden=512):
+        super().__init__()
+        self.max_nodes = max_nodes
+        self.node_D    = node_D
+        self.net = torch.nn.Sequential(
+            torch.nn.Linear(graphEmDim, hidden),
+            torch.nn.LeakyReLU(0.01),
+            torch.nn.LayerNorm(hidden, elementwise_affine=False),
+            torch.nn.Linear(hidden, max_nodes * node_D),
+        )
+
+    def forward(self, z):
+        out = self.net(z)                                   # (B, max_nodes*node_D)
+        return out.reshape(z.shape[0], self.max_nodes, self.node_D)
+
+
+class EdgeFeatureDecoder(torch.nn.Module):
+    def __init__(self, graphEmDim, max_nodes, edge_C, hidden=512):
+        super().__init__()
+        self.max_nodes = max_nodes
+        self.edge_C    = edge_C
+        self.net = torch.nn.Sequential(
+            torch.nn.Linear(graphEmDim, hidden),
+            torch.nn.LeakyReLU(0.01),
+            torch.nn.LayerNorm(hidden, elementwise_affine=False),
+            torch.nn.Linear(hidden, edge_C * max_nodes * max_nodes),
+        )
+
+    def forward(self, z):
+        out = self.net(z)                                   # (B, C*max_nodes*max_nodes)
+        return out.reshape(z.shape[0], self.edge_C, self.max_nodes, self.max_nodes)
+#=======================================================================================
+
+
 # GCN basic operation
 # class GraphConvNN(torch.nn.Module):
 #     def __init__(self, input_dim, output_dim):
