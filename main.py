@@ -60,7 +60,11 @@ parser.add_argument('-plot_testGraphs', dest="plot_testGraphs", default=True, he
 parser.add_argument('-ideal_Evalaution', dest="ideal_Evalaution" , default=False, help="if you want to comapre the 50%50 subset of dataset comparision?!", type=bool)
 
 
-
+# Tiny overfit debug mode for checking loss implementation.
+parser.add_argument('--tiny_overfit', action='store_true', default=True,
+                    help='Use a tiny fixed training subset, disable shuffling, and train with one fixed batch.')
+parser.add_argument('--tiny_overfit_size', type=int, default=32,
+                    help='Number of training graphs to keep in --tiny_overfit mode.')
 #=======================================
 parser.add_argument('--database_name', type=str, default='qm9')
 parser.add_argument('--graph_type', type=str, default='homogeneous',
@@ -139,6 +143,29 @@ graph_index_end = args.graph_index_end
 # Batched GPU counting
 # ================================
 batch_size = args.batch_size
+tiny_overfit = args.tiny_overfit
+tiny_overfit_size = args.tiny_overfit_size
+if tiny_overfit:
+    tiny_overfit_size = 32
+    epoch_number = min(int(epoch_number), 300)
+    visulizer_step = min(int(visulizer_step), 10)
+
+    motif_loss = False
+    args.motif_loss = False
+    ideal_Evalaution = False
+    args.ideal_Evalaution = False
+    plot_testGraphs = False
+    args.plot_testGraphs = False
+    redraw = False
+    task = 'debug'
+    args.task = task
+    args.tiny_overfit_size = tiny_overfit_size
+    args.epoch_number = epoch_number
+    args.Vis_step = visulizer_step
+    print(f"[TinyOverfit] Auto preset: size={tiny_overfit_size}, epochs={epoch_number}, "
+          f"vis_step={visulizer_step}, motif_loss={args.motif_loss}, task={args.task}")
+    logging.info(f"[TinyOverfit] Auto preset: size={tiny_overfit_size}, epochs={epoch_number}, "
+                 f"vis_step={visulizer_step}, motif_loss={args.motif_loss}, task={args.task}")
 
 
 #========**********************************===============================
@@ -620,6 +647,27 @@ else:
     logging.info("[Cache] Saved successfully.")
 
 
+# Tiny-overfit mode: keep only a small fixed training subset.
+if tiny_overfit:
+    keep_n = max(1, min(int(tiny_overfit_size), len(list_graphs.list_adjs)))
+    list_graphs = Datasets(
+        list_graphs.list_adjs[:keep_n],
+        self_for_none,
+        list_graphs.list_Xs[:keep_n] if list_graphs.list_Xs is not None else None,
+        list_graphs.labels[:keep_n] if list_graphs.labels is not None else None,
+        Max_num=list_graphs.max_num_nodes,
+        set_diag_of_isol_Zer=list_graphs.set_diag_of_isol_Zer,
+        list_node_onehot=(list_graphs.list_node_onehot[:keep_n]
+                          if list_graphs.list_node_onehot is not None else None),
+        list_edge_onehot=(list_graphs.list_edge_onehot[:keep_n]
+                          if list_graphs.list_edge_onehot is not None else None),
+    )
+    mini_batch_size = keep_n
+    print(f"[TinyOverfit] Enabled: using {keep_n} fixed training graphs, "
+          f"batch_size={mini_batch_size}, shuffle=off")
+    logging.info(f"[TinyOverfit] Enabled: using {keep_n} fixed training graphs, "
+                 f"batch_size={mini_batch_size}, shuffle=off")
+
 
 if args.motif_loss:
     RuleBasedMotifStore(database_name=args.database_name, args=args) 
@@ -726,7 +774,8 @@ num_nodes = list_graphs.max_num_nodes
 
 # target_kelrnel_val = kernel_model(target_adj)
 
-list_graphs.shuffle()
+if not tiny_overfit:
+    list_graphs.shuffle()
 start = timeit.default_timer()
 # Parameters
 step = 0
@@ -752,7 +801,8 @@ if load_model == True:  # I used this in line code to load a model #TODO: fix it
 
 for epoch in range(epoch_number):
 
-    list_graphs.shuffle()
+    if not tiny_overfit:
+        list_graphs.shuffle()
     batch = 0
     for iter in range(0, max(int(len(list_graphs.list_adjs) / mini_batch_size), 1) * mini_batch_size, mini_batch_size):
         from_ = iter
@@ -825,6 +875,10 @@ for epoch in range(epoch_number):
         alpha_edge_feat = 1.0
 
         loss = kernel_cost + alpha_node_feat * node_feat_loss + alpha_edge_feat * edge_feat_loss
+
+        if tiny_overfit and (step % 10 == 0):
+            print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
+                  f"node={node_feat_loss.item():.6f} edge={edge_feat_loss.item():.6f}")
     #    
     #   loss = kernel_cost  # Graph generation loss without feature decoding
  
@@ -844,8 +898,9 @@ for epoch in range(epoch_number):
 
         if (step + 1) % visulizer_step == 0 or epoch_number==epoch+1:
             model.eval()
-            pltr.redraw()
-            if True:
+            if not tiny_overfit:
+                pltr.redraw()
+            if not tiny_overfit:
                 dir_generated_in_train = "generated_graph_train/"
                 if not os.path.isdir(dir_generated_in_train):
                     os.makedirs(dir_generated_in_train)
@@ -876,7 +931,7 @@ for epoch in range(epoch_number):
 
             #todo: instead of printing diffrent level of logging shoud be used
             model.eval()
-            if task == "graphGeneration":
+            if (not tiny_overfit) and task == "graphGeneration":
                 # print("generated vs Validation:")
                 mmd_res= EvalTwoSet(model, val_adj[:1000], graph_save_path, Save_generated=True, _f_name=epoch)
                 with open(graph_save_path + '_MMD.log', 'a') as f:
@@ -911,7 +966,8 @@ for epoch in range(epoch_number):
         batch += 1
         # scheduler.step()
 model.eval()
-torch.save(model.state_dict(), graph_save_path + "model_" + str(epoch) + "_" + str(batch))
+if not tiny_overfit:
+    torch.save(model.state_dict(), graph_save_path + "model_" + str(epoch) + "_" + str(batch))
 
 stop = timeit.default_timer()
 print("trainning time:", str(stop - start))
@@ -921,8 +977,9 @@ import json
 
 file_name = graph_save_path + "_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + args.model + "_elbo_loss.txt"
 
-with open(file_name, "w") as fp:
-    json.dump(list(np.array(pltr.values_train[-2]) + np.array(pltr.values_train[-1])), fp)
+if not tiny_overfit:
+    with open(file_name, "w") as fp:
+        json.dump(list(np.array(pltr.values_train[-2]) + np.array(pltr.values_train[-1])), fp)
 
 # with open(file_name + "/_CrossEntropyLoss.txt", "w") as fp:
 #     json.dump(list(np.array(pltr.values_train[-2])), fp)
@@ -931,7 +988,8 @@ with open(file_name, "w") as fp:
 #     json.dump(pltr.values_train[1], fp)
 
 # save the log plot on the current directory
-pltr.save_plot(graph_save_path + "KernelVGAE_log_plot")
+if not tiny_overfit:
+    pltr.save_plot(graph_save_path + "KernelVGAE_log_plot")
 
 if task == "graphGeneration":
     EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_name="final_eval")
