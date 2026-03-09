@@ -452,6 +452,73 @@ def softclip(tensor, min):
     return result_tensor
 
 
+def compute_true_node_feat_loss(node_feat_logits, target_node_onehot, true_node_num):
+    """
+    Compute node feature BCE loss on real nodes only (ignore padded nodes).
+
+    Expected shapes:
+    - node_feat_logits:  (B, N_max, D)
+    - target_node_onehot: (B, N_max, D)
+    - true_node_num: length-B iterable/tensor with true node counts per graph
+
+    Returns:
+    - Scalar tensor: mean BCE over valid node-feature entries only.
+    """
+    # Validate tensor ranks early so a shape mismatch fails with a clear error.
+    if node_feat_logits.ndim != 3 or target_node_onehot.ndim != 3:
+        raise ValueError(
+            "node_feat_logits and target_node_onehot must be 3D tensors with shape (B, N_max, D)."
+        )
+
+    # Validate that predicted and target tensors are aligned elementwise.
+    if node_feat_logits.shape != target_node_onehot.shape:
+        raise ValueError(
+            f"Shape mismatch: logits {tuple(node_feat_logits.shape)} vs targets {tuple(target_node_onehot.shape)}."
+        )
+
+    # Read batch and padded-node dimensions.
+    batch_size, max_nodes, node_feat_dim = node_feat_logits.shape
+
+    # Convert node counts to a tensor on the same device as logits.
+    # This supports Python lists, NumPy arrays, or torch tensors as input.
+    true_node_num = torch.as_tensor(true_node_num, device=node_feat_logits.device)
+
+    # Ensure we have exactly one node-count value per graph in the batch.
+    if true_node_num.ndim != 1 or true_node_num.numel() != batch_size:
+        raise ValueError(
+            f"true_node_num must be 1D with length {batch_size}; got shape {tuple(true_node_num.shape)}."
+        )
+
+    # Node counts are indices for masking, so cast to long and clamp to valid bounds.
+    # Clamping prevents accidental out-of-range values from breaking mask creation.
+    true_node_num = true_node_num.long().clamp(min=0, max=max_nodes)
+
+    # Build a boolean mask of shape (B, N_max):
+    # True for real nodes [0, true_node_num[b]) and False for padded rows.
+    node_positions = torch.arange(max_nodes, device=node_feat_logits.device).unsqueeze(0)
+    valid_node_mask = node_positions < true_node_num.unsqueeze(1)
+
+    # Compute elementwise BCE loss (no reduction) so we can apply the node mask manually.
+    # Targets are cast to logits dtype/device to avoid mixed-type issues.
+    per_entry_loss = F.binary_cross_entropy_with_logits(
+        node_feat_logits,
+        target_node_onehot.to(device=node_feat_logits.device, dtype=node_feat_logits.dtype),
+        reduction='none'
+    )
+
+    # Expand node mask to feature dimension: (B, N_max) -> (B, N_max, 1).
+    # Multiply to zero out padded-node contributions.
+    valid_entry_mask = valid_node_mask.unsqueeze(-1).to(per_entry_loss.dtype)
+    masked_loss_sum = (per_entry_loss * valid_entry_mask).sum()
+
+    # Number of valid entries is (#valid nodes) * D.
+    # Clamp denominator to avoid division-by-zero if a degenerate batch has zero valid nodes.
+    valid_entry_count = (valid_entry_mask.sum() * node_feat_dim).clamp(min=1.0)
+
+    # Return mean loss over valid node-feature entries only.
+    return masked_loss_sum / valid_entry_count
+
+
 def OptimizerVAE(reconstructed_adj, reconstructed_kernel_val, targert_adj, target_kernel_val, log_std, mean, alpha,
                  reconstructed_adj_logit, pos_wight, norm):
     loss = norm * torch.nn.functional.binary_cross_entropy_with_logits(reconstructed_adj_logit.float(),
@@ -817,6 +884,10 @@ for epoch in range(epoch_number):
         else:
             org_adj, x_s, node_num, subgraphs_indexes = list_graphs.get__(from_, to_, self_for_none, bfs=subgraphSize)
 
+        # Keep an immutable copy of real node counts for masked node-feature loss.
+        # `node_num` may be overwritten below for decoder-specific behavior.
+        true_node_num = list(node_num)
+
         if (type(decoder)) in [GraphTransformerDecoder_FC]:  #
             node_num = len(node_num) * [list_graphs.max_num_nodes]
 
@@ -864,17 +935,19 @@ for epoch in range(epoch_number):
             [torch.tensor(list_graphs.edge_onehot_s[i]) for i in range(from_, to_)]
         ).to(device)   
 
-        node_feat_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            node_feat_logits, target_node_oh
+        node_feat_loss = compute_true_node_feat_loss(
+            node_feat_logits=node_feat_logits,
+            target_node_onehot=target_node_oh,
+            true_node_num=true_node_num
         )
         edge_feat_loss = torch.nn.functional.binary_cross_entropy_with_logits(
             edge_feat_logits, target_edge_oh
         )
-
+        alpha_kernel_cost = 0
         alpha_node_feat = 1.0   
-        alpha_edge_feat = 1.0
+        alpha_edge_feat = 0.0
 
-        loss = kernel_cost + alpha_node_feat * node_feat_loss + alpha_edge_feat * edge_feat_loss
+        loss = alpha_kernel_cost * kernel_cost + alpha_node_feat * node_feat_loss + alpha_edge_feat * edge_feat_loss
 
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
