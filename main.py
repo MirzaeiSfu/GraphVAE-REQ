@@ -147,7 +147,7 @@ tiny_overfit = args.tiny_overfit
 tiny_overfit_size = args.tiny_overfit_size
 if tiny_overfit:
     tiny_overfit_size = 32
-    epoch_number = min(int(epoch_number), 1000)
+    epoch_number = min(int(epoch_number), 5000)
     visulizer_step = min(int(visulizer_step), 10)
 
     motif_loss = False
