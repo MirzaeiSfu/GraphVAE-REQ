@@ -1,92 +1,126 @@
 # GraphVAE-REQ
 
-This repository contains a GraphVAE training pipeline with:
-- GraphVAE / GraphVAE-MM generation and reconstruction training (`main.py`)
-- Dataset loading, padding, BFS ordering, and feature preprocessing (`data.py`, `util.py`)
-- Relational motif extraction and batched motif counting (`motif_store.py`, `motif_counter.py`)
+GraphVAE-REQ is a GraphVAE / GraphVAE-MM training codebase with:
+- graph generation and reconstruction
+- optional node/edge feature decoding heads
+- optional relational motif counting pipeline (MySQL -> pickle -> batched counting)
 
-## Current Pipeline (as implemented)
+The main entry point is `main.py`.
 
-`main.py` runs the following steps:
-1. Parse training + motif arguments.
-2. Load dataset (or load a cached preprocessed dataset from `dataset_cached/<dataset>.pkl`).
-3. Run BFS-based node reordering and build node/edge one-hot features.
-4. Build `Datasets` objects for train/test splits.
-5. If motif loss is enabled, initialize motif store/counter and run batched motif counting.
-6. Train GraphVAE/GraphVAE-MM model.
+## What The Current Code Trains
 
-## Key Files
+Important: in the current training loop, the final loss is hard-coded as:
+- `alpha_kernel_cost = 0`
+- `alpha_node_feat = 1.0`
+- `alpha_edge_feat = 0.0`
 
-- `main.py`: end-to-end run script (data pipeline, optional motif counting, model training)
-- `data.py`: dataset loaders + `Datasets` class + `DataWrapper` for motif batching
-- `util.py`: one-hot feature building and graph utilities
-- `motif_store.py`: reads relational/BN rules from MySQL and caches them as pickle
-- `motif_counter.py`: batched differentiable motif counting on GPU/CPU
-- `model.py`: encoder/decoder and VAE model blocks
-- `ReportedResult/`: generated outputs and logs from prior runs
+So by default it optimizes **node feature loss only** (`node_feat_loss`), not graph reconstruction/kernel loss.
 
-## Datasets in Code
+## Environment (Python 3.8.20)
 
-`data.py` includes loaders for multiple datasets, including:
-- `QM9` (PyG-based branch with node/edge feature extraction)
-- `IMDBBINARY`, `NCI1`, `MUTAG`, `COLLAB`, `PTC`, `PROTEINS`
-- Synthetic families (`grid`, `triangular_grid`, `community`, `lobster`, etc.)
+Use your micro/micromamba env with Python 3.8.20:
 
-## Run
+```bash
+micromamba create -n graphvae-req python=3.8.20 -y
+micromamba activate graphvae-req
+pip install -r requirements.txt
+```
+
+Notes:
+- `torch-geometric` may require extra wheels (`torch-scatter`, `torch-sparse`, `torch-cluster`, `torch-spline-conv`) depending on OS/CUDA.
+- `dgl==0.4.3.post2` is kept to match this codebase.
+
+## Project Flow (`main.py`)
+
+1. Parse CLI arguments and set experiment config.
+2. Load cache from `dataset_cached/<dataset>.pkl` if present.
+3. Otherwise:
+   - load raw graphs (`data.py:list_graph_loader`)
+   - apply BFS ordering
+   - build node/edge one-hot features (`util.py:build_onehot_features`)
+   - build train/test `Datasets`
+   - save all artifacts to cache
+4. Optional motif pipeline (`motif_store.py`, `motif_counter.py`).
+5. Build model (`model.py`) and run training.
+6. Save logs, generated graphs, and checkpoints.
+
+## Cache Keys (Current)
+
+`dataset_cached/<dataset>.pkl` stores at least:
+- `list_adj`, `list_x`, `list_label`
+- node/edge raw features and metadata
+- node/edge one-hot tensors and metadata
+- `test_list_adj`, `val_adj`
+- `list_graphs`, `list_test_graphs`
+- split tensors for multi-graph datasets:
+  - `list_x_train/test`, `list_label_train/test`
+  - `list_noh_train/test`, `list_eoh_train/test`
+
+The load path expects these keys to exist (new-cache format).
+
+## Motif Pipeline Requirements
+
+Motif counting uses:
+- `RuleBasedMotifStore` (`motif_store.py`)
+- `RelationalMotifCounter` (`motif_counter.py`)
+
+It writes/reads motif pickle files under `./db/<database_name>.pkl`.
+
+If no motif pickle exists, it connects to MySQL with defaults:
+- host: `localhost`
+- user: `fbuser`
+- password: `''`
+
+Required databases:
+- `<database_name>`
+- `<database_name>_setup`
+- `<database_name>_BN`
+
+## Running
 
 Typical run:
 
 ```bash
-python main.py -dataset QM9 -model GraphVAE-MM -e 20000 -batchSize 200
+python main.py -dataset QM9 -model GraphVAE-MM -e 20000 -batchSize 200 --device cuda
 ```
 
-Motif-related flags in `main.py`:
+### Important defaults in current code
 
-```bash
---database_name qm9
---graph_type homogeneous|heterogeneous
---rule_prune <bool>
---interactive
---graph_index_start <int>
---graph_index_end <int>
---batch_size <int>
---sanity_check_local_mults
---device cuda|cpu
-```
+- `--tiny_overfit` is declared with `default=True`, so tiny-overfit mode is active unless you change code.
+- In tiny-overfit mode, code forces:
+  - `motif_loss=False`
+  - `task='debug'`
+  - reduced epoch/visualization settings
 
-## Motif Store / Counter Notes
+If you want full training/motif flow, set tiny-overfit default to `False` in `main.py`.
 
-When motif counting is active:
-- `RuleBasedMotifStore` creates/uses a pickle cache for motif rules and metadata.
-- `RelationalMotifCounter` loads that pickle and computes motif counts in batches.
+## Outputs
 
-Important current path assumption in code:
-- Both `motif_store.py` and `motif_counter.py` currently use:
-  - `/localhome/mirzaei/ali/gvae/GraphVAE-MC/db`
+During/after runs you will see artifacts in `graph_save_path`:
+- `log.log`
+- `_MMD.log` (validation MMD logging)
+- generated graph `.npy` dumps
+- model checkpoints (`model_<epoch>_<batch>`)
+- training plot images
 
-If your environment differs, update that path in both files.
+Dataset cache files are under:
+- `dataset_cached/`
 
-## Cache
+Motif cache files are under:
+- `db/`
 
-Preprocessed data is cached under:
-- `dataset_cached/<dataset>.pkl`
+## Key Files
 
-Cached payload includes:
-- adjacency/features/labels
-- node and edge categorical features
-- node and edge one-hot tensors + metadata
-- train/test split artifacts
+- `main.py`: full training/eval pipeline and cache orchestration
+- `model.py`: encoder/decoder and `kernelGVAE`
+- `data.py`: dataset loading, preprocessing, `Datasets`, merge wrapper
+- `util.py`: kernels, one-hot feature builders, utility layers
+- `motif_store.py`: DB -> motif pickle builder
+- `motif_counter.py`: batched motif counting
+- `stat_rnn.py`, `mmd_rnn.py`, `eval/`: MMD/statistics utilities
 
-## Dependencies
+## Practical Notes
 
-`requirements.txt` and `requirements.yml` are legacy snapshots from the original codebase.
-Current code paths additionally rely on packages used by motif and QM9 branches, such as:
-- `torch_geometric`
-- `pymysql`
-- `pandas`
-
-Install missing packages according to your environment.
-
-## Project Status
-
-This README reflects the repository state where motif counting modules (`motif_store.py`, `motif_counter.py`) are integrated into the training script and data pipeline.
+- `accu` printed in training is adjacency reconstruction accuracy, not node-feature accuracy.
+- Node feature loss is currently masked by true node counts to ignore padded nodes.
+- If you only optimize node-feature loss, adjacency metrics may stay near random.
