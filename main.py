@@ -147,7 +147,7 @@ tiny_overfit = args.tiny_overfit
 tiny_overfit_size = args.tiny_overfit_size
 if tiny_overfit:
     tiny_overfit_size = 32
-    epoch_number = min(int(epoch_number), 300)
+    epoch_number = min(int(epoch_number), 1000)
     visulizer_step = min(int(visulizer_step), 10)
 
     motif_loss = False
@@ -597,10 +597,12 @@ if os.path.exists(cache_path):
     node_onehot_info  = _cache["node_onehot_info"]
     edge_onehot_info  = _cache["edge_onehot_info"]
 
-    if _cache["single_graph"]:
-        test_list_adj = list_adj.copy()
-        list_graphs   = Datasets(list_adj, self_for_none, list_x, None)
-    else:
+    test_list_adj     = _cache["test_list_adj"]
+    val_adj           = _cache["val_adj"]
+    list_graphs       = _cache["list_graphs"]
+    list_test_graphs  = _cache["list_test_graphs"]
+
+    if not _cache["single_graph"]:
         list_x_train     = _cache["list_x_train"]
         list_x_test      = _cache["list_x_test"]
         list_label_train = _cache["list_label_train"]
@@ -609,17 +611,6 @@ if os.path.exists(cache_path):
         list_noh_test    = _cache["list_noh_test"]
         list_eoh_train   = _cache["list_eoh_train"]
         list_eoh_test    = _cache["list_eoh_test"]
-        test_list_adj    = _cache["test_list_adj"]
-
-        val_adj = list_adj[:int(len(test_list_adj))]
-        list_graphs = Datasets(list_adj, self_for_none, list_x_train, list_label,
-                               Max_num=None, set_diag_of_isol_Zer=False,
-                               list_node_onehot=list_noh_train,
-                               list_edge_onehot=list_eoh_train)
-        list_test_graphs = Datasets(test_list_adj, self_for_none, list_x_test, list_label_test,
-                                    Max_num=list_graphs.max_num_nodes, set_diag_of_isol_Zer=False,
-                                    list_node_onehot=list_noh_test,
-                                    list_edge_onehot=list_eoh_test)
 
 else:
     print(f"[Cache] No cache found for '{dataset}'. Running data pipeline ...")
@@ -644,24 +635,15 @@ else:
     # list_adj, list_x, list_label = list_graph_loader(dataset, return_labels=True, _max_list_size=80)
     # list_adj, _ = permute(list_adj, None)
 
-    _cache = {
-        "list_adj":          list_adj,
-        "list_x":            list_x,
-        "list_label":        list_label,
-        "list_node_feature": list_node_feature,
-        "list_edge_feature": list_edge_feature,
-        "node_feature_info": node_feature_info,
-        "edge_feature_info": edge_feature_info,
-        "list_node_onehot":  list_node_onehot,
-        "list_edge_onehot":  list_edge_onehot,
-        "node_onehot_info":  node_onehot_info,
-        "edge_onehot_info":  edge_onehot_info,
-        "single_graph":      len(list_adj) == 1,
-    }
+    is_single_graph = len(list_adj) == 1
 
-    if len(list_adj) == 1:
+    if is_single_graph:
         test_list_adj = list_adj.copy()
+        val_adj       = test_list_adj.copy()
         list_graphs   = Datasets(list_adj, self_for_none, list_x, None)
+        list_test_graphs = Datasets(test_list_adj, self_for_none, list_x, None,
+                                    Max_num=list_graphs.max_num_nodes,
+                                    set_diag_of_isol_Zer=False)
     else:
         max_size = None
         # list_label = None
@@ -678,19 +660,6 @@ else:
             list_edge_onehot = list_edge_onehot,
         )
 
-        _cache.update({
-            "list_adj":         list_adj,       
-            "test_list_adj":    test_list_adj,
-            "list_x_train":     list_x_train,
-            "list_x_test":      list_x_test,
-            "list_label_train": list_label_train,
-            "list_label_test":  list_label_test,
-            "list_noh_train":   list_noh_train,
-            "list_noh_test":    list_noh_test,
-            "list_eoh_train":   list_eoh_train,
-            "list_eoh_test":    list_eoh_test,
-        })
-
         val_adj = list_adj[:int(len(test_list_adj))]
         list_graphs = Datasets(list_adj, self_for_none, list_x_train, list_label,
                                Max_num=max_size, set_diag_of_isol_Zer=False,
@@ -705,6 +674,38 @@ else:
             # for i, G in enumerate(test_list_adj):
             #     G = nx.from_numpy_array(G.toarray())
             #     plotter.plotG(G, graph_save_path+"_test_graph" + str(i))
+
+    _cache = {
+        "list_adj":          list_adj,
+        "list_x":            list_x,
+        "list_label":        list_label,
+        "list_node_feature": list_node_feature,
+        "list_edge_feature": list_edge_feature,
+        "node_feature_info": node_feature_info,
+        "edge_feature_info": edge_feature_info,
+        "list_node_onehot":  list_node_onehot,
+        "list_edge_onehot":  list_edge_onehot,
+        "node_onehot_info":  node_onehot_info,
+        "edge_onehot_info":  edge_onehot_info,
+        "single_graph":      is_single_graph,
+        "test_list_adj":     test_list_adj,
+        "val_adj":           val_adj,
+        "list_graphs":       list_graphs,
+        "list_test_graphs":  list_test_graphs,
+        "self_for_none":     self_for_none,
+    }
+
+    if not is_single_graph:
+        _cache.update({
+            "list_x_train":     list_x_train,
+            "list_x_test":      list_x_test,
+            "list_label_train": list_label_train,
+            "list_label_test":  list_label_test,
+            "list_noh_train":   list_noh_train,
+            "list_noh_test":    list_noh_test,
+            "list_eoh_train":   list_eoh_train,
+            "list_eoh_test":    list_eoh_test,
+        })
 
     print(f"[Cache] Saving to {cache_path} ...")
     logging.info(f"[Cache] Saving to {cache_path} ...")
