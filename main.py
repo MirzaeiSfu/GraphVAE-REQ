@@ -1,3 +1,4 @@
+# region imports
 import logging
 import plotter
 import torch.nn.functional as F
@@ -14,6 +15,7 @@ import dgl
 from util import *
 from motif_store import RuleBasedMotifStore
 from motif_counter import RelationalMotifCounter
+#endregion
 
 np.random.seed(0)
 random.seed(0)
@@ -28,6 +30,7 @@ torch.backends.cudnn.deterministic = True
 subgraphSize = None
 keepThebest = False
 
+#region arguments
 parser = argparse.ArgumentParser(description='Kernel VGAE')
 
 parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Epochs to train the model", type=int)
@@ -132,6 +135,11 @@ motif_loss = args.motif_loss
 rule_prune = args.rule_prune
 interactive = args.interactive
 device = args.device
+# end of core settings
+# endregion
+
+
+
 
 # ================================
 # Graph slice selection
@@ -143,6 +151,10 @@ graph_index_end = args.graph_index_end
 # Batched GPU counting
 # ================================
 batch_size = args.batch_size
+
+
+
+# region Tiny overfit debug mode
 tiny_overfit = args.tiny_overfit
 tiny_overfit_size = args.tiny_overfit_size
 if tiny_overfit:
@@ -166,13 +178,9 @@ if tiny_overfit:
           f"vis_step={visulizer_step}, motif_loss={args.motif_loss}, task={args.task}")
     logging.info(f"[TinyOverfit] Auto preset: size={tiny_overfit_size}, epochs={epoch_number}, "
                  f"vis_step={visulizer_step}, motif_loss={args.motif_loss}, task={args.task}")
-
-
+# end of tiny overfit debug mode
+# endregion
 #========**********************************===============================
-
-
-
-
 
 
 
@@ -519,6 +527,75 @@ def compute_true_node_feat_loss(node_feat_logits, target_node_onehot, true_node_
     return masked_loss_sum / valid_entry_count
 
 
+def compute_true_edge_feat_loss(edge_feat_logits, target_edge_onehot, true_node_num):
+    """
+    Compute edge-feature loss using one-hot edge labels on real, existing edges only.
+
+    Why this function exists:
+    - Edge feature targets are one-hot encoded over C edge classes.
+    - Padded nodes and non-edge pairs should not contribute to edge-feature loss.
+    - We therefore treat edge feature prediction as multi-class classification
+      (CrossEntropy), but only on positions where an edge actually exists.
+
+    Expected shapes:
+    - edge_feat_logits:   (B, C, N_max, N_max)
+    - target_edge_onehot: (B, C, N_max, N_max) with one-hot labels on true edges
+    - true_node_num:      length-B iterable/tensor with true node counts per graph
+
+    Returns:
+    - Scalar tensor: mean cross-entropy on valid existing edges only.
+    """
+    # Validate tensor ranks and alignment first for clearer runtime errors.
+    if edge_feat_logits.ndim != 4 or target_edge_onehot.ndim != 4:
+        raise ValueError(
+            "edge_feat_logits and target_edge_onehot must be 4D tensors with shape (B, C, N_max, N_max)."
+        )
+    if edge_feat_logits.shape != target_edge_onehot.shape:
+        raise ValueError(
+            f"Shape mismatch: logits {tuple(edge_feat_logits.shape)} vs targets {tuple(target_edge_onehot.shape)}."
+        )
+
+    # Unpack dimensions.
+    batch_size, _, max_nodes, _ = edge_feat_logits.shape
+
+    # Convert and validate true node counts.
+    true_node_num = torch.as_tensor(true_node_num, device=edge_feat_logits.device)
+    if true_node_num.ndim != 1 or true_node_num.numel() != batch_size:
+        raise ValueError(
+            f"true_node_num must be 1D with length {batch_size}; got shape {tuple(true_node_num.shape)}."
+        )
+    true_node_num = true_node_num.long().clamp(min=0, max=max_nodes)
+
+    # Build node-valid mask (B, N_max), then pair-valid mask (B, N_max, N_max).
+    # This removes any contribution from padded node rows/cols.
+    node_positions = torch.arange(max_nodes, device=edge_feat_logits.device).unsqueeze(0)
+    valid_node_mask = node_positions < true_node_num.unsqueeze(1)
+    valid_pair_mask = valid_node_mask.unsqueeze(1) & valid_node_mask.unsqueeze(2)
+
+    # Use the one-hot target to detect where an edge actually exists.
+    # For non-edges, target one-hot channels are all zeros.
+    target_edge_onehot = target_edge_onehot.to(
+        device=edge_feat_logits.device,
+        dtype=edge_feat_logits.dtype
+    )
+    edge_exists_mask = target_edge_onehot.sum(dim=1) > 0
+
+    # Final supervision mask: only real-node pairs that correspond to real edges.
+    supervision_mask = valid_pair_mask & edge_exists_mask
+
+    # Convert one-hot labels -> class indices for cross-entropy.
+    # Cross-entropy is applied per (i, j) pair, then masked.
+    target_edge_class = target_edge_onehot.argmax(dim=1).long()
+    per_pair_loss = F.cross_entropy(edge_feat_logits, target_edge_class, reduction='none')
+
+    # Average only over supervised edge positions.
+    supervision_mask_f = supervision_mask.to(per_pair_loss.dtype)
+    masked_loss_sum = (per_pair_loss * supervision_mask_f).sum()
+    supervised_count = supervision_mask_f.sum().clamp(min=1.0)
+
+    return masked_loss_sum / supervised_count
+
+
 def OptimizerVAE(reconstructed_adj, reconstructed_kernel_val, targert_adj, target_kernel_val, log_std, mean, alpha,
                  reconstructed_adj_logit, pos_wight, norm):
     loss = norm * torch.nn.functional.binary_cross_entropy_with_logits(reconstructed_adj_logit.float(),
@@ -569,7 +646,7 @@ def getBack(var_grad_fn):
 
 
 # load the data
-
+#region Load the data
 
 cache_dir  = "dataset_cached"
 os.makedirs(cache_dir, exist_ok=True)        
@@ -714,8 +791,11 @@ else:
     print("[Cache] Saved successfully.")
     logging.info("[Cache] Saved successfully.")
 
+#endregion
+
 
 # Tiny-overfit mode: keep only a small fixed training subset.
+# region Tiny-overfit mode
 if tiny_overfit:
     keep_n = max(1, min(int(tiny_overfit_size), len(list_graphs.list_adjs)))
     list_graphs = Datasets(
@@ -735,6 +815,7 @@ if tiny_overfit:
           f"batch_size={mini_batch_size}, shuffle=off")
     logging.info(f"[TinyOverfit] Enabled: using {keep_n} fixed training graphs, "
                  f"batch_size={mini_batch_size}, shuffle=off")
+#endregion
 
 
 if args.motif_loss:
@@ -753,8 +834,6 @@ if args.motif_loss:
     if args.sanity_check_local_mults:
         aggregated = counts.sum(0)
         print(aggregated)
-
-
 
 
 
@@ -941,12 +1020,16 @@ for epoch in range(epoch_number):
             target_node_onehot=target_node_oh,
             true_node_num=true_node_num
         )
-        edge_feat_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            edge_feat_logits, target_edge_oh
+        # Edge-feature supervision now treats channels as one-hot classes and
+        # ignores padded/non-edge positions; only real existing edges contribute.
+        edge_feat_loss = compute_true_edge_feat_loss(
+            edge_feat_logits=edge_feat_logits,
+            target_edge_onehot=target_edge_oh,
+            true_node_num=true_node_num
         )
         alpha_kernel_cost = 0
-        alpha_node_feat = 1.0   
-        alpha_edge_feat = 0.0
+        alpha_node_feat =   0   
+        alpha_edge_feat = 1
 
         loss = alpha_kernel_cost * kernel_cost + alpha_node_feat * node_feat_loss + alpha_edge_feat * edge_feat_loss
 
