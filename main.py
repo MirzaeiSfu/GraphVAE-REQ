@@ -1,3 +1,12 @@
+# | Action               | Shortcut            |
+# | -------------------- | ------------------- |
+# | Fold current block   | `Ctrl + Shift + [`  |
+# | Unfold current block | `Ctrl + Shift + ]`  |
+# | Fold all             | `Ctrl + K Ctrl + 0` |
+# | Unfold all           | `Ctrl + K Ctrl + J` |
+
+
+#====================================================================================
 # region imports
 import logging
 import plotter
@@ -16,13 +25,16 @@ from util import *
 from motif_store import RuleBasedMotifStore
 from motif_counter import RelationalMotifCounter
 #endregion
+#====================================================================================
 
+# region seeding for reproducibility
 np.random.seed(0)
 random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed(0)
 torch.cuda.manual_seed(0)
 torch.cuda.manual_seed_all(0)
+#endregion
 torch.backends.cudnn.enabled = False
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
@@ -30,6 +42,7 @@ torch.backends.cudnn.deterministic = True
 subgraphSize = None
 keepThebest = False
 
+#====================================================================================
 #region arguments
 parser = argparse.ArgumentParser(description='Kernel VGAE')
 
@@ -137,23 +150,25 @@ interactive = args.interactive
 device = args.device
 # end of core settings
 # endregion
-
+#====================================================================================
 
 
 
 # ================================
-# Graph slice selection
-# ================================
+# region Graph slice selection
 graph_index_start = args.graph_index_start
 graph_index_end = args.graph_index_end
+# endregion
+# ================================
+
 
 # ================================
 # Batched GPU counting
-# ================================
 batch_size = args.batch_size
+# ================================
 
 
-
+#====================================================================================
 # region Tiny overfit debug mode
 tiny_overfit = args.tiny_overfit
 tiny_overfit_size = args.tiny_overfit_size
@@ -180,9 +195,7 @@ if tiny_overfit:
                  f"vis_step={visulizer_step}, motif_loss={args.motif_loss}, task={args.task}")
 # end of tiny overfit debug mode
 # endregion
-#========**********************************===============================
-
-
+#====================================================================================
 
 
 if graph_save_path == None:
@@ -644,7 +657,7 @@ def getBack(var_grad_fn):
 
 
 
-
+#====================================================================================
 # load the data
 #region Load the data
 
@@ -792,8 +805,10 @@ else:
     logging.info("[Cache] Saved successfully.")
 
 #endregion
+#====================================================================================
 
 
+#====================================================================================
 # Tiny-overfit mode: keep only a small fixed training subset.
 # region Tiny-overfit mode
 if tiny_overfit:
@@ -816,10 +831,17 @@ if tiny_overfit:
     logging.info(f"[TinyOverfit] Enabled: using {keep_n} fixed training graphs, "
                  f"batch_size={mini_batch_size}, shuffle=off")
 #endregion
+#====================================================================================
 
 
+#====================================================================================
+#region Motif Loss Setup: build motif store and precompute dataset motif counts
+# This block prepares motif-count targets used by the motif-loss term.
 if args.motif_loss:
+    # Initializes the motif rule store (RuleBasedMotifStore).
     RuleBasedMotifStore(database_name=args.database_name, args=args) 
+
+    # Builds the dataset to count on (train only, or train+test in sanity mode).
     if args.sanity_check_local_mults:
         remove_self_loops(list_graphs)
         remove_self_loops(list_test_graphs)
@@ -827,14 +849,19 @@ if args.motif_loss:
     else :
         dataa = merge_datasets(list_graphs)
 
+    # Creates a relational motif counter and wraps data for counting on CUDA.
     motif_counter = RelationalMotifCounter(database_name=args.database_name, args=args)
     wrapper = DataWrapper(dataa, motif_counter.relation_keys,node_onehot_info, device='cuda')
+
+    # Computes motif counts in batches.
     counts  = motif_counter.count_batch(wrapper, batch_size=50000)
     
+    # In sanity mode, sums counts across all samples and prints them for inspection.
     if args.sanity_check_local_mults:
         aggregated = counts.sum(0)
         print(aggregated)
-
+#endregion
+#====================================================================================
 
 
 
@@ -888,9 +915,14 @@ if (subgraphSize == None):
     graphFeatures, _ = get_subGraph_features(adj_list, None, kernel_model)
     list_graphs.set_features(graphFeatures)
 
-# added for feature decoding, it is not used in the paper, but I implemented it to check if it can help the model to learn better or not, but it did not help and I did not report it in the paper. 
-# I implemented it as a simple MLP that takes the graph embedding as input and outputs the node and edge features, and then I added a loss term to the total loss 
-#=====================-------=-==-=-=-===-*****%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@@
+
+#====================================================================================
+# %% Node and edge feature decoders
+# region Node and edge feature decoders
+# Added for feature decoding, I implemented it as a simple MLP that takes the graph 
+# embedding as input and outputs the node and edge features, and then I added a loss 
+# term to the total loss 
+
 if not list_graphs.node_onehot_s or list_graphs.edge_onehot_s[0] is None:
     raise RuntimeError("Node or edge one-hot features are missing.")
 
@@ -899,7 +931,9 @@ edge_onehot_dim = list_graphs.edge_onehot_s[0].shape[0]
 
 node_feat_decoder = NodeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, node_onehot_dim)
 edge_feat_decoder = EdgeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, edge_onehot_dim)
-#=====================-------=-==-=-=-===-*****%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@@
+#endregion
+#====================================================================================
+
 
 
 model = kernelGVAE(kernel_model, encoder, decoder, AutoEncoder, graphEmDim=graphEmDim,
@@ -946,6 +980,9 @@ if load_model == True:  # I used this in line code to load a model #TODO: fix it
 # EvalTwoSet(model, test_list_adj, model_dir+"/", Save_generated= False, )
 
 
+#=========================================================================================
+# %% Training loop
+#region Training loop
 for epoch in range(epoch_number):
 
     if not tiny_overfit:
@@ -1125,6 +1162,8 @@ for epoch in range(epoch_number):
 model.eval()
 if not tiny_overfit:
     torch.save(model.state_dict(), graph_save_path + "model_" + str(epoch) + "_" + str(batch))
+#endregion
+#=========================================================================================
 
 stop = timeit.default_timer()
 print("trainning time:", str(stop - start))
@@ -1148,10 +1187,18 @@ if not tiny_overfit:
 if not tiny_overfit:
     pltr.save_plot(graph_save_path + "KernelVGAE_log_plot")
 
+
+#==========================================================================================
+#   %% Evaluation of the model on graph generation task
+# region graph generation task
 if task == "graphGeneration":
     EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_name="final_eval")
+# endregion
+#==========================================================================================
 
-# # graph Classification
+#==========================================================================================
+# %% Evaluation of the model on graph generation task
+# region graph Classification task
 # if task == "graphClasssification":
 #
 #
@@ -1200,8 +1247,12 @@ if task == "graphGeneration":
 #           "F1 - Macro,Micro: {} {}".format(macro_f1, micro_f1),
 #           "confusion matrix:{}".format(conf_matrix))
 # # evaluatin graph statistics in graph generation tasks
-#
-#
+# endregion
+#==========================================================================================
+
+#==========================================================================================
+# %% Evaluation of the model on graph representation learning task
+# region graph representation learning task
 # if task == "GraphRepresentation":
 #
 #     list_test_graphs.processALL(self_for_none=self_for_none)
@@ -1251,3 +1302,5 @@ if task == "graphGeneration":
 #         digit_labels.append(dic[labl])
 #
 #     plotter.featureVisualizer(prior_samples.detach().cpu().numpy(), digit_labels)
+#endregion
+#==========================================================================================
