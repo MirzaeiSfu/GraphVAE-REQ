@@ -34,10 +34,10 @@ torch.manual_seed(0)
 torch.cuda.manual_seed(0)
 torch.cuda.manual_seed(0)
 torch.cuda.manual_seed_all(0)
-#endregion
 torch.backends.cudnn.enabled = False
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
+#endregion
 
 subgraphSize = None
 keepThebest = False
@@ -212,6 +212,7 @@ logging.basicConfig(filename=graph_save_path + 'log.log', filemode='w', level=lo
 
 # **********************************************************************
 # setting; general setting and hyper-parameters for each dataset
+# region general settings
 print("KernelVGAE SETING: " + str(args))
 logging.info("KernelVGAE SETING: " + str(args))
 PATH = args.PATH  # the dir to save the with the best performance on validation data
@@ -321,7 +322,7 @@ if args.model == "TotalNumberOfTriangles":
 
 functions.append("Binary_Cross_Entropy")
 functions.append("KL-D")
-
+#endregion
 # ========================================================================
 
 
@@ -331,6 +332,7 @@ synthesis_graphs = {"wheel_graph", "star", "triangular_grid", "DD", "ogbg-molbbb
                     "small_grid", "community", "lobster", "ego", "one_grid", "IMDBBINARY", ""}
 
 
+# region Modules for latent space transformation and upsampling (not used in the current model, but can be useful for future extensions)
 class NodeUpsampling(torch.nn.Module):
     def __init__(self, InNode_num, outNode_num, InLatent_dim=None):
         super(NodeUpsampling, self).__init__()
@@ -353,10 +355,11 @@ class LatentMtrixTransformer(torch.nn.Module):
         Z = torch.matmul(inTensor, Z.reshpe(inTensor.shape[-1], -1))
 
         return activation(Z)
-
+#endregion
 
 # ============================================================================
 
+#region Testing and evaluation and helper functions
 def test_(number_of_samples, model, graph_size, path_to_save_g, remove_self=True, save_graphs=True):
     import os
     if not os.path.exists(path_to_save_g):
@@ -439,6 +442,7 @@ def EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_na
                 allow_pickle=True)
     return  statistic_
 
+
 def get_subGraph_features(org_adj, subgraphs_indexes, kernel_model):
     subgraphs = []
     target_kelrnel_val = None
@@ -471,8 +475,10 @@ def softclip(tensor, min):
     result_tensor = min + F.softplus(tensor - min)
 
     return result_tensor
+#endregion
 
-
+#============================================================================
+# region Loss functions for node and edge feature decoders
 def compute_true_node_feat_loss(node_feat_logits, target_node_onehot, true_node_num):
     """
     Compute node feature BCE loss on real nodes only (ignore padded nodes).
@@ -538,8 +544,6 @@ def compute_true_node_feat_loss(node_feat_logits, target_node_onehot, true_node_
 
     # Return mean loss over valid node-feature entries only.
     return masked_loss_sum / valid_entry_count
-
-
 def compute_true_edge_feat_loss(edge_feat_logits, target_edge_onehot, true_node_num):
     """
     Compute edge-feature loss using one-hot edge labels on real, existing edges only.
@@ -607,8 +611,8 @@ def compute_true_edge_feat_loss(edge_feat_logits, target_edge_onehot, true_node_
     supervised_count = supervision_mask_f.sum().clamp(min=1.0)
 
     return masked_loss_sum / supervised_count
-
-
+#endregion
+#
 def OptimizerVAE(reconstructed_adj, reconstructed_kernel_val, targert_adj, target_kernel_val, log_std, mean, alpha,
                  reconstructed_adj_logit, pos_wight, norm):
     loss = norm * torch.nn.functional.binary_cross_entropy_with_logits(reconstructed_adj_logit.float(),
@@ -968,6 +972,7 @@ min_loss = float('inf')
 
 # 50%50 Evaluation
 
+#region model loading
 load_model = False
 if load_model == True:  # I used this in line code to load a model #TODO: fix it
     # ========================================
@@ -978,7 +983,7 @@ if load_model == True:  # I used this in line code to load a model #TODO: fix it
 # model_dir1 = "/local-scratch/kiarash/AAAI/Graph-Generative-Models/FinalResultHopefully/"
 # model.load_state_dict(torch.load(model_dir1+"model_9999_3"))
 # EvalTwoSet(model, test_list_adj, model_dir+"/", Save_generated= False, )
-
+#endregion
 
 #=========================================================================================
 # %% Training loop
