@@ -160,6 +160,7 @@ class Datasets():
         self.list_adjs             = list_adjs
         self.list_node_onehot      = list_node_onehot
         self.list_edge_onehot      = list_edge_onehot
+        self.motif_counts          = None
         self.toatl_num_of_edges    = 0
         self.max_num_nodes         = 0
 
@@ -373,6 +374,13 @@ class Datasets():
         else:
             warnings.warn("Label is an empty Set")
 
+        if self.motif_counts is not None:
+            if torch.is_tensor(self.motif_counts) or isinstance(self.motif_counts, np.ndarray):
+                self.motif_counts = self.motif_counts[indx]
+            else:
+                self.motif_counts = [self.motif_counts[i] for i in indx]
+        else:
+            warnings.warn("Motif counts is an empty Set")
         if len(self.subgraph_indexes) > 0:
             self.adj_s            = [self.adj_s[i]            for i in indx]
             self.x_s              = [self.x_s[i]              for i in indx]
