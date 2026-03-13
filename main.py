@@ -173,6 +173,9 @@ batch_size = args.batch_size
 tiny_overfit = args.tiny_overfit
 tiny_overfit_size = args.tiny_overfit_size
 if tiny_overfit:
+    # Tiny overfit is a deterministic debug preset for checking whether the
+    # current loss can be overfit on a tiny fixed subset. The model is later
+    # switched to AutoEncoder=True below, so latent sampling is disabled here.
     tiny_overfit_size = 32
     epoch_number = min(int(epoch_number), 1000)
     visulizer_step = min(int(visulizer_step), 100)
@@ -287,15 +290,22 @@ elif args.model == "kipf" or args.model == "graphVAE":
 
 AutoEncoder = False
 
+# Make sure if we are using tiny overfit debug mode, we are actually training an autoencoder (no kernel loss).
+if tiny_overfit:
+    AutoEncoder = True
+
 if AutoEncoder == True:
     alpha[-1] = 0
 
 if args.beta != None:
     alpha[-1] = args.beta
 
+latent_mode = "AE" if AutoEncoder else "VAE"
+print("latent_mode:" + latent_mode)
 print("kernl_type:" + str(kernl_type))
 print("alpha: " + str(alpha) + " num_step:" + str(step_num))
 
+logging.info("latent_mode:" + latent_mode)
 logging.info("kernl_type:" + str(kernl_type))
 logging.info("alpha: " + str(alpha) + " num_step:" + str(step_num))
 
@@ -1205,12 +1215,10 @@ for epoch in range(epoch_number):
             k_loss_str += functions[indx + 2] + ":"
             k_loss_str += str(l) + ".   "
 
-        print(
-            "Epoch: {:03d} |Batch: {:03d} | loss: {:05f} | reconstruction_loss: {:05f} | z_kl_loss: {:05f} | accu: {:03f}".format(
-                epoch + 1, batch, loss.item(), reconstruction_loss.item(), kl_loss.item(), acc), k_loss_str)
-        logging.info(
-            "Epoch: {:03d} |Batch: {:03d} | loss: {:05f} | reconstruction_loss: {:05f} | z_kl_loss: {:05f} | accu: {:03f}".format(
-                epoch + 1, batch, loss.item(), reconstruction_loss.item(), kl_loss.item(), acc) + " " + str(k_loss_str))
+        epoch_status = "Epoch: {:03d} |Batch: {:03d} | latent_mode: {} | loss: {:05f} | reconstruction_loss: {:05f} | z_kl_loss: {:05f} | accu: {:03f}".format(
+                epoch + 1, batch, latent_mode, loss.item(), reconstruction_loss.item(), kl_loss.item(), acc)
+        print(epoch_status, k_loss_str)
+        logging.info(epoch_status + " " + str(k_loss_str))
         # print(log_sigma_values)
         log_std = ""
         for indx, l in enumerate(log_sigma_values):
