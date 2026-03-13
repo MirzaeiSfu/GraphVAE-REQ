@@ -107,7 +107,7 @@ parser.add_argument('--batch_size', type=int, default=50000,
                             '8 GB → 2000 | 16 GB → 5000 | 24 GB+ → 30000.')
 parser.add_argument('--sanity_check_local_mults',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='Run sanity check for local multiplicities using merged data.')
 #=======================================
 
@@ -174,11 +174,11 @@ tiny_overfit = args.tiny_overfit
 tiny_overfit_size = args.tiny_overfit_size
 if tiny_overfit:
     tiny_overfit_size = 32
-    epoch_number = min(int(epoch_number), 6000)
-    visulizer_step = min(int(visulizer_step), 10)
+    epoch_number = min(int(epoch_number), 1000)
+    visulizer_step = min(int(visulizer_step), 100)
 
-    motif_loss = False
-    args.motif_loss = False
+    motif_loss = True
+    args.motif_loss = True
     ideal_Evalaution = False
     args.ideal_Evalaution = False
     plot_testGraphs = False
@@ -859,7 +859,8 @@ if args.motif_loss:
 
     # Computes motif counts in batches.
     counts  = motif_counter.count_batch(wrapper, batch_size=50000)
-    
+    list_graphs.motif_counts = counts
+
     # In sanity mode, sums counts across all samples and prints them for inspection.
     if args.sanity_check_local_mults:
         aggregated = counts.sum(0)
@@ -938,6 +939,34 @@ edge_feat_decoder = EdgeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, ed
 #endregion
 #====================================================================================
 
+#====================================================================================
+# %% Motif loss computation
+# region Motif loss  computation
+#====================================================================================
+def compute_motif_loss(observed_counts, predicted_counts):
+
+    total_loss = torch.tensor(0.0, device=observed_counts.device)
+    K = observed_counts.shape[1]
+
+    for k in range(K):
+        observed  = observed_counts[:, k]  
+        predicted = predicted_counts[:, k] 
+
+        mask = observed != 0
+        if mask.sum() == 0:
+            continue
+
+        obs_k  = observed[mask]
+        pred_k = predicted[mask]
+
+        pred_k = pred_k.clamp(min=1e-8)
+
+        motif_loss_k = torch.abs(torch.log(pred_k / obs_k)).mean()
+        total_loss   = total_loss + motif_loss_k
+
+    return total_loss
+#endregion
+#====================================================================================
 
 
 model = kernelGVAE(kernel_model, encoder, decoder, AutoEncoder, graphEmDim=graphEmDim,
@@ -1071,9 +1100,36 @@ for epoch in range(epoch_number):
         )
         alpha_kernel_cost = 0
         alpha_node_feat =   0   
-        alpha_edge_feat = 1
+        alpha_edge_feat = 0
+        alpha_motif_loss=1
+        if args.motif_loss:
+            recon_wrapper = ReconstructedDataWrapper(
+                reconstructed_adj=reconstructed_adj,
+                node_feat_logits=node_feat_logits,
+                edge_feat_logits=edge_feat_logits,
+                relation_keys=motif_counter.relation_keys,
+                node_onehot_info=node_onehot_info,
+                feature_onehot_mapping=wrapper.feature_onehot_mapping,
+                use_soft_adj=True,
+                device=device,
+            )
 
-        loss = alpha_kernel_cost * kernel_cost + alpha_node_feat * node_feat_loss + alpha_edge_feat * edge_feat_loss
+
+            recon_counts = motif_counter.count_batch(recon_wrapper, batch_size=batch_size)
+            motif_loss = compute_motif_loss(observed_counts=list_graphs.motif_counts[from_:to_].to(device),
+                                            predicted_counts=recon_counts)
+            #m_loss = motif_loss * alpha_motif_loss
+
+
+        else:
+            #m_loss = torch.tensor(0.0, device=device)
+            motif_loss=torch.tensor(0.0, device=device)
+#====================-------=-==-=-=-===-*****%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@@
+
+        loss = alpha_kernel_cost * kernel_cost + \
+            alpha_node_feat * node_feat_loss +\
+            alpha_edge_feat * edge_feat_loss+\
+            motif_loss * alpha_motif_loss   
 
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "

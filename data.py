@@ -1313,3 +1313,204 @@ def _stack_3d(edge_ohs, C: int, N_max: int) -> torch.Tensor:
         n = min(t.shape[1], N_max)
         out[g, :, :n, :n] = t[:, :n, :n]
     return out.pin_memory()
+
+
+import torch
+import torch.nn.functional as F
+from typing import Dict, List, Optional
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  ReconstructedDataWrapper
+# ════════════════════════════════════════════════════════════════════════  
+
+class ReconstructedDataWrapper:
+
+
+    def __init__(
+        self,
+        reconstructed_adj: torch.Tensor,
+        node_feat_logits: torch.Tensor,
+        edge_feat_logits: Optional[torch.Tensor],
+        relation_keys: List[str],
+        node_onehot_info: Optional[Dict],
+        feature_onehot_mapping: Dict,
+        adj_threshold: float = 0.5,
+        use_soft_adj: bool = True,
+        device: str = 'cuda',
+    ):
+        self.device = device
+        self.relation_keys = relation_keys
+        self.feature_onehot_mapping = feature_onehot_mapping
+        self.adj_threshold = adj_threshold
+        self.use_soft_adj = use_soft_adj
+
+
+        adj = reconstructed_adj
+        if adj.dim() == 4:
+            adj = adj.squeeze(-1)
+        assert adj.dim() == 3, \
+            f"reconstructed_adj must be (B, N, N), got {adj.shape}"
+
+        B, N, _ = adj.shape
+        self.num_graphs = B
+        self.N_max = N
+
+
+        adj_min = adj.detach().min().item()
+        adj_max = adj.detach().max().item()
+        is_logit = (adj_min < -0.01) or (adj_max > 1.01)
+
+        if is_logit:
+            # Apply sigmoid to convert logits → probabilities (differentiable)
+            adj_soft = torch.sigmoid(adj)
+        else:
+            adj_soft = adj  # already probabilities
+
+
+        # adj_soft = (adj_soft + adj_soft.transpose(1, 2)) / 2.0
+
+        # ── Store adjacency ───────────────────────────────────────────────────
+
+        self.all_adj = {rk: adj_soft for rk in relation_keys}
+
+        # ── Build node one-hot features ───────────────────────────────────────
+
+        # if node_feat_logits is not None:
+        nf = node_feat_logits 
+        if nf.dim() == 2:
+            D = nf.shape[-1]
+            nf = nf.view(B, N, D)
+
+
+        node_onehot_soft = self._apply_node_softmax(nf, node_onehot_info)
+        self.all_feat_onehot = node_onehot_soft  # (B, N, D)
+        self.total_onehot_dim = node_onehot_soft.shape[-1]
+
+
+        # ── Build node features (raw, non-onehot) ────────────────────────────
+
+        if node_feat_logits is not None:
+            self.all_features = node_feat_logits.view(B, N, -1)
+        else:
+            self.all_features = torch.zeros(B, N, 1, device=device)
+
+        # ── Build edge features ───────────────────────────────────────────────
+        # edge_feat_logits: (B, C, N, N) or None
+        if edge_feat_logits is not None:
+            ef = edge_feat_logits  # (B, C, N, N)
+            assert ef.dim() == 4, \
+                f"edge_feat_logits must be (B, C, N, N), got {ef.shape}"
+
+            # Apply softmax over channel dimension C (differentiable)
+            # This gives soft edge-type probabilities
+            edge_soft = F.softmax(ef, dim=1)  # (B, C, N, N)
+
+            # all_edge is a list of tensors, each (B, C, N, N)
+            self.all_edge = [edge_soft]
+            self.has_edge_features = True
+        else:
+            self.all_edge = None
+            self.has_edge_features = False
+
+        print(
+            f"[ReconstructedDataWrapper] Ready."
+            f" B={B}, N_max={N}"
+            f" adj={'soft' if use_soft_adj else 'hard'}"
+            f" node_onehot={tuple(self.all_feat_onehot.shape)}"
+            + (f" edge={tuple(self.all_edge[0].shape)}"
+               if self.all_edge else " edge=None")
+        )
+
+    def _apply_node_softmax(
+        self,
+        node_feat_logits: torch.Tensor,
+        node_onehot_info: Optional[Dict],
+    ) -> torch.Tensor:
+        """
+        Apply softmax per feature group to node feature logits.
+
+        If node_onehot_info is provided, we know which columns belong to
+        which categorical feature and apply softmax per group.
+        Otherwise, apply softmax over the full last dimension.
+
+        Parameters
+        ----------
+        node_feat_logits : (B, N, D)
+        node_onehot_info : dict {oh_col: {'feature_name': str, 'value': int}}
+
+        Returns
+        -------
+        Tensor (B, N, D) with softmax applied per feature group.
+        """
+        if node_onehot_info is None or len(node_onehot_info) == 0:
+            # No info about feature groups → softmax over all
+            return F.softmax(node_feat_logits, dim=-1)
+
+        B, N, D = node_feat_logits.shape
+
+        # Group columns by feature_name
+        # node_onehot_info: {oh_col_idx: {'feature_name': str, 'value': int}}
+        feature_groups = {}  # feature_name → list of column indices
+        for col_idx, info in sorted(node_onehot_info.items()):
+            fname = info['feature_name']
+            if fname not in feature_groups:
+                feature_groups[fname] = []
+            feature_groups[fname].append(col_idx)
+
+        # Apply softmax per group and reconstruct
+        # We build a list of softmax'd slices and concatenate
+        result_parts = []
+        covered_cols = set()
+
+        for fname, cols in sorted(feature_groups.items()):
+            cols_sorted = sorted(cols)
+            covered_cols.update(cols_sorted)
+            # Extract the logits for this feature group
+            group_logits = node_feat_logits[:, :, cols_sorted]  # (B, N, len(cols))
+            # Apply softmax over the group dimension (differentiable)
+            group_soft = F.softmax(group_logits, dim=-1)
+            result_parts.append((cols_sorted[0], group_soft))
+
+        # Sort by starting column index and concatenate
+        result_parts.sort(key=lambda x: x[0])
+
+        # Handle any uncovered columns (shouldn't happen, but just in case)
+        all_covered = sorted(covered_cols)
+        if len(all_covered) == D:
+            # All columns are covered by feature groups
+            output = torch.cat([part for _, part in result_parts], dim=-1)
+        else:
+            # Some columns not in any group → softmax over full tensor
+            output = F.softmax(node_feat_logits, dim=-1)
+
+        return output  # (B, N, D)
+
+    def to(self, device: str):
+        """Move all tensors to the specified device."""
+        self.device = device
+        self.all_adj = {k: v.to(device) for k, v in self.all_adj.items()}
+        self.all_feat_onehot = self.all_feat_onehot.to(device)
+        self.all_features = self.all_features.to(device)
+        if self.all_edge is not None:
+            self.all_edge = [e.to(device) for e in self.all_edge]
+        return self
+    def get_batch(self, start: int, end: int):
+        """
+        Returns
+        -------
+        feat_b        (B, N_max, F)
+        feat_onehot_b (B, N_max, D)
+        adj_b         {rel: (B, N_max, N_max)}
+        edge_b        list[(B, C, N_max, N_max)] | None
+        """
+        dev = self.device
+        kw  = dict(non_blocking=True)
+        feat_b        = self.all_features[start:end].to(dev, **kw)
+        feat_onehot_b = self.all_feat_onehot[start:end].to(dev, **kw)
+        adj_b         = {rk: self.all_adj[rk][start:end].to(dev, **kw)
+                         for rk in self.relation_keys}
+        edge_b        = ([e[start:end].to(dev, **kw) for e in self.all_edge]
+                         if self.all_edge is not None else None)
+        return feat_b, feat_onehot_b, adj_b, edge_b
+
