@@ -86,6 +86,11 @@ parser.add_argument('--database_name', type=str, default='qm9')
 parser.add_argument('--graph_type', type=str, default='homogeneous',
                     choices=['homogeneous', 'heterogeneous'])
 parser.add_argument('--motif_loss', type=bool, default=True)
+# Keep the original motif loss available, but allow switching to a squared
+# log-ratio variant that is often smoother when fine-tuning near zero.
+parser.add_argument('--motif_loss_mode', type=str, default='abs_log_ratio',
+                    choices=['abs_log_ratio', 'squared_log_ratio'],
+                    help='Motif loss variant: original abs(log(pred/obs)) or squared log-ratio.')
 parser.add_argument('--rule_prune', type=bool, default=False)
 parser.add_argument('--interactive', action='store_true', default=False)
 parser.add_argument('--device', type=str, default='cuda',
@@ -304,10 +309,12 @@ latent_mode = "AE" if AutoEncoder else "VAE"
 print("latent_mode:" + latent_mode)
 print("kernl_type:" + str(kernl_type))
 print("alpha: " + str(alpha) + " num_step:" + str(step_num))
+print("motif_loss_mode:" + str(args.motif_loss_mode))
 
 logging.info("latent_mode:" + latent_mode)
 logging.info("kernl_type:" + str(kernl_type))
 logging.info("alpha: " + str(alpha) + " num_step:" + str(step_num))
+logging.info("motif_loss_mode:" + str(args.motif_loss_mode))
 
   # with is propertion to revese of this value;
 
@@ -953,28 +960,51 @@ edge_feat_decoder = EdgeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, ed
 # %% Motif loss computation
 # region Motif loss  computation
 #====================================================================================
-def compute_motif_loss(observed_counts, predicted_counts):
+def compute_motif_loss(observed_counts, predicted_counts, loss_mode="abs_log_ratio"):
+    """
+    Compute motif loss by normalizing inside each graph first, then averaging
+    across graphs in the batch.
 
-    total_loss = torch.tensor(0.0, device=observed_counts.device)
-    K = observed_counts.shape[1]
+    This gives each graph equal weight regardless of how many motif types are
+    active in that graph. Motifs with zero observed count are excluded from a
+    graph's normalization term.
 
-    for k in range(K):
-        observed  = observed_counts[:, k]  
-        predicted = predicted_counts[:, k] 
+    loss_mode='abs_log_ratio' keeps the original absolute log-ratio penalty.
+    loss_mode='squared_log_ratio' uses a squared log-ratio penalty, which is
+    often smoother when fine-tuning near zero.
+    """
+    if observed_counts.shape != predicted_counts.shape:
+        raise ValueError(
+            f"Shape mismatch: observed {tuple(observed_counts.shape)} vs "
+            f"predicted {tuple(predicted_counts.shape)}"
+        )
 
-        mask = observed != 0
-        if mask.sum() == 0:
-            continue
+    mask = observed_counts != 0
+    if not mask.any():
+        return torch.tensor(0.0, device=observed_counts.device)
 
-        obs_k  = observed[mask]
-        pred_k = predicted[mask]
+    safe_observed = observed_counts.clamp(min=1e-8)
+    safe_predicted = predicted_counts.clamp(min=1e-8)
 
-        pred_k = pred_k.clamp(min=1e-8)
+    log_ratio = torch.log(safe_predicted / safe_observed)
+    if loss_mode == "abs_log_ratio":
+        per_motif_loss = torch.abs(log_ratio)
+    elif loss_mode == "squared_log_ratio":
+        per_motif_loss = log_ratio.pow(2)
+    else:
+        raise ValueError(f"Unknown motif loss mode: {loss_mode}")
 
-        motif_loss_k = torch.abs(torch.log(pred_k / obs_k)).mean()
-        total_loss   = total_loss + motif_loss_k
+    per_motif_loss = per_motif_loss * mask.to(per_motif_loss.dtype)
 
-    return total_loss
+    active_motif_count = mask.sum(dim=1)
+    valid_graph_mask = active_motif_count > 0
+    if not valid_graph_mask.any():
+        return torch.tensor(0.0, device=observed_counts.device)
+
+    per_graph_loss = per_motif_loss.sum(dim=1)
+    per_graph_loss = per_graph_loss[valid_graph_mask] / active_motif_count[valid_graph_mask].to(per_motif_loss.dtype)
+
+    return per_graph_loss.mean()
 #endregion
 #====================================================================================
 
@@ -988,6 +1018,11 @@ model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr)
 
 # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5000,6000,7000,8000,9000], gamma=0.5)
+# A simple schedule helps the tiny motif-only run keep improving after the
+# fast early drop. These milestones all occur within the 1000-epoch debug run.
+# scheduler = torch.optim.lr_scheduler.MultiStepLR(
+#    optimizer, milestones=[300, 600, 900], gamma=0.5
+#)
 
 # pos_wight = torch.true_divide((list_graphs.max_num_nodes**2*len(list_graphs.processed_adjs)-list_graphs.toatl_num_of_edges),
 #                               list_graphs.toatl_num_of_edges) # addrressing imbalance data problem: ratio between positve to negative instance
@@ -1111,7 +1146,10 @@ for epoch in range(epoch_number):
         alpha_kernel_cost = 0
         alpha_node_feat =   0   
         alpha_edge_feat = 0
-        alpha_motif_loss=1
+        alpha_motif_loss = 1
+        # Keep this helper weight next to the other loss alphas so it can be
+        # tuned directly in code. Set to 0.0 to recover pure motif-only training.
+        alpha_motif_recon = 0.001
         if args.motif_loss:
             recon_wrapper = ReconstructedDataWrapper(
                 reconstructed_adj=reconstructed_adj,
@@ -1126,8 +1164,11 @@ for epoch in range(epoch_number):
 
 
             recon_counts = motif_counter.count_batch(recon_wrapper, batch_size=batch_size)
-            motif_loss = compute_motif_loss(observed_counts=list_graphs.motif_counts[from_:to_].to(device),
-                                            predicted_counts=recon_counts)
+            motif_loss = compute_motif_loss(
+                observed_counts=list_graphs.motif_counts[from_:to_].to(device),
+                predicted_counts=recon_counts,
+                loss_mode=args.motif_loss_mode,
+            )
             #m_loss = motif_loss * alpha_motif_loss
 
 
@@ -1139,10 +1180,12 @@ for epoch in range(epoch_number):
         loss = alpha_kernel_cost * kernel_cost + \
             alpha_node_feat * node_feat_loss +\
             alpha_edge_feat * edge_feat_loss+\
-            motif_loss * alpha_motif_loss   
+            motif_loss * alpha_motif_loss + \
+            reconstruction_loss * alpha_motif_recon
 
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
+                  f"motif={motif_loss.item():.6f} recon={reconstruction_loss.item():.6f} "
                   f"node={node_feat_loss.item():.6f} edge={edge_feat_loss.item():.6f}")
     #    
     #   loss = kernel_cost  # Graph generation loss without feature decoding
@@ -1215,8 +1258,8 @@ for epoch in range(epoch_number):
             k_loss_str += functions[indx + 2] + ":"
             k_loss_str += str(l) + ".   "
 
-        epoch_status = "Epoch: {:03d} |Batch: {:03d} | latent_mode: {} | loss: {:05f} | reconstruction_loss: {:05f} | z_kl_loss: {:05f} | accu: {:03f}".format(
-                epoch + 1, batch, latent_mode, loss.item(), reconstruction_loss.item(), kl_loss.item(), acc)
+        epoch_status = "Epoch: {:03d} |Batch: {:03d} | latent_mode: {} | loss: {:05f} | motif_loss: {:05f} | reconstruction_loss: {:05f} | z_kl_loss: {:05f} | accu: {:03f}".format(
+                epoch + 1, batch, latent_mode, loss.item(), motif_loss.item(), reconstruction_loss.item(), kl_loss.item(), acc)
         print(epoch_status, k_loss_str)
         logging.info(epoch_status + " " + str(k_loss_str))
         # print(log_sigma_values)
@@ -1227,6 +1270,7 @@ for epoch in range(epoch_number):
         print(log_std)
         logging.info(log_std)
         batch += 1
+        # scheduler.step()
         # scheduler.step()
 model.eval()
 if not tiny_overfit:
