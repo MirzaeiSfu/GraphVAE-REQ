@@ -1337,6 +1337,7 @@ class ReconstructedDataWrapper:
         feature_onehot_mapping: Dict,
         adj_threshold: float = 0.5,
         use_soft_adj: bool = True,
+        prob_temperature: float = 1.0,
         device: str = 'cuda',
     ):
         self.device = device
@@ -1344,6 +1345,7 @@ class ReconstructedDataWrapper:
         self.feature_onehot_mapping = feature_onehot_mapping
         self.adj_threshold = adj_threshold
         self.use_soft_adj = use_soft_adj
+        self.prob_temperature = max(float(prob_temperature), 1e-3)
 
 
         adj = reconstructed_adj
@@ -1362,8 +1364,9 @@ class ReconstructedDataWrapper:
         is_logit = (adj_min < -0.01) or (adj_max > 1.01)
 
         if is_logit:
-            # Apply sigmoid to convert logits → probabilities (differentiable)
-            adj_soft = torch.sigmoid(adj)
+            # Apply a temperature-scaled sigmoid so motif counting stays soft
+            # early in training and becomes sharper later on.
+            adj_soft = torch.sigmoid(adj / self.prob_temperature)
         else:
             adj_soft = adj  # already probabilities
 
@@ -1390,7 +1393,11 @@ class ReconstructedDataWrapper:
             nf = nf.view(B, N, D)
 
 
-        node_onehot_soft = self._apply_node_softmax(nf, node_onehot_info)
+        node_onehot_soft = self._apply_node_softmax(
+            nf,
+            node_onehot_info,
+            temperature=self.prob_temperature,
+        )
         if use_soft_adj:
             self.all_feat_onehot = node_onehot_soft  # (B, N, D)
         else:
@@ -1419,7 +1426,7 @@ class ReconstructedDataWrapper:
 
             # Apply softmax over channel dimension C (differentiable)
             # This gives soft edge-type probabilities
-            edge_soft = F.softmax(ef, dim=1)  # (B, C, N, N)
+            edge_soft = F.softmax(ef / self.prob_temperature, dim=1)  # (B, C, N, N)
 
             if use_soft_adj:
                 edge_view = edge_soft
@@ -1441,6 +1448,7 @@ class ReconstructedDataWrapper:
             f"[ReconstructedDataWrapper] Ready."
             f" B={B}, N_max={N}"
             f" adj={'soft' if use_soft_adj else 'hard'}"
+            f" temp={self.prob_temperature:.3f}"
             f" node_onehot={tuple(self.all_feat_onehot.shape)}"
             + (f" edge={tuple(self.all_edge[0].shape)}"
                if self.all_edge else " edge=None")
@@ -1484,6 +1492,7 @@ class ReconstructedDataWrapper:
         self,
         node_feat_logits: torch.Tensor,
         node_onehot_info: Optional[Dict],
+        temperature: float = 1.0,
     ) -> torch.Tensor:
         """
         Apply softmax per feature group to node feature logits.
@@ -1503,7 +1512,7 @@ class ReconstructedDataWrapper:
         """
         if node_onehot_info is None or len(node_onehot_info) == 0:
             # No info about feature groups → softmax over all
-            return F.softmax(node_feat_logits, dim=-1)
+            return F.softmax(node_feat_logits / max(float(temperature), 1e-3), dim=-1)
 
         B, N, D = node_feat_logits.shape
 
@@ -1527,7 +1536,7 @@ class ReconstructedDataWrapper:
             # Extract the logits for this feature group
             group_logits = node_feat_logits[:, :, cols_sorted]  # (B, N, len(cols))
             # Apply softmax over the group dimension (differentiable)
-            group_soft = F.softmax(group_logits, dim=-1)
+            group_soft = F.softmax(group_logits / max(float(temperature), 1e-3), dim=-1)
             result_parts.append((cols_sorted[0], group_soft))
 
         # Sort by starting column index and concatenate
@@ -1540,7 +1549,7 @@ class ReconstructedDataWrapper:
             output = torch.cat([part for _, part in result_parts], dim=-1)
         else:
             # Some columns not in any group → softmax over full tensor
-            output = F.softmax(node_feat_logits, dim=-1)
+            output = F.softmax(node_feat_logits / max(float(temperature), 1e-3), dim=-1)
 
         return output  # (B, N, D)
 

@@ -91,6 +91,16 @@ parser.add_argument('--motif_loss', type=bool, default=True)
 parser.add_argument('--motif_loss_mode', type=str, default='abs_log_ratio',
                     choices=['abs_log_ratio', 'squared_log_ratio'],
                     help='Motif loss variant: original abs(log(pred/obs)) or squared log-ratio.')
+# Motif-temperature annealing only affects motif counting, not the main
+# reconstruction loss. Keep start=end=1.0 to disable it, or use a schedule like
+# start=1.0, end=0.5, start_frac=0.5 to keep training smooth early and sharpen
+# the motif probabilities during the second half of training.
+parser.add_argument('--motif_temperature_start', type=float, default=1.0,
+                    help='Starting temperature for motif-count probabilities; lower than 1 sharpens logits.')
+parser.add_argument('--motif_temperature_end', type=float, default=0.5,
+                    help='Final temperature for motif-count probabilities after annealing.')
+parser.add_argument('--motif_temperature_anneal_start_frac', type=float, default=0.5,
+                    help='Fraction of training to keep the starting motif temperature before annealing.')
 parser.add_argument('--rule_prune', type=bool, default=False)
 parser.add_argument('--interactive', action='store_true', default=False)
 parser.add_argument('--device', type=str, default='cuda',
@@ -150,6 +160,11 @@ graph_save_path = args.graph_save_path
 database_name = args.database_name
 graph_type = args.graph_type
 motif_loss = args.motif_loss
+motif_temperature_start = max(float(args.motif_temperature_start), 1e-3)
+motif_temperature_end = max(float(args.motif_temperature_end), 1e-3)
+motif_temperature_anneal_start_frac = min(
+    max(float(args.motif_temperature_anneal_start_frac), 0.0), 1.0
+)
 rule_prune = args.rule_prune
 interactive = args.interactive
 device = args.device
@@ -310,11 +325,21 @@ print("latent_mode:" + latent_mode)
 print("kernl_type:" + str(kernl_type))
 print("alpha: " + str(alpha) + " num_step:" + str(step_num))
 print("motif_loss_mode:" + str(args.motif_loss_mode))
+print(
+    "motif_temperature_anneal:"
+    + f"start={motif_temperature_start}, end={motif_temperature_end}, "
+      f"start_frac={motif_temperature_anneal_start_frac}"
+)
 
 logging.info("latent_mode:" + latent_mode)
 logging.info("kernl_type:" + str(kernl_type))
 logging.info("alpha: " + str(alpha) + " num_step:" + str(step_num))
 logging.info("motif_loss_mode:" + str(args.motif_loss_mode))
+logging.info(
+    "motif_temperature_anneal:"
+    + f"start={motif_temperature_start}, end={motif_temperature_end}, "
+      f"start_frac={motif_temperature_anneal_start_frac}"
+)
 
   # with is propertion to revese of this value;
 
@@ -1034,7 +1059,30 @@ def compute_hard_motif_metrics(observed_counts, hard_predicted_counts):
     return hard_motif_loss, hard_motif_exact_zero, hard_motif_exact_zero_per_graph
 
 
-def get_reconstructed_adj_probs(reconstructed_adj):
+def get_motif_temperature(epoch, total_epochs, start_temp, end_temp, anneal_start_frac):
+    """
+    Linearly anneal motif-count temperatures late in training so we keep the
+    early optimization smooth and only sharpen the decoded logits near the end.
+    """
+    start_temp = max(float(start_temp), 1e-3)
+    end_temp = max(float(end_temp), 1e-3)
+    anneal_start_frac = min(max(float(anneal_start_frac), 0.0), 1.0)
+
+    if total_epochs <= 1 or abs(start_temp - end_temp) < 1e-12:
+        return start_temp
+
+    progress = epoch / max(total_epochs - 1, 1)
+    if progress <= anneal_start_frac:
+        return start_temp
+
+    anneal_progress = min(
+        max((progress - anneal_start_frac) / max(1.0 - anneal_start_frac, 1e-8), 0.0),
+        1.0,
+    )
+    return start_temp + (end_temp - start_temp) * anneal_progress
+
+
+def get_reconstructed_adj_probs(reconstructed_adj, prob_temperature=1.0):
     """
     Convert the decoder output to adjacency probabilities once so evaluation
     can sweep multiple hard thresholds without rebuilding the full wrapper.
@@ -1046,7 +1094,9 @@ def get_reconstructed_adj_probs(reconstructed_adj):
     adj_min = adj.min().item()
     adj_max = adj.max().item()
     is_logit = (adj_min < -0.01) or (adj_max > 1.01)
-    return torch.sigmoid(adj) if is_logit else adj
+    if is_logit:
+        return torch.sigmoid(adj / max(float(prob_temperature), 1e-3))
+    return adj
 
 
 def summarize_hard_motif_threshold_sweep(
@@ -1234,16 +1284,24 @@ for epoch in range(epoch_number):
             len(true_node_num), dtype=torch.bool, device=device
         )
         hard_threshold_sweep_summary = None
+        motif_temperature = get_motif_temperature(
+            epoch=epoch,
+            total_epochs=epoch_number,
+            start_temp=motif_temperature_start,
+            end_temp=motif_temperature_end,
+            anneal_start_frac=motif_temperature_anneal_start_frac,
+        )
         if args.motif_loss:
             observed_motif_counts = list_graphs.motif_counts[from_:to_].to(device)
             recon_wrapper = ReconstructedDataWrapper(
-                reconstructed_adj=reconstructed_adj,
+                reconstructed_adj=reconstructed_adj_logit,
                 node_feat_logits=node_feat_logits,
                 edge_feat_logits=edge_feat_logits,
                 relation_keys=motif_counter.relation_keys,
                 node_onehot_info=node_onehot_info,
                 feature_onehot_mapping=wrapper.feature_onehot_mapping,
                 use_soft_adj=True,
+                prob_temperature=motif_temperature,
                 device=device,
             )
 
@@ -1259,13 +1317,14 @@ for epoch in range(epoch_number):
             # discrete graph you would inspect after training.
             with torch.no_grad():
                 hard_recon_wrapper = ReconstructedDataWrapper(
-                    reconstructed_adj=reconstructed_adj.detach(),
+                    reconstructed_adj=reconstructed_adj_logit.detach(),
                     node_feat_logits=node_feat_logits.detach(),
                     edge_feat_logits=edge_feat_logits.detach() if edge_feat_logits is not None else None,
                     relation_keys=motif_counter.relation_keys,
                     node_onehot_info=node_onehot_info,
                     feature_onehot_mapping=wrapper.feature_onehot_mapping,
                     use_soft_adj=False,
+                    prob_temperature=motif_temperature,
                     device=device,
                 )
                 hard_recon_counts = motif_counter.count_batch(hard_recon_wrapper, batch_size=batch_size)
@@ -1281,7 +1340,10 @@ for epoch in range(epoch_number):
                 if should_report_hard_sweep:
                     hard_threshold_sweep_summary = summarize_hard_motif_threshold_sweep(
                         observed_counts=observed_motif_counts,
-                        adj_probs=get_reconstructed_adj_probs(reconstructed_adj),
+                        adj_probs=get_reconstructed_adj_probs(
+                            reconstructed_adj_logit,
+                            prob_temperature=motif_temperature,
+                        ),
                         hard_recon_wrapper=hard_recon_wrapper,
                         motif_counter=motif_counter,
                         batch_size=batch_size,
@@ -1306,6 +1368,7 @@ for epoch in range(epoch_number):
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
                   f"motif={motif_loss.item():.6f} hard_motif={hard_motif_loss.item():.6f} "
+                  f"motif_temp={motif_temperature:.3f} "
                   f"hard_exact_all={bool(hard_motif_exact_zero.item())} "
                   f"hard_exact_graphs={hard_exact_match_count}/{hard_exact_match_total} "
                   f"recon={reconstruction_loss.item():.6f} "
@@ -1384,6 +1447,7 @@ for epoch in range(epoch_number):
         epoch_status = (
             f"Epoch: {epoch + 1:03d} |Batch: {batch:03d} | latent_mode: {latent_mode} "
             f"| loss: {loss.item():05f} | motif_loss: {motif_loss.item():05f} "
+            f"| motif_temp: {motif_temperature:.3f} "
             f"| hard_motif_loss: {hard_motif_loss.item():05f} "
             f"| hard_exact_all: {int(bool(hard_motif_exact_zero.item()))} "
             f"| hard_exact_graphs: {hard_exact_match_count}/{hard_exact_match_total} "
