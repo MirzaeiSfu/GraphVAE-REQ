@@ -1124,12 +1124,12 @@ for epoch in range(epoch_number):
             true_node_num=true_node_num
         )
         alpha_kernel_cost = 0
-        alpha_node_feat =   0   
-        alpha_edge_feat = 0
+        alpha_node_feat = 10   
+        alpha_edge_feat = 10
         alpha_motif_loss = 1
         # Keep this helper weight next to the other loss alphas so it can be
-        # tuned directly in code. Set to 0.0 to recover pure motif-only training.
-        alpha_motif_recon = 0.01
+        # tuned directly in code. Set to 0.0 to recover pure motif-only training without the adjacency helper term.
+        alpha_adj_recon = 0.01  #alpha_adj_bce
         # These hard metrics are evaluation-only diagnostics. They answer a
         # stricter question than the soft training loss: after discretizing the
         # current reconstruction, do the motif counts still match exactly?
@@ -1215,7 +1215,7 @@ for epoch in range(epoch_number):
             alpha_node_feat * node_feat_loss +\
             alpha_edge_feat * edge_feat_loss+\
             motif_loss * alpha_motif_loss + \
-            reconstruction_loss * alpha_motif_recon
+            reconstruction_loss * alpha_adj_recon
 
         hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
         hard_exact_match_total = int(hard_motif_exact_zero_per_graph.numel())
