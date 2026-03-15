@@ -1372,7 +1372,14 @@ class ReconstructedDataWrapper:
 
         # ── Store adjacency ───────────────────────────────────────────────────
 
-        self.all_adj = {rk: adj_soft for rk in relation_keys}
+        if use_soft_adj:
+            adj_view = adj_soft
+        else:
+            # Evaluation-only hard view: threshold the decoded adjacency so the
+            # motif counter sees the same discrete graph a human would inspect.
+            adj_view = (adj_soft >= adj_threshold).to(adj_soft.dtype)
+
+        self.all_adj = {rk: adj_view for rk in relation_keys}
 
         # ── Build node one-hot features ───────────────────────────────────────
 
@@ -1384,8 +1391,16 @@ class ReconstructedDataWrapper:
 
 
         node_onehot_soft = self._apply_node_softmax(nf, node_onehot_info)
-        self.all_feat_onehot = node_onehot_soft  # (B, N, D)
-        self.total_onehot_dim = node_onehot_soft.shape[-1]
+        if use_soft_adj:
+            self.all_feat_onehot = node_onehot_soft  # (B, N, D)
+        else:
+            # For hard motif metrics, convert each categorical feature group to
+            # a one-hot argmax so motif counting uses discrete labels.
+            self.all_feat_onehot = self._harden_node_assignments(
+                node_onehot_soft,
+                node_onehot_info,
+            )
+        self.total_onehot_dim = self.all_feat_onehot.shape[-1]
 
 
         # ── Build node features (raw, non-onehot) ────────────────────────────
@@ -1406,8 +1421,17 @@ class ReconstructedDataWrapper:
             # This gives soft edge-type probabilities
             edge_soft = F.softmax(ef, dim=1)  # (B, C, N, N)
 
+            if use_soft_adj:
+                edge_view = edge_soft
+            else:
+                # Match the hard adjacency view with discrete edge-type labels.
+                edge_view = F.one_hot(
+                    edge_soft.argmax(dim=1),
+                    num_classes=edge_soft.shape[1],
+                ).permute(0, 3, 1, 2).to(edge_soft.dtype)
+
             # all_edge is a list of tensors, each (B, C, N, N)
-            self.all_edge = [edge_soft]
+            self.all_edge = [edge_view]
             self.has_edge_features = True
         else:
             self.all_edge = None
@@ -1421,6 +1445,40 @@ class ReconstructedDataWrapper:
             + (f" edge={tuple(self.all_edge[0].shape)}"
                if self.all_edge else " edge=None")
         )
+
+    def _harden_node_assignments(
+        self,
+        node_probs: torch.Tensor,
+        node_onehot_info: Optional[Dict],
+    ) -> torch.Tensor:
+        """
+        Convert grouped categorical node probabilities to discrete one-hot labels.
+        """
+        if node_onehot_info is None or len(node_onehot_info) == 0:
+            hard_idx = torch.argmax(node_probs, dim=-1)
+            return F.one_hot(hard_idx, num_classes=node_probs.shape[-1]).to(node_probs.dtype)
+
+        output = torch.zeros_like(node_probs)
+        feature_groups = {}
+        covered_cols = set()
+
+        for col_idx, info in sorted(node_onehot_info.items()):
+            fname = info['feature_name']
+            feature_groups.setdefault(fname, []).append(col_idx)
+
+        for cols in feature_groups.values():
+            cols_sorted = sorted(cols)
+            covered_cols.update(cols_sorted)
+            group_probs = node_probs[:, :, cols_sorted]
+            group_idx = torch.argmax(group_probs, dim=-1)
+            group_hard = F.one_hot(group_idx, num_classes=len(cols_sorted)).to(node_probs.dtype)
+            output[:, :, cols_sorted] = group_hard
+
+        if len(covered_cols) != node_probs.shape[-1]:
+            hard_idx = torch.argmax(node_probs, dim=-1)
+            return F.one_hot(hard_idx, num_classes=node_probs.shape[-1]).to(node_probs.dtype)
+
+        return output
 
     def _apply_node_softmax(
         self,

@@ -181,7 +181,7 @@ if tiny_overfit:
     # Tiny overfit is a deterministic debug preset for checking whether the
     # current loss can be overfit on a tiny fixed subset. The model is later
     # switched to AutoEncoder=True below, so latent sampling is disabled here.
-    tiny_overfit_size = 32
+    tiny_overfit_size = 1
     epoch_number = min(int(epoch_number), 1000)
     visulizer_step = min(int(visulizer_step), 100)
 
@@ -1005,6 +1005,81 @@ def compute_motif_loss(observed_counts, predicted_counts, loss_mode="abs_log_rat
     per_graph_loss = per_graph_loss[valid_graph_mask] / active_motif_count[valid_graph_mask].to(per_motif_loss.dtype)
 
     return per_graph_loss.mean()
+
+
+def compute_hard_motif_metrics(observed_counts, hard_predicted_counts):
+    """
+    Compute evaluation-only motif metrics on the discretized reconstruction.
+
+    `hard_motif_loss` reuses the absolute log-ratio penalty on hard motif
+    counts so we can compare the thresholded graph against the target counts.
+    `hard_motif_exact_zero` is stricter: it requires an exact count match for
+    every motif entry, including motifs whose observed count is zero.
+    """
+    hard_motif_loss = compute_motif_loss(
+        observed_counts=observed_counts,
+        predicted_counts=hard_predicted_counts,
+        loss_mode="abs_log_ratio",
+    )
+
+    exact_match = torch.isclose(
+        hard_predicted_counts,
+        observed_counts,
+        atol=1e-6,
+        rtol=0.0,
+    )
+    hard_motif_exact_zero_per_graph = exact_match.all(dim=1)
+    hard_motif_exact_zero = hard_motif_exact_zero_per_graph.all()
+
+    return hard_motif_loss, hard_motif_exact_zero, hard_motif_exact_zero_per_graph
+
+
+def get_reconstructed_adj_probs(reconstructed_adj):
+    """
+    Convert the decoder output to adjacency probabilities once so evaluation
+    can sweep multiple hard thresholds without rebuilding the full wrapper.
+    """
+    adj = reconstructed_adj.detach()
+    if adj.dim() == 4:
+        adj = adj.squeeze(-1)
+
+    adj_min = adj.min().item()
+    adj_max = adj.max().item()
+    is_logit = (adj_min < -0.01) or (adj_max > 1.01)
+    return torch.sigmoid(adj) if is_logit else adj
+
+
+def summarize_hard_motif_threshold_sweep(
+    observed_counts,
+    adj_probs,
+    hard_recon_wrapper,
+    motif_counter,
+    batch_size,
+    thresholds=(0.3, 0.4, 0.5, 0.6, 0.7),
+):
+    """
+    Evaluate a few hard thresholds to see whether the hard motif gap is mostly
+    a cutoff issue or a deeper mismatch in the reconstructed graph.
+    """
+    original_all_adj = hard_recon_wrapper.all_adj
+    relation_keys = list(original_all_adj.keys())
+    sweep_parts = []
+
+    for threshold in thresholds:
+        thresholded_adj = (adj_probs >= threshold).to(adj_probs.dtype)
+        hard_recon_wrapper.all_adj = {rk: thresholded_adj for rk in relation_keys}
+        hard_counts = motif_counter.count_batch(hard_recon_wrapper, batch_size=batch_size)
+        hard_loss, _, hard_exact_per_graph = compute_hard_motif_metrics(
+            observed_counts=observed_counts,
+            hard_predicted_counts=hard_counts,
+        )
+        hard_exact_count = int(hard_exact_per_graph.sum().item())
+        sweep_parts.append(
+            f"{threshold:.1f}:{hard_loss.item():.4f} ({hard_exact_count}/{hard_exact_per_graph.numel()})"
+        )
+
+    hard_recon_wrapper.all_adj = original_all_adj
+    return "hard_threshold_sweep | " + " | ".join(sweep_parts)
 #endregion
 #====================================================================================
 
@@ -1149,8 +1224,18 @@ for epoch in range(epoch_number):
         alpha_motif_loss = 1
         # Keep this helper weight next to the other loss alphas so it can be
         # tuned directly in code. Set to 0.0 to recover pure motif-only training.
-        alpha_motif_recon = 0.001
+        alpha_motif_recon = 0.01
+        # These hard metrics are evaluation-only diagnostics. They answer a
+        # stricter question than the soft training loss: after discretizing the
+        # current reconstruction, do the motif counts still match exactly?
+        hard_motif_loss = torch.tensor(0.0, device=device)
+        hard_motif_exact_zero = torch.tensor(False, device=device)
+        hard_motif_exact_zero_per_graph = torch.zeros(
+            len(true_node_num), dtype=torch.bool, device=device
+        )
+        hard_threshold_sweep_summary = None
         if args.motif_loss:
+            observed_motif_counts = list_graphs.motif_counts[from_:to_].to(device)
             recon_wrapper = ReconstructedDataWrapper(
                 reconstructed_adj=reconstructed_adj,
                 node_feat_logits=node_feat_logits,
@@ -1162,13 +1247,45 @@ for epoch in range(epoch_number):
                 device=device,
             )
 
-
             recon_counts = motif_counter.count_batch(recon_wrapper, batch_size=batch_size)
             motif_loss = compute_motif_loss(
-                observed_counts=list_graphs.motif_counts[from_:to_].to(device),
+                observed_counts=observed_motif_counts,
                 predicted_counts=recon_counts,
                 loss_mode=args.motif_loss_mode,
             )
+
+            # The hard wrapper thresholds adjacency and converts categorical
+            # predictions to one-hot assignments, so these metrics reflect the
+            # discrete graph you would inspect after training.
+            with torch.no_grad():
+                hard_recon_wrapper = ReconstructedDataWrapper(
+                    reconstructed_adj=reconstructed_adj.detach(),
+                    node_feat_logits=node_feat_logits.detach(),
+                    edge_feat_logits=edge_feat_logits.detach() if edge_feat_logits is not None else None,
+                    relation_keys=motif_counter.relation_keys,
+                    node_onehot_info=node_onehot_info,
+                    feature_onehot_mapping=wrapper.feature_onehot_mapping,
+                    use_soft_adj=False,
+                    device=device,
+                )
+                hard_recon_counts = motif_counter.count_batch(hard_recon_wrapper, batch_size=batch_size)
+                (hard_motif_loss,
+                 hard_motif_exact_zero,
+                 hard_motif_exact_zero_per_graph) = compute_hard_motif_metrics(
+                    observed_counts=observed_motif_counts,
+                    hard_predicted_counts=hard_recon_counts,
+                )
+
+                should_report_hard_sweep = (tiny_overfit and (step % 10 == 0)) or \
+                    ((step + 1) % visulizer_step == 0) or (epoch_number == epoch + 1)
+                if should_report_hard_sweep:
+                    hard_threshold_sweep_summary = summarize_hard_motif_threshold_sweep(
+                        observed_counts=observed_motif_counts,
+                        adj_probs=get_reconstructed_adj_probs(reconstructed_adj),
+                        hard_recon_wrapper=hard_recon_wrapper,
+                        motif_counter=motif_counter,
+                        batch_size=batch_size,
+                    )
             #m_loss = motif_loss * alpha_motif_loss
 
 
@@ -1183,9 +1300,15 @@ for epoch in range(epoch_number):
             motif_loss * alpha_motif_loss + \
             reconstruction_loss * alpha_motif_recon
 
+        hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
+        hard_exact_match_total = int(hard_motif_exact_zero_per_graph.numel())
+
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
-                  f"motif={motif_loss.item():.6f} recon={reconstruction_loss.item():.6f} "
+                  f"motif={motif_loss.item():.6f} hard_motif={hard_motif_loss.item():.6f} "
+                  f"hard_exact_all={bool(hard_motif_exact_zero.item())} "
+                  f"hard_exact_graphs={hard_exact_match_count}/{hard_exact_match_total} "
+                  f"recon={reconstruction_loss.item():.6f} "
                   f"node={node_feat_loss.item():.6f} edge={edge_feat_loss.item():.6f}")
     #    
     #   loss = kernel_cost  # Graph generation loss without feature decoding
@@ -1258,10 +1381,20 @@ for epoch in range(epoch_number):
             k_loss_str += functions[indx + 2] + ":"
             k_loss_str += str(l) + ".   "
 
-        epoch_status = "Epoch: {:03d} |Batch: {:03d} | latent_mode: {} | loss: {:05f} | motif_loss: {:05f} | reconstruction_loss: {:05f} | z_kl_loss: {:05f} | accu: {:03f}".format(
-                epoch + 1, batch, latent_mode, loss.item(), motif_loss.item(), reconstruction_loss.item(), kl_loss.item(), acc)
+        epoch_status = (
+            f"Epoch: {epoch + 1:03d} |Batch: {batch:03d} | latent_mode: {latent_mode} "
+            f"| loss: {loss.item():05f} | motif_loss: {motif_loss.item():05f} "
+            f"| hard_motif_loss: {hard_motif_loss.item():05f} "
+            f"| hard_exact_all: {int(bool(hard_motif_exact_zero.item()))} "
+            f"| hard_exact_graphs: {hard_exact_match_count}/{hard_exact_match_total} "
+            f"| reconstruction_loss: {reconstruction_loss.item():05f} "
+            f"| z_kl_loss: {kl_loss.item():05f} | accu: {(acc.item() if torch.is_tensor(acc) else float(acc)):03f}"
+        )
         print(epoch_status, k_loss_str)
         logging.info(epoch_status + " " + str(k_loss_str))
+        if hard_threshold_sweep_summary is not None:
+            print(hard_threshold_sweep_summary)
+            logging.info(hard_threshold_sweep_summary)
         # print(log_sigma_values)
         log_std = ""
         for indx, l in enumerate(log_sigma_values):
