@@ -1,0 +1,16 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local dataset cache/downloads for this pipeline
+data/
+
+# Generated FactorBase run directories and outputs
+factorbase_*_run/
+
+# Local generated configs
+config.cfg
+
+# Common FactorBase output files
+Bif_*.xml
+dag_.txt
