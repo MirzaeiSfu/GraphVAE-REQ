@@ -30,6 +30,7 @@ from motif_loss_utils import (
     get_motif_temperature,
     get_reconstructed_adj_probs,
     summarize_hard_motif_threshold_sweep,
+    summarize_single_graph_motif_counts,
 )
 #endregion
 #====================================================================================
@@ -57,7 +58,7 @@ parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Ep
 parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
 parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
 parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
-parser.add_argument('-dataset', dest="dataset", default="QM9",
+parser.add_argument('-dataset', dest="dataset",default="QM9", #default="PROTEINS", #default="QM9",
                     help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, triangular_grid, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, grid, community, citeseer, lobster, DD")  # citeceer: ego; DD:protein
 parser.add_argument('-graphEmDim', dest="graphEmDim", default=1024, help="the dimention of graph Embeding LAyer; z")
 parser.add_argument('-graph_save_path', dest="graph_save_path", default=None,
@@ -1219,6 +1220,17 @@ for epoch in range(epoch_number):
 
         hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
         hard_exact_match_total = int(hard_motif_exact_zero_per_graph.numel())
+        detailed_hard_motif_counts = None
+        should_report_detailed_hard_counts = (
+            tiny_overfit
+            and hard_exact_match_total == 1
+            and ((step + 1) % visulizer_step == 0 or (epoch_number == epoch + 1))
+        )
+        if should_report_detailed_hard_counts and args.motif_loss:
+            detailed_hard_motif_counts = summarize_single_graph_motif_counts(
+                observed_counts=observed_motif_counts,
+                hard_predicted_counts=hard_recon_counts,
+            )
 
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
@@ -1314,6 +1326,10 @@ for epoch in range(epoch_number):
         if hard_threshold_sweep_summary is not None:
             print(hard_threshold_sweep_summary)
             logging.info(hard_threshold_sweep_summary)
+        if detailed_hard_motif_counts is not None:
+            for detail_line in detailed_hard_motif_counts:
+                print(detail_line)
+                logging.info(detail_line)
         # print(log_sigma_values)
         log_std = ""
         for indx, l in enumerate(log_sigma_values):

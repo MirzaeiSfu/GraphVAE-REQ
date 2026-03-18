@@ -148,3 +148,34 @@ def summarize_hard_motif_threshold_sweep(
 
     hard_recon_wrapper.all_adj = original_all_adj
     return "hard_threshold_sweep | " + " | ".join(sweep_parts)
+
+
+def summarize_single_graph_motif_counts(observed_counts, hard_predicted_counts):
+    """
+    Format the full observed/predicted motif-count vectors for a single graph.
+
+    This is meant for tiny-overfit debugging when the remaining hard motif
+    mismatch is small enough that inspecting the exact counts is more useful
+    than another scalar summary.
+    """
+    if observed_counts.ndim != 2 or hard_predicted_counts.ndim != 2:
+        raise ValueError("Expected batched motif counts with shape (B, M).")
+    if observed_counts.shape != hard_predicted_counts.shape:
+        raise ValueError(
+            f"Shape mismatch: observed {tuple(observed_counts.shape)} vs "
+            f"predicted {tuple(hard_predicted_counts.shape)}"
+        )
+    if observed_counts.shape[0] != 1:
+        raise ValueError(
+            "summarize_single_graph_motif_counts only supports a batch of size 1."
+        )
+
+    observed = observed_counts[0].detach().cpu().tolist()
+    predicted = hard_predicted_counts[0].detach().cpu().tolist()
+    delta = (hard_predicted_counts[0] - observed_counts[0]).detach().cpu().tolist()
+
+    return [
+        f"hard_motif_target[0]: {observed}",
+        f"hard_motif_pred[0]: {predicted}",
+        f"hard_motif_delta[0]: {delta}",
+    ]
