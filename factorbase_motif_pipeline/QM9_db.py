@@ -6,6 +6,7 @@ QM9 Dataset to MySQL Database Converter - FINAL VERSION
 
 import argparse
 from collections import defaultdict
+from pathlib import Path
 
 
 def parse_args():
@@ -39,7 +40,8 @@ import torch
 print("=" * 60)
 print("LOADING QM9 DATASET")
 print("=" * 60)
-dataset = QM9(root="./data/QM9")
+dataset_root = Path(__file__).resolve().parent / "data" / "QM9"
+dataset = QM9(root=str(dataset_root))
 print(f"Loaded {len(dataset):,} molecules\n")
 
 # ============================================
@@ -194,7 +196,6 @@ print("=" * 60)
 print("This will take several minutes...\n")
 
 global_node_id = 0
-molecule_node_offset = {}
 
 atom_type_counts = defaultdict(int)
 num_hydrogens_counts = defaultdict(int)
@@ -204,9 +205,10 @@ for mol_id, mol in enumerate(dataset):
     if mol_id % 1000 == 0:
         print(f"Progress: {mol_id}/{len(dataset)} molecules ({mol_id/len(dataset)*100:.1f}%)")
 
-    molecule_node_offset[mol_id] = global_node_id
+    molecule_node_offset = global_node_id
 
     # INSERT NODES
+    node_rows = []
     for local_node_id in range(mol.num_nodes):
         features = mol.x[local_node_id].tolist()
         one_hot_atom = features[0:5]
@@ -216,17 +218,19 @@ for mol_id, mol in enumerate(dataset):
         atom_type_counts[atom_type] += 1
         num_hydrogens_counts[num_hydrogens] += 1
 
-        cursor.execute(
-            """
+        node_rows.append((global_node_id, atom_type, num_hydrogens))
+        global_node_id += 1
+
+    cursor.executemany(
+        """
         INSERT INTO nodes (node_id, atom_type, num_hydrogens)
         VALUES (%s, %s, %s)
         """,
-            (global_node_id, atom_type, num_hydrogens),
-        )
-
-        global_node_id += 1
+        node_rows,
+    )
 
     # INSERT EDGES
+    edge_rows = []
     if mol.edge_attr is not None and mol.edge_attr.shape[0] > 0:
         edge_index = mol.edge_index
         edge_attr = mol.edge_attr
@@ -236,27 +240,23 @@ for mol_id, mol in enumerate(dataset):
             dst_local = edge_index[1, edge_id].item()
 
             if src_local < dst_local:
-                src_global = molecule_node_offset[mol_id] + src_local
-                dst_global = molecule_node_offset[mol_id] + dst_local
+                src_global = molecule_node_offset + src_local
+                dst_global = molecule_node_offset + dst_local
                 bond_type = torch.argmax(edge_attr[edge_id]).item()
                 bond_type_counts[bond_type] += 1
 
-                cursor.execute(
-                    """
-                INSERT INTO edges (source_node_id, target_node_id, bond_type)
-                VALUES (%s, %s, %s)
-                """,
-                    (src_global, dst_global, bond_type),
-                )
-
+                edge_rows.append((src_global, dst_global, bond_type))
                 if directed:
-                    cursor.execute(
-                        """
-                    INSERT INTO edges (source_node_id, target_node_id, bond_type)
-                    VALUES (%s, %s, %s)
-                    """,
-                        (dst_global, src_global, bond_type),
-                    )
+                    edge_rows.append((dst_global, src_global, bond_type))
+
+    if edge_rows:
+        cursor.executemany(
+            """
+            INSERT INTO edges (source_node_id, target_node_id, bond_type)
+            VALUES (%s, %s, %s)
+            """,
+            edge_rows,
+        )
 
     if (mol_id + 1) % 1000 == 0:
         connection.commit()
