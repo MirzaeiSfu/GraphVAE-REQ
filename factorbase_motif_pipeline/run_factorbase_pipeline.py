@@ -6,6 +6,8 @@ Prepare a dataset database, write a database-specific config file, and launch Fa
 from __future__ import annotations
 
 import argparse
+import shutil
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +26,8 @@ from factorbase_utils import (
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = SCRIPT_DIR / "config"
+LOG_DIR = SCRIPT_DIR / "log"
 
 # Default values you can edit in one place.
 DEFAULT_DATASET = "GRID" # "PROTEINS" "QM9"
@@ -32,11 +36,15 @@ DEFAULT_CONFIG_TEMPLATE = SCRIPT_DIR / "config.tmp"
 DEFAULT_JAR = None        # "snapshot" or "patched"
 DEFAULT_EDGE_MODE = None  # "directed", "undirected", or None to prompt
 DEFAULT_GRID_FEATURE_MODE = "with-features"
+DEFAULT_LOBSTER_FEATURE_MODE = "with-features"
+DEFAULT_TRIANGULAR_GRID_FEATURE_MODE = "with-features"
 
 DATASET_SCRIPTS = {
     "PROTEINS": SCRIPT_DIR / "PROTEINS_db.py",
     "QM9": SCRIPT_DIR / "QM9_db.py",
     "GRID": SCRIPT_DIR / "GRID_db.py",
+    "LOBSTER": SCRIPT_DIR / "LOBSTER_db.py",
+    "TRIANGULAR_GRID": SCRIPT_DIR / "TRIANGULAR_GRID_db.py",
 }
 JAR_FILES = {
     "snapshot": "factorbase-1.0-SNAPSHOT.jar",
@@ -88,6 +96,18 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_GRID_FEATURE_MODE,
         help="For GRID dataset only, choose whether to create a schema with or without features",
     )
+    parser.add_argument(
+        "--lobster-feature-mode",
+        choices=("with-features", "without-features"),
+        default=DEFAULT_LOBSTER_FEATURE_MODE,
+        help="For LOBSTER dataset only, choose whether to create a schema with or without features",
+    )
+    parser.add_argument(
+        "--triangular-grid-feature-mode",
+        choices=("with-features", "without-features"),
+        default=DEFAULT_TRIANGULAR_GRID_FEATURE_MODE,
+        help="For TRIANGULAR_GRID dataset only, choose whether to create a schema with or without features",
+    )
 
     edge_group = parser.add_mutually_exclusive_group()
     edge_group.add_argument(
@@ -121,7 +141,23 @@ def normalize_dataset_name(dataset_name: str) -> str:
 
 def build_generated_config_path(db_name: str) -> Path:
     config_name = f"{sanitize_path_component(db_name)}_config.cfg"
-    return SCRIPT_DIR / config_name
+    return CONFIG_DIR / config_name
+
+
+def build_run_log_path(db_name: str) -> Path:
+    log_name = f"{sanitize_path_component(db_name)}_run.log"
+    return LOG_DIR / log_name
+
+
+def build_factorbase_log_snapshot_path(db_name: str, jar_filename: str) -> Path:
+    jar_log_name = f"{Path(jar_filename).stem}.log"
+    snapshot_name = f"{sanitize_path_component(db_name)}_{jar_log_name}"
+    return LOG_DIR / snapshot_name
+
+
+def ensure_generated_output_dirs() -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def require_path_exists(path: Path, description: str) -> None:
@@ -149,15 +185,77 @@ def append_dataset_specific_args(
     command: list[str],
     dataset_name: str,
     grid_feature_mode: str,
+    lobster_feature_mode: str,
+    triangular_grid_feature_mode: str,
 ) -> list[str]:
     if dataset_name == "GRID":
         command.extend(["--feature-mode", grid_feature_mode])
+    elif dataset_name == "LOBSTER":
+        command.extend(["--feature-mode", lobster_feature_mode])
+    elif dataset_name == "TRIANGULAR_GRID":
+        command.extend(["--feature-mode", triangular_grid_feature_mode])
     return command
 
 
 def write_generated_config(config_path: Path, config_text: str, db_name: str) -> None:
     rendered_config = update_config_dbname(config_text, db_name)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(rendered_config, encoding="utf-8")
+
+
+def append_log_message(log_path: Path, message: str) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as log_file:
+        log_file.write(message)
+        if not message.endswith("\n"):
+            log_file.write("\n")
+
+
+def initialize_run_log(
+    log_path: Path,
+    dataset_name: str,
+    db_name: str,
+    directed: bool,
+    prepare_only: bool,
+) -> None:
+    edge_mode = "directed" if directed else "undirected"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("", encoding="utf-8")
+    append_log_message(log_path, "=" * 60)
+    append_log_message(log_path, "FACTORBASE PIPELINE RUN")
+    append_log_message(log_path, "=" * 60)
+    append_log_message(log_path, f"Dataset: {dataset_name}")
+    append_log_message(log_path, f"Database: {db_name}")
+    append_log_message(log_path, f"Edge mode: {edge_mode}")
+    append_log_message(log_path, f"Prepare only: {prepare_only}")
+    append_log_message(log_path, "")
+
+
+def choose_available_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+
+    stem = path.stem
+    suffix = path.suffix
+    counter = 2
+    while True:
+        candidate = path.with_name(f"{stem}_{counter}{suffix}")
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def archive_factorbase_jar_log(jar_filename: str, db_name: str) -> Path | None:
+    source_log_path = SCRIPT_DIR / f"{Path(jar_filename).stem}.log"
+    if not source_log_path.exists():
+        return None
+
+    destination_log_path = choose_available_path(
+        build_factorbase_log_snapshot_path(db_name, jar_filename)
+    )
+    destination_log_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source_log_path), str(destination_log_path))
+    return destination_log_path
 
 
 def normalize_mysql_host(host: str) -> str:
@@ -242,8 +340,18 @@ def run_subprocess_step(
     command: list[str],
     cwd: Path,
     required_markers: tuple[str, ...] = (),
+    log_path: Path | None = None,
 ) -> None:
     marker_seen = {marker: False for marker in required_markers}
+    log_file = None
+
+    if log_path is not None:
+        append_log_message(log_path, "=" * 60)
+        append_log_message(log_path, step_name.upper())
+        append_log_message(log_path, "=" * 60)
+        append_log_message(log_path, f"CWD: {cwd}")
+        append_log_message(log_path, f"COMMAND: {shlex.join(command)}")
+        append_log_message(log_path, "")
 
     try:
         process = subprocess.Popen(
@@ -260,14 +368,21 @@ def run_subprocess_step(
         ) from exc
 
     assert process.stdout is not None
+    if log_path is not None:
+        log_file = log_path.open("a", encoding="utf-8")
     try:
         for line in process.stdout:
             print(line, end="")
+            if log_file is not None:
+                log_file.write(line)
+                log_file.flush()
             for marker in marker_seen:
                 if not marker_seen[marker] and marker in line:
                     marker_seen[marker] = True
     finally:
         process.stdout.close()
+        if log_file is not None:
+            log_file.close()
 
     return_code = process.wait()
     if return_code != 0:
@@ -303,12 +418,24 @@ def main() -> None:
     dataset_name = normalize_dataset_name(args.dataset)
     if dataset_name != "GRID" and args.grid_feature_mode != DEFAULT_GRID_FEATURE_MODE:
         raise ValueError("--grid-feature-mode can only be used with the GRID dataset.")
+    if dataset_name != "LOBSTER" and args.lobster_feature_mode != DEFAULT_LOBSTER_FEATURE_MODE:
+        raise ValueError("--lobster-feature-mode can only be used with the LOBSTER dataset.")
+    if (
+        dataset_name != "TRIANGULAR_GRID"
+        and args.triangular_grid_feature_mode != DEFAULT_TRIANGULAR_GRID_FEATURE_MODE
+    ):
+        raise ValueError(
+            "--triangular-grid-feature-mode can only be used with the TRIANGULAR_GRID dataset."
+        )
 
     directed = resolve_edge_mode(args.directed, args.undirected)
+    ensure_generated_output_dirs()
     dataset_script_path = DATASET_SCRIPTS[dataset_name]
     require_path_exists(dataset_script_path, f"{dataset_name} dataset import script")
     template_text = load_template_config(args.config_template)
     config_path = build_generated_config_path(args.db_name)
+    run_log_path = build_run_log_path(args.db_name)
+    initialize_run_log(run_log_path, dataset_name, args.db_name, directed, args.prepare_only)
 
     print_section("RUNNING DATASET IMPORT")
     import_command = build_import_command(dataset_name, args.db_name, directed)
@@ -316,17 +443,25 @@ def main() -> None:
         import_command,
         dataset_name,
         args.grid_feature_mode,
+        args.lobster_feature_mode,
+        args.triangular_grid_feature_mode,
     )
-    run_subprocess_step("Dataset import", import_command, SCRIPT_DIR)
+    run_subprocess_step("Dataset import", import_command, SCRIPT_DIR, log_path=run_log_path)
 
     print_section("WRITING FACTORBASE CONFIG")
     write_generated_config(config_path, template_text, args.db_name)
     load_and_validate_config_values(config_path, args.db_name)
     verify_dataset_database(config_path, args.db_name)
     print(f"Config file written: {config_path}")
+    append_log_message(run_log_path, f"Config file written: {config_path}")
+    append_log_message(run_log_path, "")
 
     if args.prepare_only:
         print("\nPreparation complete. Skipping FactorBase launch because --prepare-only was used.")
+        append_log_message(
+            run_log_path,
+            "Preparation complete. Skipping FactorBase launch because --prepare-only was used.",
+        )
         return
 
     jar_filename = choose_jar(args.jar)
@@ -334,13 +469,17 @@ def main() -> None:
     require_path_exists(jar_path, "FactorBase JAR")
 
     print_section("LAUNCHING FACTORBASE")
-    print(f"Running {jar_filename} with config {config_path.name}")
+    print(f"Running {jar_filename} with config {config_path}")
     run_subprocess_step(
         "FactorBase launch",
-        ["java", f"-Dconfig={config_path.name}", "-jar", jar_filename],
+        ["java", f"-Dconfig={config_path}", "-jar", jar_filename],
         SCRIPT_DIR,
         required_markers=(f"Input Database: {args.db_name}", "Program Done!"),
+        log_path=run_log_path,
     )
+    jar_log_archive_path = archive_factorbase_jar_log(jar_filename, args.db_name)
+    if jar_log_archive_path is not None:
+        append_log_message(run_log_path, f"FactorBase JAR log moved to: {jar_log_archive_path}")
 
 
 if __name__ == "__main__":

@@ -13,23 +13,33 @@ This folder contains the scripts used to load graph datasets into MySQL for Fact
 - `factorbase-1.0-patched.jar`: patched FactorBase JAR.
 - `factorbase_utils.py`: small shared helper functions used by the wrapper script.
 
-## Generated Config Files
+## Generated Artifacts
 
-The wrapper creates config files directly in this folder using the database name, for example:
+The pipeline now writes generated artifacts into a few different places:
 
-- `proteins_experiment_config.cfg`
-- `qm9_experiment_config.cfg`
+- config files go in `config/`
+- pipeline wrapper logs go in `log/`
+- FactorBase still creates a run-output folder named after the database, for example `qm9_experiment1/` or `triangular_grid_logmove_smoke/`
+
+Examples:
+
+- `config/proteins_experiment_config.cfg`
+- `config/qm9_experiment_config.cfg`
+- `log/qm9_experiment1_run.log`
+- `triangular_grid_logmove_smoke/res/`
+
+The per-database output folder is created by FactorBase itself. It is where run artifacts such as `res/*.xml` are written.
 
 FactorBase can then be launched with:
 
 ```bash
-java -Dconfig=<config-file-name> -jar <jar-file-name>
+java -Dconfig=<config-file-path> -jar <jar-file-name>
 ```
 
 Example:
 
 ```bash
-java -Dconfig=proteins_experiment_config.cfg -jar factorbase-1.0-SNAPSHOT.jar
+java -Dconfig=config/proteins_experiment_config.cfg -jar factorbase-1.0-SNAPSHOT.jar
 ```
 
 ## Current Defaults In `run_factorbase_pipeline.py`
@@ -75,9 +85,23 @@ python run_factorbase_pipeline.py QM9 qm9_trial --undirected --jar patched
 
 1. Run either `PROTEINS_db.py` or `QM9_db.py`.
 2. Create the MySQL database with the chosen database name.
-3. Create a config file named `<db_name>_config.cfg` from `config.tmp`.
+3. Create a config file named `config/<db_name>_config.cfg` from `config.tmp`.
 4. Ask which JAR to run, unless you set a default or pass `--jar`.
-5. Launch FactorBase with `java -Dconfig=<db_name>_config.cfg -jar <selected-jar>`.
+5. Write a pipeline log in `log/<db_name>_run.log`.
+6. Launch FactorBase with `java -Dconfig=config/<db_name>_config.cfg -jar <selected-jar>`.
+7. Let FactorBase create its own output folder named `<db_name>/`.
+
+For example, if you run the pipeline with:
+
+```bash
+python run_factorbase_pipeline.py TRIANGULAR_GRID triangular_grid_logmove_smoke --undirected --jar snapshot
+```
+
+you should expect all of these:
+
+- `config/triangular_grid_logmove_smoke_config.cfg`
+- `log/triangular_grid_logmove_smoke_run.log`
+- `triangular_grid_logmove_smoke/`
 
 ## Dataset Script Notes
 
@@ -91,7 +115,7 @@ python run_factorbase_pipeline.py QM9 qm9_trial --undirected --jar patched
 `drop_factorbase_databases.sh` supports two modes:
 
 1. Config-file mode
-   Give it a generated config file such as `proteins_experiment_config.cfg`.
+   Give it a generated config file such as `config/proteins_experiment_config.cfg`.
    It reads the MySQL connection settings and `dbname` from that config.
 
 2. Database-name mode
@@ -107,8 +131,8 @@ python run_factorbase_pipeline.py QM9 qm9_trial --undirected --jar patched
 Examples:
 
 ```bash
-./drop_factorbase_databases.sh --dry-run proteins_experiment_config.cfg
-./drop_factorbase_databases.sh proteins_experiment_config.cfg
+./drop_factorbase_databases.sh --dry-run config/proteins_experiment_config.cfg
+./drop_factorbase_databases.sh config/proteins_experiment_config.cfg
 ./drop_factorbase_databases.sh --dry-run ali
 ./drop_factorbase_databases.sh ali
 ```
@@ -117,6 +141,8 @@ If you use config-file mode, the script also asks whether you want to delete tha
 
 ## Notes
 
-- The wrapper now uses named config files instead of creating a separate run folder per database name.
-- FactorBase can be pointed at the generated file with `-Dconfig=<config-file-name>`.
-- Generated config files such as `*_config.cfg` are ignored by `factorbase_motif_pipeline/.gitignore`.
+- The wrapper now stores generated config files in `config/` and run logs in `log/`.
+- FactorBase can be pointed at the generated file with `-Dconfig=<config-file-path>`.
+- Per-run output folders such as `triangular_grid_logmove_smoke/` are normal and are created by FactorBase, not by the config/log reorganization itself.
+- Smoke-test folders created during verification can be deleted later if you do not want to keep their outputs.
+- Generated config files such as `config/*_config.cfg` and logs such as `log/*.log` are ignored by `factorbase_motif_pipeline/.gitignore`.
