@@ -13,5 +13,6 @@ config.cfg
 *_config.cfg
 
 # Common FactorBase output files
+*.log
 Bif_*.xml
 dag_.txt
