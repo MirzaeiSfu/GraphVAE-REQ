@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-Prepare a dataset database and a FactorBase run directory, then launch FactorBase.
+Prepare a dataset database, write a database-specific config file, and launch FactorBase.
 """
 
 from __future__ import annotations
 
 import argparse
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,7 +24,6 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DATASET = "QM9" # "PROTEINS" "QM9"
 DEFAULT_DB_NAME = "qm9_experiment1" #"proteins_experiment" "qm9_experiment"
 DEFAULT_CONFIG_TEMPLATE = SCRIPT_DIR / "config.tmp"
-DEFAULT_RUN_DIR = None
 DEFAULT_JAR = None        # "snapshot" or "patched"
 DEFAULT_EDGE_MODE = None  # "directed", "undirected", or None to prompt
 
@@ -42,8 +40,8 @@ JAR_FILES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run a dataset import script, create a database-specific FactorBase run folder, "
-            "write config.cfg from config.tmp, copy both JARs, and launch the selected JAR."
+            "Run a dataset import script, create a database-specific config file, "
+            "and launch the selected FactorBase JAR."
         )
     )
     parser.add_argument(
@@ -56,19 +54,13 @@ def parse_args() -> argparse.Namespace:
         "db_name",
         nargs="?",
         default=DEFAULT_DB_NAME,
-        help=f"MySQL database name to create and place into config.cfg (default: {DEFAULT_DB_NAME})",
+        help=f"MySQL database name to create and place into the generated config file (default: {DEFAULT_DB_NAME})",
     )
     parser.add_argument(
         "--config-template",
         type=Path,
         default=DEFAULT_CONFIG_TEMPLATE,
-        help="Template config file used to generate config.cfg",
-    )
-    parser.add_argument(
-        "--run-dir",
-        type=Path,
-        default=DEFAULT_RUN_DIR,
-        help="Optional explicit run directory path",
+        help="Template config file used to generate the database-specific config file",
     )
     parser.add_argument(
         "--jar",
@@ -112,12 +104,9 @@ def normalize_dataset_name(dataset_name: str) -> str:
     return normalized
 
 
-def build_run_directory(dataset_name: str, db_name: str, explicit_run_dir: Path | None) -> Path:
-    if explicit_run_dir is not None:
-        return explicit_run_dir.resolve()
-
-    folder_name = f"factorbase_{sanitize_path_component(db_name)}_run"
-    return SCRIPT_DIR / folder_name
+def build_generated_config_path(db_name: str) -> Path:
+    config_name = f"{sanitize_path_component(db_name)}_config.cfg"
+    return SCRIPT_DIR / config_name
 
 
 def load_template_config(template_path: Path) -> str:
@@ -137,17 +126,9 @@ def build_import_command(dataset_name: str, db_name: str, directed: bool) -> lis
     return command
 
 
-def prepare_run_directory(run_dir: Path, config_text: str, db_name: str) -> None:
-    run_dir.mkdir(parents=True, exist_ok=True)
-
+def write_generated_config(config_path: Path, config_text: str, db_name: str) -> None:
     rendered_config = update_config_dbname(config_text, db_name)
-    (run_dir / "config.cfg").write_text(rendered_config, encoding="utf-8")
-
-    for jar_filename in JAR_FILES.values():
-        jar_source = SCRIPT_DIR / jar_filename
-        if not jar_source.exists():
-            raise FileNotFoundError(f"Required JAR not found: {jar_source}")
-        shutil.copy2(jar_source, run_dir / jar_filename)
+    config_path.write_text(rendered_config, encoding="utf-8")
 
 
 def choose_jar(jar_choice: str | None) -> str:
@@ -173,25 +154,32 @@ def main() -> None:
     dataset_name = normalize_dataset_name(args.dataset)
     directed = resolve_edge_mode(args.directed, args.undirected)
     template_text = load_template_config(args.config_template)
-    run_dir = build_run_directory(dataset_name, args.db_name, args.run_dir)
+    config_path = build_generated_config_path(args.db_name)
 
     print_section("RUNNING DATASET IMPORT")
     import_command = build_import_command(dataset_name, args.db_name, directed)
     subprocess.run(import_command, cwd=SCRIPT_DIR, check=True)
 
-    print_section("PREPARING FACTORBASE RUN DIRECTORY")
-    prepare_run_directory(run_dir, template_text, args.db_name)
-    print(f"Run directory ready: {run_dir}")
-    print(f"Config file written: {run_dir / 'config.cfg'}")
+    print_section("WRITING FACTORBASE CONFIG")
+    write_generated_config(config_path, template_text, args.db_name)
+    print(f"Config file written: {config_path}")
 
     if args.prepare_only:
         print("\nPreparation complete. Skipping FactorBase launch because --prepare-only was used.")
         return
 
     jar_filename = choose_jar(args.jar)
+    jar_path = SCRIPT_DIR / jar_filename
+    if not jar_path.exists():
+        raise FileNotFoundError(f"Required JAR not found: {jar_path}")
+
     print_section("LAUNCHING FACTORBASE")
-    print(f"Running {jar_filename} from {run_dir}")
-    subprocess.run(["java", "-jar", jar_filename], cwd=run_dir, check=True)
+    print(f"Running {jar_filename} with config {config_path.name}")
+    subprocess.run(
+        ["java", f"-Dconfig={config_path.name}", "-jar", jar_filename],
+        cwd=SCRIPT_DIR,
+        check=True,
+    )
 
 
 if __name__ == "__main__":

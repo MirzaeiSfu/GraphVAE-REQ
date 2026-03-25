@@ -2,9 +2,12 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_CONNECTION_CONFIG="${SCRIPT_DIR}/config.tmp"
+
 usage() {
     cat <<'EOF'
-Usage: ./drop_factorbase_databases.sh [--yes] [--dry-run] [--keep-base] [config_path]
+Usage: ./drop_factorbase_databases.sh [--yes] [--dry-run] [--keep-base] <config_path | db_name>
 
 Drops the base database from `dbname` and the databases FactorBase creates from it:
   <dbname>_setup
@@ -19,8 +22,19 @@ Options:
   --keep-base  Keep the original `dbname` database and only drop the FactorBase-created ones.
   -h, --help   Show this help text.
 
-If no config path is provided, the script uses ./config.cfg.
-Example: ./drop_factorbase_databases.sh --dry-run factorbase_proteins_experiment_run/config.cfg
+If you provide a `.cfg` file, the script reads dbaddress/dbname/dbusername from it.
+If you provide a database name such as `ali`, the script uses `config.tmp` for
+the MySQL connection settings and drops:
+  ali
+  ali_setup
+  ali_BN
+  ali_CT
+  ali_global_counts
+  ali_CT_cache
+
+Examples:
+  ./drop_factorbase_databases.sh --dry-run proteins_experiment_config.cfg
+  ./drop_factorbase_databases.sh --dry-run ali
 EOF
 }
 
@@ -49,10 +63,19 @@ confirm() {
     [[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]]
 }
 
-config_path="config.cfg"
+confirm_delete_config() {
+    local reply
+    read -r -p "Delete config file '${config_path}' too? [y/N] " reply
+    [[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]]
+}
+
+target_arg=""
+config_path=""
+delete_config_candidate=0
 assume_yes=0
 dry_run=0
 drop_base=1
+dbname=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -75,16 +98,30 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         *)
-            if [[ "$config_path" != "config.cfg" ]]; then
-                echo "Only one config path can be provided." >&2
+            if [[ -n "$target_arg" ]]; then
+                echo "Only one config path or database name can be provided." >&2
                 usage >&2
                 exit 1
             fi
-            config_path="$1"
+            target_arg="$1"
             ;;
     esac
     shift
 done
+
+if [[ -z "$target_arg" ]]; then
+    echo "A config path or database name is required." >&2
+    usage >&2
+    exit 1
+fi
+
+if [[ "$target_arg" == *.cfg ]]; then
+    config_path="$target_arg"
+    delete_config_candidate=1
+else
+    config_path="$DEFAULT_CONNECTION_CONFIG"
+    dbname="$target_arg"
+fi
 
 if [[ ! -f "$config_path" ]]; then
     echo "Config file not found: $config_path" >&2
@@ -92,12 +129,16 @@ if [[ ! -f "$config_path" ]]; then
 fi
 
 dbaddress="$(get_config_value "dbaddress")"
-dbname="$(get_config_value "dbname")"
+config_dbname="$(get_config_value "dbname")"
 dbusername="$(get_config_value "dbusername")"
 dbpassword="$(get_config_value "dbpassword")"
 
+if [[ -z "$dbname" ]]; then
+    dbname="$config_dbname"
+fi
+
 if [[ -z "$dbaddress" || -z "$dbname" || -z "$dbusername" ]]; then
-    echo "The config file must define dbaddress, dbname, and dbusername." >&2
+    echo "The connection config must define dbaddress, dbname, and dbusername." >&2
     exit 1
 fi
 
@@ -138,6 +179,15 @@ echo "Databases to drop:"
 for database in "${databases[@]}"; do
     echo "  - ${database}"
 done
+echo "Connection config used:"
+echo "  - ${config_path}"
+if [[ "$delete_config_candidate" -eq 1 ]]; then
+    echo "Config file eligible for deletion:"
+    echo "  - ${config_path}"
+else
+    echo "Config file deletion:"
+    echo "  - not applicable (database name mode using config.tmp)"
+fi
 
 if [[ "$dry_run" -eq 1 ]]; then
     echo
@@ -149,6 +199,15 @@ fi
 if [[ "$assume_yes" -ne 1 ]] && ! confirm; then
     echo "Aborted."
     exit 0
+fi
+
+delete_config=0
+if [[ "$delete_config_candidate" -eq 0 ]]; then
+    delete_config=0
+elif [[ "$assume_yes" -eq 1 ]]; then
+    delete_config=1
+elif confirm_delete_config; then
+    delete_config=1
 fi
 
 if command -v mysql >/dev/null 2>&1; then
@@ -177,3 +236,11 @@ else
 fi
 
 echo "Finished dropping ${#databases[@]} database(s)."
+if [[ "$delete_config" -eq 1 ]]; then
+    rm -f -- "$config_path"
+    echo "Deleted config file: ${config_path}"
+elif [[ "$delete_config_candidate" -eq 1 ]]; then
+    echo "Kept config file: ${config_path}"
+else
+    echo "No config file was deleted."
+fi

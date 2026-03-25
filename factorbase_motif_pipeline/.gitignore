@@ -10,6 +10,7 @@ factorbase_*_run/
 
 # Local generated configs
 config.cfg
+*_config.cfg
 
 # Common FactorBase output files
 Bif_*.xml
