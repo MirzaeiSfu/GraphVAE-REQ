@@ -68,7 +68,12 @@ def read_config_values(config_path: Path) -> dict[str, str]:
 
 
 def parse_mysql_address(dbaddress: str) -> tuple[str, int]:
-    normalized = dbaddress.removeprefix("mysql://").removeprefix("mariadb://")
+    normalized = dbaddress
+    for prefix in ("mysql://", "mariadb://"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+            break
+
     normalized = normalized.split("/", 1)[0]
 
     if ":" in normalized:
