@@ -1,4 +1,6 @@
 MMD_*
+runs/
+runlog/
 generated_graph_train/
 ReportedResult/
 !mmd_rnn.py

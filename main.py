@@ -9,6 +9,7 @@
 #====================================================================================
 # region imports
 import logging
+from pathlib import Path
 import plotter
 import torch.nn.functional as F
 import argparse
@@ -85,7 +86,7 @@ parser.add_argument('-ideal_Evalaution', dest="ideal_Evalaution" , default=False
 
 
 # Tiny overfit debug mode for checking loss implementation.
-parser.add_argument('--tiny_overfit', action='store_true', default=True,
+parser.add_argument('--tiny_overfit', action='store_true', default=False,
                     help='Use a tiny fixed training subset, disable shuffling, and train with one fixed batch.')
 parser.add_argument('--tiny_overfit_size', type=int, default=32,
                     help='Number of training graphs to keep in --tiny_overfit mode.')
@@ -229,17 +230,26 @@ if tiny_overfit:
 #====================================================================================
 
 
-if graph_save_path == None:
-    graph_save_path = "MMD_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + args.model + "BFS" + str(
-        args.bfsOrdering) + str(args.epoch_number) + str(time.time()) + "/"
-from pathlib import Path
+if graph_save_path is None:
+    run_name = "MMD_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + args.model + "BFS" + str(
+        args.bfsOrdering) + str(args.epoch_number) + str(time.time())
+    graph_save_dir = Path("runs") / run_name
+else:
+    graph_save_dir = Path(graph_save_path)
+    run_name = graph_save_dir.name if graph_save_dir.name else "run_" + str(int(time.time()))
 
-Path(graph_save_path).mkdir(parents=True, exist_ok=True)
+graph_save_dir.mkdir(parents=True, exist_ok=True)
+graph_save_path = str(graph_save_dir) + "/"
+
+runlog_dir = Path("runlog")
+runlog_dir.mkdir(parents=True, exist_ok=True)
+run_log_path = runlog_dir / f"{run_name}.log"
+run_mmd_log_path = runlog_dir / f"{run_name}_MMD.log"
 
 # maybe to the beest way
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
-logging.basicConfig(filename=graph_save_path + 'log.log', filemode='w', level=logging.INFO)
+logging.basicConfig(filename=str(run_log_path), filemode='w', level=logging.INFO)
 
 # **********************************************************************
 # setting; general setting and hyper-parameters for each dataset
@@ -1295,7 +1305,7 @@ for epoch in range(epoch_number):
             if (not tiny_overfit) and task == "graphGeneration":
                 # print("generated vs Validation:")
                 mmd_res= EvalTwoSet(model, val_adj[:1000], graph_save_path, Save_generated=True, _f_name=epoch)
-                with open(graph_save_path + '_MMD.log', 'a') as f:
+                with open(run_mmd_log_path, 'a') as f:
                         f.write(str(step)+" @ loss @ , "+str(loss.item())+" , @ Reconstruction @ , "+reconstruc_MMD_loss+" , @ Val @ , " +mmd_res+"\n")
 
                 if ((step + 1) % visulizer_step * 2):

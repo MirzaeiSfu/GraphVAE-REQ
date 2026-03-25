@@ -96,9 +96,14 @@ If you want full training/motif flow, set tiny-overfit default to `False` in `ma
 
 ## Outputs
 
-During/after runs you will see artifacts in `graph_save_path`:
-- `log.log`
-- `_MMD.log` (validation MMD logging)
+During/after runs you will see artifacts in `graph_save_path`.
+By default, auto-created run directories now live under `runs/<run_name>/`.
+
+Run logs are written separately under `runlog/`:
+- `<run_name>.log`
+- `<run_name>_MMD.log` (validation MMD logging)
+
+Run artifact directories contain:
 - generated graph `.npy` dumps
 - model checkpoints (`model_<epoch>_<batch>`)
 - training plot images
