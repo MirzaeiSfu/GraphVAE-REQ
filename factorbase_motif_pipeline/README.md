@@ -5,6 +5,7 @@ This folder contains the scripts used to load graph datasets into MySQL for Fact
 ## Main Files
 
 - `run_factorbase_pipeline.py`: wrapper script that runs the dataset import, creates a database-specific config file, and launches FactorBase with the selected JAR.
+- `run_qm9_config_compare.py`: helper script that builds QM9 once, clones the prepared database per config, and runs FactorBase for each config.
 - `PROTEINS_db.py`: loads the PROTEINS dataset into MySQL.
 - `QM9_db.py`: loads the QM9 dataset into MySQL.
 - `config.tmp`: template used to generate database-specific config files.
@@ -79,11 +80,27 @@ python run_factorbase_pipeline.py PROTEINS proteins_experiment
 python run_factorbase_pipeline.py QM9 qm9_trial --undirected --jar patched
 ```
 
+If the dataset database already exists and you only want to rerun FactorBase with a
+different config template, you can skip the import step:
+
+```bash
+python run_factorbase_pipeline.py QM9 qm9_trial --use-existing-db --jar snapshot --config-template config1.tmp
+```
+
+If you want to prepare QM9 once and compare the standard FactorBase jar with
+`config.tmp`, `config1.tmp`, and `config2.tmp` on separate cloned databases:
+
+```bash
+python run_qm9_config_compare.py --prefix qm9_std_compare
+```
+
 ## What `run_factorbase_pipeline.py` Does
 
 `run_factorbase_pipeline.py` will:
 
 1. Run either `PROTEINS_db.py` or `QM9_db.py`.
+   If you pass `--use-existing-db`, it skips this import step and reuses the current
+   `dbname` database instead.
 2. Create the MySQL database with the chosen database name.
 3. Create a config file named `config/<db_name>_config.cfg` from `config.tmp`.
 4. Ask which JAR to run, unless you set a default or pass `--jar`.

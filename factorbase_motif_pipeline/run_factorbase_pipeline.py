@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Prepare a dataset database, write a database-specific config file, and launch FactorBase.
+Prepare or reuse a dataset database, write a database-specific config file, and launch
+FactorBase.
 """
 
 from __future__ import annotations
@@ -11,8 +12,6 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-
-from pymysql import connect
 
 from factorbase_utils import (
     parse_mysql_address,
@@ -30,8 +29,8 @@ CONFIG_DIR = SCRIPT_DIR / "config"
 LOG_DIR = SCRIPT_DIR / "log"
 
 # Default values you can edit in one place.
-DEFAULT_DATASET = "GRID" # "PROTEINS" "QM9"
-DEFAULT_DB_NAME = "grid_experiment1" #"proteins_experiment" "qm9_experiment"
+DEFAULT_DATASET = "TRIANGULAR_GRID"#"LOBSTER" #"GRID" # "PROTEINS" "QM9"
+DEFAULT_DB_NAME = "triangular_grid_experiment" #"proteins_experiment" "qm9_experiment"
 DEFAULT_CONFIG_TEMPLATE = SCRIPT_DIR / "config.tmp"
 DEFAULT_JAR = None        # "snapshot" or "patched"
 DEFAULT_EDGE_MODE = None  # "directed", "undirected", or None to prompt
@@ -89,6 +88,11 @@ def parse_args() -> argparse.Namespace:
         "--prepare-only",
         action="store_true",
         help="Prepare the database and run directory without launching Java",
+    )
+    parser.add_argument(
+        "--use-existing-db",
+        action="store_true",
+        help="Skip dataset import and reuse an existing database with populated nodes/edges tables",
     )
     parser.add_argument(
         "--grid-feature-mode",
@@ -215,10 +219,10 @@ def initialize_run_log(
     log_path: Path,
     dataset_name: str,
     db_name: str,
-    directed: bool,
+    edge_mode_label: str,
     prepare_only: bool,
+    use_existing_db: bool,
 ) -> None:
-    edge_mode = "directed" if directed else "undirected"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text("", encoding="utf-8")
     append_log_message(log_path, "=" * 60)
@@ -226,7 +230,8 @@ def initialize_run_log(
     append_log_message(log_path, "=" * 60)
     append_log_message(log_path, f"Dataset: {dataset_name}")
     append_log_message(log_path, f"Database: {db_name}")
-    append_log_message(log_path, f"Edge mode: {edge_mode}")
+    append_log_message(log_path, f"Edge mode: {edge_mode_label}")
+    append_log_message(log_path, f"Use existing database: {use_existing_db}")
     append_log_message(log_path, f"Prepare only: {prepare_only}")
     append_log_message(log_path, "")
 
@@ -282,6 +287,8 @@ def load_and_validate_config_values(config_path: Path, expected_db_name: str) ->
 
 
 def verify_dataset_database(config_path: Path, expected_db_name: str) -> None:
+    from pymysql import connect
+
     config_values = load_and_validate_config_values(config_path, expected_db_name)
     host, port = parse_mysql_address(config_values["dbaddress"])
     host = normalize_mysql_host(host)
@@ -428,25 +435,46 @@ def main() -> None:
             "--triangular-grid-feature-mode can only be used with the TRIANGULAR_GRID dataset."
         )
 
-    directed = resolve_edge_mode(args.directed, args.undirected)
     ensure_generated_output_dirs()
-    dataset_script_path = DATASET_SCRIPTS[dataset_name]
-    require_path_exists(dataset_script_path, f"{dataset_name} dataset import script")
     template_text = load_template_config(args.config_template)
     config_path = build_generated_config_path(args.db_name)
     run_log_path = build_run_log_path(args.db_name)
-    initialize_run_log(run_log_path, dataset_name, args.db_name, directed, args.prepare_only)
+    if args.use_existing_db:
+        edge_mode_label = "reused existing database"
+    else:
+        directed = resolve_edge_mode(args.directed, args.undirected)
+        edge_mode_label = "directed" if directed else "undirected"
 
-    print_section("RUNNING DATASET IMPORT")
-    import_command = build_import_command(dataset_name, args.db_name, directed)
-    import_command = append_dataset_specific_args(
-        import_command,
+    initialize_run_log(
+        run_log_path,
         dataset_name,
-        args.grid_feature_mode,
-        args.lobster_feature_mode,
-        args.triangular_grid_feature_mode,
+        args.db_name,
+        edge_mode_label,
+        args.prepare_only,
+        args.use_existing_db,
     )
-    run_subprocess_step("Dataset import", import_command, SCRIPT_DIR, log_path=run_log_path)
+
+    if args.use_existing_db:
+        print_section("REUSING EXISTING DATASET DATABASE")
+        message = (
+            f"Skipping dataset import and reusing existing database '{args.db_name}'."
+        )
+        print(message)
+        append_log_message(run_log_path, message)
+        append_log_message(run_log_path, "")
+    else:
+        dataset_script_path = DATASET_SCRIPTS[dataset_name]
+        require_path_exists(dataset_script_path, f"{dataset_name} dataset import script")
+        print_section("RUNNING DATASET IMPORT")
+        import_command = build_import_command(dataset_name, args.db_name, directed)
+        import_command = append_dataset_specific_args(
+            import_command,
+            dataset_name,
+            args.grid_feature_mode,
+            args.lobster_feature_mode,
+            args.triangular_grid_feature_mode,
+        )
+        run_subprocess_step("Dataset import", import_command, SCRIPT_DIR, log_path=run_log_path)
 
     print_section("WRITING FACTORBASE CONFIG")
     write_generated_config(config_path, template_text, args.db_name)
