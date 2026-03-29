@@ -7,6 +7,15 @@ data/
 
 # Generated FactorBase run directories and outputs
 factorbase_*_run/
+grid_experiment/
+lobster_experiment/
+triangular_grid_experiment/
+qm9_experiment1/
+qm9_cfg_compare_config/
+qm9_cfg_compare_config1/
+qm9_cfg_compare_config2/
+qm9_patched_cmp_20260318/
+qm9_snapshot_cmp_20260318/
 
 # Local generated configs
 config.cfg
@@ -16,3 +25,7 @@ config.cfg
 *.log
 Bif_*.xml
 dag_.txt
+
+# Local scratch/reference files
+scripts/
+Untitled Document 1

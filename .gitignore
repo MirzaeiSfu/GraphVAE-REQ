@@ -16,3 +16,7 @@ saved_state/
 # Python bytecode/cache
 __pycache__/
 *.py[cod]
+
+# Local Codex/editor scratch files
+.codex
+GraphVAE-REQ
