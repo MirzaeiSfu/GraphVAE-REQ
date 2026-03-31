@@ -12,6 +12,7 @@ dataset/
 dataset_cached/
 graph_cache/
 saved_state/
+factorbase_motif_pipeline/*_experiment/
 
 # Python bytecode/cache
 __pycache__/
@@ -20,3 +21,4 @@ __pycache__/
 # Local Codex/editor scratch files
 .codex
 GraphVAE-REQ
+.vscode/settings.json
