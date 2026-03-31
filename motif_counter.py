@@ -612,11 +612,23 @@ class RelationalMotifCounter:
     def _display_full_results(self, aggregated_counts: List[float]):
         count_idx = 0
         for rule_idx in range(len(self.rules)):
+            rule = self.rules[rule_idx]
             num_values = len(self.values[rule_idx])
-            print(f"\nRule {rule_idx + 1}: {self.rules[rule_idx]}")
+            start_idx = self.multiples[rule_idx]
+            print(f"\nRule {rule_idx + 1}: {rule}")
             print("-" * 80)
             for value_idx in range(num_values):
-                print(f"  Value {value_idx + 1}/{num_values}: {aggregated_counts[count_idx]:.4f}")
+                table_row = self.values[rule_idx][value_idx]
+                functor_vals = [
+                    f"{f}={table_row[start_idx + fi]}"
+                    for fi, f in enumerate(rule)
+                    if start_idx + fi < len(table_row)
+                ]
+                print(
+                    f"  [{value_idx}] "
+                    + (", ".join(functor_vals) if functor_vals else f"Value {value_idx + 1}/{num_values}")
+                    + f" -> {aggregated_counts[count_idx]:.4f}"
+                )
                 count_idx += 1
 
     def _display_selective_results(
@@ -784,5 +796,4 @@ class RelationalMotifCounter:
             if matches:
                 matching.append(row_idx)
         return matching
-
 

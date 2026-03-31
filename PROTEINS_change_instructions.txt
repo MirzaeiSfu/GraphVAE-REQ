@@ -1,0 +1,134 @@
+QM9 before/after comparison
+
+MySQL schema comparison already present on this machine
+
+- `factorbase_motif_pipeline/config.tmp` currently says `dbname = firsttest`, but `firsttest` is not one of the live databases currently present in MySQL.
+- The closest live experiment databases are `qm9_experiment` and `proteins_experiment`.
+- `qm9_experiment.nodes` columns:
+  - `node_id`
+  - `atom_type`
+  - `num_hydrogens`
+- `qm9_experiment.edges` columns:
+  - `source_node_id`
+  - `target_node_id`
+  - `bond_type`
+- `proteins_experiment.nodes` columns:
+  - `node_id`
+  - `node_feature`
+- `proteins_experiment.edges` columns:
+  - `source_node_id`
+  - `target_node_id`
+- In FactorBase setup metadata, `qm9_experiment` exposes these functors:
+  - `atom_type(nodes0)`
+  - `atom_type(nodes1)`
+  - `num_hydrogens(nodes0)`
+  - `num_hydrogens(nodes1)`
+  - `bond_type(nodes0,nodes1)`
+  - `edges(nodes0,nodes1)`
+- In FactorBase setup metadata, `proteins_experiment` exposes these functors:
+  - `node_feature(nodes0)`
+  - `node_feature(nodes1)`
+  - `edges(nodes0,nodes1)`
+- So the live protein experiment schema currently has one categorical node feature and no edge-attribute feature, while QM9 has two categorical node features plus one categorical edge feature.
+
+- The old QM9 block only loaded graph structure from `dgl.data.QM9Dataset` and appended adjacency to `list_adj`.
+- In the old code, `list_x`, `list_labels`, `list_node_feature`, and `list_edge_feature` were not used to carry molecule semantics. It was effectively an adjacency-only loader.
+- The new QM9 block switched to `torch_geometric.datasets.QM9`, which exposes `mol.x`, `mol.edge_index`, and `mol.edge_attr` directly.
+- The new QM9 block now defines `node_feature_info` explicitly. This tells the generic encoder what each node-feature column means.
+- The new QM9 block now defines `edge_feature_info` explicitly. This tells the generic encoder what each edge-feature column means and which raw values exist globally.
+- The new QM9 block now fills `list_node_feature[i]` with a per-node integer matrix shaped `(N, F)`. For QM9 that matrix is `[atom_type, num_h]`.
+- The new QM9 block now fills `list_edge_feature[i]` with a per-edge integer matrix shaped `(E, 2 + F)`. For QM9 that matrix is `[src, dst, bond_type]`.
+- The new QM9 block still leaves `list_x` and `list_labels` as `None`, but it now feeds the generic node/edge one-hot pipeline through `list_node_feature`, `list_edge_feature`, `node_feature_info`, and `edge_feature_info`.
+- The new QM9 block also changed adjacency creation. Instead of calling `graph[0].adj()`, it reconstructs a sparse adjacency from `edge_index`.
+- The new QM9 block prints progress less often and scans the dataset once up front to discover all bond types.
+
+Why this matters in this repo
+
+- `util.py:build_onehot_features()` expects categorical node features in `list_node_feature[i]` as an integer array `(N, F)`.
+- `util.py:build_onehot_features()` expects categorical edge features in `list_edge_feature[i]` as an integer array `(E, 2 + F)` where columns 0 and 1 are `src` and `dst`.
+- `data.py:list_graph_loader()` later returns `list_node_feature`, `list_edge_feature`, `node_feature_info`, and `edge_feature_info`, so the dataset branch has to populate them consistently.
+- `return_subset()` assumes `list_adj`, `list_x`, `list_node_feature`, and `list_edge_feature` all have the same length. If one list is shorter, the loader will break.
+
+What must change for PROTEINS
+
+- Replace the current incomplete `elif graph_type == "PROTEINS":` block with a full per-graph loop. Right now it only creates `data` and `node_feature_info`, so it is not enough to support the downstream pipeline.
+- At the top of `list_graph_loader()`, initialize:
+  - `node_feature_info = None`
+  - `edge_feature_info = None`
+  This prevents unbound-variable failures in branches that do not define both metadata dictionaries.
+- For every PROTEINS graph, append exactly one entry to each of these lists:
+  - `list_adj`
+  - `list_x`
+  - `list_labels`
+  - `list_node_feature`
+  - `list_edge_feature`
+- Keep the adjacency conversion step, but build it inside the PROTEINS loop so `list_adj[i]` stays aligned with the feature entries for the same graph.
+- Preserve graph labels in `list_labels`. PROTEINS is a graph classification dataset, so unlike QM9 you probably want the graph labels instead of `None`.
+
+Recommended feature design for PROTEINS
+
+- Use the categorical node label as the first safe node feature column:
+  - `node_feature_info = {0: {'feature_name': 'node_label'}}`
+- Store per-graph node labels in `list_node_feature` as an `(N, 1)` `np.int64` array.
+- Set `edge_feature_info = None` unless you explicitly engineer edge categories yourself.
+- Append `None` to `list_edge_feature` for every graph if PROTEINS has no edge features.
+
+Important local dataset caveat
+
+- The repo contains `data/Kernel_dataset/PROTEINS_full`, and it has:
+  - `PROTEINS_full_node_labels.txt`
+  - `PROTEINS_full_node_attributes.txt`
+  - no `edge_labels` file
+  - no `edge_attributes` file
+- That means PROTEINS has node information but no native edge-feature categories in the local raw files.
+- The local raw node-attribute file has 29 columns, and those values are continuous-looking floats.
+
+Do not copy the QM9 node-feature pattern blindly for continuous protein attributes
+
+- `build_onehot_features()` treats every node-feature column as categorical and converts values through integer-based one-hot encoding.
+- Raw continuous values from `PROTEINS_full_node_attributes.txt` should not be pushed directly into `list_node_feature`, because that would create meaningless category IDs or explode the number of unique values.
+- If you want to use the 29 continuous protein attributes, choose one of these paths:
+  - Safe path: keep `list_node_feature` for categorical `node_label` only, and ignore continuous attributes for now.
+  - Better path: store continuous node attributes in `list_x` as a float `(N, 29)` matrix, and keep `list_node_feature` for categorical `node_label`.
+  - Alternative path: discretize selected continuous columns first, then append those discretized integers into `list_node_feature`.
+
+One more repo-specific caveat if you use `list_x`
+
+- `main.py` calls `BFS(list_adj, list_node_feature, list_edge_feature)`.
+- That `BFS()` helper currently reorders adjacency, `list_node_feature`, and `list_edge_feature`, but it does not reorder `list_x`.
+- If you decide to put continuous PROTEINS node attributes into `list_x`, you should also update `BFS()` so that `list_x[i]` is permuted with the same node order. Otherwise adjacency and node attributes will stop matching.
+
+Concrete implementation checklist for PROTEINS
+
+- Choose the loader:
+  - If you only need graph structure plus simple categorical node labels, `dgl.data.GINDataset(name='PROTEINS', self_loop=False)` may be enough if it exposes node labels cleanly.
+  - If you also want the 29 continuous node attributes, prefer the raw `PROTEINS_full` files or another loader that preserves node attributes explicitly.
+- Build adjacency for each graph and append to `list_adj`.
+- Append graph label to `list_labels`.
+- Append either `None` or the float node-attribute matrix to `list_x`, depending on whether you want continuous protein attributes.
+- Append categorical node features to `list_node_feature` as `np.int64`.
+- Append `None` to `list_edge_feature` for each graph.
+- Set `node_feature_info` to describe each categorical node-feature column.
+- Leave `edge_feature_info = None` unless you add edge categories yourself.
+- Make sure every list has the same number of graphs before `return_subset()` is called.
+
+Minimal safe PROTEINS target behavior
+
+- `list_adj[i]`: sparse adjacency for graph `i`
+- `list_x[i]`: `None`
+- `list_labels[i]`: graph class label
+- `list_node_feature[i]`: `(N, 1)` integer array containing node labels
+- `list_edge_feature[i]`: `None`
+- `node_feature_info`: `{0: {'feature_name': 'node_label'}}`
+- `edge_feature_info`: `None`
+
+Optional richer PROTEINS target behavior
+
+- `list_adj[i]`: sparse adjacency for graph `i`
+- `list_x[i]`: `(N, 29)` float node-attribute matrix
+- `list_labels[i]`: graph class label
+- `list_node_feature[i]`: `(N, 1)` integer array containing node labels
+- `list_edge_feature[i]`: `None`
+- `node_feature_info`: `{0: {'feature_name': 'node_label'}}`
+- `edge_feature_info`: `None`
+- `BFS()` must be extended to reorder `list_x` too

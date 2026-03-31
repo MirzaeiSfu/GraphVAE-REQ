@@ -51,6 +51,11 @@ torch.backends.cudnn.deterministic = True
 subgraphSize = None
 keepThebest = False
 
+# Choose which BFS reordering to use before training/counting.
+# False -> legacy BFS from node 0 only
+# True  -> BFS over all connected components (safe for disconnected graphs)
+USE_ALL_COMPONENTS_BFS = True
+
 #====================================================================================
 #region arguments
 parser = argparse.ArgumentParser(description='Kernel VGAE')
@@ -59,7 +64,7 @@ parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Ep
 parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
 parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
 parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
-parser.add_argument('-dataset', dest="dataset",default="QM9", #default="PROTEINS", #default="QM9",
+parser.add_argument('-dataset', dest="dataset",default="PROTEINS", #default="PROTEINS", #default="QM9",
                     help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, triangular_grid, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, grid, community, citeseer, lobster, DD")  # citeceer: ego; DD:protein
 parser.add_argument('-graphEmDim', dest="graphEmDim", default=1024, help="the dimention of graph Embeding LAyer; z")
 parser.add_argument('-graph_save_path', dest="graph_save_path", default=None,
@@ -91,7 +96,7 @@ parser.add_argument('--tiny_overfit', action='store_true', default=False,
 parser.add_argument('--tiny_overfit_size', type=int, default=32,
                     help='Number of training graphs to keep in --tiny_overfit mode.')
 #=======================================
-parser.add_argument('--database_name', type=str, default='qm9')
+parser.add_argument('--database_name', type=str, default='proteins_experiment')
 parser.add_argument('--graph_type', type=str, default='homogeneous',
                     choices=['homogeneous', 'heterogeneous'])
 parser.add_argument('--motif_loss', type=bool, default=True)
@@ -129,10 +134,14 @@ parser.add_argument('--batch_size', type=int, default=50000,
                             'Only used for multi-graph datasets (QM9). '
                             'Tune to your VRAM: '
                             '8 GB → 2000 | 16 GB → 5000 | 24 GB+ → 30000.')
-parser.add_argument('--sanity_check_local_mults',
+parser.add_argument('--sanity_check',
                     action='store_true',
                     default=True,
-                    help='Run sanity check for local multiplicities using merged data.')
+                    help='Run sanity check and print readable results.')
+parser.add_argument('--sanity_check_only',
+                    action='store_true',
+                    default=True,
+                    help='Run sanity check and exit before training.')
 #=======================================
 
 
@@ -303,6 +312,10 @@ if args.model == "KernelAugmentedWithTotalNumberOfTriangles" or args.model=="Gra
     elif dataset == "grid":
         step_num = 5
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 2000]
+    elif dataset == "PROTEINS":
+        step_num = 5
+        alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 2000]
+
     elif dataset == "lobster":
         step_num = 5
         # leision study
@@ -732,8 +745,8 @@ cache_path = os.path.join(cache_dir, f"{dataset}.pkl")
 self_for_none = True
 if (decoder_type) in ("FCdecoder"): 
     self_for_none = True
-
-if os.path.exists(cache_path):
+use_cache = False  # Set to True to enable caching of processed datasets for faster subsequent loading.
+if use_cache and os.path.exists(cache_path):
     print(f"[Cache] Loading '{dataset}' from {cache_path}")
     logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
     with open(cache_path, "rb") as _f:
@@ -778,7 +791,12 @@ else:
     # list_x     = list_x[:400]
     # list_label = list_label[:400]
 
-    list_adj, list_node_feature, list_edge_feature = BFS(
+    bfs_reorder_fn = BFS_all_components if USE_ALL_COMPONENTS_BFS else BFS
+    print("[BFS] Using {} ordering.".format(
+        "all-components BFS" if USE_ALL_COMPONENTS_BFS else "legacy single-component BFS"
+    ))
+
+    list_adj, list_node_feature, list_edge_feature = bfs_reorder_fn(
         list_adj, list_node_feature, list_edge_feature
     )
 
@@ -906,7 +924,7 @@ if args.motif_loss:
     RuleBasedMotifStore(database_name=args.database_name, args=args) 
 
     # Builds the dataset to count on (train only, or train+test in sanity mode).
-    if args.sanity_check_local_mults:
+    if args.sanity_check or args.sanity_check_only:
         remove_self_loops(list_graphs)
         remove_self_loops(list_test_graphs)
         dataa = merge_datasets(list_graphs, list_test_graphs)  
@@ -922,9 +940,28 @@ if args.motif_loss:
     list_graphs.motif_counts = counts
 
     # In sanity mode, sums counts across all samples and prints them for inspection.
-    if args.sanity_check_local_mults:
-        aggregated = counts.sum(0)
+    if args.sanity_check or args.sanity_check_only:
+        # Previous sanity-check output:
+        # aggregated = counts.sum(0)
+        # print(aggregated)
+        aggregated = motif_counter.aggregate_motif_counts(counts)
+        print("\n" + "=" * 80)
+        print("SANITY CHECK: AGGREGATED MOTIF COUNTS")
+        print("=" * 80)
         print(aggregated)
+
+        if args.sanity_check or args.sanity_check_only:
+            motif_counter.display_rules_and_motifs(aggregated)
+
+            if dataset == "PROTEINS":
+                print("\nCompare these counts against FactorBase local_mult columns in:")
+                print("  proteins_experiment_BN.`edges(nodes0,nodes1)_CP`")
+                print("  proteins_experiment_BN.`node_feature(nodes0)_CP`")
+                print("  proteins_experiment_BN.`node_feature(nodes1)_CP`")
+
+        if args.sanity_check_only:
+            print("\nSanity-check-only mode enabled; exiting before model training.")
+            raise SystemExit(0)
 #endregion
 #====================================================================================
 

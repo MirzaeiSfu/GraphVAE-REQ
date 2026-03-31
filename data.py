@@ -400,6 +400,30 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
   list_labels = []
   list_node_feature = []    
   list_edge_feature = []    
+  node_feature_info = None
+  edge_feature_info = None
+
+  def _extract_proteins_node_feature(graph):
+      for key in ("feat", "attr", "label"):
+          if key not in graph.ndata:
+              continue
+
+          raw = graph.ndata[key]
+          if raw.dim() == 1:
+              feat = raw.long()
+          elif raw.dim() == 2 and raw.shape[1] == 1:
+              feat = raw[:, 0].long()
+          else:
+              feat = torch.argmax(raw, dim=1).long()
+
+          # Match the existing proteins_experiment schema, which stores the
+          # categorical node feature as 1-based labels.
+          return feat + 1
+
+      raise KeyError(
+          f"PROTEINS graph has no supported node feature key. "
+          f"Available keys: {list(graph.ndata.keys())}"
+      )
 
   if graph_type=="IMDBBINARY":
       data = dgl.data.GINDataset(name='IMDBBINARY', self_loop=False)
@@ -453,17 +477,49 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
       np.save('PTC_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
   elif graph_type == "PROTEINS":
+#===================================start kiarash code
+
+      # data = dgl.data.GINDataset(name='PROTEINS', self_loop=False)
+      # graphs, labels = data.graphs, data.labels
+      # for i, graph in enumerate(graphs):
+      #     if graph.adjacency_matrix().shape[0] < 100:
+      #         list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
+      #         # list_x.append(graph.ndata['feat'])
+      #         list_x.append(None)
+      #         list_labels.append(labels[i].cpu().item())
+      # # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
+      # # np.save('PROTEINS.npy', graphs_to_writeOnDisk, allow_pickle=True)
+#==================================end kiarash code
       data = dgl.data.GINDataset(name='PROTEINS', self_loop=False)
       graphs, labels = data.graphs, data.labels
+
+      node_feature_info = {
+          0: {'feature_name': 'node_feature'}
+      }
+      edge_feature_info = None
+
       for i, graph in enumerate(graphs):
-          if graph.adjacency_matrix().shape[0]<100:
-              list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
-              # list_x.append(graph.ndata['feat'])
-              list_x.append(None)
-              list_labels.append(labels[i].cpu().item())
-      # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
-      # np.save('PROTEINS.npy', graphs_to_writeOnDisk, allow_pickle=True)
+        #   if graph.num_nodes() >= 100:
+        #       continue
+
+          if i % 100 == 0:
+              print(f"PROTEINS loading: {i}/{len(graphs)}")
+
+          adj = csr_matrix(graph.adjacency_matrix().to_dense().numpy())
+          list_adj.append(adj)
+          list_x.append(None)
+          list_labels.append(int(labels[i].cpu().item()))
+
+          node_feature = _extract_proteins_node_feature(graph)
+          list_node_feature.append(
+              node_feature.view(-1, 1).cpu().numpy().astype(np.int64)
+          )
+          list_edge_feature.append(None)
+
+
   elif graph_type == "QM9":
+#===================================start kiarash code
+  
     #   data = dgl.data.QM9Dataset(label_keys=['mu'])
     #   for i, graph in enumerate(data):
     #       # if i==1000:
@@ -473,7 +529,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
     #       list_x.append(None)
     #       list_labels.append(None)
     #       print(i)
-
+#==================================end kiarash code
         from torch_geometric.datasets import QM9
         data = QM9(root="./data/QM9")
 
@@ -814,6 +870,16 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       if len(list_labels)==0:
           list_labels = None
 
+  if len(list_node_feature) == 0:
+      list_node_feature = [None for _ in list_adj]
+  elif len(list_node_feature) != len(list_adj):
+      raise ValueError("list_node_feature must align with list_adj")
+
+  if len(list_edge_feature) == 0:
+      list_edge_feature = [None for _ in list_adj]
+  elif len(list_edge_feature) != len(list_adj):
+      raise ValueError("list_edge_feature must align with list_adj")
+
   list_adj, list_x, list_labels, list_node_feature, list_edge_feature = \
       return_subset(list_adj, list_x, list_labels, list_node_feature, list_edge_feature, limited_to)
 
@@ -863,26 +929,67 @@ def data_split(graph_lis, list_x=None, list_label=None,
 # list_adj, list_x = list_graph_loader("grid")
 # list_graph = Datasets(list_adj,self_for_none, None)
 
+def _apply_bfs_order(list_adj, list_node_feature, list_edge_feature, graph_idx, order):
+    # adjacency
+    list_adj[graph_idx] = list_adj[graph_idx][order, :][:, order]
+
+    # node features: rows are nodes -> reorder rows
+    if list_node_feature is not None and list_node_feature[graph_idx] is not None:
+        list_node_feature[graph_idx] = list_node_feature[graph_idx][order, :]
+
+    # edge features: remap src/dst node indices
+    if list_edge_feature is not None and list_edge_feature[graph_idx] is not None:
+        inv_order = np.empty_like(order)
+        inv_order[order] = np.arange(len(order))
+
+        ef = list_edge_feature[graph_idx].copy()
+        ef[:, 0] = inv_order[ef[:, 0]]   # remap src
+        ef[:, 1] = inv_order[ef[:, 1]]   # remap dst
+        list_edge_feature[graph_idx] = ef
+
+
 def BFS(list_adj, list_node_feature=None, list_edge_feature=None):
+    """
+    Legacy BFS ordering.
+
+    Important: on disconnected graphs this keeps only the component reachable
+    from node 0, because scipy.sparse.csgraph.breadth_first_order() returns
+    only the visited nodes.
+    """
     for i, _ in enumerate(list_adj):
-        order = scipy.sparse.csgraph.breadth_first_order(list_adj[i], 0)[0]
+        order = sp.csgraph.breadth_first_order(list_adj[i], 0)[0]
+        _apply_bfs_order(list_adj, list_node_feature, list_edge_feature, i, order)
 
-        # adjacency
-        list_adj[i] = list_adj[i][order, :][:, order]
+    return list_adj, list_node_feature, list_edge_feature
 
-        # node features: rows are nodes → reorder rows
-        if list_node_feature is not None and list_node_feature[i] is not None:
-            list_node_feature[i] = list_node_feature[i][order, :]
 
-        # edge features: remap src/dst node indices
-        if list_edge_feature is not None and list_edge_feature[i] is not None:
-            inv_order = np.empty_like(order)
-            inv_order[order] = np.arange(len(order))
+def BFS_all_components(list_adj, list_node_feature=None, list_edge_feature=None):
+    """
+    BFS ordering that preserves all nodes in disconnected graphs.
 
-            ef = list_edge_feature[i].copy()
-            ef[:, 0] = inv_order[ef[:, 0]]   # remap src
-            ef[:, 1] = inv_order[ef[:, 1]]   # remap dst
-            list_edge_feature[i] = ef
+    Each connected component gets its own BFS traversal, and the final order is
+    the concatenation of those traversals.
+    """
+    for i, _ in enumerate(list_adj):
+        num_nodes = list_adj[i].shape[0]
+        if num_nodes == 0:
+            continue
+
+        visited = np.zeros(num_nodes, dtype=bool)
+        order_parts = []
+
+        for start_node in range(num_nodes):
+            if visited[start_node]:
+                continue
+
+            component_order = sp.csgraph.breadth_first_order(
+                list_adj[i], start_node
+            )[0]
+            visited[component_order] = True
+            order_parts.append(component_order)
+
+        order = np.concatenate(order_parts) if order_parts else np.arange(num_nodes)
+        _apply_bfs_order(list_adj, list_node_feature, list_edge_feature, i, order)
 
     return list_adj, list_node_feature, list_edge_feature
 
@@ -1580,4 +1687,3 @@ class ReconstructedDataWrapper:
         edge_b        = ([e[start:end].to(dev, **kw) for e in self.all_edge]
                          if self.all_edge is not None else None)
         return feat_b, feat_onehot_b, adj_b, edge_b
-
