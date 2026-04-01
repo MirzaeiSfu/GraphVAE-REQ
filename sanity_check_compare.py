@@ -1,3 +1,49 @@
+# Notes about use_cache and sanity-check comparison:
+#
+# No, not exactly.
+#
+# The comparison function in this file will still run even if use_cache = True,
+# as long as:
+# - sanity mode is enabled
+# - main.py reaches the motif-counting block
+# - and the needed pickle/DB data exists
+#
+# What changes with use_cache is not whether the comparison runs, but what data
+# it compares.
+#
+# With use_cache = True:
+# - main.py may load cached processed graphs from dataset_cached/<dataset>.pkl
+# - then sanity check counts those cached graphs
+# - then this comparator still compares those counts against the live
+#   FactorBase database
+#
+# So yes, the real comparison still happens.
+# But the local side may be stale if the cache was built before the latest
+# data.py changes.
+#
+# That is the important risk:
+# - use_cache = True can make you compare old local preprocessing
+# - against current database values
+#
+# Recommendation:
+# - for trustworthy sanity checking after changing data.py, use use_cache = False
+# - or delete the relevant cache file first, then cache can be turned back on later
+#
+# Examples:
+# - dataset_cached/PROTEINS.pkl
+# - dataset_cached/QM9.pkl
+#
+# Also remember there is a second cache-like artifact:
+# - db/<database_name>.pkl
+#
+# That file stores motif/rule metadata read from FactorBase. If the database is
+# rebuilt or changed, that pickle can also become stale.
+#
+# Practical summary:
+# - the comparison function still runs with cache on
+# - but for a fresh and meaningful sanity check, use_cache should usually be
+#   False after loader or database changes
+#
 from __future__ import annotations
 
 from decimal import Decimal
