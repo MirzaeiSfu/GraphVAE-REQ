@@ -17,15 +17,15 @@ import scipy.sparse as sp
 import warnings
 
 import dgl as dgl
-from grid_feature_utils import (
+from dataset_feature_utils.grid_features import (
     EDGE_ORBIT_TO_ID,
     compute_distance_to_boundary,
     compute_edge_orbit,
     compute_struct_type,
     get_grid_dimensions,
 )
-import lobster_feature_utils as lobster_features
-import triangular_grid_feature_utils as triangular_grid_features
+import dataset_feature_utils.lobster_features as lobster_features
+import dataset_feature_utils.triangular_grid_features as triangular_grid_features
 
 # import ogb
 

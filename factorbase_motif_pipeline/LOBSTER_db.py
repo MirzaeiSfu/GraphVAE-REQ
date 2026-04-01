@@ -24,7 +24,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from lobster_feature_utils import (
+from dataset_feature_utils.lobster_features import (
     DISTANCE_TO_SPINE_LABELS,
     ECCENTRICITY_BUCKET_LABELS,
     EDGE_TYPE_LABELS,

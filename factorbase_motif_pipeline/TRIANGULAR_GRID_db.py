@@ -24,7 +24,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from triangular_grid_feature_utils import (
+from dataset_feature_utils.triangular_grid_features import (
     DISTANCE_TO_BOUNDARY_LABELS,
     EDGE_ORBIT_LABELS,
     NUM_6CYCLES_LABELS,
