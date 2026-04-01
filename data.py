@@ -534,7 +534,8 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
         data = QM9(root="./data/QM9")
 
         # ── node feature metadata ─────────────────────────────────
-        # Two columns: col-0 = atom_type (0-4), col-1 = num_h (0-3)
+        # Two columns: col-0 = atom_type (1-5), col-1 = num_h (1-4)
+        # This matches the qm9_experiment database schema.
         node_feature_info = {
             0: {'feature_name': 'atom_type'},
             1: {'feature_name': 'num_h'},
@@ -575,8 +576,8 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 
             # node features  →  (N, 2)  int array
             X         = mol.x
-            atom_type = torch.argmax(X[:, 0:5], dim=1)
-            num_h     = torch.clamp(X[:, 10].long(), max=3)
+            atom_type = torch.argmax(X[:, 0:5], dim=1) + 1
+            num_h     = torch.clamp(X[:, 10].long(), max=3) + 1
             list_node_feature.append(
                 torch.stack([atom_type, num_h], dim=1).numpy().astype(np.int64)
             )
