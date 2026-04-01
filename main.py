@@ -103,11 +103,12 @@ parser.add_argument('--database_name', type=str, default='lobster_experiment') #
 parser.add_argument('--graph_type', type=str, default='homogeneous',
                     choices=['homogeneous', 'heterogeneous'])
 parser.add_argument('--motif_loss', type=bool, default=True)
-# Keep the original motif loss available, but allow switching to a squared
-# log-ratio variant that is often smoother when fine-tuning near zero.
+# The default motif loss is now symmetric: zero-observed motifs are included
+# through Laplace smoothing so extra motifs in the reconstruction are penalized
+# too. This flag only chooses between absolute and squared log-ratio penalties.
 parser.add_argument('--motif_loss_mode', type=str, default='abs_log_ratio',
                     choices=['abs_log_ratio', 'squared_log_ratio'],
-                    help='Motif loss variant: original abs(log(pred/obs)) or squared log-ratio.')
+                    help='Motif loss variant: symmetric abs(log-ratio) or squared log-ratio.')
 # Motif-temperature annealing only affects motif counting, not the main
 # reconstruction loss. Keep start=end=1.0 to disable it, or use a schedule like
 # start=1.0, end=0.5, start_frac=0.5 to keep training smooth early and sharpen

@@ -3,24 +3,31 @@
 import torch
 
 
-def compute_motif_loss(observed_counts, predicted_counts, loss_mode="abs_log_ratio"):
-    """
-    Compute motif loss by normalizing inside each graph first, then averaging
-    across graphs in the batch.
-
-    This gives each graph equal weight regardless of how many motif types are
-    active in that graph. Motifs with zero observed count are excluded from a
-    graph's normalization term.
-
-    loss_mode='abs_log_ratio' keeps the original absolute log-ratio penalty.
-    loss_mode='squared_log_ratio' uses a squared log-ratio penalty, which is
-    often smoother when fine-tuning near zero.
-    """
+def _validate_motif_count_shapes(observed_counts, predicted_counts):
     if observed_counts.shape != predicted_counts.shape:
         raise ValueError(
             f"Shape mismatch: observed {tuple(observed_counts.shape)} vs "
             f"predicted {tuple(predicted_counts.shape)}"
         )
+
+
+def _apply_log_ratio_loss_mode(log_ratio, loss_mode):
+    if loss_mode == "abs_log_ratio":
+        return torch.abs(log_ratio)
+    if loss_mode == "squared_log_ratio":
+        return log_ratio.pow(2)
+    raise ValueError(f"Unknown motif loss mode: {loss_mode}")
+
+
+def compute_motif_loss_asymmetric(observed_counts, predicted_counts, loss_mode="abs_log_ratio"):
+    """
+    Legacy asymmetric motif loss.
+
+    Only motifs with nonzero observed count contribute to each graph's loss, so
+    it penalizes missing existing motifs but does not penalize newly created
+    motifs whose observed count is zero.
+    """
+    _validate_motif_count_shapes(observed_counts, predicted_counts)
 
     mask = observed_counts != 0
     if not mask.any():
@@ -30,13 +37,7 @@ def compute_motif_loss(observed_counts, predicted_counts, loss_mode="abs_log_rat
     safe_predicted = predicted_counts.clamp(min=1e-8)
 
     log_ratio = torch.log(safe_predicted / safe_observed)
-    if loss_mode == "abs_log_ratio":
-        per_motif_loss = torch.abs(log_ratio)
-    elif loss_mode == "squared_log_ratio":
-        per_motif_loss = log_ratio.pow(2)
-    else:
-        raise ValueError(f"Unknown motif loss mode: {loss_mode}")
-
+    per_motif_loss = _apply_log_ratio_loss_mode(log_ratio, loss_mode)
     per_motif_loss = per_motif_loss * mask.to(per_motif_loss.dtype)
 
     active_motif_count = mask.sum(dim=1)
@@ -50,12 +51,48 @@ def compute_motif_loss(observed_counts, predicted_counts, loss_mode="abs_log_rat
     return per_graph_loss.mean()
 
 
+compute_motif_loss_old = compute_motif_loss_asymmetric
+
+
+def compute_motif_loss(
+    observed_counts,
+    predicted_counts,
+    loss_mode="abs_log_ratio",
+    laplace_pseudocount=1.0,
+):
+    """
+    Compute a symmetric motif loss by averaging a Laplace-smoothed log-ratio
+    penalty across motifs inside each graph, then averaging across graphs.
+
+    The Laplace pseudocount keeps zero counts well-defined and makes motifs
+    with observed count zero contribute to the loss, so extra motifs created in
+    the reconstructed graph are penalized too.
+    """
+    _validate_motif_count_shapes(observed_counts, predicted_counts)
+
+    if observed_counts.shape[-1] == 0:
+        return torch.tensor(0.0, device=observed_counts.device)
+
+    laplace_pseudocount = float(laplace_pseudocount)
+    if laplace_pseudocount <= 0.0:
+        raise ValueError("laplace_pseudocount must be > 0.")
+
+    safe_observed = observed_counts + laplace_pseudocount
+    safe_predicted = predicted_counts + laplace_pseudocount
+
+    log_ratio = torch.log(safe_predicted / safe_observed)
+    per_motif_loss = _apply_log_ratio_loss_mode(log_ratio, loss_mode)
+    per_graph_loss = per_motif_loss.mean(dim=1)
+    return per_graph_loss.mean()
+
+
 def compute_hard_motif_metrics(observed_counts, hard_predicted_counts):
     """
     Compute evaluation-only motif metrics on the discretized reconstruction.
 
-    `hard_motif_loss` reuses the absolute log-ratio penalty on hard motif
-    counts so we can compare the thresholded graph against the target counts.
+    `hard_motif_loss` reuses the symmetric Laplace-smoothed absolute
+    log-ratio penalty on hard motif counts so we compare both missing motifs
+    and extra motifs in the thresholded graph against the target counts.
     `hard_motif_exact_zero` is stricter: it requires an exact count match for
     every motif entry, including motifs whose observed count is zero.
     """
