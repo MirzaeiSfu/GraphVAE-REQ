@@ -13,10 +13,30 @@ This script matches the CLI contract used by `run_factorbase_pipeline.py`:
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import defaultdict
+from pathlib import Path
 
 import networkx as nx
 from pymysql import connect
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from triangular_grid_feature_utils import (
+    DISTANCE_TO_BOUNDARY_LABELS,
+    EDGE_ORBIT_LABELS,
+    NUM_6CYCLES_LABELS,
+    STRUCT_TYPE_LABELS,
+    compute_distance_to_boundary,
+    compute_edge_orbit,
+    compute_num_3cycles,
+    compute_num_6cycles,
+    compute_struct_type,
+    decode_num_3cycles,
+    get_lattice_bounds,
+)
 
 
 DEFAULT_DB_NAME = "triangular_grid"
@@ -86,88 +106,6 @@ def resolve_edge_mode(args: argparse.Namespace) -> bool:
         print("Please enter 1 or 2.")
 
 
-def get_lattice_bounds(graph: nx.Graph) -> tuple[int, int, int, int]:
-    rows = [node[0] for node in graph.nodes()]
-    cols = [node[1] for node in graph.nodes()]
-    return min(rows), max(rows), min(cols), max(cols)
-
-
-def compute_struct_type(graph: nx.Graph, node: tuple[int, int]) -> str:
-    degree = graph.degree(node)
-    if degree == 2:
-        return "Vertex"
-    if degree == 3:
-        return "Boundary"
-    if degree == 4:
-        return "Edge-Corner"
-    if degree == 5:
-        return "Edge-Transition"
-    return "Interior"
-
-
-def compute_distance_to_boundary(
-    node: tuple[int, int],
-    bounds: tuple[int, int, int, int],
-) -> str:
-    row, col = node
-    min_row, max_row, min_col, max_col = bounds
-
-    distance = min(
-        row - min_row,
-        max_row - row,
-        col - min_col,
-        max_col - col,
-    )
-
-    if distance == 0:
-        return "Boundary"
-    if distance == 1:
-        return "Near-Boundary"
-    if distance <= 3:
-        return "Near-Center"
-    if distance <= 5:
-        return "Center"
-    return "Deep-Center"
-
-
-def compute_num_3cycles(graph: nx.Graph, node: tuple[int, int]) -> int:
-    """
-    Count triangles incident to `node`.
-
-    In an undirected graph, each edge among the node's neighbors completes one
-    triangle that includes the node.
-    """
-    neighbors = list(graph.neighbors(node))
-    triangle_count = 0
-    for index, left in enumerate(neighbors):
-        for right in neighbors[index + 1 :]:
-            if graph.has_edge(left, right):
-                triangle_count += 1
-    return triangle_count
-
-
-def compute_num_6cycles(graph: nx.Graph, node: tuple[int, int]) -> int:
-    """
-    Use interior connectivity as a stable proxy for hexagon participation.
-    """
-    return 1 if graph.degree(node) >= 4 else 0
-
-
-def compute_edge_orbit(
-    source_node: tuple[int, int],
-    target_node: tuple[int, int],
-    bounds: tuple[int, int, int, int],
-) -> str:
-    min_row, max_row, min_col, max_col = bounds
-    touches_boundary = (
-        source_node[0] in (min_row, max_row)
-        or source_node[1] in (min_col, max_col)
-        or target_node[0] in (min_row, max_row)
-        or target_node[1] in (min_col, max_col)
-    )
-    return "Boundary" if touches_boundary else "Interior"
-
-
 def build_triangular_grid_graphs() -> list[nx.Graph]:
     print("\n" + "=" * 70)
     print("GENERATING TRIANGULAR GRID GRAPHS")
@@ -186,10 +124,10 @@ def build_triangular_grid_graphs() -> list[nx.Graph]:
 
 
 def add_edge_rows(
-    edge_rows: list[tuple[int, int, str]],
+    edge_rows: list[tuple[int, int, int]],
     source_node_id: int,
     target_node_id: int,
-    edge_orbit: str,
+    edge_orbit: int,
     directed: bool,
 ) -> int:
     if directed:
@@ -226,8 +164,8 @@ def create_triangular_grid_database_with_features(
         """
         CREATE TABLE nodes (
             node_id INT PRIMARY KEY,
-            struct_type VARCHAR(25) NOT NULL,
-            distance_to_boundary VARCHAR(20) NOT NULL,
+            struct_type INT NOT NULL,
+            distance_to_boundary INT NOT NULL,
             num_3cycles INT NOT NULL,
             num_6cycles INT NOT NULL,
             INDEX idx_struct (struct_type),
@@ -238,17 +176,17 @@ def create_triangular_grid_database_with_features(
         """
     )
     print("\nNODES table created")
-    print("  - struct_type: Vertex/Boundary/Edge-Corner/Edge-Transition/Interior")
-    print("  - distance_to_boundary: Boundary/Near-Boundary/Near-Center/Center/Deep-Center")
-    print("  - num_3cycles: number of incident triangles")
-    print("  - num_6cycles: hexagon participation proxy")
+    print("  - struct_type: INT (1=Vertex, 2=Boundary, 3=Edge-Corner, 4=Edge-Transition, 5=Interior)")
+    print("  - distance_to_boundary: INT (1=Boundary, 2=Near-Boundary, 3=Near-Center, 4=Center, 5=Deep-Center)")
+    print("  - num_3cycles: INT (1-based categorical triangle count)")
+    print("  - num_6cycles: INT (1=No hexagon, 2=Has hexagon)")
 
     cursor.execute(
         """
         CREATE TABLE edges (
             source_node_id INT NOT NULL,
             target_node_id INT NOT NULL,
-            edge_orbit VARCHAR(20) NOT NULL,
+            edge_orbit INT NOT NULL,
             PRIMARY KEY (source_node_id, target_node_id),
             FOREIGN KEY (source_node_id) REFERENCES nodes(node_id),
             FOREIGN KEY (target_node_id) REFERENCES nodes(node_id),
@@ -257,7 +195,7 @@ def create_triangular_grid_database_with_features(
         """
     )
     print("\nEDGES table created")
-    print("  - edge_orbit: Boundary/Interior")
+    print("  - edge_orbit: INT (1=Boundary, 2=Interior)")
     print(
         f"  - edge mode: {'DIRECTED (A->B and B->A)' if directed else 'UNDIRECTED (one stored edge per pair)'}"
     )
@@ -364,11 +302,11 @@ def create_triangular_grid_database_with_features(
     print("\nNODE FEATURE 1: STRUCT_TYPE (Degree-Based)")
     print("  " + "=" * 70)
     struct_labels = {
-        "Vertex": "Degree 2",
-        "Boundary": "Degree 3",
-        "Edge-Corner": "Degree 4",
-        "Edge-Transition": "Degree 5",
-        "Interior": "Degree 6",
+        1: "Degree 2",
+        2: "Degree 3",
+        3: "Degree 4",
+        4: "Degree 5",
+        5: "Degree 6",
     }
     cumulative = 0.0
     for value in sorted(struct_counts):
@@ -376,19 +314,20 @@ def create_triangular_grid_database_with_features(
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
         label = struct_labels.get(value, "")
+        name = STRUCT_TYPE_LABELS.get(value, str(value))
         print(
-            f"  {value:15s} ({label:10s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:15s}, {label:10s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
     print("\nNODE FEATURE 2: DISTANCE_TO_BOUNDARY (Position Depth)")
     print("  " + "=" * 70)
     distance_labels = {
-        "Boundary": "On lattice boundary",
-        "Near-Boundary": "1 step from boundary",
-        "Near-Center": "2-3 steps from boundary",
-        "Center": "4-5 steps from boundary",
-        "Deep-Center": "6+ steps from boundary",
+        1: "On lattice boundary",
+        2: "1 step from boundary",
+        3: "2-3 steps from boundary",
+        4: "4-5 steps from boundary",
+        5: "6+ steps from boundary",
     }
     cumulative = 0.0
     for value in sorted(distance_counts):
@@ -396,8 +335,9 @@ def create_triangular_grid_database_with_features(
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
         label = distance_labels.get(value, "")
+        name = DISTANCE_TO_BOUNDARY_LABELS.get(value, str(value))
         print(
-            f"  {value:15s} ({label:25s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:15s}, {label:25s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
@@ -409,22 +349,18 @@ def create_triangular_grid_database_with_features(
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
         print(
-            f"  Value {value:2d}: {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  Value {value:2d} ({decode_num_3cycles(value):2d} triangles): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
     print("\nNODE FEATURE 4: NUM_6CYCLES (Hexagon Participation)")
     print("  " + "=" * 70)
-    cycle6_labels = {
-        0: "No hexagon",
-        1: "Has hexagon",
-    }
     cumulative = 0.0
     for value in sorted(cycle6_counts):
         count = cycle6_counts[value]
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
-        label = cycle6_labels.get(value, "")
+        label = NUM_6CYCLES_LABELS.get(value, "")
         print(
             f"  Value {value:2d} ({label:12s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
@@ -437,8 +373,9 @@ def create_triangular_grid_database_with_features(
         count = edge_orbit_counts[value]
         pct = (count / edge_count) * 100 if edge_count > 0 else 0.0
         cumulative += pct
+        name = EDGE_ORBIT_LABELS.get(value, str(value))
         print(
-            f"  {value:15s}: {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:8s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {edge_count:,} edges (100.00%)")
 
@@ -450,14 +387,23 @@ def create_triangular_grid_database_with_features(
     print("\n  node_id | struct_type | distance_to_boundary | num_3cycles | num_6cycles")
     print("  " + "-" * 84)
     for row in cursor.fetchall():
-        print(f"  {row[0]:7d} | {row[1]:15s} | {row[2]:20s} | {row[3]:11d} | {row[4]:11d}")
+        struct_name = STRUCT_TYPE_LABELS.get(row[1], str(row[1]))
+        distance_name = DISTANCE_TO_BOUNDARY_LABELS.get(row[2], str(row[2]))
+        cycle6_name = NUM_6CYCLES_LABELS.get(row[4], str(row[4]))
+        print(
+            f"  {row[0]:7d} | {row[1]:2d} ({struct_name:15s}) | "
+            f"{row[2]:2d} ({distance_name:15s}) | "
+            f"{row[3]:2d} ({decode_num_3cycles(row[3]):2d} tri) | "
+            f"{row[4]:2d} ({cycle6_name:10s})"
+        )
 
     print("\nSAMPLE EDGES (First 10):")
     cursor.execute("SELECT * FROM edges LIMIT 10")
     print("\n  source | target | edge_orbit")
     print("  " + "-" * 42)
     for row in cursor.fetchall():
-        print(f"  {row[0]:6d} | {row[1]:6d} | {row[2]:10s}")
+        edge_name = EDGE_ORBIT_LABELS.get(row[2], str(row[2]))
+        print(f"  {row[0]:6d} | {row[1]:6d} | {row[2]:2d} ({edge_name:8s})")
 
     cursor.close()
     connection.close()
@@ -586,6 +532,11 @@ def main() -> None:
     print("=" * 70)
     if args.feature_mode == "with-features":
         print(f"  1. {db_name} (4 node + 1 edge features) [TRIANGULAR_GRID]")
+        print("     struct_type: 1=Vertex, 2=Boundary, 3=Edge-Corner, 4=Edge-Transition, 5=Interior")
+        print("     distance_to_boundary: 1=Boundary, 2=Near-Boundary, 3=Near-Center, 4=Center, 5=Deep-Center")
+        print("     num_3cycles: 1-based categorical triangle count")
+        print("     num_6cycles: 1=No hexagon, 2=Has hexagon")
+        print("     edge_orbit: 1=Boundary, 2=Interior")
     else:
         print(f"  1. {db_name} (structure only, no features) [TRIANGULAR_GRID]")
     print("\nREADY FOR MOTIF FINDING ALGORITHMS!")

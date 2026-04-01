@@ -24,6 +24,7 @@ from grid_feature_utils import (
     compute_struct_type,
     get_grid_dimensions,
 )
+import triangular_grid_feature_utils as triangular_grid_features
 
 # import ogb
 
@@ -470,6 +471,50 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           edge_feature,
       )
 
+  def _build_triangular_grid_graph_features(graph):
+      nodes = sorted(graph.nodes())
+      node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+      adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
+
+      bounds = triangular_grid_features.get_lattice_bounds(graph)
+
+      node_rows = []
+      for node in nodes:
+          struct_type = triangular_grid_features.compute_struct_type(graph, node)
+          distance_to_boundary = triangular_grid_features.compute_distance_to_boundary(
+              node, bounds
+          )
+          num_3cycles = triangular_grid_features.compute_num_3cycles(graph, node)
+          num_6cycles = triangular_grid_features.compute_num_6cycles(graph, node)
+          node_rows.append([
+              struct_type,
+              distance_to_boundary,
+              num_3cycles,
+              num_6cycles,
+          ])
+
+      edge_rows = []
+      for node_u, node_v in graph.edges():
+          edge_orbit = triangular_grid_features.compute_edge_orbit(
+              node_u, node_v, bounds
+          )
+          src = node_to_idx[node_u]
+          dst = node_to_idx[node_v]
+
+          # Keep local edge-feature rows symmetric with the adjacency relation.
+          edge_rows.append([src, dst, edge_orbit])
+          edge_rows.append([dst, src, edge_orbit])
+
+      edge_feature = None
+      if edge_rows:
+          edge_feature = np.asarray(edge_rows, dtype=np.int64)
+
+      return (
+          adj,
+          np.asarray(node_rows, dtype=np.int64),
+          edge_feature,
+      )
+
   if graph_type=="IMDBBINARY":
       data = dgl.data.GINDataset(name='IMDBBINARY', self_loop=False)
       graphs, labels = data.graphs, data.labels
@@ -690,13 +735,37 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
             list_node_feature.append(node_feature)
             list_edge_feature.append(edge_feature)
 
-  elif graph_type=="triangular_grid":
+  elif graph_type=="TRIANGULAR_GRID":
+#===================================start kirash code
+      # for i in range(10, 20):
+      #   for j in range(10, 20):
+      #       list_adj.append(nx.adjacency_matrix(nx.triangular_lattice_graph(i, j)))
+      #       list_x.append(None)
+      # # graphs_to_writeOnDisk = [gr.toarray() for  gr in list_adj]
+      # # np.save('triangular_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
+#==================================end kirash code
+      node_feature_info = {
+          0: {'feature_name': 'struct_type'},
+          1: {'feature_name': 'distance_to_boundary'},
+          2: {'feature_name': 'num_3cycles'},
+          3: {'feature_name': 'num_6cycles'},
+      }
+      edge_feature_info = {
+          0: {
+              'feature_name': 'edge_orbit',
+              'unique_values': sorted(triangular_grid_features.EDGE_ORBIT_TO_ID.values()),
+          }
+      }
+
       for i in range(10, 20):
         for j in range(10, 20):
-            list_adj.append(nx.adjacency_matrix(nx.triangular_lattice_graph(i, j)))
+            graph = nx.triangular_lattice_graph(i, j)
+            adj, node_feature, edge_feature = _build_triangular_grid_graph_features(graph)
+            list_adj.append(adj)
             list_x.append(None)
-      # graphs_to_writeOnDisk = [gr.toarray() for  gr in list_adj]
-      # np.save('triangular_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
+            list_labels.append(None)
+            list_node_feature.append(node_feature)
+            list_edge_feature.append(edge_feature)
   elif graph_type=="small_triangular_grid":
       for i in range(6, 12):
         for j in range(6, 12):
@@ -1167,7 +1236,7 @@ if __name__ == '__main__':
         plotter.plotG(G,"DD")
     # ----------------------------------------
     import plotter
-    result = list_graph_loader("triangular_grid")
+    result = list_graph_loader("TRIANGULAR_GRID")
     for G in result[0]:
 
 
@@ -1182,7 +1251,7 @@ if __name__ == '__main__':
         G = nx.from_numpy_array(G.toarray())
         plotter.plotG(G, "test_graph", plot_it=True)
 
-    result=list_graph_loader("triangular_grid")
+    result=list_graph_loader("TRIANGULAR_GRID")
     import plotter
 
     for i, G in enumerate(result[0]):
