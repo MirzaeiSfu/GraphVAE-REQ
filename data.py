@@ -24,6 +24,7 @@ from grid_feature_utils import (
     compute_struct_type,
     get_grid_dimensions,
 )
+import lobster_feature_utils as lobster_features
 import triangular_grid_feature_utils as triangular_grid_features
 
 # import ogb
@@ -515,6 +516,59 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           edge_feature,
       )
 
+  def _build_lobster_graph_features(graph):
+      nodes = sorted(graph.nodes())
+      node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+      adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
+
+      spine_path = lobster_features.find_spine_path(graph)
+      spine_nodes = set(spine_path)
+      distance_to_spine = lobster_features.compute_distance_to_spine_labels(
+          graph,
+          spine_path,
+      )
+      subtree_sizes = lobster_features.compute_branch_component_sizes(
+          graph,
+          spine_path,
+      )
+
+      node_rows = []
+      for node in nodes:
+          node_degree = lobster_features.compute_node_degree(graph, node)
+          spine_distance = distance_to_spine[node]
+          subtree_size = subtree_sizes[node]
+          eccentricity = lobster_features.compute_eccentricity(graph, node)
+          node_rows.append([
+              node_degree,
+              spine_distance,
+              subtree_size,
+              eccentricity,
+          ])
+
+      edge_rows = []
+      for source_node, target_node in graph.edges():
+          edge_type = lobster_features.compute_edge_type(
+              source_node,
+              target_node,
+              spine_nodes,
+          )
+          src = node_to_idx[source_node]
+          dst = node_to_idx[target_node]
+
+          # Keep local edge-feature rows symmetric with the adjacency relation.
+          edge_rows.append([src, dst, edge_type])
+          edge_rows.append([dst, src, edge_type])
+
+      edge_feature = None
+      if edge_rows:
+          edge_feature = np.asarray(edge_rows, dtype=np.int64)
+
+      return (
+          adj,
+          np.asarray(node_rows, dtype=np.int64),
+          edge_feature,
+      )
+
   if graph_type=="IMDBBINARY":
       data = dgl.data.GINDataset(name='IMDBBINARY', self_loop=False)
       graphs, labels = data.graphs, data.labels
@@ -896,7 +950,44 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
               list_x.append(None)
               count += 1
           seed_tmp += 1
-  elif graph_type == 'lobster':
+  elif graph_type == 'LOBSTER':
+#===================================start kirash code
+      # graphs = []
+      # p1 = 0.7
+      # p2 = 0.7
+      # count = 0
+      # min_node = 10
+      # max_node = 100
+      # max_edge = 0
+      # mean_node = 80
+      # num_graphs = 100
+      # seed=1234
+      # seed_tmp = seed
+      # while count < num_graphs:
+      #     G = nx.random_lobster(mean_node, p1, p2, seed=seed_tmp)
+      #     if len(G.nodes()) >= min_node and len(G.nodes()) <= max_node:
+      #         graphs.append(G)
+      #         list_adj.append(nx.adjacency_matrix(G))
+      #         list_x.append(None)
+      #         count += 1
+      #     seed_tmp += 1
+      # # writing the generated graph for benchmarking
+      # # graphs_to_writeOnDisk = [gr.toarray() for  gr in list_adj]
+      # # np.save('Lobster_adj.npy', graphs_to_writeOnDisk, allow_pickle=True)
+#==================================end kirash code
+      node_feature_info = {
+          0: {'feature_name': 'node_degree'},
+          1: {'feature_name': 'distance_to_spine'},
+          2: {'feature_name': 'subtree_size'},
+          3: {'feature_name': 'eccentricity'},
+      }
+      edge_feature_info = {
+          0: {
+              'feature_name': 'edge_type',
+              'unique_values': sorted(lobster_features.EDGE_TYPE_TO_ID.values()),
+          }
+      }
+
       graphs = []
       p1 = 0.7
       p2 = 0.7
@@ -912,13 +1003,14 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           G = nx.random_lobster(mean_node, p1, p2, seed=seed_tmp)
           if len(G.nodes()) >= min_node and len(G.nodes()) <= max_node:
               graphs.append(G)
-              list_adj.append(nx.adjacency_matrix(G))
+              adj, node_feature, edge_feature = _build_lobster_graph_features(G)
+              list_adj.append(adj)
               list_x.append(None)
+              list_labels.append(None)
+              list_node_feature.append(node_feature)
+              list_edge_feature.append(edge_feature)
               count += 1
           seed_tmp += 1
-      # writing the generated graph for benchmarking
-      # graphs_to_writeOnDisk = [gr.toarray() for  gr in list_adj]
-      # np.save('Lobster_adj.npy', graphs_to_writeOnDisk, allow_pickle=True)
   elif graph_type=="mnist":
       list_adj = []
       list_x = []

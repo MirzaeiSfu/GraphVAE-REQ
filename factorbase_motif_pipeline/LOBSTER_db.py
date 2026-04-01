@@ -13,10 +13,30 @@ This script matches the CLI contract used by `run_factorbase_pipeline.py`:
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import defaultdict
+from pathlib import Path
 
 import networkx as nx
 from pymysql import connect
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from lobster_feature_utils import (
+    DISTANCE_TO_SPINE_LABELS,
+    ECCENTRICITY_BUCKET_LABELS,
+    EDGE_TYPE_LABELS,
+    NODE_DEGREE_LABELS,
+    SUBTREE_SIZE_BUCKET_LABELS,
+    compute_branch_component_sizes,
+    compute_distance_to_spine_labels,
+    compute_eccentricity,
+    compute_edge_type,
+    compute_node_degree,
+    find_spine_path,
+)
 
 
 DEFAULT_DB_NAME = "lobster"
@@ -94,100 +114,6 @@ def resolve_edge_mode(args: argparse.Namespace) -> bool:
         print("Please enter 1 or 2.")
 
 
-def farthest_node(graph: nx.Graph, start_node: int) -> int:
-    distances = nx.single_source_shortest_path_length(graph, start_node)
-    return max(distances, key=distances.get)
-
-
-def find_spine_path(graph: nx.Graph) -> list[int]:
-    """
-    Approximate the lobster spine with the tree diameter path.
-
-    For trees, a double BFS gives one of the longest simple paths.
-    """
-    if graph.number_of_nodes() == 0:
-        return []
-    if graph.number_of_nodes() <= 2:
-        return list(graph.nodes())
-
-    start_node = next(iter(graph.nodes()))
-    endpoint_a = farthest_node(graph, start_node)
-    endpoint_b = farthest_node(graph, endpoint_a)
-    return nx.shortest_path(graph, endpoint_a, endpoint_b)
-
-
-def compute_node_degree(graph: nx.Graph, node: int) -> str:
-    degree = graph.degree(node)
-    if degree == 1:
-        return "Leaf"
-    if degree in (2, 3):
-        return "Branch"
-    if degree in (4, 5):
-        return "Hub"
-    return "SuperHub"
-
-
-def compute_distance_to_spine_labels(
-    graph: nx.Graph,
-    spine_path: list[int],
-) -> dict[int, str]:
-    if not spine_path:
-        return {node: "Far-Spine" for node in graph.nodes()}
-
-    distances = nx.multi_source_dijkstra_path_length(graph, spine_path)
-    labels: dict[int, str] = {}
-    for node, distance in distances.items():
-        if distance == 0:
-            labels[node] = "On-Spine"
-        elif distance == 1:
-            labels[node] = "Near-Spine"
-        elif distance <= 3:
-            labels[node] = "Mid-Spine"
-        else:
-            labels[node] = "Far-Spine"
-    return labels
-
-
-def compute_branch_component_sizes(
-    graph: nx.Graph,
-    spine_path: list[int],
-) -> dict[int, int]:
-    """
-    Use the size of the branch component attached to each spine segment as a
-    stable tree-structure feature.
-    """
-    branch_graph = graph.copy()
-    spine_edges = list(zip(spine_path, spine_path[1:]))
-    branch_graph.remove_edges_from(spine_edges)
-
-    component_sizes: dict[int, int] = {}
-    for component in nx.connected_components(branch_graph):
-        component_size = len(component)
-        for node in component:
-            component_sizes[node] = component_size
-    return component_sizes
-
-
-def compute_eccentricity(graph: nx.Graph, node: int) -> int:
-    distances = nx.single_source_shortest_path_length(graph, node)
-    return max(distances.values()) if distances else 0
-
-
-def compute_edge_type(
-    source_node: int,
-    target_node: int,
-    spine_nodes: set[int],
-) -> str:
-    source_on_spine = source_node in spine_nodes
-    target_on_spine = target_node in spine_nodes
-
-    if source_on_spine and target_on_spine:
-        return "Spine-Edge"
-    if source_on_spine or target_on_spine:
-        return "Branch-Edge"
-    return "Leaf-Edge"
-
-
 def build_lobster_graphs() -> list[nx.Graph]:
     print("\n" + "=" * 70)
     print("GENERATING LOBSTER GRAPHS")
@@ -226,10 +152,10 @@ def build_lobster_graphs() -> list[nx.Graph]:
 
 
 def add_edge_rows(
-    edge_rows: list[tuple[int, int, str]],
+    edge_rows: list[tuple[int, int, int]],
     source_node_id: int,
     target_node_id: int,
-    edge_type: str,
+    edge_type: int,
     directed: bool,
 ) -> int:
     if directed:
@@ -241,13 +167,6 @@ def add_edge_rows(
     dst = max(source_node_id, target_node_id)
     edge_rows.append((src, dst, edge_type))
     return 1
-
-
-def bucket_total(counts: dict[int, int], lower: int, upper: int | None = None) -> int:
-    if upper is None:
-        return sum(count for value, count in counts.items() if value >= lower)
-    return sum(count for value, count in counts.items() if lower <= value <= upper)
-
 
 def create_lobster_database_with_features(
     db_name: str,
@@ -272,8 +191,8 @@ def create_lobster_database_with_features(
         """
         CREATE TABLE nodes (
             node_id INT PRIMARY KEY,
-            node_degree VARCHAR(15) NOT NULL,
-            distance_to_spine VARCHAR(15) NOT NULL,
+            node_degree INT NOT NULL,
+            distance_to_spine INT NOT NULL,
             subtree_size INT NOT NULL,
             eccentricity INT NOT NULL,
             INDEX idx_degree (node_degree),
@@ -284,17 +203,17 @@ def create_lobster_database_with_features(
         """
     )
     print("\nNODES table created")
-    print("  - node_degree: Leaf/Branch/Hub/SuperHub (degree-based)")
-    print("  - distance_to_spine: On-Spine/Near-Spine/Mid-Spine/Far-Spine")
-    print("  - subtree_size: local branch-component size")
-    print("  - eccentricity: max shortest-path distance within the tree")
+    print("  - node_degree: INT (1=Leaf, 2=Branch, 3=Hub, 4=SuperHub)")
+    print("  - distance_to_spine: INT (1=On-Spine, 2=Near-Spine, 3=Mid-Spine, 4=Far-Spine)")
+    print("  - subtree_size: INT (1=1-5, 2=6-20, 3=21-40, 4=41+)")
+    print("  - eccentricity: INT (1=1-5, 2=6-10, 3=11-15, 4=16+)")
 
     cursor.execute(
         """
         CREATE TABLE edges (
             source_node_id INT NOT NULL,
             target_node_id INT NOT NULL,
-            edge_type VARCHAR(15) NOT NULL,
+            edge_type INT NOT NULL,
             PRIMARY KEY (source_node_id, target_node_id),
             FOREIGN KEY (source_node_id) REFERENCES nodes(node_id),
             FOREIGN KEY (target_node_id) REFERENCES nodes(node_id),
@@ -303,7 +222,7 @@ def create_lobster_database_with_features(
         """
     )
     print("\nEDGES table created")
-    print("  - edge_type: Spine-Edge/Branch-Edge/Leaf-Edge")
+    print("  - edge_type: INT (1=Spine-Edge, 2=Branch-Edge, 3=Leaf-Edge)")
     print(
         f"  - edge mode: {'DIRECTED (A->B and B->A)' if directed else 'UNDIRECTED (one stored edge per pair)'}"
     )
@@ -413,10 +332,10 @@ def create_lobster_database_with_features(
     print("\nNODE FEATURE 1: NODE_DEGREE (Degree-Based)")
     print("  " + "=" * 70)
     degree_labels = {
-        "Leaf": "Degree 1",
-        "Branch": "Degree 2-3",
-        "Hub": "Degree 4-5",
-        "SuperHub": "Degree 6+",
+        1: "Degree 1",
+        2: "Degree 2-3",
+        3: "Degree 4-5",
+        4: "Degree 6+",
     }
     cumulative = 0.0
     for value in sorted(degree_counts):
@@ -424,18 +343,19 @@ def create_lobster_database_with_features(
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
         label = degree_labels.get(value, "")
+        name = NODE_DEGREE_LABELS.get(value, str(value))
         print(
-            f"  {value:10s} ({label:12s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:8s}, {label:10s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
     print("\nNODE FEATURE 2: DISTANCE_TO_SPINE (Spine Proximity)")
     print("  " + "=" * 70)
     spine_labels = {
-        "Far-Spine": "4+ steps from spine",
-        "Mid-Spine": "2-3 steps from spine",
-        "Near-Spine": "1 step from spine",
-        "On-Spine": "Directly on spine path",
+        1: "Directly on spine path",
+        2: "1 step from spine",
+        3: "2-3 steps from spine",
+        4: "4+ steps from spine",
     }
     cumulative = 0.0
     for value in sorted(spine_counts):
@@ -443,44 +363,49 @@ def create_lobster_database_with_features(
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
         label = spine_labels.get(value, "")
+        name = DISTANCE_TO_SPINE_LABELS.get(value, str(value))
         print(
-            f"  {value:10s} ({label:24s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:11s}, {label:24s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
     print("\nNODE FEATURE 3: SUBTREE_SIZE (Branch Component Size)")
     print("  " + "=" * 70)
-    subtree_buckets = [
-        ("1-5", 1, 5, "Small local branch"),
-        ("6-20", 6, 20, "Medium local branch"),
-        ("21-40", 21, 40, "Large local branch"),
-        ("41+", 41, None, "Very large local branch"),
-    ]
+    subtree_labels = {
+        1: "Small local branch",
+        2: "Medium local branch",
+        3: "Large local branch",
+        4: "Very large local branch",
+    }
     cumulative = 0.0
-    for label, lower, upper, description in subtree_buckets:
-        count = bucket_total(subtree_counts, lower, upper)
+    for value in sorted(subtree_counts):
+        count = subtree_counts[value]
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
+        name = SUBTREE_SIZE_BUCKET_LABELS.get(value, str(value))
+        description = subtree_labels.get(value, "")
         print(
-            f"  {label:10s} ({description:24s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:5s}, {description:24s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
     print("\nNODE FEATURE 4: ECCENTRICITY (Tree Position)")
     print("  " + "=" * 70)
-    eccentricity_buckets = [
-        ("1-5", 1, 5, "Peripheral node"),
-        ("6-10", 6, 10, "Near-center node"),
-        ("11-15", 11, 15, "Center node"),
-        ("16+", 16, None, "Very central node"),
-    ]
+    eccentricity_labels = {
+        1: "Peripheral node",
+        2: "Near-center node",
+        3: "Center node",
+        4: "Very central node",
+    }
     cumulative = 0.0
-    for label, lower, upper, description in eccentricity_buckets:
-        count = bucket_total(eccentricity_counts, lower, upper)
+    for value in sorted(eccentricity_counts):
+        count = eccentricity_counts[value]
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
+        name = ECCENTRICITY_BUCKET_LABELS.get(value, str(value))
+        description = eccentricity_labels.get(value, "")
         print(
-            f"  {label:10s} ({description:18s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:5s}, {description:18s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
@@ -491,8 +416,9 @@ def create_lobster_database_with_features(
         count = edge_type_counts[value]
         pct = (count / edge_count) * 100 if edge_count > 0 else 0.0
         cumulative += pct
+        name = EDGE_TYPE_LABELS.get(value, str(value))
         print(
-            f"  {value:15s}: {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:11s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {edge_count:,} edges (100.00%)")
 
@@ -504,14 +430,22 @@ def create_lobster_database_with_features(
     print("\n  node_id | node_degree | distance_to_spine | subtree_size | eccentricity")
     print("  " + "-" * 80)
     for row in cursor.fetchall():
-        print(f"  {row[0]:7d} | {row[1]:11s} | {row[2]:17s} | {row[3]:12d} | {row[4]:12d}")
+        degree_name = NODE_DEGREE_LABELS.get(row[1], str(row[1]))
+        distance_name = DISTANCE_TO_SPINE_LABELS.get(row[2], str(row[2]))
+        subtree_name = SUBTREE_SIZE_BUCKET_LABELS.get(row[3], str(row[3]))
+        eccentricity_name = ECCENTRICITY_BUCKET_LABELS.get(row[4], str(row[4]))
+        print(
+            f"  {row[0]:7d} | {row[1]:2d} ({degree_name:8s}) | {row[2]:2d} ({distance_name:11s}) | "
+            f"{row[3]:2d} ({subtree_name:5s}) | {row[4]:2d} ({eccentricity_name:5s})"
+        )
 
     print("\nSAMPLE EDGES (First 10):")
     cursor.execute("SELECT * FROM edges LIMIT 10")
     print("\n  source | target | edge_type")
     print("  " + "-" * 42)
     for row in cursor.fetchall():
-        print(f"  {row[0]:6d} | {row[1]:6d} | {row[2]:15s}")
+        edge_name = EDGE_TYPE_LABELS.get(row[2], str(row[2]))
+        print(f"  {row[0]:6d} | {row[1]:6d} | {row[2]:2d} ({edge_name:11s})")
 
     cursor.close()
     connection.close()
@@ -640,6 +574,14 @@ def main() -> None:
     print("=" * 70)
     if args.feature_mode == "with-features":
         print(f"  1. {db_name} (4 node + 1 edge features) [LOBSTER]")
+        print("\nLOBSTER FEATURES (Rotation-Invariant v1.2):")
+        print("  Node features:")
+        print("    1. node_degree        (1=Leaf, 2=Branch, 3=Hub, 4=SuperHub)")
+        print("    2. distance_to_spine  (1=On-Spine, 2=Near-Spine, 3=Mid-Spine, 4=Far-Spine)")
+        print("    3. subtree_size       (1=1-5, 2=6-20, 3=21-40, 4=41+)")
+        print("    4. eccentricity       (1=1-5, 2=6-10, 3=11-15, 4=16+)")
+        print("  Edge features:")
+        print("    1. edge_type          (1=Spine-Edge, 2=Branch-Edge, 3=Leaf-Edge)")
     else:
         print(f"  1. {db_name} (structure only, no features) [LOBSTER]")
     print("\nREADY FOR MOTIF FINDING ALGORITHMS!")
