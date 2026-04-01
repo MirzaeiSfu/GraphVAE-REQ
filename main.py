@@ -33,6 +33,7 @@ from motif_loss_utils import (
     summarize_hard_motif_threshold_sweep,
     summarize_single_graph_motif_counts,
 )
+from sanity_check_compare import compare_aggregated_counts_to_factorbase_detailed
 #endregion
 #====================================================================================
 
@@ -952,6 +953,28 @@ if args.motif_loss:
 
         if args.sanity_check or args.sanity_check_only:
             motif_counter.display_rules_and_motifs(aggregated)
+
+            try:
+                matches_factorbase, mismatches = (
+                    compare_aggregated_counts_to_factorbase_detailed(
+                        aggregated_counts=aggregated,
+                        motif_counter=motif_counter,
+                        database_name=args.database_name,
+                    )
+                )
+                print("\n" + "=" * 80)
+                print("FACTORBASE LOCAL_MULT COMPARISON")
+                print("=" * 80)
+                print(f"Counts match database local_mult values: {matches_factorbase}")
+                if not matches_factorbase:
+                    print("First mismatches:")
+                    for mismatch in mismatches[:20]:
+                        print(f"  {mismatch}")
+                    if len(mismatches) > 20:
+                        print(f"  ... and {len(mismatches) - 20} more mismatches")
+            except Exception as exc:
+                print("\n[SanityCheck] FactorBase comparison could not be completed:")
+                print(f"  {exc}")
 
             if dataset == "PROTEINS":
                 print("\nCompare these counts against FactorBase local_mult columns in:")
