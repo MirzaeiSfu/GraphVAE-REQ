@@ -65,8 +65,8 @@ parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Ep
 parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
 parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
 parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
-parser.add_argument('-dataset', dest="dataset",default="QM9", #default="PROTEINS", #default="QM9",
-                    help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, triangular_grid, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, grid, community, citeseer, lobster, DD")  # citeceer: ego; DD:protein
+parser.add_argument('-dataset', dest="dataset",default="GRID", #default="PROTEINS" "QM9","GRID" "LOBSTER" "TRIANGULAR_GRID"      
+                    help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, triangular_grid, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, lobster, DD")  # citeceer: ego; DD:protein
 parser.add_argument('-graphEmDim', dest="graphEmDim", default=1024, help="the dimention of graph Embeding LAyer; z")
 parser.add_argument('-graph_save_path', dest="graph_save_path", default=None,
                     help="the direc to save generated synthatic graphs")
@@ -97,7 +97,7 @@ parser.add_argument('--tiny_overfit', action='store_true', default=False,
 parser.add_argument('--tiny_overfit_size', type=int, default=32,
                     help='Number of training graphs to keep in --tiny_overfit mode.')
 #=======================================
-parser.add_argument('--database_name', type=str, default='qm9_experiment')
+parser.add_argument('--database_name', type=str, default='grid_experiment')
 parser.add_argument('--graph_type', type=str, default='homogeneous',
                     choices=['homogeneous', 'heterogeneous'])
 parser.add_argument('--motif_loss', type=bool, default=True)
@@ -310,7 +310,7 @@ if args.model == "KernelAugmentedWithTotalNumberOfTriangles" or args.model=="Gra
     elif dataset == "DD":
         step_num = 5
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 1000]
-    elif dataset == "grid":
+    elif dataset == "GRID":
         step_num = 5
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 2000]
     elif dataset == "PROTEINS":
@@ -402,7 +402,7 @@ functions.append("KL-D")
 
 pltr = plotter.Plotter(save_to_filepath="kernelVGAE_Log", functions=functions)
 
-synthesis_graphs = {"wheel_graph", "star", "triangular_grid", "DD", "ogbg-molbbbp", "grid", "small_lobster",
+synthesis_graphs = {"wheel_graph", "star", "triangular_grid", "DD", "ogbg-molbbbp", "GRID", "small_lobster",
                     "small_grid", "community", "lobster", "ego", "one_grid", "IMDBBINARY", ""}
 
 

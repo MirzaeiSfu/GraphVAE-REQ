@@ -29,8 +29,8 @@ CONFIG_DIR = SCRIPT_DIR / "config"
 LOG_DIR = SCRIPT_DIR / "log"
 
 # Default values you can edit in one place.
-DEFAULT_DATASET = "QM9" #"TRIANGULAR_GRID"#"LOBSTER" #"GRID" # "PROTEINS" "QM9"
-DEFAULT_DB_NAME = "qm9_experiment" # "triangular_grid_experiment" #"proteins_experiment" "qm9_experiment"
+DEFAULT_DATASET = "GRID" #"TRIANGULAR_GRID"#"LOBSTER" #""GRID"" # "PROTEINS" "QM9"
+DEFAULT_DB_NAME = "grid_experiment" # "triangular_grid_experiment" #"proteins_experiment" "qm9_experiment"
 DEFAULT_CONFIG_TEMPLATE = SCRIPT_DIR / "config.tmp"
 DEFAULT_JAR = None        # "snapshot" or "patched"
 DEFAULT_EDGE_MODE = None  # "directed", "undirected", or None to prompt

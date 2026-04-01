@@ -13,10 +13,26 @@ This script now matches the CLI contract used by `run_factorbase_pipeline.py`:
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import defaultdict
+from pathlib import Path
 
 import networkx as nx
 from pymysql import connect
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from grid_feature_utils import (
+    DISTANCE_TO_BOUNDARY_LABELS,
+    EDGE_ORBIT_LABELS,
+    STRUCT_TYPE_LABELS,
+    compute_distance_to_boundary,
+    compute_edge_orbit,
+    compute_struct_type,
+    get_grid_dimensions,
+)
 
 
 DEFAULT_DB_NAME = "grid"
@@ -86,82 +102,6 @@ def resolve_edge_mode(args: argparse.Namespace) -> bool:
         print("Please enter 1 or 2.")
 
 
-# ============================================
-# HELPER FUNCTIONS - ROTATION INVARIANT FEATURES
-# ============================================
-def compute_struct_type(graph, node):
-    """
-    Feature 1: struct_type (Structural Node Type)
-    Categorical: Corner, Edge, Interior
-    Based on degree only (fully rotation invariant)
-    """
-    degree = graph.degree(node)
-    if degree == 2:
-        return "Corner"
-    if degree == 3:
-        return "Edge"
-    return "Interior"
-
-
-def compute_distance_to_boundary(graph, node, grid_size):
-    """
-    Feature 2: distance_to_boundary (Node Position Depth)
-    Categorical: Boundary, Near-Boundary, Near-Center, Center, Deep-Center
-    Based on Manhattan distance from nearest grid boundary
-    """
-    del graph  # Feature depends only on the node position within the grid.
-    row, col = node
-    size = grid_size
-
-    dist_to_top = row
-    dist_to_bottom = size - 1 - row
-    dist_to_left = col
-    dist_to_right = size - 1 - col
-    distance = min(dist_to_top, dist_to_bottom, dist_to_left, dist_to_right)
-
-    if distance == 0:
-        return "Boundary"
-    if distance == 1:
-        return "Near-Boundary"
-    if distance <= 3:
-        return "Near-Center"
-    if distance <= 5:
-        return "Center"
-    return "Deep-Center"
-
-
-def compute_edge_orbit(graph, node_u, node_v, grid_size):
-    """
-    Feature 1: edge_orbit (Edge Symmetry Orbit)
-    Categorical: Boundary, Interior
-    Based on position relative to grid boundaries
-    """
-    del graph  # Feature depends only on edge position within the grid.
-    row_u, col_u = node_u
-    row_v, col_v = node_v
-    size = grid_size
-
-    touches_boundary = (
-        row_u in [0, size - 1]
-        or col_u in [0, size - 1]
-        or row_v in [0, size - 1]
-        or col_v in [0, size - 1]
-    )
-    return "Boundary" if touches_boundary else "Interior"
-
-
-def get_grid_dimensions(graph):
-    """Extract grid dimensions from `grid_2d_graph` nodes."""
-    nodes = list(graph.nodes())
-    rows = [node[0] for node in nodes]
-    cols = [node[1] for node in nodes]
-    min_row, max_row = min(rows), max(rows)
-    min_col, max_col = min(cols), max(cols)
-    width = max_row - min_row + 1
-    height = max_col - min_col + 1
-    return width, height
-
-
 def build_grid_graphs():
     print("\n" + "=" * 70)
     print("GENERATING SQUARE GRID GRAPHS")
@@ -214,25 +154,23 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
         """
         CREATE TABLE nodes (
             node_id INT PRIMARY KEY,
-            struct_type VARCHAR(20) NOT NULL,
-            distance_to_boundary VARCHAR(20) NOT NULL,
+            struct_type INT NOT NULL,
+            distance_to_boundary INT NOT NULL,
             INDEX idx_struct (struct_type),
             INDEX idx_distance (distance_to_boundary)
         )
         """
     )
     print("\nNODES table created")
-    print("  - struct_type: Corner/Edge/Interior (degree-based)")
-    print(
-        "  - distance_to_boundary: Boundary/Near-Boundary/Near-Center/Center/Deep-Center"
-    )
+    print("  - struct_type: INT (1=Corner, 2=Edge, 3=Interior)")
+    print("  - distance_to_boundary: INT (1=Boundary, 2=Near-Boundary, 3=Near-Center, 4=Center, 5=Deep-Center)")
 
     cursor.execute(
         """
         CREATE TABLE edges (
             source_node_id INT NOT NULL,
             target_node_id INT NOT NULL,
-            edge_orbit VARCHAR(20) NOT NULL,
+            edge_orbit INT NOT NULL,
             PRIMARY KEY (source_node_id, target_node_id),
             FOREIGN KEY (source_node_id) REFERENCES nodes(node_id),
             FOREIGN KEY (target_node_id) REFERENCES nodes(node_id),
@@ -241,7 +179,7 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
         """
     )
     print("\nEDGES table created")
-    print("  - edge_orbit: Boundary/Interior (position-based)")
+    print("  - edge_orbit: INT (1=Boundary, 2=Interior)")
     print(
         f"  - edge mode: {'DIRECTED (A->B and B->A)' if directed else 'UNDIRECTED (one stored edge per pair)'}"
     )
@@ -270,7 +208,7 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
             local_to_global[node] = global_id
 
             struct = compute_struct_type(graph, node)
-            distance = compute_distance_to_boundary(graph, node, grid_size)
+            distance = compute_distance_to_boundary(node, grid_size)
 
             struct_counts[struct] += 1
             distance_counts[distance] += 1
@@ -289,7 +227,7 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
         for node_u, node_v in graph.edges():
             source_node_id = local_to_global[node_u]
             target_node_id = local_to_global[node_v]
-            edge_orbit = compute_edge_orbit(graph, node_u, node_v, grid_size)
+            edge_orbit = compute_edge_orbit(node_u, node_v, grid_size)
             inserted_rows = add_edge_rows(
                 edge_rows,
                 source_node_id,
@@ -335,9 +273,9 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
     print("\nNODE FEATURE 1: STRUCT_TYPE (Degree-Based)")
     print("  " + "=" * 70)
     struct_labels = {
-        "Corner": "Degree 2",
-        "Edge": "Degree 3",
-        "Interior": "Degree 4",
+        1: "Degree 2",
+        2: "Degree 3",
+        3: "Degree 4",
     }
     cumulative = 0.0
     for value in sorted(struct_counts):
@@ -345,19 +283,20 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
         label = struct_labels.get(value, "")
+        name = STRUCT_TYPE_LABELS.get(value, str(value))
         print(
-            f"  {value:12s} ({label:10s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:12s}, {label:10s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
     print("\nNODE FEATURE 2: DISTANCE_TO_BOUNDARY (Position Depth)")
     print("  " + "=" * 70)
     distance_labels = {
-        "Boundary": "On grid boundary",
-        "Near-Boundary": "1 step from boundary",
-        "Near-Center": "2-3 steps from boundary",
-        "Center": "4-5 steps from boundary",
-        "Deep-Center": "6+ steps from boundary",
+        1: "On grid boundary",
+        2: "1 step from boundary",
+        3: "2-3 steps from boundary",
+        4: "4-5 steps from boundary",
+        5: "6+ steps from boundary",
     }
     cumulative = 0.0
     for value in sorted(distance_counts):
@@ -365,8 +304,9 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
         pct = (count / node_count) * 100 if node_count > 0 else 0.0
         cumulative += pct
         label = distance_labels.get(value, "")
+        name = DISTANCE_TO_BOUNDARY_LABELS.get(value, str(value))
         print(
-            f"  {value:12s} ({label:25s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
+            f"  {value:2d} ({name:14s}, {label:25s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]"
         )
     print(f"  TOTAL: {node_count:,} nodes (100.00%)")
 
@@ -377,7 +317,8 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
         count = edge_orbit_counts[value]
         pct = (count / edge_count) * 100 if edge_count > 0 else 0.0
         cumulative += pct
-        print(f"  {value:12s}: {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]")
+        name = EDGE_ORBIT_LABELS.get(value, str(value))
+        print(f"  {value:2d} ({name:8s}): {count:8,} ({pct:6.2f}%) [cumulative: {cumulative:6.2f}%]")
     print(f"  TOTAL: {edge_count:,} edges (100.00%)")
 
     print("\nFEATURE NOTE:")
@@ -394,14 +335,17 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
     print("\n  node_id | struct_type | distance_to_boundary")
     print("  " + "-" * 55)
     for row in cursor.fetchall():
-        print(f"  {row[0]:7d} | {row[1]:11s} | {row[2]:18s}")
+        struct_name = STRUCT_TYPE_LABELS.get(row[1], str(row[1]))
+        dist_name = DISTANCE_TO_BOUNDARY_LABELS.get(row[2], str(row[2]))
+        print(f"  {row[0]:7d} | {row[1]:2d} ({struct_name:8s}) | {row[2]:2d} ({dist_name:14s})")
 
     print("\nSAMPLE EDGES (First 10):")
     cursor.execute("SELECT * FROM edges LIMIT 10")
     print("\n  source | target | edge_orbit")
     print("  " + "-" * 40)
     for row in cursor.fetchall():
-        print(f"  {row[0]:6d} | {row[1]:6d} | {row[2]:10s}")
+        edge_name = EDGE_ORBIT_LABELS.get(row[2], str(row[2]))
+        print(f"  {row[0]:6d} | {row[1]:6d} | {row[2]:2d} ({edge_name:8s})")
 
     cursor.close()
     connection.close()
@@ -534,12 +478,12 @@ def main():
         print(f"  1. {db_name} (2 node + 1 edge features) [GRID]")
         print("\nGRID FEATURES (Rotation-Invariant v1.2):")
         print("  Node features:")
-        print("    1. struct_type          (Corner/Edge/Interior) - degree-based")
+        print("    1. struct_type          (1=Corner, 2=Edge, 3=Interior) - degree-based")
         print(
-            "    2. distance_to_boundary (Boundary/Near-Boundary/Near-Center/Center/Deep-Center)"
+            "    2. distance_to_boundary (1=Boundary, 2=Near-Boundary, 3=Near-Center, 4=Center, 5=Deep-Center)"
         )
         print("  Edge features:")
-        print("    1. edge_orbit           (Boundary/Interior) - position-based")
+        print("    1. edge_orbit           (1=Boundary, 2=Interior) - position-based")
     else:
         print(f"  1. {db_name} (structure only, no features) [GRID]")
     print("\nREADY FOR MOTIF FINDING ALGORITHMS!")

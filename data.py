@@ -17,6 +17,13 @@ import scipy.sparse as sp
 import warnings
 
 import dgl as dgl
+from grid_feature_utils import (
+    EDGE_ORBIT_TO_ID,
+    compute_distance_to_boundary,
+    compute_edge_orbit,
+    compute_struct_type,
+    get_grid_dimensions,
+)
 
 # import ogb
 
@@ -425,6 +432,44 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           f"Available keys: {list(graph.ndata.keys())}"
       )
 
+  def _build_grid_graph_features(graph):
+      nodes = sorted(graph.nodes())
+      node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+      adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
+
+      width, height = get_grid_dimensions(graph)
+      grid_size = max(width, height)
+
+      node_rows = []
+      for node in nodes:
+          struct_type = compute_struct_type(graph, node)
+          distance_to_boundary = compute_distance_to_boundary(node, grid_size)
+          node_rows.append([
+              struct_type,
+              distance_to_boundary,
+          ])
+
+      edge_rows = []
+      for node_u, node_v in graph.edges():
+          edge_orbit = compute_edge_orbit(node_u, node_v, grid_size)
+          src = node_to_idx[node_u]
+          dst = node_to_idx[node_v]
+
+          # Store both directions so edge features align with the symmetric
+          # adjacency used locally, matching the existing counting pipeline.
+          edge_rows.append([src, dst, edge_orbit])
+          edge_rows.append([dst, src, edge_orbit])
+
+      edge_feature = None
+      if edge_rows:
+          edge_feature = np.asarray(edge_rows, dtype=np.int64)
+
+      return (
+          adj,
+          np.asarray(node_rows, dtype=np.int64),
+          edge_feature,
+      )
+
   if graph_type=="IMDBBINARY":
       data = dgl.data.GINDataset(name='IMDBBINARY', self_loop=False)
       graphs, labels = data.graphs, data.labels
@@ -617,11 +662,33 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       for i in range(10):
             list_adj.append(nx.adjacency_matrix(grid(30, 100)))
             list_x.append(None)
-  elif graph_type=="grid":
+  elif graph_type=="GRID":
+#===================================start kirash code
+      # for i in range(10, 20):
+      #   for j in range(10, 20):
+      #       list_adj.append(nx.adjacency_matrix(grid(i, j)))
+      #       list_x.append(None)
+#==================================end kirash code
+      node_feature_info = {
+          0: {'feature_name': 'struct_type'},
+          1: {'feature_name': 'distance_to_boundary'},
+      }
+      edge_feature_info = {
+          0: {
+              'feature_name': 'edge_orbit',
+              'unique_values': sorted(EDGE_ORBIT_TO_ID.values()),
+          }
+      }
+
       for i in range(10, 20):
         for j in range(10, 20):
-            list_adj.append(nx.adjacency_matrix(grid(i, j)))
+            graph = grid(i, j)
+            adj, node_feature, edge_feature = _build_grid_graph_features(graph)
+            list_adj.append(adj)
             list_x.append(None)
+            list_labels.append(None)
+            list_node_feature.append(node_feature)
+            list_edge_feature.append(edge_feature)
 
   elif graph_type=="triangular_grid":
       for i in range(10, 20):
@@ -927,7 +994,7 @@ def data_split(graph_lis, list_x=None, list_label=None,
             list_noh_train,   list_noh_test,
             list_eoh_train,   list_eoh_test)
 
-# list_adj, list_x = list_graph_loader("grid")
+# list_adj, list_x = list_graph_loader("GRID")
 # list_graph = Datasets(list_adj,self_for_none, None)
 
 def _apply_bfs_order(list_adj, list_node_feature, list_edge_feature, graph_idx, order):
