@@ -1,4 +1,4 @@
-# motif_counter.py
+# motif_counting/motif_counter.py
 
 import torch
 import pickle
@@ -796,4 +796,3 @@ class RelationalMotifCounter:
             if matches:
                 matching.append(row_idx)
         return matching
-

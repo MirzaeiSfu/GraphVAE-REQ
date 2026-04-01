@@ -40,7 +40,7 @@ Notes:
    - build node/edge one-hot features (`util.py:build_onehot_features`)
    - build train/test `Datasets`
    - save all artifacts to cache
-4. Optional motif pipeline (`motif_store.py`, `motif_counter.py`).
+4. Optional motif pipeline (`motif_counting/motif_store.py`, `motif_counting/motif_counter.py`).
 5. Build model (`model.py`) and run training.
 6. Save logs, generated graphs, and checkpoints.
 
@@ -61,8 +61,8 @@ The load path expects these keys to exist (new-cache format).
 ## Motif Pipeline Requirements
 
 Motif counting uses:
-- `RuleBasedMotifStore` (`motif_store.py`)
-- `RelationalMotifCounter` (`motif_counter.py`)
+- `RuleBasedMotifStore` (`motif_counting/motif_store.py`)
+- `RelationalMotifCounter` (`motif_counting/motif_counter.py`)
 
 It writes/reads motif pickle files under `./db/<database_name>.pkl`.
 
@@ -120,8 +120,8 @@ Motif cache files are under:
 - `model.py`: encoder/decoder and `kernelGVAE`
 - `data.py`: dataset loading, preprocessing, `Datasets`, merge wrapper
 - `util.py`: kernels, one-hot feature builders, utility layers
-- `motif_store.py`: DB -> motif pickle builder
-- `motif_counter.py`: batched motif counting
+- `motif_counting/motif_store.py`: DB -> motif pickle builder
+- `motif_counting/motif_counter.py`: batched motif counting
 - `stat_rnn.py`, `mmd_rnn.py`, `eval/`: MMD/statistics utilities
 
 ## Practical Notes

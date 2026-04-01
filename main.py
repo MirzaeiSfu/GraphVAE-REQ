@@ -23,9 +23,9 @@ import time
 import timeit
 import dgl
 from util import *
-from motif_store import RuleBasedMotifStore
-from motif_counter import RelationalMotifCounter
-from motif_loss_utils import (
+from motif_counting.motif_store import RuleBasedMotifStore
+from motif_counting.motif_counter import RelationalMotifCounter
+from motif_counting.motif_loss_utils import (
     compute_hard_motif_metrics,
     compute_motif_loss,
     get_motif_temperature,
@@ -33,7 +33,9 @@ from motif_loss_utils import (
     summarize_hard_motif_threshold_sweep,
     summarize_single_graph_motif_counts,
 )
-from sanity_check_compare import compare_aggregated_counts_to_factorbase_detailed
+from motif_counting.sanity_check_compare import (
+    compare_aggregated_counts_to_factorbase_detailed,
+)
 #endregion
 #====================================================================================
 

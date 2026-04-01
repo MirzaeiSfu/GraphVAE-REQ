@@ -1,4 +1,4 @@
-# motif_store.py
+# motif_counting/motif_store.py
 
 import torch
 import pickle
