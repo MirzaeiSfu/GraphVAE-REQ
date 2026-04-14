@@ -13,6 +13,10 @@ from pathlib import Path
 import plotter
 import torch.nn.functional as F
 import argparse
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from model import *
 from data import *
 import pickle
@@ -61,153 +65,389 @@ USE_ALL_COMPONENTS_BFS = True
 
 #====================================================================================
 #region arguments
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "f", "no", "n", "off"}:
+        return False
+
+    raise argparse.ArgumentTypeError(
+        f"Expected a boolean value, received '{value}'."
+    )
+
+
+def _flatten_config_sections(config_data):
+    flat_config = {}
+    for key, value in config_data.items():
+        if isinstance(value, dict):
+            for nested_key, nested_value in value.items():
+                if nested_key in flat_config:
+                    raise ValueError(
+                        f"Duplicate config key '{nested_key}' found while flattening sections."
+                    )
+                flat_config[nested_key] = nested_value
+        else:
+            if key in flat_config:
+                raise ValueError(f"Duplicate config key '{key}' found in config file.")
+            flat_config[key] = value
+    return flat_config
+
+
+def load_config_defaults(config_path, valid_keys):
+    if yaml is None:
+        raise ImportError(
+            "PyYAML is required for --config support. Install it with 'pip install PyYAML'."
+        )
+
+    resolved_path = Path(config_path).expanduser()
+    with resolved_path.open("r", encoding="utf-8") as handle:
+        config_data = yaml.safe_load(handle) or {}
+
+    if not isinstance(config_data, dict):
+        raise ValueError(
+            f"Config file '{resolved_path}' must contain a YAML mapping at the top level."
+        )
+
+    flat_config = _flatten_config_sections(config_data)
+    unknown_keys = sorted(set(flat_config) - set(valid_keys))
+    if unknown_keys:
+        raise ValueError(
+            f"Unknown config keys in '{resolved_path}': {', '.join(unknown_keys)}"
+        )
+
+    return flat_config
+
+
 parser = argparse.ArgumentParser(description='Kernel VGAE')
 
-parser.add_argument('-e', dest="epoch_number", default=20000, help="Number of Epochs to train the model", type=int)
-parser.add_argument('-v', dest="Vis_step", default=1000, help="at every Vis_step 'minibatch' the plots will be updated")
-parser.add_argument('-redraw', dest="redraw", default=False, help="either update the log plot each step")
-parser.add_argument('-lr', dest="lr", default=0.0003, help="model learning rate")
-parser.add_argument('-dataset', dest="dataset",default="LOBSTER", #default="PROTEINS" "QM9","GRID" "LOBSTER" "TRIANGULAR_GRID"      
-                    help="possible choices are:   wheel_graph,PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD")  # citeceer: ego; DD:protein
-parser.add_argument('-graphEmDim', dest="graphEmDim", default=1024, help="the dimention of graph Embeding LAyer; z")
-parser.add_argument('-graph_save_path', dest="graph_save_path", default=None,
-                    help="the direc to save generated synthatic graphs")
-parser.add_argument('-f', dest="use_feature", default=True, help="either use features or identity matrix")
-parser.add_argument('-PATH', dest="PATH", default="model",
-                    help="a string which determine the path in wich model will be saved")
-parser.add_argument('-decoder', dest="decoder", default="FC", help="the decoder type, FC is only option in this rep")
-parser.add_argument('-encoder', dest="encoder_type", default="AvePool",
-                    help="the encoder: only option in this rep is 'AvePool'")  # only option in this rep is "AvePool"
-parser.add_argument('-batchSize', dest="batchSize", default=200,
-                    help="the size of each batch; the number of graphs is the mini batch")
-parser.add_argument('-UseGPU', dest="UseGPU", default=True, help="either use GPU or not if availabel")
-parser.add_argument('-model', dest="model", default="GraphVAE-MM",
-                    help="KernelAugmentedWithTotalNumberOfTriangles and kipf is the only option in this rep; NOTE KernelAugmentedWithTotalNumberOfTriangles=GraphVAE-MM and kipf=GraphVAE")
-parser.add_argument('-device', dest="device", default="cuda:0", help="Which device should be used")
-parser.add_argument('-task', dest="task", default="graphGeneration", help="only option in this rep is graphGeneration")
-parser.add_argument('-BFS', dest="bfsOrdering", default=True, help="use bfs for graph permutations", type=bool)
-parser.add_argument('-directed', dest="directed", default=True, help="is the dataset directed?!", type=bool)
-parser.add_argument('-beta', dest="beta", default=None, help="beta coefiicieny", type=float)
-parser.add_argument('-plot_testGraphs', dest="plot_testGraphs", default=True, help="shall the test set be printed",
-                    type=float)
-parser.add_argument('-ideal_Evalaution', dest="ideal_Evalaution" , default=False, help="if you want to comapre the 50%50 subset of dataset comparision?!", type=bool)
+#===============================
+# Config file
+#===============================
+parser.add_argument(
+    '--config',
+    type=str,
+    default=None,
+    help='Path to a single YAML config file.'
+)
 
+#===============================
+# Data arguments
+#===============================
+parser.add_argument(
+    '-dataset',
+    dest="dataset",
+    default="GRID",
+    help="possible choices are: wheel_graph, PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD"
+)
+parser.add_argument(
+    '-f',
+    dest="use_feature",
+    default=True,
+    type=str2bool,
+    help="either use features or identity matrix"
+)
+parser.add_argument(
+    '-BFS',
+    dest="bfsOrdering",
+    default=True,
+    type=str2bool,
+    help="use bfs for graph permutations"
+)
+parser.add_argument(
+    '-directed',
+    dest="directed",
+    default=True,
+    type=str2bool,
+    help="is the dataset directed?!"
+)
+parser.add_argument(
+    '--database_name',
+    type=str,
+    default='grid_experiment'
+)  # qm9_experiment, ogbg-molbbbp_experiment, PTC_experiment, MUTAG_experiment, PVGAErandomGraphs_experiment, FIRSTMM_DB_experiment, DD_experiment, GRID_experiment, PROTEINS_experiment, lobster_experiment, wheel_graph_experiment, TRIANGULAR_GRID_experiment, tree_experiment
+parser.add_argument(
+    '--graph_type',
+    type=str,
+    default='homogeneous',
+    choices=['homogeneous', 'heterogeneous']
+)
+parser.add_argument(
+    '--graph_index_start',
+    type=int,
+    default=None,
+    help='First graph index to count (inclusive). Only valid when dataset has more than one graph.'
+)
+parser.add_argument(
+    '--graph_index_end',
+    type=int,
+    default=None,
+    help='Last graph index to count (inclusive). Only valid when dataset has more than one graph.'
+)
 
-# Tiny overfit debug mode for checking loss implementation.
-parser.add_argument('--tiny_overfit', action='store_true', default=False,
-                    help='Use a tiny fixed training subset, disable shuffling, and train with one fixed batch.')
-parser.add_argument('--tiny_overfit_size', type=int, default=32,
-                    help='Number of training graphs to keep in --tiny_overfit mode.')
-#=======================================
-parser.add_argument('--database_name', type=str, default='lobster_experiment') #QM9_experiment, ogbg-molbbbp_experiment, PTC_experiment, MUTAG_experiment, PVGAErandomGraphs_experiment, FIRSTMM_DB_experiment, DD_experiment, GRID_experiment, PROTEINS_experiment, lobster_experiment, wheel_graph_experiment, TRIANGULAR_GRID_experiment, tree_experiment
-parser.add_argument('--graph_type', type=str, default='homogeneous',
-                    choices=['homogeneous', 'heterogeneous'])
-parser.add_argument('--motif_loss', type=bool, default=True)
+#===============================
+# Model arguments
+#===============================
+parser.add_argument(
+    '-model',
+    dest="model",
+    default="GraphVAE-MM",
+    help="KernelAugmentedWithTotalNumberOfTriangles and kipf are the main options in this repo; NOTE KernelAugmentedWithTotalNumberOfTriangles=GraphVAE-MM and kipf=GraphVAE"
+)
+parser.add_argument(
+    '-encoder',
+    dest="encoder_type",
+    default="AvePool",
+    help="the encoder: only option in this rep is 'AvePool'"
+)  # only option in this rep is "AvePool"
+parser.add_argument(
+    '-decoder',
+    dest="decoder",
+    default="FC",
+    help="the decoder type, FC is only option in this rep"
+)
+parser.add_argument(
+    '-graphEmDim',
+    dest="graphEmDim",
+    default=1024,
+    type=int,
+    help="the dimention of graph Embeding LAyer; z"
+)
+parser.add_argument(
+    '-beta',
+    dest="beta",
+    default=None,
+    help="beta coefiicieny",
+    type=float
+)
+
+#===============================
+# Experiment arguments
+#===============================
+parser.add_argument(
+    '-e',
+    dest="epoch_number",
+    default=10,
+    type=int,
+    help="Number of Epochs to train the model"
+)
+parser.add_argument(
+    '-v',
+    dest="Vis_step",
+    default=2,
+    type=int,
+    help="at every Vis_step 'minibatch' the plots will be updated"
+)
+parser.add_argument(
+    '-redraw',
+    dest="redraw",
+    default=False,
+    type=str2bool,
+    help="either update the log plot each step"
+)
+parser.add_argument(
+    '-lr',
+    dest="lr",
+    default=0.0003,
+    type=float,
+    help="model learning rate"
+)
+parser.add_argument(
+    '-batchSize',
+    dest="batchSize",
+    default=200,
+    type=int,
+    help="the size of each batch; the number of graphs is the mini batch"
+)
+parser.add_argument(
+    '-task',
+    dest="task",
+    default="graphGeneration",
+    help="only option in this rep is graphGeneration"
+)
+
+#===============================
+# Motif arguments
+#===============================
+parser.add_argument('--motif_loss', type=str2bool, default=True)
 # The default motif loss is now symmetric: zero-observed motifs are included
 # through Laplace smoothing so extra motifs in the reconstruction are penalized
 # too. This flag only chooses between absolute and squared log-ratio penalties.
-parser.add_argument('--motif_loss_mode', type=str, default='abs_log_ratio',
-                    choices=['abs_log_ratio', 'squared_log_ratio'],
-                    help='Motif loss variant: symmetric abs(log-ratio) or squared log-ratio.')
+parser.add_argument(
+    '--motif_loss_mode',
+    type=str,
+    default='abs_log_ratio',
+    choices=['abs_log_ratio', 'squared_log_ratio'],
+    help='Motif loss variant: symmetric abs(log-ratio) or squared log-ratio.'
+)
 # Motif-temperature annealing only affects motif counting, not the main
 # reconstruction loss. Keep start=end=1.0 to disable it, or use a schedule like
 # start=1.0, end=0.5, start_frac=0.5 to keep training smooth early and sharpen
 # the motif probabilities during the second half of training.
-parser.add_argument('--motif_temperature_start', type=float, default=1.0,
-                    help='Starting temperature for motif-count probabilities; lower than 1 sharpens logits.')
-parser.add_argument('--motif_temperature_end', type=float, default=0.5,
-                    help='Final temperature for motif-count probabilities after annealing.')
-parser.add_argument('--motif_temperature_anneal_start_frac', type=float, default=0.5,
-                    help='Fraction of training to keep the starting motif temperature before annealing.')
-parser.add_argument('--rule_prune', type=bool, default=False)
+parser.add_argument(
+    '--motif_temperature_start',
+    type=float,
+    default=1.0,
+    help='Starting temperature for motif-count probabilities; lower than 1 sharpens logits.'
+)
+parser.add_argument(
+    '--motif_temperature_end',
+    type=float,
+    default=0.5,
+    help='Final temperature for motif-count probabilities after annealing.'
+)
+parser.add_argument(
+    '--motif_temperature_anneal_start_frac',
+    type=float,
+    default=0.5,
+    help='Fraction of training to keep the starting motif temperature before annealing.'
+)
+parser.add_argument('--rule_prune', type=str2bool, default=False)
+parser.add_argument(
+    '--batch_size',
+    type=int,
+    default=50000,
+    help='Number of graphs to process simultaneously on GPU. Only used for multi-graph datasets (QM9). Tune to your VRAM: 8 GB -> 2000 | 16 GB -> 5000 | 24 GB+ -> 30000.'
+)
+
+#===============================
+# Runtime, output, and evaluation arguments
+#===============================
+parser.add_argument(
+    '-graph_save_path',
+    dest="graph_save_path",
+    default=None,
+    help="the direc to save generated synthatic graphs"
+)
+parser.add_argument(
+    '-PATH',
+    dest="PATH",
+    default="model",
+    help="a string which determine the path in wich model will be saved"
+)
+parser.add_argument(
+    '-UseGPU',
+    dest="UseGPU",
+    default=True,
+    type=str2bool,
+    help="either use GPU or not if availabel"
+)
+parser.add_argument(
+    '-device',
+    '--device',
+    dest="device",
+    default="cuda",
+    help="Which device should be used, e.g. cuda, cuda:0, cpu"
+)
+parser.add_argument(
+    '-plot_testGraphs',
+    dest="plot_testGraphs",
+    default=True,
+    type=str2bool,
+    help="shall the test set be printed"
+)
+parser.add_argument(
+    '-ideal_Evalaution',
+    dest="ideal_Evalaution",
+    default=False,
+    type=str2bool,
+    help="if you want to comapre the 50%50 subset of dataset comparision?!"
+)
+parser.add_argument(
+    '--tiny_overfit',
+    action='store_true',
+    default=True,
+    help='Use a tiny fixed training subset, disable shuffling, and train with one fixed batch.'
+)
+parser.add_argument(
+    '--tiny_overfit_size',
+    type=int,
+    default=32,
+    help='Number of training graphs to keep in --tiny_overfit mode.'
+)
 parser.add_argument('--interactive', action='store_true', default=False)
-parser.add_argument('--device', type=str, default='cuda',
-                    choices=['cuda', 'cpu'])
-
-# Graph index selection: run counting only on a slice of graph_data_list
-parser.add_argument('--graph_index_start', type=int, default=None,
-                    help='First graph index to count (inclusive). '
-                            'Only valid when dataset has more than one graph.')
-parser.add_argument('--graph_index_end', type=int, default=None,
-                    help='Last graph index to count (inclusive). '
-                            'Only valid when dataset has more than one graph.')
-
-# Batched GPU counting for multi-graph datasets (e.g. QM9)
-parser.add_argument('--batch_size', type=int, default=50000,
-                    help='Number of graphs to process simultaneously on GPU. '
-                            'Only used for multi-graph datasets (QM9). '
-                            'Tune to your VRAM: '
-                            '8 GB → 2000 | 16 GB → 5000 | 24 GB+ → 30000.')
-parser.add_argument('--sanity_check',
-                    action='store_true',
-                    default=True,
-                    help='Run sanity check and print readable results.')
-parser.add_argument('--sanity_check_only',
-                    action='store_true',
-                    default=True,
-                    help='Run sanity check and exit before training.')
-#=======================================
+parser.add_argument(
+    '--sanity_check',
+    action='store_true',
+    default=False,
+    help='Run sanity check and print readable results.'
+)
+parser.add_argument(
+    '--sanity_check_only',
+    action='store_true',
+    default=False,
+    help='Run sanity check and exit before training.'
+)
 
 
+config_args, _ = parser.parse_known_args()
+if config_args.config is not None:
+    valid_config_keys = {action.dest for action in parser._actions}
+    parser.set_defaults(**load_config_defaults(config_args.config, valid_config_keys))
 
 args = parser.parse_args()
-ideal_Evalaution = args.ideal_Evalaution
-encoder_type = args.encoder_type
-graphEmDim = args.graphEmDim
-visulizer_step = args.Vis_step
-redraw = args.redraw
-device = args.device
-task = args.task
-plot_testGraphs = args.plot_testGraphs
-directed = args.directed
-epoch_number = args.epoch_number
-lr = args.lr
-decoder_type = args.decoder
+
+#===============================
+# Data settings
+#===============================
 dataset = args.dataset  # possible choices are: cora, citeseer, karate, pubmed, DBIS
-mini_batch_size = args.batchSize
-use_gpu = args.UseGPU
 use_feature = args.use_feature
-
-graph_save_path = args.graph_save_path
-graph_save_path = args.graph_save_path
-
-
-
-#===========***************************************============================
-
-
-# ================================
-# Core settings
-# ================================
+bfs_ordering = args.bfsOrdering
+directed = args.directed
 database_name = args.database_name
 graph_type = args.graph_type
-motif_loss = args.motif_loss
+graph_index_start = args.graph_index_start
+graph_index_end = args.graph_index_end
+
+#===============================
+# Model settings
+#===============================
+model_name = args.model
+encoder_type = args.encoder_type
+graphEmDim = args.graphEmDim
+decoder_type = args.decoder
+beta = args.beta
+
+#===============================
+# Experiment settings
+#===============================
+visulizer_step = args.Vis_step
+redraw = args.redraw
+task = args.task
+epoch_number = args.epoch_number
+lr = args.lr
+mini_batch_size = args.batchSize
+
+#===============================
+# Motif settings
+#===============================
+use_motif_loss = args.motif_loss
+motif_loss_mode = args.motif_loss_mode
 motif_temperature_start = max(float(args.motif_temperature_start), 1e-3)
 motif_temperature_end = max(float(args.motif_temperature_end), 1e-3)
 motif_temperature_anneal_start_frac = min(
     max(float(args.motif_temperature_anneal_start_frac), 0.0), 1.0
 )
 rule_prune = args.rule_prune
-interactive = args.interactive
+batch_size = args.batch_size
+
+#===============================
+# Runtime, output, and evaluation settings
+#===============================
 device = args.device
-# end of core settings
+use_gpu = args.UseGPU
+graph_save_path = args.graph_save_path
+PATH = args.PATH  # the dir to save the with the best performance on validation data
+plot_testGraphs = args.plot_testGraphs
+ideal_Evalaution = args.ideal_Evalaution
+interactive = args.interactive
+sanity_check = args.sanity_check
+sanity_check_only = args.sanity_check_only
 # endregion
 #====================================================================================
-
-
-
-# ================================
-# region Graph slice selection
-graph_index_start = args.graph_index_start
-graph_index_end = args.graph_index_end
-# endregion
-# ================================
-
-
-# ================================
-# Batched GPU counting
-batch_size = args.batch_size
-# ================================
 
 
 #====================================================================================
@@ -222,7 +462,7 @@ if tiny_overfit:
     epoch_number = min(int(epoch_number), 1000)
     visulizer_step = min(int(visulizer_step), 100)
 
-    motif_loss = True
+    use_motif_loss = True
     args.motif_loss = True
     ideal_Evalaution = False
     args.ideal_Evalaution = False
@@ -235,17 +475,17 @@ if tiny_overfit:
     args.epoch_number = epoch_number
     args.Vis_step = visulizer_step
     print(f"[TinyOverfit] Auto preset: size={tiny_overfit_size}, epochs={epoch_number}, "
-          f"vis_step={visulizer_step}, motif_loss={args.motif_loss}, task={args.task}")
+          f"vis_step={visulizer_step}, motif_loss={use_motif_loss}, task={task}")
     logging.info(f"[TinyOverfit] Auto preset: size={tiny_overfit_size}, epochs={epoch_number}, "
-                 f"vis_step={visulizer_step}, motif_loss={args.motif_loss}, task={args.task}")
+                 f"vis_step={visulizer_step}, motif_loss={use_motif_loss}, task={task}")
 # end of tiny overfit debug mode
 # endregion
 #====================================================================================
 
 
 if graph_save_path is None:
-    run_name = "MMD_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + args.model + "BFS" + str(
-        args.bfsOrdering) + str(args.epoch_number) + str(time.time())
+    run_name = "MMD_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + model_name + "BFS" + str(
+        bfs_ordering) + str(epoch_number) + str(time.time())
     graph_save_dir = Path("runs") / run_name
 else:
     graph_save_dir = Path(graph_save_path)
@@ -269,11 +509,10 @@ logging.basicConfig(filename=str(run_log_path), filemode='w', level=logging.INFO
 # region general settings
 print("KernelVGAE SETING: " + str(args))
 logging.info("KernelVGAE SETING: " + str(args))
-PATH = args.PATH  # the dir to save the with the best performance on validation data
 
 kernl_type = []
 #---------------------------------------------------------------------
-if args.model == "KernelAugmentedWithTotalNumberOfTriangles" or args.model=="GraphVAE-MM":
+if model_name == "KernelAugmentedWithTotalNumberOfTriangles" or model_name == "GraphVAE-MM":
     kernl_type = ["trans_matrix", "in_degree_dist", "out_degree_dist", "TotalNumberOfTriangles"]
     if dataset=="mnist":
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 10, 50]
@@ -339,7 +578,7 @@ if args.model == "KernelAugmentedWithTotalNumberOfTriangles" or args.model=="Gra
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 2000]
 #---------------------------------------------------------------------
 
-elif args.model == "kipf" or args.model == "graphVAE":
+elif model_name == "kipf" or model_name == "graphVAE":
     alpha = [1, 1]
     step_num = 0
 
@@ -352,14 +591,14 @@ if tiny_overfit:
 if AutoEncoder == True:
     alpha[-1] = 0
 
-if args.beta != None:
-    alpha[-1] = args.beta
+if beta != None:
+    alpha[-1] = beta
 
 latent_mode = "AE" if AutoEncoder else "VAE"
 print("latent_mode:" + latent_mode)
 print("kernl_type:" + str(kernl_type))
 print("alpha: " + str(alpha) + " num_step:" + str(step_num))
-print("motif_loss_mode:" + str(args.motif_loss_mode))
+print("motif_loss_mode:" + str(motif_loss_mode))
 print(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -369,7 +608,7 @@ print(
 logging.info("latent_mode:" + latent_mode)
 logging.info("kernl_type:" + str(kernl_type))
 logging.info("alpha: " + str(alpha) + " num_step:" + str(step_num))
-logging.info("motif_loss_mode:" + str(args.motif_loss_mode))
+logging.info("motif_loss_mode:" + str(motif_loss_mode))
 logging.info(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -384,17 +623,17 @@ logging.info("the selected device is :" + str(device))
 
 # setting the plots legend
 functions = ["Accuracy", "loss"]
-if args.model == "kernel" or args.model == "KernelAugmentedWithTotalNumberOfTriangles" or args.model == "GraphVAE-MM":
+if model_name == "kernel" or model_name == "KernelAugmentedWithTotalNumberOfTriangles" or model_name == "GraphVAE-MM":
     functions.extend(["Kernel" + str(i) for i in range(step_num)])
     functions.extend(kernl_type[1:])
 
-if args.model == "TrianglesOfEachNode":
+if model_name == "TrianglesOfEachNode":
     functions.extend(kernl_type)
 
-if args.model == "ThreeStepPath":
+if model_name == "ThreeStepPath":
     functions.extend(kernl_type)
 
-if args.model == "TotalNumberOfTriangles":
+if model_name == "TotalNumberOfTriangles":
     functions.extend(kernl_type)
 
 functions.append("Binary_Cross_Entropy")
@@ -476,7 +715,7 @@ def test_(number_of_samples, model, graph_size, path_to_save_g, remove_self=True
     # ======================================================
     # save nx files
     if save_graphs:
-        nx_f_name = path_to_save_g + "_" + dataset + "_" + decoder_type + "_" + args.model + "_" + task
+        nx_f_name = path_to_save_g + "_" + dataset + "_" + decoder_type + "_" + model_name + "_" + task
         with open(nx_f_name, 'wb') as f:
             pickle.dump(generated_graph_list, f)
     # # ======================================================
@@ -749,7 +988,8 @@ cache_path = os.path.join(cache_dir, f"{dataset}.pkl")
 self_for_none = True
 if (decoder_type) in ("FCdecoder"): 
     self_for_none = True
-use_cache = False  # Set to True to enable caching of processed datasets for faster subsequent loading.
+    
+use_cache = True  # Set to True to enable caching of processed datasets for faster subsequent loading.
 if use_cache and os.path.exists(cache_path):
     print(f"[Cache] Loading '{dataset}' from {cache_path}")
     logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
@@ -923,12 +1163,12 @@ if tiny_overfit:
 #====================================================================================
 #region Motif Loss Setup: build motif store and precompute dataset motif counts
 # This block prepares motif-count targets used by the motif-loss term.
-if args.motif_loss:
+if use_motif_loss:
     # Initializes the motif rule store (RuleBasedMotifStore).
-    RuleBasedMotifStore(database_name=args.database_name, args=args) 
+    RuleBasedMotifStore(database_name=database_name, args=args) 
 
     # Builds the dataset to count on (train only, or train+test in sanity mode).
-    if args.sanity_check or args.sanity_check_only:
+    if sanity_check or sanity_check_only:
         remove_self_loops(list_graphs)
         remove_self_loops(list_test_graphs)
         dataa = merge_datasets(list_graphs, list_test_graphs)  
@@ -936,7 +1176,7 @@ if args.motif_loss:
         dataa = merge_datasets(list_graphs)
 
     # Creates a relational motif counter and wraps data for counting on CUDA.
-    motif_counter = RelationalMotifCounter(database_name=args.database_name, args=args)
+    motif_counter = RelationalMotifCounter(database_name=database_name, args=args)
     wrapper = DataWrapper(dataa, motif_counter.relation_keys,node_onehot_info, device='cuda')
 
     # Computes motif counts in batches.
@@ -944,7 +1184,7 @@ if args.motif_loss:
     list_graphs.motif_counts = counts
 
     # In sanity mode, sums counts across all samples and prints them for inspection.
-    if args.sanity_check or args.sanity_check_only:
+    if sanity_check or sanity_check_only:
         # Previous sanity-check output:
         # aggregated = counts.sum(0)
         # print(aggregated)
@@ -954,7 +1194,7 @@ if args.motif_loss:
         print("=" * 80)
         print(aggregated)
 
-        if args.sanity_check or args.sanity_check_only:
+        if sanity_check or sanity_check_only:
             motif_counter.display_rules_and_motifs(aggregated)
 
             try:
@@ -962,7 +1202,7 @@ if args.motif_loss:
                     compare_aggregated_counts_to_factorbase_detailed(
                         aggregated_counts=aggregated,
                         motif_counter=motif_counter,
-                        database_name=args.database_name,
+                        database_name=database_name,
                     )
                 )
                 print("\n" + "=" * 80)
@@ -985,7 +1225,7 @@ if args.motif_loss:
                 print("  proteins_experiment_BN.`node_feature(nodes0)_CP`")
                 print("  proteins_experiment_BN.`node_feature(nodes1)_CP`")
 
-        if args.sanity_check_only:
+        if sanity_check_only:
             print("\nSanity-check-only mode enabled; exiting before model training.")
             raise SystemExit(0)
 #endregion
@@ -1220,7 +1460,7 @@ for epoch in range(epoch_number):
             end_temp=motif_temperature_end,
             anneal_start_frac=motif_temperature_anneal_start_frac,
         )
-        if args.motif_loss:
+        if use_motif_loss:
             observed_motif_counts = list_graphs.motif_counts[from_:to_].to(device)
             recon_wrapper = ReconstructedDataWrapper(
                 reconstructed_adj=reconstructed_adj_logit,
@@ -1238,7 +1478,7 @@ for epoch in range(epoch_number):
             motif_loss = compute_motif_loss(
                 observed_counts=observed_motif_counts,
                 predicted_counts=recon_counts,
-                loss_mode=args.motif_loss_mode,
+                loss_mode=motif_loss_mode,
             )
 
             # The hard wrapper thresholds adjacency and converts categorical
@@ -1299,7 +1539,7 @@ for epoch in range(epoch_number):
             and hard_exact_match_total == 1
             and ((step + 1) % visulizer_step == 0 or (epoch_number == epoch + 1))
         )
-        if should_report_detailed_hard_counts and args.motif_loss:
+        if should_report_detailed_hard_counts and use_motif_loss:
             detailed_hard_motif_counts = summarize_single_graph_motif_counts(
                 observed_counts=observed_motif_counts,
                 hard_predicted_counts=hard_recon_counts,
@@ -1425,7 +1665,7 @@ logging.info("trainning time: " + str(stop - start))
 # save the train loss for comparing the convergence
 import json
 
-file_name = graph_save_path + "_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + args.model + "_elbo_loss.txt"
+file_name = graph_save_path + "_" + encoder_type + "_" + decoder_type + "_" + dataset + "_" + task + "_" + model_name + "_elbo_loss.txt"
 
 if not tiny_overfit:
     with open(file_name, "w") as fp:

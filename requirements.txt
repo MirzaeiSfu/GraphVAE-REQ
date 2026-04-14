@@ -41,6 +41,7 @@ traitlets==5.0.4
 urllib3==1.25.10
 wcwidth==0.2.5
 xnetwork==0.9
+PyYAML==6.0.2
 #conda install pytorch==1.6.0 torchvision==0.7.0 cudatoolkit=10.2 -c pytorch
 #conda install -c dglteam dgl==0.4.3
 #conda install -c intel scikit-learn=0.23.2

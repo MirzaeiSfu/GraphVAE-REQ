@@ -1,0 +1,61 @@
+#===============================
+# Data arguments
+#===============================
+data:
+  dataset: GRID
+  use_feature: true
+  bfsOrdering: true
+  directed: true
+  database_name: grid_experiment
+  graph_type: homogeneous
+  graph_index_start: null
+  graph_index_end: null
+
+#===============================
+# Model arguments
+#===============================
+model:
+  model: GraphVAE-MM
+  encoder_type: AvePool
+  decoder: FC
+  graphEmDim: 1024
+  beta: null
+
+#===============================
+# Experiment arguments
+#===============================
+experiment:
+  epoch_number: 10
+  Vis_step: 2
+  redraw: false
+  lr: 0.0003
+  batchSize: 200
+  task: graphGeneration
+
+#===============================
+# Motif arguments
+#===============================
+motif:
+  motif_loss: true
+  motif_loss_mode: abs_log_ratio
+  motif_temperature_start: 1.0
+  motif_temperature_end: 0.5
+  motif_temperature_anneal_start_frac: 0.5
+  rule_prune: false
+  batch_size: 50000
+
+#===============================
+# Runtime, output, and evaluation arguments
+#===============================
+runtime:
+  graph_save_path: null
+  PATH: model
+  UseGPU: true
+  device: cuda
+  plot_testGraphs: true
+  ideal_Evalaution: false
+  tiny_overfit: true
+  tiny_overfit_size: 32
+  interactive: false
+  sanity_check: false
+  sanity_check_only: false
