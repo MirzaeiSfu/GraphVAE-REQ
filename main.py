@@ -256,11 +256,11 @@ parser.add_argument(
     help="model learning rate"
 )
 parser.add_argument(
-    '-batchSize',
-    dest="batchSize",
+    '--train_batch_size',
+    dest="train_batch_size",
     default=200,
     type=int,
-    help="the size of each batch; the number of graphs is the mini batch"
+    help="training mini-batch size"
 )
 parser.add_argument(
     '-task',
@@ -307,10 +307,11 @@ parser.add_argument(
 )
 parser.add_argument('--rule_prune', type=str2bool, default=False)
 parser.add_argument(
-    '--batch_size',
+    '--motif_batch_size',
     type=int,
+    dest="motif_batch_size",
     default=50000,
-    help='Number of graphs to process simultaneously on GPU. Only used for multi-graph datasets (QM9). Tune to your VRAM: 8 GB -> 2000 | 16 GB -> 5000 | 24 GB+ -> 30000.'
+    help='motif-counting batch size. Only used for multi-graph datasets (QM9). Tune to your VRAM: 8 GB -> 2000 | 16 GB -> 5000 | 24 GB+ -> 30000.'
 )
 
 #===============================
@@ -419,7 +420,7 @@ redraw = args.redraw
 task = args.task
 epoch_number = args.epoch_number
 lr = args.lr
-mini_batch_size = args.batchSize
+train_batch_size = args.train_batch_size
 
 #===============================
 # Motif settings
@@ -432,7 +433,7 @@ motif_temperature_anneal_start_frac = min(
     max(float(args.motif_temperature_anneal_start_frac), 0.0), 1.0
 )
 rule_prune = args.rule_prune
-batch_size = args.batch_size
+motif_batch_size = args.motif_batch_size
 
 #===============================
 # Runtime, output, and evaluation settings
@@ -1151,11 +1152,11 @@ if tiny_overfit:
         list_edge_onehot=(list_graphs.list_edge_onehot[:keep_n]
                           if list_graphs.list_edge_onehot is not None else None),
     )
-    mini_batch_size = keep_n
+    train_batch_size = keep_n
     print(f"[TinyOverfit] Enabled: using {keep_n} fixed training graphs, "
-          f"batch_size={mini_batch_size}, shuffle=off")
+          f"train_batch_size={train_batch_size}, shuffle=off")
     logging.info(f"[TinyOverfit] Enabled: using {keep_n} fixed training graphs, "
-                 f"batch_size={mini_batch_size}, shuffle=off")
+                 f"train_batch_size={train_batch_size}, shuffle=off")
 #endregion
 #====================================================================================
 
@@ -1180,7 +1181,7 @@ if use_motif_loss:
     wrapper = DataWrapper(dataa, motif_counter.relation_keys,node_onehot_info, device='cuda')
 
     # Computes motif counts in batches.
-    counts  = motif_counter.count_batch(wrapper, batch_size=50000)
+    counts  = motif_counter.count_batch(wrapper, batch_size=motif_batch_size)
     list_graphs.motif_counts = counts
 
     # In sanity mode, sums counts across all samples and prints them for inspection.
@@ -1361,12 +1362,12 @@ for epoch in range(epoch_number):
     if not tiny_overfit:
         list_graphs.shuffle()
     batch = 0
-    for iter in range(0, max(int(len(list_graphs.list_adjs) / mini_batch_size), 1) * mini_batch_size, mini_batch_size):
+    for iter in range(0, max(int(len(list_graphs.list_adjs) / train_batch_size), 1) * train_batch_size, train_batch_size):
         from_ = iter
-        to_ = mini_batch_size * (batch + 1)
-        # for iter in range(0, len(list_graphs.list_adjs), mini_batch_size):
+        to_ = train_batch_size * (batch + 1)
+        # for iter in range(0, len(list_graphs.list_adjs), train_batch_size):
         #     from_ = iter
-        #     to_= mini_batch_size*(batch+1) if mini_batch_size*(batch+2)<len(list_graphs.list_adjs) else len(list_graphs.list_adjs)
+        #     to_= train_batch_size*(batch+1) if train_batch_size*(batch+2)<len(list_graphs.list_adjs) else len(list_graphs.list_adjs)
 
         if subgraphSize == None:
             org_adj, x_s, node_num, subgraphs_indexes, target_kelrnel_val = list_graphs.get__(from_, to_, self_for_none,
@@ -1474,7 +1475,7 @@ for epoch in range(epoch_number):
                 device=device,
             )
 
-            recon_counts = motif_counter.count_batch(recon_wrapper, batch_size=batch_size)
+            recon_counts = motif_counter.count_batch(recon_wrapper, batch_size=motif_batch_size)
             motif_loss = compute_motif_loss(
                 observed_counts=observed_motif_counts,
                 predicted_counts=recon_counts,
@@ -1496,7 +1497,7 @@ for epoch in range(epoch_number):
                     prob_temperature=motif_temperature,
                     device=device,
                 )
-                hard_recon_counts = motif_counter.count_batch(hard_recon_wrapper, batch_size=batch_size)
+                hard_recon_counts = motif_counter.count_batch(hard_recon_wrapper, batch_size=motif_batch_size)
                 (hard_motif_loss,
                  hard_motif_exact_zero,
                  hard_motif_exact_zero_per_graph) = compute_hard_motif_metrics(
@@ -1515,7 +1516,7 @@ for epoch in range(epoch_number):
                         ),
                         hard_recon_wrapper=hard_recon_wrapper,
                         motif_counter=motif_counter,
-                        batch_size=batch_size,
+                        batch_size=motif_batch_size,
                     )
             #m_loss = motif_loss * alpha_motif_loss
 

@@ -29,7 +29,7 @@ experiment:
   Vis_step: 2
   redraw: false
   lr: 0.0003
-  batchSize: 200
+  train_batch_size: 200
   task: graphGeneration
 
 #===============================
@@ -42,7 +42,7 @@ motif:
   motif_temperature_end: 0.5
   motif_temperature_anneal_start_frac: 0.5
   rule_prune: false
-  batch_size: 50000
+  motif_batch_size: 50000
 
 #===============================
 # Runtime, output, and evaluation arguments
