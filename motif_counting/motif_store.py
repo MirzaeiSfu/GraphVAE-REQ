@@ -1,5 +1,6 @@
 # motif_counting/motif_store.py
 
+import os
 import torch
 import pickle
 from pathlib import Path
@@ -11,13 +12,20 @@ from itertools import permutations
 from math import log
 
 
+def get_motif_cache_dir(args=None) -> Path:
+    configured_dir = getattr(args, 'motif_cache_dir', None) if args is not None else None
+    if configured_dir is not None:
+        return Path(configured_dir).expanduser()
+    return Path(os.environ.get("MOTIF_CACHE_DIR", "db")).expanduser()
+
+
 class RuleBasedMotifStore:
     """
     Container for motif definitions stored as relational database rules.
     Automatically handles pickle file management and database connection.
     
     On initialization:
-    - Checks for ./db/<database_name>.pkl
+    - Checks for <motif_cache_dir>/<database_name>.pkl
     - If exists: loads from pickle
     - If not: connects to database, reads data, and saves to pickle
     """
@@ -43,7 +51,7 @@ class RuleBasedMotifStore:
         self._initialize_structures()
         
         # Determine pickle path
-        db_dir = Path('./db')
+        db_dir = get_motif_cache_dir(args)
         db_dir.mkdir(parents=True, exist_ok=True)
         self.pickle_path = db_dir / f"{database_name}.pkl"
         

@@ -2,11 +2,11 @@
 # Data arguments
 #===============================
 data:
-  dataset: GRID
+  dataset: QM9
   use_feature: true
   bfsOrdering: true
-  directed: true
-  database_name: grid_experiment
+  directed: false
+  database_name: qm9_experiment
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
@@ -16,7 +16,7 @@ data:
 # Model arguments
 #===============================
 model:
-  model: GraphVAE-MM
+  model: GraphVAE
   encoder_type: AvePool
   decoder: FC
   graphEmDim: 1024
@@ -26,7 +26,7 @@ model:
 # Experiment arguments
 #===============================
 experiment:
-  epoch_number: 10
+  epoch_number: 20000
   Vis_step: 2
   redraw: false
   lr: 0.0003
@@ -37,7 +37,7 @@ experiment:
 # Motif arguments
 #===============================
 motif:
-  motif_loss: true
+  motif_loss: false
   motif_loss_mode: abs_log_ratio
   motif_temperature_start: 1.0
   motif_temperature_end: 0.5
@@ -60,12 +60,14 @@ loss:
 #===============================
 runtime:
   graph_save_path: null
+  dataset_cache_dir: null
+  motif_cache_dir: null
   PATH: model
   UseGPU: true
   device: cuda
   plot_testGraphs: true
   ideal_Evalaution: false
-  tiny_overfit: true
+  tiny_overfit: false
   tiny_overfit_size: 32
   interactive: false
   sanity_check: false

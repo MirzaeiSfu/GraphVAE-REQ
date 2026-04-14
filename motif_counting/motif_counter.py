@@ -1,5 +1,6 @@
 # motif_counting/motif_counter.py
 
+import os
 import torch
 import pickle
 import time
@@ -8,10 +9,17 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Any, Optional
 
 
+def get_motif_cache_dir(args=None) -> Path:
+    configured_dir = getattr(args, 'motif_cache_dir', None) if args is not None else None
+    if configured_dir is not None:
+        return Path(configured_dir).expanduser()
+    return Path(os.environ.get("MOTIF_CACHE_DIR", "db")).expanduser()
+
+
 class RelationalMotifCounter:
     """
     Counts motifs in a graph using relational algebra and Bayesian Network rules.
-    Loads all required data from pickle file in ./db directory.
+    Loads all required data from pickle file in the motif cache directory.
 
     STATELESS design
     ----------------
@@ -52,7 +60,7 @@ class RelationalMotifCounter:
         self.database_name = database_name
         self.args = args
 
-        db_dir = Path('./db')
+        db_dir = get_motif_cache_dir(args)
         pickle_path = db_dir / f"{database_name}.pkl"
 
         if not pickle_path.exists():
@@ -106,7 +114,7 @@ class RelationalMotifCounter:
         else:
             # Old-format pickle — use whatever was stored
             self.values = data["values"]
-            print(f"  Warning: old-format pickle — delete db/{self.database_name}.pkl "
+            print(f"  Warning: old-format pickle — delete {pickle_path} "
                   f"to regenerate with both value sets cached.")
 
         self.device = getattr(self.args, 'device', 'cuda')

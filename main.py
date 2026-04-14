@@ -123,6 +123,21 @@ def load_config_defaults(config_path, valid_keys):
     return flat_config
 
 
+MODEL_NAME_ALIASES = {
+    "graphvae": "kipf",
+    "graphvae-mm": "GraphVAE-MM",
+    "kernelaugmentedwithtotalnumberoftriangles": "GraphVAE-MM",
+}
+
+
+def normalize_model_name(model_name):
+    if model_name is None:
+        return model_name
+
+    normalized = str(model_name).strip()
+    return MODEL_NAME_ALIASES.get(normalized.lower(), normalized)
+
+
 parser = argparse.ArgumentParser(description='Kernel VGAE')
 
 #===============================
@@ -141,7 +156,7 @@ parser.add_argument(
 parser.add_argument(
     '-dataset',
     dest="dataset",
-    default="GRID",
+    default="QM9",
     help="possible choices are: wheel_graph, PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD"
 )
 parser.add_argument(
@@ -168,7 +183,7 @@ parser.add_argument(
 parser.add_argument(
     '--database_name',
     type=str,
-    default='grid_experiment'
+    default='qm9_experiment'
 )  # qm9_experiment, ogbg-molbbbp_experiment, PTC_experiment, MUTAG_experiment, PVGAErandomGraphs_experiment, FIRSTMM_DB_experiment, DD_experiment, GRID_experiment, PROTEINS_experiment, lobster_experiment, wheel_graph_experiment, TRIANGULAR_GRID_experiment, tree_experiment
 parser.add_argument(
     '--graph_type',
@@ -201,8 +216,8 @@ parser.add_argument(
 parser.add_argument(
     '-model',
     dest="model",
-    default="GraphVAE-MM",
-    help="KernelAugmentedWithTotalNumberOfTriangles and kipf are the main options in this repo; NOTE KernelAugmentedWithTotalNumberOfTriangles=GraphVAE-MM and kipf=GraphVAE"
+    default="GraphVAE",
+    help="Model name. Accepted aliases: GraphVAE/kipf for the baseline, GraphVAE-MM/KernelAugmentedWithTotalNumberOfTriangles for the kernel-augmented variant."
 )
 parser.add_argument(
     '-encoder',
@@ -237,14 +252,14 @@ parser.add_argument(
 parser.add_argument(
     '-e',
     dest="epoch_number",
-    default=10,
+    default=20000,
     type=int,
     help="Number of Epochs to train the model"
 )
 parser.add_argument(
     '-v',
     dest="Vis_step",
-    default=2,
+    default=1000,
     type=int,
     help="at every Vis_step 'minibatch' the plots will be updated"
 )
@@ -263,6 +278,7 @@ parser.add_argument(
     help="model learning rate"
 )
 parser.add_argument(
+    '-batchSize',
     '--train_batch_size',
     dest="train_batch_size",
     default=200,
@@ -365,6 +381,18 @@ parser.add_argument(
     help="the direc to save generated synthatic graphs"
 )
 parser.add_argument(
+    '--dataset_cache_dir',
+    type=str,
+    default=None,
+    help='Directory for processed dataset cache files. Defaults to DATASET_CACHE_DIR or dataset_cached/.'
+)
+parser.add_argument(
+    '--motif_cache_dir',
+    type=str,
+    default=None,
+    help='Directory for motif cache pickle files. Defaults to MOTIF_CACHE_DIR or db/.'
+)
+parser.add_argument(
     '-PATH',
     dest="PATH",
     default="model",
@@ -398,11 +426,18 @@ parser.add_argument(
     type=str2bool,
     help="if you want to comapre the 50%50 subset of dataset comparision?!"
 )
+parser.set_defaults(tiny_overfit=True)
 parser.add_argument(
     '--tiny_overfit',
+    dest='tiny_overfit',
     action='store_true',
-    default=True,
     help='Use a tiny fixed training subset, disable shuffling, and train with one fixed batch.'
+)
+parser.add_argument(
+    '--no-tiny_overfit',
+    dest='tiny_overfit',
+    action='store_false',
+    help='Disable tiny-overfit debug mode and run full training.'
 )
 parser.add_argument(
     '--tiny_overfit_size',
@@ -431,6 +466,7 @@ if config_args.config is not None:
     parser.set_defaults(**load_config_defaults(config_args.config, valid_config_keys))
 
 args = parser.parse_args()
+args.model = normalize_model_name(args.model)
 
 #===============================
 # Data settings
@@ -492,6 +528,8 @@ alpha_adj_recon = args.alpha_adj_recon
 device = args.device
 use_gpu = args.UseGPU
 graph_save_path = args.graph_save_path
+dataset_cache_dir = args.dataset_cache_dir
+motif_cache_dir = args.motif_cache_dir
 PATH = args.PATH  # the dir to save the with the best performance on validation data
 plot_testGraphs = args.plot_testGraphs
 ideal_Evalaution = args.ideal_Evalaution
@@ -503,6 +541,10 @@ sanity_check_only = args.sanity_check_only
 
 if data_dir is not None:
     os.environ["DATA_DIR"] = str(Path(data_dir).expanduser())
+if dataset_cache_dir is not None:
+    os.environ["DATASET_CACHE_DIR"] = str(Path(dataset_cache_dir).expanduser())
+if motif_cache_dir is not None:
+    os.environ["MOTIF_CACHE_DIR"] = str(Path(motif_cache_dir).expanduser())
 
 
 #====================================================================================
@@ -548,11 +590,10 @@ else:
 
 graph_save_dir.mkdir(parents=True, exist_ok=True)
 graph_save_path = str(graph_save_dir) + "/"
-
-runlog_dir = Path("runlog")
-runlog_dir.mkdir(parents=True, exist_ok=True)
-run_log_path = runlog_dir / f"{run_name}.log"
-run_mmd_log_path = runlog_dir / f"{run_name}_MMD.log"
+generated_graph_train_dir = graph_save_dir / "generated_graph_train"
+generated_graph_train_dir.mkdir(parents=True, exist_ok=True)
+run_log_path = graph_save_dir / "train.log"
+run_mmd_log_path = graph_save_dir / "mmd.log"
 
 # maybe to the beest way
 for handler in logging.root.handlers[:]:
@@ -1052,16 +1093,18 @@ def getBack(var_grad_fn):
 # load the data
 #region Load the data
 
-cache_dir  = "dataset_cached"
-os.makedirs(cache_dir, exist_ok=True)        
-cache_path = os.path.join(cache_dir, f"{dataset}.pkl")
+dataset_cache_root = Path(
+    os.environ.get("DATASET_CACHE_DIR", "dataset_cached")
+).expanduser()
+dataset_cache_root.mkdir(parents=True, exist_ok=True)
+cache_path = dataset_cache_root / f"{dataset}.pkl"
 
 self_for_none = True
 if (decoder_type) in ("FCdecoder"): 
     self_for_none = True
     
 use_cache = True  # Set to True to enable caching of processed datasets for faster subsequent loading.
-if use_cache and os.path.exists(cache_path):
+if use_cache and cache_path.exists():
     print(f"[Cache] Loading '{dataset}' from {cache_path}")
     logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
     with open(cache_path, "rb") as _f:
@@ -1639,9 +1682,6 @@ for epoch in range(epoch_number):
             if not tiny_overfit:
                 pltr.redraw()
             if not tiny_overfit:
-                dir_generated_in_train = "generated_graph_train/"
-                if not os.path.isdir(dir_generated_in_train):
-                    os.makedirs(dir_generated_in_train)
                 rnd_indx = random.randint(0, len(node_num) - 1)
                 sample_graph = reconstructed_adj[rnd_indx].cpu().detach().numpy()
                 sample_graph = sample_graph[:node_num[rnd_indx], :node_num[rnd_indx]]
@@ -1651,7 +1691,7 @@ for epoch in range(epoch_number):
 
                 G = nx.from_numpy_array(sample_graph)
                 plotter.plotG(G, "generated" + dataset,
-                              file_name=graph_save_path + "generatedSample_At_epoch" + str(epoch))
+                              file_name=str(generated_graph_train_dir / f"generatedSample_At_epoch{epoch}"))
                 print("reconstructed graph vs Validation:")
                 logging.info("reconstructed graph vs Validation:")
                 reconstructed_adj = reconstructed_adj.cpu().detach().numpy()

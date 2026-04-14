@@ -33,7 +33,7 @@ Notes:
 ## Project Flow (`main.py`)
 
 1. Parse CLI arguments and set experiment config.
-2. Load cache from `dataset_cached/<dataset>.pkl` if present.
+2. Load cache from `dataset_cached/<dataset>.pkl` by default if present.
 3. Otherwise:
    - load raw graphs (`data.py:list_graph_loader`)
    - apply BFS ordering
@@ -46,7 +46,7 @@ Notes:
 
 ## Cache Keys (Current)
 
-`dataset_cached/<dataset>.pkl` stores at least:
+By default, `dataset_cached/<dataset>.pkl` stores at least:
 - `list_adj`, `list_x`, `list_label`
 - node/edge raw features and metadata
 - node/edge one-hot tensors and metadata
@@ -64,7 +64,7 @@ Motif counting uses:
 - `RuleBasedMotifStore` (`motif_counting/motif_store.py`)
 - `RelationalMotifCounter` (`motif_counting/motif_counter.py`)
 
-It writes/reads motif pickle files under `./db/<database_name>.pkl`.
+It writes/reads motif pickle files under `./db/<database_name>.pkl` by default.
 
 If no motif pickle exists, it connects to MySQL with defaults:
 - host: `localhost`
@@ -81,38 +81,39 @@ Required databases:
 Typical run:
 
 ```bash
-python main.py -dataset QM9 -model GraphVAE-MM -e 20000 -batchSize 200 --device cuda
+python main.py --config configs/default.yaml
 ```
 
 ### Important defaults in current code
 
-- `--tiny_overfit` is declared with `default=True`, so tiny-overfit mode is active unless you change code.
-- In tiny-overfit mode, code forces:
-  - `motif_loss=False`
-  - `task='debug'`
-  - reduced epoch/visualization settings
-
-If you want full training/motif flow, set tiny-overfit default to `False` in `main.py`.
+- `configs/default.yaml` is now a QM9 baseline preset:
+  - `dataset=QM9`
+  - `model=GraphVAE`
+  - `motif_loss=false`
+  - `tiny_overfit=false`
+- CLI aliases now accept:
+  - `-model GraphVAE` for the baseline (`kipf` internally)
+  - `-batchSize` as a legacy alias for `--train_batch_size`
+  - `--no-tiny_overfit` to disable the debug preset explicitly
 
 ## Outputs
 
 During/after runs you will see artifacts in `graph_save_path`.
 By default, auto-created run directories now live under `runs/<run_name>/`.
 
-Run logs are written separately under `runlog/`:
-- `<run_name>.log`
-- `<run_name>_MMD.log` (validation MMD logging)
+Run logs now live inside the run directory:
+- `train.log`
+- `mmd.log` (validation MMD logging)
 
 Run artifact directories contain:
 - generated graph `.npy` dumps
 - model checkpoints (`model_<epoch>_<batch>`)
 - training plot images
+- `generated_graph_train/` samples from intermediate training snapshots
 
-Dataset cache files are under:
-- `dataset_cached/`
+Dataset cache files are under `dataset_cached/` by default, but can be redirected with `DATASET_CACHE_DIR` or `--dataset_cache_dir`.
 
-Motif cache files are under:
-- `db/`
+Motif cache files are under `db/` by default, but can be redirected with `MOTIF_CACHE_DIR` or `--motif_cache_dir`.
 
 ## Key Files
 
