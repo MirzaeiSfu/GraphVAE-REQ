@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from pathlib import Path
 
 from typing import Dict, List, Optional
 import networkx as nx
@@ -30,6 +31,14 @@ import dataset_feature_utils.triangular_grid_features as triangular_grid_feature
 # import ogb
 
 
+def get_data_dir() -> Path:
+    return Path(os.environ.get("DATA_DIR", "data")).expanduser()
+
+
+def data_path(*parts: str) -> Path:
+    return get_data_dir().joinpath(*parts)
+
+
 def parse_index_file(filename):
     index = []
     for line in open(filename):
@@ -45,13 +54,14 @@ def Graph_load(dataset = 'cora'):
     '''
     names = ['x', 'tx', 'allx', 'graph']
     objects = []
+    kernel_dataset_dir = data_path("Kernel_dataset")
     for i in range(len(names)):
-        load = pkl.load(open("data/Kernel_dataset/ind.{}.{}".format(dataset, names[i]), 'rb'), encoding='latin1')
+        load = pkl.load(open(kernel_dataset_dir / f"ind.{dataset}.{names[i]}", 'rb'), encoding='latin1')
         # print('loaded')
         objects.append(load)
         # print(load)
     x, tx, allx, graph = tuple(objects)
-    test_idx_reorder = parse_index_file("data/Kernel_dataset/ind.{}.test.index".format(dataset))
+    test_idx_reorder = parse_index_file(kernel_dataset_dir / f"ind.{dataset}.test.index")
     test_idx_range = np.sort(test_idx_reorder)
 
     if dataset == 'citeseer':
@@ -675,7 +685,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
     #       print(i)
 #==================================end kiarash code
         from torch_geometric.datasets import QM9
-        data = QM9(root="./data/QM9")
+        data = QM9(root=str(data_path("QM9")))
 
         # ── node feature metadata ─────────────────────────────────
         # Two columns: col-0 = atom_type (1-5), col-1 = num_h (1-4)
@@ -849,7 +859,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           list_x.append(None)
           list_adj.append(nx.adjacency_matrix(nx.wheel_graph(graph_size)))
   elif graph_type=="IMDbMulti":
-      list_adj = pkl.load(open("data/IMDbMulti/IMDBMulti.p",'rb'))
+      list_adj = pkl.load(open(data_path("IMDbMulti", "IMDBMulti.p"),'rb'))
       list_x= [None for x in list_adj]
   elif graph_type=="one_grid":
         list_adj.append(nx.adjacency_matrix(grid(350, 10)))
@@ -1015,7 +1025,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       list_adj = []
       list_x = []
       import torch_geometric
-      dataset_b = torch_geometric.datasets.MNISTSuperpixels(root="data/geometric")
+      dataset_b = torch_geometric.datasets.MNISTSuperpixels(root=str(data_path("geometric")))
       for i in range(len(dataset_b.data.y)):  # len(dataset_b.data.y)
           in_1 = dataset_b[i].edge_index[0].detach().numpy()
           in_2 = dataset_b[i].edge_index[1].detach().numpy()
@@ -1025,7 +1035,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           list_x.append(None)
   elif graph_type == "zinc":
       import torch_geometric
-      dataset_b = torch_geometric.datasets.ZINC(root="data/geometric/MoleculeNet/zinc", subset=False)
+      dataset_b = torch_geometric.datasets.ZINC(root=str(data_path("geometric", "MoleculeNet", "zinc")), subset=False)
       list_adj = []
       for i in range(len(dataset_b.data.y)):
           in_1 = dataset_b[i].edge_index[0].detach().numpy()
@@ -1060,7 +1070,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 
   elif graph_type == 'FIRSTMM_DB':
     list_adj, list_x, list_labels  = graph_load_batch(
-        "data/Kernel_dataset/",
+        str(data_path("Kernel_dataset")),
         min_num_nodes=0,
         max_num_nodes=2000,
         name='FIRSTMM_DB',
@@ -1069,7 +1079,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 
   elif graph_type == 'DD':
     list_adj, list_x, list_labels  = graph_load_batch(
-        "data/Kernel_dataset/",
+        str(data_path("Kernel_dataset")),
         min_num_nodes=100,
         max_num_nodes=500,
         name='DD',
@@ -1318,7 +1328,7 @@ if __name__ == '__main__':
     import plotter
 
     result = list_graph_loader("PVGAErandomGraphs")
-    graph = np.load('C:\git\GRANon13\data/PVGAErandomGraphs.npy', allow_pickle=True)
+    graph = np.load(data_path("PVGAErandomGraphs.npy"), allow_pickle=True)
 
 
     result = list_graph_loader("PVGAErandomGraphs_100000")

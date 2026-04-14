@@ -7,7 +7,9 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "python": "/localhome/mirzaei/miniconda3/envs/micro/bin/python"
+            "python": "/localhome/mirzaei/miniconda3/envs/micro/bin/python",
+            "debugAdapterPython": "/localhome/mirzaei/miniconda3/envs/micro/bin/python",
+            "debugLauncherPython": "/localhome/mirzaei/miniconda3/envs/micro/bin/python"
         }
     ]
 }

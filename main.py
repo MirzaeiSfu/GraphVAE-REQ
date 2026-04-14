@@ -9,6 +9,7 @@
 #====================================================================================
 # region imports
 import logging
+import os
 from pathlib import Path
 import plotter
 import torch.nn.functional as F
@@ -187,6 +188,12 @@ parser.add_argument(
     default=None,
     help='Last graph index to count (inclusive). Only valid when dataset has more than one graph.'
 )
+parser.add_argument(
+    '--data_dir',
+    type=str,
+    default=None,
+    help='Optional dataset root. If set, main.py exports DATA_DIR for data.py; otherwise data.py uses DATA_DIR or local data/.'
+)
 
 #===============================
 # Model arguments
@@ -315,6 +322,40 @@ parser.add_argument(
 )
 
 #===============================
+# Loss arguments
+#===============================
+parser.add_argument(
+    '--alpha_kernel_cost',
+    type=float,
+    default=0.0,
+    help='Weight for kernel_cost in the total loss.'
+)
+parser.add_argument(
+    '--alpha_node_feat',
+    type=float,
+    default=10.0,
+    help='Weight for node feature reconstruction loss.'
+)
+parser.add_argument(
+    '--alpha_edge_feat',
+    type=float,
+    default=10.0,
+    help='Weight for edge feature reconstruction loss.'
+)
+parser.add_argument(
+    '--alpha_motif_loss',
+    type=float,
+    default=1.0,
+    help='Weight for motif loss.'
+)
+parser.add_argument(
+    '--alpha_adj_recon',
+    type=float,
+    default=0.01,
+    help='Weight for adjacency reconstruction loss.'
+)
+
+#===============================
 # Runtime, output, and evaluation arguments
 #===============================
 parser.add_argument(
@@ -402,6 +443,7 @@ database_name = args.database_name
 graph_type = args.graph_type
 graph_index_start = args.graph_index_start
 graph_index_end = args.graph_index_end
+data_dir = args.data_dir
 
 #===============================
 # Model settings
@@ -436,6 +478,15 @@ rule_prune = args.rule_prune
 motif_batch_size = args.motif_batch_size
 
 #===============================
+# Loss settings
+#===============================
+alpha_kernel_cost = args.alpha_kernel_cost
+alpha_node_feat = args.alpha_node_feat
+alpha_edge_feat = args.alpha_edge_feat
+alpha_motif_loss = args.alpha_motif_loss
+alpha_adj_recon = args.alpha_adj_recon
+
+#===============================
 # Runtime, output, and evaluation settings
 #===============================
 device = args.device
@@ -449,6 +500,9 @@ sanity_check = args.sanity_check
 sanity_check_only = args.sanity_check_only
 # endregion
 #====================================================================================
+
+if data_dir is not None:
+    os.environ["DATA_DIR"] = str(Path(data_dir).expanduser())
 
 
 #====================================================================================
@@ -599,6 +653,14 @@ latent_mode = "AE" if AutoEncoder else "VAE"
 print("latent_mode:" + latent_mode)
 print("kernl_type:" + str(kernl_type))
 print("alpha: " + str(alpha) + " num_step:" + str(step_num))
+print(
+    "loss_weights:"
+    + f" kernel={alpha_kernel_cost},"
+      f" node_feat={alpha_node_feat},"
+      f" edge_feat={alpha_edge_feat},"
+      f" motif={alpha_motif_loss},"
+      f" adj_recon={alpha_adj_recon}"
+)
 print("motif_loss_mode:" + str(motif_loss_mode))
 print(
     "motif_temperature_anneal:"
@@ -609,6 +671,14 @@ print(
 logging.info("latent_mode:" + latent_mode)
 logging.info("kernl_type:" + str(kernl_type))
 logging.info("alpha: " + str(alpha) + " num_step:" + str(step_num))
+logging.info(
+    "loss_weights:"
+    + f" kernel={alpha_kernel_cost},"
+      f" node_feat={alpha_node_feat},"
+      f" edge_feat={alpha_edge_feat},"
+      f" motif={alpha_motif_loss},"
+      f" adj_recon={alpha_adj_recon}"
+)
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
 logging.info(
     "motif_temperature_anneal:"
@@ -1438,13 +1508,6 @@ for epoch in range(epoch_number):
             target_edge_onehot=target_edge_oh,
             true_node_num=true_node_num
         )
-        alpha_kernel_cost = 0
-        alpha_node_feat = 10   
-        alpha_edge_feat = 10
-        alpha_motif_loss = 1
-        # Keep this helper weight next to the other loss alphas so it can be
-        # tuned directly in code. Set to 0.0 to recover pure motif-only training without the adjacency helper term.
-        alpha_adj_recon = 0.01  #alpha_adj_bce
         # These hard metrics are evaluation-only diagnostics. They answer a
         # stricter question than the soft training loss: after discretizing the
         # current reconstruction, do the motif counts still match exactly?

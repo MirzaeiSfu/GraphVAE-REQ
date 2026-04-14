@@ -10,6 +10,7 @@ data:
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
+  data_dir: null
 
 #===============================
 # Model arguments
@@ -43,6 +44,16 @@ motif:
   motif_temperature_anneal_start_frac: 0.5
   rule_prune: false
   motif_batch_size: 50000
+
+#===============================
+# Loss arguments
+#===============================
+loss:
+  alpha_kernel_cost: 0.0
+  alpha_node_feat: 10.0
+  alpha_edge_feat: 10.0
+  alpha_motif_loss: 1.0
+  alpha_adj_recon: 0.01
 
 #===============================
 # Runtime, output, and evaluation arguments
