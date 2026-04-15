@@ -154,27 +154,28 @@ parser.add_argument(
 # Data arguments
 #===============================
 parser.add_argument(
-    '-dataset',
+    '--dataset',
     dest="dataset",
     default="QM9",
     help="possible choices are: wheel_graph, PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD"
 )
 parser.add_argument(
     '-f',
+    '--use_feature',
     dest="use_feature",
     default=True,
     type=str2bool,
     help="either use features or identity matrix"
 )
 parser.add_argument(
-    '-BFS',
+    '--bfs_ordering',
     dest="bfsOrdering",
     default=True,
     type=str2bool,
     help="use bfs for graph permutations"
 )
 parser.add_argument(
-    '-directed',
+    '--directed',
     dest="directed",
     default=True,
     type=str2bool,
@@ -214,32 +215,32 @@ parser.add_argument(
 # Model arguments
 #===============================
 parser.add_argument(
-    '-model',
+    '--model',
     dest="model",
     default="GraphVAE",
     help="Model name. Accepted aliases: GraphVAE/kipf for the baseline, GraphVAE-MM/KernelAugmentedWithTotalNumberOfTriangles for the kernel-augmented variant."
 )
 parser.add_argument(
-    '-encoder',
+    '--encoder',
     dest="encoder_type",
     default="AvePool",
     help="the encoder: only option in this rep is 'AvePool'"
 )  # only option in this rep is "AvePool"
 parser.add_argument(
-    '-decoder',
+    '--decoder',
     dest="decoder",
     default="FC",
     help="the decoder type, FC is only option in this rep"
 )
 parser.add_argument(
-    '-graphEmDim',
+    '--graph_em_dim',
     dest="graphEmDim",
     default=1024,
     type=int,
     help="the dimention of graph Embeding LAyer; z"
 )
 parser.add_argument(
-    '-beta',
+    '--beta',
     dest="beta",
     default=None,
     help="beta coefiicieny",
@@ -251,6 +252,7 @@ parser.add_argument(
 #===============================
 parser.add_argument(
     '-e',
+    '--epoch_number',
     dest="epoch_number",
     default=20000,
     type=int,
@@ -258,27 +260,28 @@ parser.add_argument(
 )
 parser.add_argument(
     '-v',
+    '--vis_step',
     dest="Vis_step",
     default=1000,
     type=int,
     help="at every Vis_step 'minibatch' the plots will be updated"
 )
 parser.add_argument(
-    '-redraw',
+    '--redraw',
     dest="redraw",
     default=False,
     type=str2bool,
     help="either update the log plot each step"
 )
 parser.add_argument(
-    '-lr',
+    '--lr',
     dest="lr",
     default=0.0003,
     type=float,
     help="model learning rate"
 )
 parser.add_argument(
-    '-batchSize',
+    '-b',
     '--train_batch_size',
     dest="train_batch_size",
     default=200,
@@ -286,7 +289,7 @@ parser.add_argument(
     help="training mini-batch size"
 )
 parser.add_argument(
-    '-task',
+    '--task',
     dest="task",
     default="graphGeneration",
     help="only option in this rep is graphGeneration"
@@ -375,7 +378,7 @@ parser.add_argument(
 # Runtime, output, and evaluation arguments
 #===============================
 parser.add_argument(
-    '-graph_save_path',
+    '--graph_save_path',
     dest="graph_save_path",
     default=None,
     help="the direc to save generated synthatic graphs"
@@ -393,34 +396,34 @@ parser.add_argument(
     help='Directory for motif cache pickle files. Defaults to MOTIF_CACHE_DIR or db/.'
 )
 parser.add_argument(
-    '-PATH',
+    '-p',
+    '--model_path',
     dest="PATH",
     default="model",
     help="a string which determine the path in wich model will be saved"
 )
 parser.add_argument(
-    '-UseGPU',
+    '--use_gpu',
     dest="UseGPU",
     default=True,
     type=str2bool,
     help="either use GPU or not if availabel"
 )
 parser.add_argument(
-    '-device',
     '--device',
     dest="device",
     default="cuda",
     help="Which device should be used, e.g. cuda, cuda:0, cpu"
 )
 parser.add_argument(
-    '-plot_testGraphs',
+    '--plot_test_graphs',
     dest="plot_testGraphs",
     default=True,
     type=str2bool,
     help="shall the test set be printed"
 )
 parser.add_argument(
-    '-ideal_Evalaution',
+    '--ideal_evaluation',
     dest="ideal_Evalaution",
     default=False,
     type=str2bool,
