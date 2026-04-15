@@ -1,0 +1,59 @@
+# Paper-style GraphVAE baseline for LOBSTER:
+# GraphVAE without MM loss, motif loss, or node/edge feature losses.
+
+data:
+  dataset: LOBSTER
+  use_feature: true
+  bfsOrdering: true
+  directed: true
+  database_name: lobster_experiment
+  graph_type: homogeneous
+  graph_index_start: null
+  graph_index_end: null
+  data_dir: null
+
+model:
+  model: GraphVAE
+  encoder_type: AvePool
+  decoder: FC
+  graphEmDim: 1024
+  beta: null
+
+experiment:
+  epoch_number: 20000
+  Vis_step: 1000
+  redraw: false
+  lr: 0.0003
+  train_batch_size: 200
+  task: graphGeneration
+
+motif:
+  motif_loss: false
+  motif_loss_mode: abs_log_ratio
+  motif_temperature_start: 1.0
+  motif_temperature_end: 0.5
+  motif_temperature_anneal_start_frac: 0.5
+  rule_prune: false
+  motif_batch_size: 50000
+
+loss:
+  alpha_kernel_cost: 1.0
+  alpha_node_feat: 0.0
+  alpha_edge_feat: 0.0
+  alpha_motif_loss: 0.0
+  alpha_adj_recon: 0.0
+
+runtime:
+  graph_save_path: null
+  dataset_cache_dir: null
+  motif_cache_dir: null
+  PATH: model
+  UseGPU: true
+  device: cuda:0
+  plot_testGraphs: true
+  ideal_Evalaution: false
+  tiny_overfit: false
+  tiny_overfit_size: 32
+  interactive: false
+  sanity_check: false
+  sanity_check_only: false

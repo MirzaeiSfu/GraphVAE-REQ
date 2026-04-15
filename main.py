@@ -295,7 +295,7 @@ parser.add_argument(
 #===============================
 # Motif arguments
 #===============================
-parser.add_argument('--motif_loss', type=str2bool, default=True)
+parser.add_argument('--motif_loss', type=str2bool, default=False)
 # The default motif loss is now symmetric: zero-observed motifs are included
 # through Laplace smoothing so extra motifs in the reconstruction are penalized
 # too. This flag only chooses between absolute and squared log-ratio penalties.
@@ -426,7 +426,7 @@ parser.add_argument(
     type=str2bool,
     help="if you want to comapre the 50%50 subset of dataset comparision?!"
 )
-parser.set_defaults(tiny_overfit=True)
+parser.set_defaults(tiny_overfit=False)
 parser.add_argument(
     '--tiny_overfit',
     dest='tiny_overfit',
@@ -1401,18 +1401,41 @@ if (subgraphSize == None):
 #====================================================================================
 # %% Node and edge feature decoders
 # region Node and edge feature decoders
-# Added for feature decoding, I implemented it as a simple MLP that takes the graph 
-# embedding as input and outputs the node and edge features, and then I added a loss 
-# term to the total loss 
+# Added for feature decoding, I implemented it as a simple MLP that takes the graph
+# embedding as input and outputs the node and edge features, and then I added a loss
+# term to the total loss.
+#
+# Keep these heads optional so the plain GraphVAE baseline can still be trained with
+# adjacency reconstruction only, which matches the paper's non-MM setting.
+has_node_feature_targets = (
+    bool(list_graphs.node_onehot_s) and list_graphs.node_onehot_s[0] is not None
+)
+has_edge_feature_targets = (
+    bool(list_graphs.edge_onehot_s) and list_graphs.edge_onehot_s[0] is not None
+)
 
-if not list_graphs.node_onehot_s or list_graphs.edge_onehot_s[0] is None:
-    raise RuntimeError("Node or edge one-hot features are missing.")
+use_node_feature_decoder = alpha_node_feat > 0 and has_node_feature_targets
+use_edge_feature_decoder = alpha_edge_feat > 0 and has_edge_feature_targets
 
-node_onehot_dim = list_graphs.node_onehot_s[0].shape[-1]  
-edge_onehot_dim = list_graphs.edge_onehot_s[0].shape[0] 
+if alpha_node_feat > 0 and not has_node_feature_targets:
+    print("[FeatureLoss] Node feature loss requested but no node one-hot targets are available. Disabling node feature decoder/loss.")
+    logging.info("[FeatureLoss] Node feature loss requested but no node one-hot targets are available. Disabling node feature decoder/loss.")
+if alpha_edge_feat > 0 and not has_edge_feature_targets:
+    print("[FeatureLoss] Edge feature loss requested but no edge one-hot targets are available. Disabling edge feature decoder/loss.")
+    logging.info("[FeatureLoss] Edge feature loss requested but no edge one-hot targets are available. Disabling edge feature decoder/loss.")
 
-node_feat_decoder = NodeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, node_onehot_dim)
-edge_feat_decoder = EdgeFeatureDecoder(graphEmDim, list_graphs.max_num_nodes, edge_onehot_dim)
+node_feat_decoder = None
+edge_feat_decoder = None
+if use_node_feature_decoder:
+    node_onehot_dim = list_graphs.node_onehot_s[0].shape[-1]
+    node_feat_decoder = NodeFeatureDecoder(
+        graphEmDim, list_graphs.max_num_nodes, node_onehot_dim
+    )
+if use_edge_feature_decoder:
+    edge_onehot_dim = list_graphs.edge_onehot_s[0].shape[0]
+    edge_feat_decoder = EdgeFeatureDecoder(
+        graphEmDim, list_graphs.max_num_nodes, edge_onehot_dim
+    )
 #endregion
 #====================================================================================
 
@@ -1532,25 +1555,30 @@ for epoch in range(epoch_number):
 
         # Added loss for feature decoding ============================================        
         #=============================================================================
-        target_node_oh = torch.stack(
-            [torch.tensor(list_graphs.node_onehot_s[i]) for i in range(from_, to_)]
-        ).to(device)   
-        target_edge_oh = torch.stack(
-            [torch.tensor(list_graphs.edge_onehot_s[i]) for i in range(from_, to_)]
-        ).to(device)   
+        node_feat_loss = reconstructed_adj_logit.new_tensor(0.0)
+        edge_feat_loss = reconstructed_adj_logit.new_tensor(0.0)
 
-        node_feat_loss = compute_true_node_feat_loss(
-            node_feat_logits=node_feat_logits,
-            target_node_onehot=target_node_oh,
-            true_node_num=true_node_num
-        )
-        # Edge-feature supervision now treats channels as one-hot classes and
-        # ignores padded/non-edge positions; only real existing edges contribute.
-        edge_feat_loss = compute_true_edge_feat_loss(
-            edge_feat_logits=edge_feat_logits,
-            target_edge_onehot=target_edge_oh,
-            true_node_num=true_node_num
-        )
+        if node_feat_logits is not None:
+            target_node_oh = torch.stack(
+                [torch.tensor(list_graphs.node_onehot_s[i]) for i in range(from_, to_)]
+            ).to(device)
+            node_feat_loss = compute_true_node_feat_loss(
+                node_feat_logits=node_feat_logits,
+                target_node_onehot=target_node_oh,
+                true_node_num=true_node_num
+            )
+
+        if edge_feat_logits is not None:
+            target_edge_oh = torch.stack(
+                [torch.tensor(list_graphs.edge_onehot_s[i]) for i in range(from_, to_)]
+            ).to(device)
+            # Edge-feature supervision now treats channels as one-hot classes and
+            # ignores padded/non-edge positions; only real existing edges contribute.
+            edge_feat_loss = compute_true_edge_feat_loss(
+                edge_feat_logits=edge_feat_logits,
+                target_edge_onehot=target_edge_oh,
+                true_node_num=true_node_num
+            )
         # These hard metrics are evaluation-only diagnostics. They answer a
         # stricter question than the soft training loss: after discretizing the
         # current reconstruction, do the motif counts still match exactly?
