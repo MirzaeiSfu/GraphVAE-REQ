@@ -5,12 +5,14 @@ data:
   dataset: QM9
   use_feature: true
   bfsOrdering: true
+  bfs_strategy: all_components
   directed: false
   database_name: qm9_experiment
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
   data_dir: null
+  split_mode: legacy_80_20
 
 #===============================
 # Model arguments

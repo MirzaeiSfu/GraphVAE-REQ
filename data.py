@@ -1165,6 +1165,60 @@ def data_split(graph_lis, list_x=None, list_label=None,
             list_noh_train,   list_noh_test,
             list_eoh_train,   list_eoh_test)
 
+
+def data_split_three_way(
+    graph_lis,
+    list_x=None,
+    list_label=None,
+    list_node_onehot=None,
+    list_edge_onehot=None,
+    train_fraction=0.7,
+    val_fraction=0.1,
+    seed=123,
+):
+    """Deterministic train/validation/test split for paper reproduction runs."""
+
+    random.seed(seed)
+    index = list(range(len(graph_lis)))
+    random.shuffle(index)
+
+    graph_lis = [graph_lis[i] for i in index]
+
+    if list_x is not None:
+        list_x = [list_x[i] for i in index]
+    if list_label is not None:
+        list_label = [list_label[i] for i in index]
+    if list_node_onehot is not None:
+        list_node_onehot = [list_node_onehot[i] for i in index]
+    if list_edge_onehot is not None:
+        list_edge_onehot = [list_edge_onehot[i] for i in index]
+
+    n = len(graph_lis)
+    n_train = int(train_fraction * n)
+    n_val = int(val_fraction * n)
+    train_slice = slice(0, n_train)
+    val_slice = slice(n_train, n_train + n_val)
+    test_slice = slice(n_train + n_val, n)
+
+    def split(lst):
+        if lst is None:
+            return None, None, None
+        return lst[train_slice], lst[val_slice], lst[test_slice]
+
+    graph_train, graph_val, graph_test = split(graph_lis)
+    list_x_train, list_x_val, list_x_test = split(list_x)
+    list_label_train, list_label_val, list_label_test = split(list_label)
+    list_noh_train, list_noh_val, list_noh_test = split(list_node_onehot)
+    list_eoh_train, list_eoh_val, list_eoh_test = split(list_edge_onehot)
+
+    return (
+        graph_train, graph_val, graph_test,
+        list_x_train, list_x_val, list_x_test,
+        list_label_train, list_label_val, list_label_test,
+        list_noh_train, list_noh_val, list_noh_test,
+        list_eoh_train, list_eoh_val, list_eoh_test,
+    )
+
 # list_adj, list_x = list_graph_loader("GRID")
 # list_graph = Datasets(list_adj,self_for_none, None)
 

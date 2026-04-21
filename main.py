@@ -175,6 +175,13 @@ parser.add_argument(
     help="use bfs for graph permutations"
 )
 parser.add_argument(
+    '--bfs_strategy',
+    type=str,
+    default='all_components',
+    choices=['all_components', 'legacy_first_component'],
+    help='BFS ordering strategy. all_components preserves current behavior; legacy_first_component matches the original paper code path.'
+)
+parser.add_argument(
     '--directed',
     dest="directed",
     default=True,
@@ -209,6 +216,13 @@ parser.add_argument(
     type=str,
     default=None,
     help='Optional dataset root. If set, main.py exports DATA_DIR for data.py; otherwise data.py uses DATA_DIR or local data/.'
+)
+parser.add_argument(
+    '--split_mode',
+    type=str,
+    default='legacy_80_20',
+    choices=['legacy_80_20', 'paper_70_10_20'],
+    help='Dataset split protocol. legacy_80_20 preserves current behavior; paper_70_10_20 is opt-in for Table 2 reproduction.'
 )
 
 #===============================
@@ -427,7 +441,7 @@ parser.add_argument(
     dest="ideal_Evalaution",
     default=False,
     type=str2bool,
-    help="if you want to comapre the 50%50 subset of dataset comparision?!"
+    help="if you want to compare the 50%%50 subset of dataset comparison"
 )
 parser.set_defaults(tiny_overfit=False)
 parser.add_argument(
@@ -477,12 +491,14 @@ args.model = normalize_model_name(args.model)
 dataset = args.dataset  # possible choices are: cora, citeseer, karate, pubmed, DBIS
 use_feature = args.use_feature
 bfs_ordering = args.bfsOrdering
+bfs_strategy = args.bfs_strategy
 directed = args.directed
 database_name = args.database_name
 graph_type = args.graph_type
 graph_index_start = args.graph_index_start
 graph_index_end = args.graph_index_end
 data_dir = args.data_dir
+split_mode = args.split_mode
 
 #===============================
 # Model settings
@@ -1100,7 +1116,10 @@ dataset_cache_root = Path(
     os.environ.get("DATASET_CACHE_DIR", "dataset_cached")
 ).expanduser()
 dataset_cache_root.mkdir(parents=True, exist_ok=True)
-cache_path = dataset_cache_root / f"{dataset}.pkl"
+cache_name = f"{dataset}.pkl"
+if split_mode != "legacy_80_20" or bfs_strategy != "all_components":
+    cache_name = f"{dataset}_{split_mode}_{bfs_strategy}.pkl"
+cache_path = dataset_cache_root / cache_name
 
 self_for_none = True
 if (decoder_type) in ("FCdecoder"): 
@@ -1124,6 +1143,8 @@ if use_cache and cache_path.exists():
     list_edge_onehot  = _cache["list_edge_onehot"]
     node_onehot_info  = _cache["node_onehot_info"]
     edge_onehot_info  = _cache["edge_onehot_info"]
+    split_mode        = _cache.get("split_mode", split_mode)
+    args.split_mode   = split_mode
 
     test_list_adj     = _cache["test_list_adj"]
     val_adj           = _cache["val_adj"]
@@ -1152,9 +1173,9 @@ else:
     # list_x     = list_x[:400]
     # list_label = list_label[:400]
 
-    bfs_reorder_fn = BFS_all_components if USE_ALL_COMPONENTS_BFS else BFS
+    bfs_reorder_fn = BFS if bfs_strategy == "legacy_first_component" else BFS_all_components
     print("[BFS] Using {} ordering.".format(
-        "all-components BFS" if USE_ALL_COMPONENTS_BFS else "legacy single-component BFS"
+        "legacy single-component BFS" if bfs_strategy == "legacy_first_component" else "all-components BFS"
     ))
 
     list_adj, list_node_feature, list_edge_feature = bfs_reorder_fn(
@@ -1181,20 +1202,41 @@ else:
         max_size = None
         # list_label = None
 
-        (list_adj,         test_list_adj,
-         list_x_train,     list_x_test,
-         list_label_train, list_label_test,
-         list_noh_train,   list_noh_test,
-         list_eoh_train,   list_eoh_test) = data_split(
-            graph_lis        = list_adj,
-            list_x           = list_x,
-            list_label       = list_label,
-            list_node_onehot = list_node_onehot,
-            list_edge_onehot = list_edge_onehot,
-        )
+        if split_mode == "paper_70_10_20":
+            (list_adj,         val_adj,         test_list_adj,
+             list_x_train,     list_x_val,      list_x_test,
+             list_label_train, list_label_val,  list_label_test,
+             list_noh_train,   list_noh_val,    list_noh_test,
+             list_eoh_train,   list_eoh_val,    list_eoh_test) = data_split_three_way(
+                graph_lis        = list_adj,
+                list_x           = list_x,
+                list_label       = list_label,
+                list_node_onehot = list_node_onehot,
+                list_edge_onehot = list_edge_onehot,
+                train_fraction   = 0.7,
+                val_fraction     = 0.1,
+                seed             = 123,
+            )
+        else:
+            (list_adj,         test_list_adj,
+             list_x_train,     list_x_test,
+             list_label_train, list_label_test,
+             list_noh_train,   list_noh_test,
+             list_eoh_train,   list_eoh_test) = data_split(
+                graph_lis        = list_adj,
+                list_x           = list_x,
+                list_label       = list_label,
+                list_node_onehot = list_node_onehot,
+                list_edge_onehot = list_edge_onehot,
+            )
+            list_x_val = None
+            list_label_val = None
+            list_noh_val = None
+            list_eoh_val = None
+            val_adj = list_adj[:int(len(test_list_adj))]
 
-        val_adj = list_adj[:int(len(test_list_adj))]
-        list_graphs = Datasets(list_adj, self_for_none, list_x_train, list_label,
+        labels_for_train = list_label_train if split_mode == "paper_70_10_20" else list_label
+        list_graphs = Datasets(list_adj, self_for_none, list_x_train, labels_for_train,
                                Max_num=max_size, set_diag_of_isol_Zer=False,
                                list_node_onehot=list_noh_train,
                                list_edge_onehot=list_eoh_train)
@@ -1226,6 +1268,7 @@ else:
         "list_graphs":       list_graphs,
         "list_test_graphs":  list_test_graphs,
         "self_for_none":     self_for_none,
+        "split_mode":        split_mode,
     }
 
     if not is_single_graph:
@@ -1234,10 +1277,14 @@ else:
             "list_x_test":      list_x_test,
             "list_label_train": list_label_train,
             "list_label_test":  list_label_test,
+            "list_x_val":       list_x_val,
+            "list_label_val":   list_label_val,
             "list_noh_train":   list_noh_train,
             "list_noh_test":    list_noh_test,
+            "list_noh_val":     list_noh_val,
             "list_eoh_train":   list_eoh_train,
             "list_eoh_test":    list_eoh_test,
+            "list_eoh_val":     list_eoh_val,
         })
 
     print(f"[Cache] Saving to {cache_path} ...")
@@ -1353,7 +1400,10 @@ if use_motif_loss:
 
 print("#------------------------------------------------------")
 if ideal_Evalaution:
-    fifty_fifty_dataset = list_adj + test_list_adj
+    if split_mode == "paper_70_10_20":
+        fifty_fifty_dataset = list_adj + val_adj + test_list_adj
+    else:
+        fifty_fifty_dataset = list_adj + test_list_adj
 
     fifty_fifty_dataset = [nx.from_numpy_array(graph.toarray()) for graph in fifty_fifty_dataset]
     random.shuffle(fifty_fifty_dataset)
