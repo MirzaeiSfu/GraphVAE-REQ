@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
+import fcntl
 import json
 import os
 import random
@@ -59,17 +60,22 @@ PAPER_TABLE2_GRID = {
 
 
 @contextmanager
-def preserve_orca_tmp():
+def locked_orca_tmp():
+    lock_path = Path(os.environ.get("GRAPHVAE_ORCA_LOCK", "/tmp/graphvae_req_orca_tmp.lock"))
     tmp_path = REPO_ROOT / "eval" / "orca" / "tmp.txt"
-    existed = tmp_path.exists()
-    original = tmp_path.read_bytes() if existed else None
-    try:
-        yield
-    finally:
-        if existed:
-            tmp_path.write_bytes(original)
-        elif tmp_path.exists():
-            tmp_path.unlink()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        existed = tmp_path.exists()
+        original = tmp_path.read_bytes() if existed else None
+        try:
+            yield
+        finally:
+            if existed:
+                tmp_path.write_bytes(original)
+            elif tmp_path.exists():
+                tmp_path.unlink()
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def adjacency_to_graph(adj) -> nx.Graph:
@@ -101,7 +107,11 @@ def to_graphs(items, keep_largest_component: bool = False) -> list[nx.Graph]:
     return graphs
 
 
-def load_grid_adjacencies(max_graphs: int | None = None):
+def load_grid_adjacencies(max_graphs: int | None = None, seed: int = 123):
+    # list_graph_loader shuffles internally through the global random module.
+    # Seed it here so --seed controls the full 50/50 reproduction pipeline.
+    random.seed(seed)
+    np.random.seed(seed)
     list_adj = list_graph_loader("GRID", return_labels=True)[0]
     if max_graphs is not None:
         list_adj = list_adj[:max_graphs]
@@ -261,9 +271,9 @@ def main():
         "mode": args.mode,
     }
 
-    grid_adjs = load_grid_adjacencies(max_graphs=args.max_graphs)
+    grid_adjs = load_grid_adjacencies(max_graphs=args.max_graphs, seed=args.seed)
 
-    with preserve_orca_tmp():
+    with locked_orca_tmp():
         if args.mode in {"ideal-50-50", "all"}:
             left, right = split_50_50(grid_adjs, seed=args.seed)
             left_graphs = to_graphs(left)

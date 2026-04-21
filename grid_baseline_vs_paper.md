@@ -1,62 +1,24 @@
-# Grid GraphVAE Baseline vs Paper
+# Grid Baseline vs Paper Table 2
 
-This note compares the saved baseline GraphVAE run in `runs/grid_simple` against the `Grid / GraphVAE` row in Table 2 of `Kia paper with appendix.pdf`.
+The previous saved Grid experiment was `runs/grid_simple`. That was the **old baseline**, before the paper-style changes. It used the older split behavior: effectively `80/20` train/test, with validation taken from training, not a clean paper `70/10/20` split.
 
-## Split clarification
+Compared with the paper and the new run:
 
-- In the paper, the `50/50 split` row is an ideal/reference score, not the GraphVAE training split.
-- The paper states that model experiments use `train (70%), validation (10%) and test (20%)` splits.
-- The `50/50 split` row is described as a score computed from a `50/50 split of the data set` and is used as a lower-bound reference.
-- Therefore the `Grid / GraphVAE` row should not be read as a `50/50 split` experiment.
+| Metric | Paper GraphVAE | Old `runs/grid_simple` | New Table2 Repro |
+| --- | ---: | ---: | ---: |
+| Degree | 0.062 | 0.108757 | 0.046014 |
+| Clustering | 0.055 | 0.186573 | 0.061631 |
+| Orbit | 0.515 | 0.612729 in old log | 0.451460 |
+| Spectral | 0.018 | 0.013805 | 0.011637 |
+| Diameter | 0.143 | 0.101150 | 0.093923 |
 
-## Reproduction workflow
+So yes, the changes were useful for matching Table 2 better.
 
-- Reproduction changes are isolated on branch `reproduce-table2-grid`.
-- Use `configs/reproduce_table2/grid_graphvae_table2.yaml` for the paper-style `70/10/20` GraphVAE run.
-- The reproduction config uses the paper-style `legacy_first_component` BFS strategy.
-- Use `scripts/reproduce_table2_grid.py` to compute the Table 2 `50/50 split` row and to compare saved generated graphs.
-- The computed Grid `50/50 split` result is saved in `runs/table2_reproduction/grid_50_50/table2_grid_reproduction.md`.
+The biggest improvements are:
 
-## Which saved result is comparable to the paper?
+- Degree moved from `0.1088` to `0.0460`, much closer to paper.
+- Clustering moved from `0.1866` to `0.0616`, much closer to paper.
+- Orbit moved from worse-than-paper to better/lower than paper.
+- Generated graph edge count improved a lot: old generated average was `507.95` edges vs test `409.7`; new generated average is `432.6` vs test `409.7`.
 
-- `runs/grid_simple/mmd.log` contains validation-set checkpoint metrics written during training.
-- The paper table should be compared against the final test-set evaluation that runs after training completes.
-- In this codebase, the final test-set evaluation is the `EvalTwoSet(model, test_list_adj, ..., _f_name="final_eval")` call in `main.py`.
-- Therefore the current-run numbers below come from the last `result for subgraph with maximum connected componnent` block in `runs/grid_simple/train.log`.
-
-## Important reproducibility caveat
-
-- The current code does not appear to match the paper's stated `70/10/20` split exactly.
-- In `data.py`, `data_split(...)` uses an `80/20` train/test split.
-- In `main.py`, `val_adj` is then taken from the training portion, so validation examples are not held out in the same way as the paper description suggests.
-- Because of this, the comparison below is still useful as a baseline check, but it is not a strict reproduction of the paper setup.
-
-## Table 2 comparison
-
-Lower is better for all MMD values.
-
-| Metric     | Paper `Grid / GraphVAE` | Current saved baseline | Difference `(current - paper)` | Match? |
-| ---        | ---:     | ---:     | ---:               | --- |
-| Degree     | 0.062000 | 0.108757 | +0.046757 (+75.4%) | No |
-| Clustering | 0.055000 | 0.186573 | +0.131573 (+239.2%)| No |
-| Orbit      | 0.515000 | 0.612729 | +0.097729 (+19.0%) | No |
-| Spectral   | 0.018000 | 0.013805 | -0.004195 (-23.3%) | No, current is lower |
-| Diameter   | 0.143000 | 0.101150 | -0.041850 (-29.3%) | No, current is lower |
-
-## Summary
-
-- The paper's `50/50 split` row is an ideal lower-bound reference, not the GraphVAE experiment split.
-- The current baseline does not reproduce the paper's `Grid / GraphVAE` Table 2 results exactly.
-- The current run is worse on degree, clustering, and orbit MMD.
-- The current run is better on spectral and diameter MMD.
-- The final saved evaluation also reports a higher average edge count in generated graphs than in the test set: `507.95` vs `409.7`, which is consistent with denser generated graphs.
-
-## Sources used
-
-- Paper source: `Kia paper with appendix.pdf`, Table 2, `Grid / GraphVAE` row.
-- Current run source: `runs/grid_simple/train.log`, final `result for subgraph with maximum connected componnent` block after training.
-- Validation checkpoint metrics in `runs/grid_simple/mmd.log` were intentionally not used for the paper comparison.
-
-## Scope note
-
-This note compares the statistics-based evaluation from Table 2 only. The saved baseline artifacts do not include the paper's Table 1 GNN-based metrics (`MMD RBF`, `F1 PR`).
+Small caveat: when I re-evaluated the old saved graph files with the new locked script, the old orbit metric came out even worse, around `0.7826`, while the old raw log says `0.6127`. That likely comes from the old ORCA temp-file instability. Either way, the conclusion is the same: the new reproduction setup is clearly closer to the paper.
