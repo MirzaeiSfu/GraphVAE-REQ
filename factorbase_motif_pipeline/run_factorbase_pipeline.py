@@ -33,7 +33,8 @@ DEFAULT_DATASET = "LOBSTER" #"TRIANGULAR_GRID"#"LOBSTER" #""GRID"" # "PROTEINS" 
 DEFAULT_DB_NAME = "lobster_experiment" # "triangular_grid_experiment" #"proteins_experiment" "qm9_experiment"
 DEFAULT_CONFIG_TEMPLATE = SCRIPT_DIR / "config.tmp"
 DEFAULT_JAR = "snapshot"        # "snapshot" or "patched"
-DEFAULT_EDGE_MODE = "directed"  # "directed", "undirected", or None to prompt
+DEFAULT_EDGE_MODE = "directed"  # QM9/PROTEINS: "directed", "undirected", or None to prompt
+DEFAULT_SYNTHETIC_EDGE_MODE = "undirected"  # GRID/LOBSTER/TRIANGULAR_GRID
 DEFAULT_GRID_FEATURE_MODE = "with-features"
 DEFAULT_LOBSTER_FEATURE_MODE = "with-features"
 DEFAULT_TRIANGULAR_GRID_FEATURE_MODE = "with-features"
@@ -45,6 +46,21 @@ DATASET_SCRIPTS = {
     "LOBSTER": SCRIPT_DIR / "LOBSTER_db.py",
     "TRIANGULAR_GRID": SCRIPT_DIR / "TRIANGULAR_GRID_db.py",
 }
+SYNTHETIC_DATASETS = {"GRID", "LOBSTER", "TRIANGULAR_GRID"}
+
+# Edge-mode semantics:
+# QM9/PROTEINS --directed:
+#   source gives A->B and B->A
+#   DB stores both
+# Synthetic --directed:
+#   source gives A-B once
+#   DB stores one row
+SYNTHETIC_DIRECTED_MISMATCH_ERROR = (
+    "Synthetic datasets cannot be imported with --directed: using --directed, "
+    "DB will store only one row per undirected edge, while main.py uses symmetric "
+    "adjacency. That would be a mismatch. Use --undirected."
+)
+
 JAR_FILES = {
     "snapshot": "factorbase-1.0-SNAPSHOT.jar",
     "patched": "factorbase-1.0-patched.jar",
@@ -112,25 +128,41 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_TRIANGULAR_GRID_FEATURE_MODE,
         help="For TRIANGULAR_GRID dataset only, choose whether to create a schema with or without features",
     )
+    parser.add_argument(
+        "--debug-db-edges",
+        action="store_true",
+        help="For GRID/LOBSTER/TRIANGULAR_GRID only: print source-to-database edge mappings for a limited set of graphs",
+    )
+    parser.add_argument(
+        "--debug-all-db-edges",
+        action="store_true",
+        help="For GRID/LOBSTER/TRIANGULAR_GRID only: print every source-to-database edge mapping",
+    )
+    parser.add_argument(
+        "--debug-db-graph-limit",
+        type=int,
+        default=2,
+        help="When --debug-db-edges is set, print edge mappings for this many synthetic graphs",
+    )
+    parser.add_argument(
+        "--debug-db-edge-limit",
+        type=int,
+        default=20,
+        help="When --debug-db-edges is set, print this many source edges per synthetic graph",
+    )
 
     edge_group = parser.add_mutually_exclusive_group()
     edge_group.add_argument(
         "--directed",
         action="store_true",
-        help="Store both directions for each edge during dataset import",
+        help="Store exactly the source graph edge rows",
     )
     edge_group.add_argument(
         "--undirected",
         action="store_true",
-        help="Store one canonical edge per undirected pair during dataset import",
+        help="Store both directions for each source edge pair",
     )
     args = parser.parse_args()
-
-    if not args.directed and not args.undirected:
-        if DEFAULT_EDGE_MODE == "directed":
-            args.directed = True
-        elif DEFAULT_EDGE_MODE == "undirected":
-            args.undirected = True
 
     return args
 
@@ -174,14 +206,19 @@ def load_template_config(template_path: Path) -> str:
     return template_path.read_text(encoding="utf-8")
 
 
-def build_import_command(dataset_name: str, db_name: str, directed: bool) -> list[str]:
+def build_import_command(
+    dataset_name: str,
+    db_name: str,
+    edge_mode: str | None,
+) -> list[str]:
     command = [
         sys.executable,
         str(DATASET_SCRIPTS[dataset_name]),
         "--db-name",
         db_name,
-        "--directed" if directed else "--undirected",
     ]
+    if edge_mode is not None:
+        command.append(f"--{edge_mode}")
     return command
 
 
@@ -198,6 +235,21 @@ def append_dataset_specific_args(
         command.extend(["--feature-mode", lobster_feature_mode])
     elif dataset_name == "TRIANGULAR_GRID":
         command.extend(["--feature-mode", triangular_grid_feature_mode])
+    return command
+
+
+def append_synthetic_debug_args(command: list[str], dataset_name: str, args: argparse.Namespace) -> list[str]:
+    if dataset_name not in SYNTHETIC_DATASETS:
+        return command
+
+    if args.debug_db_edges:
+        command.append("--debug-edges")
+    if args.debug_all_db_edges:
+        command.append("--debug-all-edges")
+    if args.debug_db_graph_limit is not None:
+        command.extend(["--debug-graph-limit", str(args.debug_db_graph_limit)])
+    if args.debug_db_edge_limit is not None:
+        command.extend(["--debug-edge-limit", str(args.debug_db_edge_limit)])
     return command
 
 
@@ -434,6 +486,8 @@ def main() -> None:
         raise ValueError(
             "--triangular-grid-feature-mode can only be used with the TRIANGULAR_GRID dataset."
         )
+    if dataset_name in SYNTHETIC_DATASETS and args.directed:
+        raise ValueError(SYNTHETIC_DIRECTED_MISMATCH_ERROR)
 
     ensure_generated_output_dirs()
     template_text = load_template_config(args.config_template)
@@ -441,9 +495,22 @@ def main() -> None:
     run_log_path = build_run_log_path(args.db_name)
     if args.use_existing_db:
         edge_mode_label = "reused existing database"
+        edge_mode = None
     else:
-        directed = resolve_edge_mode(args.directed, args.undirected)
-        edge_mode_label = "directed" if directed else "undirected"
+        directed_flag = args.directed
+        undirected_flag = args.undirected
+        if dataset_name in SYNTHETIC_DATASETS and not directed_flag and not undirected_flag:
+            if DEFAULT_SYNTHETIC_EDGE_MODE == "undirected":
+                undirected_flag = True
+            else:
+                raise ValueError(SYNTHETIC_DIRECTED_MISMATCH_ERROR)
+        elif not directed_flag and not undirected_flag:
+            if DEFAULT_EDGE_MODE == "directed":
+                directed_flag = True
+            elif DEFAULT_EDGE_MODE == "undirected":
+                undirected_flag = True
+        edge_mode = resolve_edge_mode(directed_flag, undirected_flag)
+        edge_mode_label = edge_mode
 
     initialize_run_log(
         run_log_path,
@@ -466,7 +533,11 @@ def main() -> None:
         dataset_script_path = DATASET_SCRIPTS[dataset_name]
         require_path_exists(dataset_script_path, f"{dataset_name} dataset import script")
         print_section("RUNNING DATASET IMPORT")
-        import_command = build_import_command(dataset_name, args.db_name, directed)
+        import_command = build_import_command(
+            dataset_name,
+            args.db_name,
+            edge_mode,
+        )
         import_command = append_dataset_specific_args(
             import_command,
             dataset_name,
@@ -474,6 +545,7 @@ def main() -> None:
             args.lobster_feature_mode,
             args.triangular_grid_feature_mode,
         )
+        import_command = append_synthetic_debug_args(import_command, dataset_name, args)
         run_subprocess_step("Dataset import", import_command, SCRIPT_DIR, log_path=run_log_path)
 
     print_section("WRITING FACTORBASE CONFIG")

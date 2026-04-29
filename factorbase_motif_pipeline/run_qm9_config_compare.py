@@ -120,20 +120,25 @@ def drop_factorbase_databases(db_name: str) -> None:
     )
 
 
-def prepare_base_qm9_database(base_db_name: str, edge_mode: str, config_path: Path) -> None:
+def prepare_base_qm9_database(
+    base_db_name: str,
+    edge_mode: str,
+    config_path: Path,
+) -> None:
     print_section("PREPARING BASE QM9 DATABASE")
     drop_factorbase_databases(base_db_name)
+    command = [
+        sys.executable,
+        str(PIPELINE_SCRIPT),
+        "QM9",
+        base_db_name,
+        f"--{edge_mode}",
+        "--prepare-only",
+        "--config-template",
+        str(config_path),
+    ]
     run_command(
-        [
-            sys.executable,
-            str(PIPELINE_SCRIPT),
-            "QM9",
-            base_db_name,
-            f"--{edge_mode}",
-            "--prepare-only",
-            "--config-template",
-            str(config_path),
-        ],
+        command,
         step_name="Prepare base QM9 database",
     )
 
@@ -260,7 +265,11 @@ def main() -> int:
         seen_db_names.add(target_db_name)
         target_specs.append((config_path, target_db_name))
 
-    prepare_base_qm9_database(base_db_name, args.edge_mode, config_paths[0])
+    prepare_base_qm9_database(
+        base_db_name,
+        args.edge_mode,
+        config_paths[0],
+    )
 
     results: list[tuple[Path, str, bool]] = []
     for config_path, target_db_name in target_specs:
@@ -301,4 +310,3 @@ if __name__ == "__main__":
     # FAILED  | config=config1.tmp | db=qm9_cfg_compare_config1 | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/log/qm9_cfg_compare_config1_run.log
     # SUCCESS | config=config2.tmp | db=qm9_cfg_compare_config2 | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/log/qm9_cfg_compare_config2_run.log
     # Base database kept: qm9_cfg_compare_base
-

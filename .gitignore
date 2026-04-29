@@ -22,3 +22,12 @@ __pycache__/
 .codex
 GraphVAE-REQ
 .vscode/settings.json
+
+
+Kia paper with appendix.pdf
+Kia paper.pdf
+configs/reproduce_table2/lobster_graphvae_table2.yaml
+full_mariadb_backup.sql
+grid_db_full_edge_debug.txt
+grid_table2_reproduction_summary.pptx
+gridresult.txt

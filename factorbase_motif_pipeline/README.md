@@ -47,17 +47,18 @@ java -Dconfig=config/proteins_experiment_config.cfg -jar factorbase-1.0-SNAPSHOT
 
 Right now the wrapper script is set to:
 
-- `DEFAULT_DATASET = "QM9"`
-- `DEFAULT_DB_NAME = "qm9_experiment1"`
+- `DEFAULT_DATASET = "LOBSTER"`
+- `DEFAULT_DB_NAME = "lobster_experiment"`
 - `DEFAULT_CONFIG_TEMPLATE = config.tmp`
-- `DEFAULT_JAR = None`
-- `DEFAULT_EDGE_MODE = None`
+- `DEFAULT_JAR = "snapshot"`
+- `DEFAULT_EDGE_MODE = "directed"`
+- `DEFAULT_SYNTHETIC_EDGE_MODE = "undirected"`
 
 That means:
 
-- if you run the wrapper with no positional arguments, it will use `QM9` and `qm9_experiment1`
-- it will still ask for edge mode because `DEFAULT_EDGE_MODE` is `None`
-- it will still ask which JAR to run because `DEFAULT_JAR` is `None`
+- if you run the wrapper with no positional arguments, it will use `LOBSTER` and `lobster_experiment`
+- it will use undirected edge mode for LOBSTER so the DB matches `main.py`'s symmetric adjacency
+- it will run the snapshot JAR because `DEFAULT_JAR` is `"snapshot"`
 
 ## Recommended Way To Run
 
@@ -70,13 +71,14 @@ python run_factorbase_pipeline.py
 
 With the current defaults, that will use:
 
-- dataset: `QM9`
-- database name: `qm9_experiment1`
+- dataset: `LOBSTER`
+- database name: `lobster_experiment`
 
 If you want to override the defaults:
 
 ```bash
 python run_factorbase_pipeline.py PROTEINS proteins_experiment
+python run_factorbase_pipeline.py QM9 qm9_trial --directed --jar patched
 python run_factorbase_pipeline.py QM9 qm9_trial --undirected --jar patched
 ```
 
@@ -98,7 +100,7 @@ python run_qm9_config_compare.py --prefix qm9_std_compare
 
 `run_factorbase_pipeline.py` will:
 
-1. Run either `PROTEINS_db.py` or `QM9_db.py`.
+1. Run the selected dataset import script.
    If you pass `--use-existing-db`, it skips this import step and reuses the current
    `dbname` database instead.
 2. Create the MySQL database with the chosen database name.
@@ -111,7 +113,7 @@ python run_qm9_config_compare.py --prefix qm9_std_compare
 For example, if you run the pipeline with:
 
 ```bash
-python run_factorbase_pipeline.py TRIANGULAR_GRID triangular_grid_logmove_smoke --undirected --jar snapshot
+python run_factorbase_pipeline.py TRIANGULAR_GRID triangular_grid_logmove_smoke --jar snapshot
 ```
 
 you should expect all of these:
@@ -122,7 +124,14 @@ you should expect all of these:
 
 ## Dataset Script Notes
 
-- `PROTEINS_db.py` and `QM9_db.py` accept `--db-name`, `--directed`, and `--undirected`.
+- Dataset import scripts accept `--db-name`, `--directed`, and `--undirected`.
+- `--directed` preserves the source edge rows; it does not invent directed graph semantics.
+- `--undirected` inserts both directions for each source edge pair.
+- `--directed` is the default edge mode for `QM9` and `PROTEINS`.
+- `--undirected` is the default for synthetic NetworkX datasets: `GRID`, `LOBSTER`, and `TRIANGULAR_GRID`.
+- Synthetic datasets reject `--directed` because the DB would store one row per undirected edge while `main.py` uses symmetric adjacency.
+- Every dataset import script prints a source-edge bidirectionality analysis before import.
+- If every source edge already has its reverse, the scripts warn that `--directed` and `--undirected` should produce the same edge table.
 - The current simplified dataset scripts still use the hard-coded MySQL connection values inside those files.
 - `QM9_db.py` now uses a script-relative dataset path so it consistently reuses `factorbase_motif_pipeline/data/QM9` instead of depending on the shell working directory.
 - `QM9_db.py` now batches node and edge inserts with `executemany(...)` to reduce SQL round-trips during database population.

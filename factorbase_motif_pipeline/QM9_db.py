@@ -8,6 +8,8 @@ import argparse
 from collections import defaultdict
 from pathlib import Path
 
+DEFAULT_EDGE_MODE = "directed"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -19,20 +21,127 @@ def parse_args():
     edge_group.add_argument(
         "--directed",
         action="store_true",
-        help="Store both directions for each edge",
+        help="Store exactly the edge directions exposed by the source graph",
     )
     edge_group.add_argument(
         "--undirected",
         action="store_true",
-        help="Store one canonical edge per undirected pair",
+        help="Store both directions for each edge pair",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.directed and not args.undirected:
+        if DEFAULT_EDGE_MODE == "directed":
+            args.directed = True
+        elif DEFAULT_EDGE_MODE == "undirected":
+            args.undirected = True
+    return args
 
 
 args = parse_args()
 
+EDGE_MODE_LABELS = {
+    "directed": "DIRECTED (source graph edge directions)",
+    "undirected": "UNDIRECTED (A->B and B->A for each edge pair)",
+}
+
 from torch_geometric.datasets import QM9
 import torch
+
+
+def analyze_source_edge_direction(dataset):
+    stats = {
+        "graphs": len(dataset),
+        "graphs_with_edges": 0,
+        "source_edge_rows": 0,
+        "source_typed_edge_rows": 0,
+        "undirected_edge_pairs": 0,
+        "missing_reverse_rows": 0,
+        "missing_typed_reverse_rows": 0,
+        "graphs_with_missing_reverse": 0,
+    }
+
+    for mol in dataset:
+        if mol.edge_attr is None or mol.edge_attr.shape[0] == 0:
+            continue
+
+        edge_index = mol.edge_index
+        edge_attr = mol.edge_attr
+        edge_rows = set()
+        typed_edge_rows = set()
+
+        for edge_id in range(edge_index.shape[1]):
+            src = int(edge_index[0, edge_id].item())
+            dst = int(edge_index[1, edge_id].item())
+            if src == dst:
+                continue
+            bond_type = int(torch.argmax(edge_attr[edge_id]).item())
+            edge_rows.add((src, dst))
+            typed_edge_rows.add((src, dst, bond_type))
+
+        if not edge_rows:
+            continue
+
+        missing_reverse_rows = sum(
+            1 for src, dst in edge_rows if (dst, src) not in edge_rows
+        )
+        missing_typed_reverse_rows = sum(
+            1
+            for src, dst, bond_type in typed_edge_rows
+            if (dst, src, bond_type) not in typed_edge_rows
+        )
+
+        stats["graphs_with_edges"] += 1
+        stats["source_edge_rows"] += len(edge_rows)
+        stats["source_typed_edge_rows"] += len(typed_edge_rows)
+        stats["undirected_edge_pairs"] += len({tuple(sorted(edge)) for edge in edge_rows})
+        stats["missing_reverse_rows"] += missing_reverse_rows
+        stats["missing_typed_reverse_rows"] += missing_typed_reverse_rows
+        if missing_reverse_rows or missing_typed_reverse_rows:
+            stats["graphs_with_missing_reverse"] += 1
+
+    return stats
+
+
+def print_source_edge_direction_analysis(dataset_name, stats, edge_mode):
+    print("=" * 60)
+    print("SOURCE EDGE DIRECTION ANALYSIS")
+    print("=" * 60)
+    print(f"Dataset: {dataset_name}")
+    print(f"Graphs analyzed: {stats['graphs']:,}")
+    print(f"Graphs with edges: {stats['graphs_with_edges']:,}")
+    print(f"Source edge rows: {stats['source_edge_rows']:,}")
+    print(f"Unique undirected edge pairs: {stats['undirected_edge_pairs']:,}")
+    print(f"Rows missing reverse edge: {stats['missing_reverse_rows']:,}")
+    print(f"Typed rows missing reverse edge with same bond_type: {stats['missing_typed_reverse_rows']:,}")
+
+    has_edges = stats["source_edge_rows"] > 0
+    source_is_bidirectional = (
+        has_edges
+        and stats["missing_reverse_rows"] == 0
+        and stats["missing_typed_reverse_rows"] == 0
+    )
+
+    if source_is_bidirectional:
+        print("Source appears bidirectional/undirected: every edge row has a reverse row.")
+        if edge_mode == "directed":
+            print(
+                "WARNING: --directed preserves source rows, but this source is already "
+                "bidirectional; the edge table should match --undirected."
+            )
+        else:
+            print(
+                "NOTE: --undirected will ensure reverse rows, but the source already has "
+                "them; no extra edge rows are expected."
+            )
+    elif has_edges:
+        print("Source contains one-way edge rows.")
+        if edge_mode == "directed":
+            print("NOTE: --directed will preserve those one-way source rows.")
+        else:
+            print("NOTE: --undirected will add reverse rows for one-way source edges.")
+    else:
+        print("Source has no edge rows to analyze.")
+    print()
 
 # ============================================
 # LOAD QM9 DATASET
@@ -51,29 +160,36 @@ print("=" * 60)
 print("GRAPH DIRECTION CONFIGURATION")
 print("=" * 60)
 if args.directed:
-    directed = True
+    edge_mode = "directed"
     print("Selected: DIRECTED\n")
 elif args.undirected:
-    directed = False
+    edge_mode = "undirected"
     print("Selected: UNDIRECTED\n")
 else:
     while True:
         choice = input(
             "Edge storage mode?\n"
-            "  1 - DIRECTED (A->B and B->A)\n"
-            "  2 - UNDIRECTED (only one stored edge per pair)\n"
+            "  1 - DIRECTED (store exactly the source edge directions)\n"
+            "  2 - UNDIRECTED (store A->B and B->A for each edge pair)\n"
             "Choice: "
         ).strip()
         if choice == "1":
-            directed = True
+            edge_mode = "directed"
             print("Selected: DIRECTED\n")
             break
         elif choice == "2":
-            directed = False
+            edge_mode = "undirected"
             print("Selected: UNDIRECTED\n")
             break
         else:
             print("Please enter 1 or 2.")
+
+source_edge_stats = analyze_source_edge_direction(dataset)
+print_source_edge_direction_analysis(
+    "QM9",
+    source_edge_stats,
+    edge_mode,
+)
 
 # ============================================
 # ANALYZE DATA DISTRIBUTIONS
@@ -185,7 +301,7 @@ CREATE TABLE IF NOT EXISTS edges (
 """
 )
 print("EDGES TABLE created")
-print(f"Edge mode: {'DIRECTED (A->B and B->A)' if directed else 'UNDIRECTED (only one stored edge per pair)'}")
+print(f"Edge mode: {EDGE_MODE_LABELS[edge_mode]}")
 
 # ============================================
 # POPULATE DATABASE
@@ -234,20 +350,32 @@ for mol_id, mol in enumerate(dataset):
     if mol.edge_attr is not None and mol.edge_attr.shape[0] > 0:
         edge_index = mol.edge_index
         edge_attr = mol.edge_attr
+        seen_edges = set()
 
         for edge_id in range(edge_index.shape[1]):
             src_local = edge_index[0, edge_id].item()
             dst_local = edge_index[1, edge_id].item()
+            src_global = molecule_node_offset + src_local
+            dst_global = molecule_node_offset + dst_local
+            bond_type = torch.argmax(edge_attr[edge_id]).item()
 
-            if src_local < dst_local:
-                src_global = molecule_node_offset + src_local
-                dst_global = molecule_node_offset + dst_local
-                bond_type = torch.argmax(edge_attr[edge_id]).item()
-                bond_type_counts[bond_type] += 1
-
+            if edge_mode == "directed":
+                edge_key = (src_global, dst_global)
+                if edge_key in seen_edges:
+                    continue
+                seen_edges.add(edge_key)
                 edge_rows.append((src_global, dst_global, bond_type))
-                if directed:
-                    edge_rows.append((dst_global, src_global, bond_type))
+                bond_type_counts[bond_type] += 1
+                continue
+
+            inserted_rows = 0
+            for edge_key in ((src_global, dst_global), (dst_global, src_global)):
+                if edge_key in seen_edges:
+                    continue
+                seen_edges.add(edge_key)
+                edge_rows.append((edge_key[0], edge_key[1], bond_type))
+                inserted_rows += 1
+            bond_type_counts[bond_type] += inserted_rows
 
     if edge_rows:
         cursor.executemany(
@@ -296,10 +424,10 @@ for num_h in sorted(num_hydrogens_counts.keys()):
 cursor.execute("SELECT COUNT(*) FROM edges")
 edge_count = cursor.fetchone()[0]
 print(f"\nEDGES: {edge_count:,} total")
-if directed:
-    print(f"  (DIRECTED: 2x bonds | Undirected bonds: {edge_count//2:,})")
+if edge_mode == "directed":
+    print("  (DIRECTED: exact source edge directions)")
 else:
-    print("  (UNDIRECTED: 1x bonds)")
+    print(f"  (UNDIRECTED: 2x edge pairs | Edge pairs: {edge_count//2:,})")
 
 bond_names_map = {
     0: "Single bonds",
@@ -307,11 +435,11 @@ bond_names_map = {
     2: "Triple bonds",
     3: "Aromatic bonds",
 }
-total_undirected = sum(bond_type_counts.values())
+total_bond_rows = sum(bond_type_counts.values())
 print("\nBond type distribution:")
 for bond_type in sorted(bond_type_counts.keys()):
     count = bond_type_counts[bond_type]
-    pct = count / total_undirected * 100 if total_undirected else 0
+    pct = count / total_bond_rows * 100 if total_bond_rows else 0
     print(f"  Type {bond_type} - {bond_names_map[bond_type]:20s}: {count:,} ({pct:.1f}%)")
 
 # Sample nodes
@@ -348,7 +476,7 @@ for pattern, label in checks:
     print(f"  [{status}] {label}")
 
 # Bidirectional verification
-if directed:
+if edge_mode == "undirected":
     print("\nBIDIRECTIONAL EDGE VERIFICATION:")
     cursor.execute(
         """
@@ -375,6 +503,6 @@ print("\n" + "=" * 60)
 print("DATABASE READY!")
 print("=" * 60)
 print(f"  Database : {db_name}")
-print(f"  Mode     : {'DIRECTED' if directed else 'UNDIRECTED'}")
+print(f"  Mode     : {edge_mode.upper()}")
 print(f"  Nodes    : {node_count:,}")
 print(f"  Edges    : {edge_count:,}")

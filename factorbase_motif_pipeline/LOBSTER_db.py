@@ -5,8 +5,8 @@ Lobster graphs to MySQL database converter for FactorBase.
 
 This script matches the CLI contract used by `run_factorbase_pipeline.py`:
 - `--db-name` selects the MySQL database name to create
-- `--directed` stores both directions for each edge
-- `--undirected` stores one canonical edge per pair
+- `--undirected` stores both directions for each source edge
+- `--directed` is rejected because it mismatches main.py's symmetric adjacency
 - `--feature-mode` selects whether to create a schema with or without features
 """
 
@@ -41,9 +41,28 @@ from dataset_feature_utils.lobster_features import (
 
 DEFAULT_DB_NAME = "lobster"
 DEFAULT_FEATURE_MODE = "with-features"
+DEFAULT_EDGE_MODE = "undirected"
 DB_HOST = "127.0.0.1"
 DB_USER = "fbuser"
 DB_PASSWORD = ""
+
+# Edge-mode semantics:
+# QM9/PROTEINS --directed:
+#   source gives A->B and B->A
+#   DB stores both
+# Synthetic --directed:
+#   source gives A-B once
+#   DB stores one row
+SYNTHETIC_DIRECTED_MISMATCH_ERROR = (
+    "Synthetic datasets cannot be imported with --directed: using --directed, "
+    "DB will store only one row per undirected edge, while main.py uses symmetric "
+    "adjacency. That would be a mismatch. Use --undirected."
+)
+
+EDGE_MODE_LABELS = {
+    "directed": "DIRECTED (preserve source NetworkX edge rows)",
+    "undirected": "UNDIRECTED (A->B and B->A for each source edge)",
+}
 
 LOBSTER_P1 = 0.7
 LOBSTER_P2 = 0.7
@@ -65,19 +84,47 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_FEATURE_MODE,
         help="Choose whether to create the LOBSTER schema with or without node/edge features",
     )
+    parser.add_argument(
+        "--debug-edges",
+        action="store_true",
+        help="Print source-to-database edge mappings for the first few graphs",
+    )
+    parser.add_argument(
+        "--debug-all-edges",
+        action="store_true",
+        help="Print every source-to-database edge mapping for every generated graph",
+    )
+    parser.add_argument(
+        "--debug-graph-limit",
+        type=int,
+        default=2,
+        help="When --debug-edges is set, print edge mappings for this many graphs",
+    )
+    parser.add_argument(
+        "--debug-edge-limit",
+        type=int,
+        default=20,
+        help="When --debug-edges is set, print this many source edges per debugged graph",
+    )
 
     edge_group = parser.add_mutually_exclusive_group()
     edge_group.add_argument(
         "--directed",
         action="store_true",
-        help="Store both directions for each edge",
+        help="Rejected for synthetic datasets because main.py uses symmetric adjacency",
     )
     edge_group.add_argument(
         "--undirected",
         action="store_true",
-        help="Store one canonical edge per undirected pair",
+        help="Store both directions for each NetworkX edge",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.directed and not args.undirected:
+        if DEFAULT_EDGE_MODE == "directed":
+            args.directed = True
+        elif DEFAULT_EDGE_MODE == "undirected":
+            args.undirected = True
+    return args
 
 
 def default_db_name_for_mode(feature_mode: str) -> str:
@@ -86,32 +133,17 @@ def default_db_name_for_mode(feature_mode: str) -> str:
     return DEFAULT_DB_NAME
 
 
-def resolve_edge_mode(args: argparse.Namespace) -> bool:
+def resolve_edge_mode(args: argparse.Namespace) -> str:
     print("=" * 60)
     print("GRAPH DIRECTION CONFIGURATION")
     print("=" * 60)
-
     if args.directed:
-        print("Selected: DIRECTED\n")
-        return True
-    if args.undirected:
-        print("Selected: UNDIRECTED\n")
-        return False
+        raise ValueError(SYNTHETIC_DIRECTED_MISMATCH_ERROR)
+    elif args.undirected:
+        print("Selected: UNDIRECTED (store both directions)\n")
+        return "undirected"
 
-    while True:
-        choice = input(
-            "Edge storage mode?\n"
-            "  1 - DIRECTED (A->B and B->A)\n"
-            "  2 - UNDIRECTED (only one stored edge per pair)\n"
-            "Choice: "
-        ).strip()
-        if choice == "1":
-            print("Selected: DIRECTED\n")
-            return True
-        if choice == "2":
-            print("Selected: UNDIRECTED\n")
-            return False
-        print("Please enter 1 or 2.")
+    raise ValueError("No edge mode selected")
 
 
 def build_lobster_graphs() -> list[nx.Graph]:
@@ -153,29 +185,313 @@ def build_lobster_graphs() -> list[nx.Graph]:
 
 def add_edge_rows(
     edge_rows: list[tuple[int, int, int]],
+    seen_edges: set[tuple[int, int]],
     source_node_id: int,
     target_node_id: int,
     edge_type: int,
-    directed: bool,
+    edge_mode: str,
 ) -> int:
-    if directed:
-        edge_rows.append((source_node_id, target_node_id, edge_type))
-        edge_rows.append((target_node_id, source_node_id, edge_type))
-        return 2
+    edge_candidates = [(source_node_id, target_node_id)]
+    if edge_mode == "undirected":
+        edge_candidates.append((target_node_id, source_node_id))
 
-    src = min(source_node_id, target_node_id)
-    dst = max(source_node_id, target_node_id)
-    edge_rows.append((src, dst, edge_type))
-    return 1
+    inserted_rows = 0
+    for source_id, target_id in edge_candidates:
+        edge_key = (source_id, target_id)
+        if edge_key in seen_edges:
+            continue
+        seen_edges.add(edge_key)
+        edge_rows.append((source_id, target_id, edge_type))
+        inserted_rows += 1
+    return inserted_rows
+
+
+def add_plain_edge_rows(
+    edge_rows: list[tuple[int, int]],
+    seen_edges: set[tuple[int, int]],
+    source_node_id: int,
+    target_node_id: int,
+    edge_mode: str,
+) -> None:
+    edge_candidates = [(source_node_id, target_node_id)]
+    if edge_mode == "undirected":
+        edge_candidates.append((target_node_id, source_node_id))
+
+    for edge_key in edge_candidates:
+        if edge_key in seen_edges:
+            continue
+        seen_edges.add(edge_key)
+        edge_rows.append(edge_key)
+
+
+def should_debug_graph(debug_edges: bool, graph_id: int, debug_graph_limit: int | None) -> bool:
+    return debug_edges and (debug_graph_limit is None or graph_id < debug_graph_limit)
+
+
+def should_debug_edge(edge_index: int, debug_edge_limit: int | None) -> bool:
+    return debug_edge_limit is None or edge_index < debug_edge_limit
+
+
+def print_edge_debug(
+    graph_id: int,
+    edge_index: int,
+    source_node,
+    target_node,
+    source_node_id: int,
+    target_node_id: int,
+    inserted_rows: int,
+    edge_rows,
+) -> None:
+    emitted_rows = edge_rows[-inserted_rows:] if inserted_rows else []
+    print(
+        f"[DEBUG edges] graph={graph_id} edge={edge_index} "
+        f"source_local={source_node}->{target_node} source_global={source_node_id}->{target_node_id} "
+        f"emitted_rows={emitted_rows}"
+    )
+
+
+def expected_edge_rows(source_edge_count: int, edge_mode: str) -> int:
+    if edge_mode == "directed":
+        return source_edge_count
+    return source_edge_count * 2
+
+
+def edge_rule_for_mode(edge_mode: str) -> str:
+    if edge_mode == "directed":
+        return "preserve each source NetworkX edge row"
+    return "every NetworkX edge creates A->B and B->A"
+
+
+def print_graph_edge_check(
+    graph_id: int,
+    source_edge_count: int,
+    inserted_edge_count: int,
+    edge_mode: str,
+) -> None:
+    expected_rows = expected_edge_rows(source_edge_count, edge_mode)
+    status = "OK" if inserted_edge_count == expected_rows else "MISMATCH"
+    print(
+        f"[CHECK graph] graph={graph_id} source_edges={source_edge_count} "
+        f"expected_db_rows={expected_rows} actual_db_rows={inserted_edge_count} "
+        f"status={status}"
+    )
+
+
+def compute_expected_dataset_counts(graphs: list[nx.Graph], edge_mode: str) -> tuple[int, int, int]:
+    expected_nodes = sum(graph.number_of_nodes() for graph in graphs)
+    expected_source_edges = sum(graph.number_of_edges() for graph in graphs)
+    expected_db_edge_rows = expected_edge_rows(expected_source_edges, edge_mode)
+    return expected_nodes, expected_source_edges, expected_db_edge_rows
+
+
+def print_expected_dataset_counts(graphs: list[nx.Graph], edge_mode: str) -> tuple[int, int, int]:
+    expected_nodes, expected_source_edges, expected_db_edge_rows = (
+        compute_expected_dataset_counts(graphs, edge_mode)
+    )
+    print("\n" + "=" * 70)
+    print("EXPECTED LOBSTER DATABASE COUNTS")
+    print("=" * 70)
+    print(f"Expected graphs: {len(graphs):,}")
+    print(f"Expected nodes: {expected_nodes:,}")
+    print(f"Expected source NetworkX edges: {expected_source_edges:,}")
+    print(f"Expected DB edge rows: {expected_db_edge_rows:,}")
+    print(f"Expected DB edge rule: {edge_rule_for_mode(edge_mode)}")
+    return expected_nodes, expected_source_edges, expected_db_edge_rows
+
+
+def analyze_source_edge_direction(graphs: list[nx.Graph]) -> dict:
+    stats = {
+        "graphs": len(graphs),
+        "graphs_with_edges": 0,
+        "source_edge_rows": 0,
+        "undirected_edge_pairs": 0,
+        "missing_reverse_rows": 0,
+        "graphs_with_missing_reverse": 0,
+    }
+
+    for graph in graphs:
+        edge_rows = {
+            (source_node, target_node)
+            for source_node, target_node in graph.edges()
+            if source_node != target_node
+        }
+        if not edge_rows:
+            continue
+
+        missing_reverse_rows = sum(
+            1 for source_node, target_node in edge_rows
+            if (target_node, source_node) not in edge_rows
+        )
+
+        stats["graphs_with_edges"] += 1
+        stats["source_edge_rows"] += len(edge_rows)
+        stats["undirected_edge_pairs"] += len({frozenset(edge) for edge in edge_rows})
+        stats["missing_reverse_rows"] += missing_reverse_rows
+        if missing_reverse_rows:
+            stats["graphs_with_missing_reverse"] += 1
+
+    return stats
+
+
+def print_source_edge_direction_analysis(dataset_name: str, stats: dict, edge_mode: str) -> None:
+    print("=" * 60)
+    print("SOURCE EDGE DIRECTION ANALYSIS")
+    print("=" * 60)
+    print(f"Dataset: {dataset_name}")
+    print(f"Graphs analyzed: {stats['graphs']:,}")
+    print(f"Graphs with edges: {stats['graphs_with_edges']:,}")
+    print(f"Source edge rows: {stats['source_edge_rows']:,}")
+    print(f"Unique undirected edge pairs: {stats['undirected_edge_pairs']:,}")
+    print(f"Rows missing reverse edge: {stats['missing_reverse_rows']:,}")
+
+    has_edges = stats["source_edge_rows"] > 0
+    source_is_bidirectional = has_edges and stats["missing_reverse_rows"] == 0
+
+    if source_is_bidirectional:
+        print("Source appears bidirectional/undirected: every edge row has a reverse row.")
+        if edge_mode == "directed":
+            print(
+                "WARNING: --directed preserves source rows, but this source is already "
+                "bidirectional; the edge table should match --undirected."
+            )
+        else:
+            print(
+                "NOTE: --undirected will ensure reverse rows, but the source already has "
+                "them; no extra edge rows are expected."
+            )
+    elif has_edges:
+        print("Source edge rows are not bidirectional as exposed by NetworkX.")
+        if edge_mode == "directed":
+            print("NOTE: --directed will preserve one row per source NetworkX edge.")
+        else:
+            print("NOTE: --undirected will add reverse rows for each source NetworkX edge.")
+    else:
+        print("Source has no edge rows to analyze.")
+    print()
+
+
+def print_database_total_check(
+    expected_node_count: int,
+    expected_source_edge_count: int,
+    expected_edge_row_count: int,
+    actual_node_count: int,
+    actual_edge_count: int,
+) -> None:
+    node_status = "OK" if actual_node_count == expected_node_count else "MISMATCH"
+    edge_status = "OK" if actual_edge_count == expected_edge_row_count else "MISMATCH"
+    print("\n" + "=" * 70)
+    print("FINAL DATABASE COUNT CHECK")
+    print("=" * 70)
+    print(
+        f"[CHECK total nodes] expected={expected_node_count:,} "
+        f"actual={actual_node_count:,} status={node_status}"
+    )
+    print(
+        f"[CHECK total source_edges] source_edges={expected_source_edge_count:,} "
+        f"expected_db_rows={expected_edge_row_count:,}"
+    )
+    print(
+        f"[CHECK total edges] expected={expected_edge_row_count:,} "
+        f"actual={actual_edge_count:,} status={edge_status}"
+    )
+
+
+def verify_bidirectional_edges_with_features(cursor) -> None:
+    print("\n" + "=" * 70)
+    print("BIDIRECTIONAL EDGE VERIFICATION")
+    print("=" * 70)
+    cursor.execute("SELECT COUNT(*) FROM edges")
+    edge_count = cursor.fetchone()[0]
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM edges e1
+        WHERE EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+              AND e2.edge_type = e1.edge_type
+        )
+        """
+    )
+    reverse_count = cursor.fetchone()[0]
+    print(f"Edges with matching reverse row and edge_type: {reverse_count:,} / {edge_count:,}")
+    print(f"Missing reverse rows: {edge_count - reverse_count:,}")
+    cursor.execute(
+        """
+        SELECT e1.source_node_id, e1.target_node_id, e1.edge_type
+        FROM edges e1
+        WHERE NOT EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+              AND e2.edge_type = e1.edge_type
+        )
+        LIMIT 10
+        """
+    )
+    missing_rows = cursor.fetchall()
+    if missing_rows:
+        print("Sample missing reverse rows:")
+        for row in missing_rows:
+            print(f"  source={row[0]} target={row[1]} edge_type={row[2]}")
+    else:
+        print("All feature edge rows have matching reverse rows.")
+
+
+def verify_bidirectional_edges_plain(cursor) -> None:
+    print("\n" + "=" * 70)
+    print("BIDIRECTIONAL EDGE VERIFICATION")
+    print("=" * 70)
+    cursor.execute("SELECT COUNT(*) FROM edges")
+    edge_count = cursor.fetchone()[0]
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM edges e1
+        WHERE EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+        )
+        """
+    )
+    reverse_count = cursor.fetchone()[0]
+    print(f"Edges with matching reverse row: {reverse_count:,} / {edge_count:,}")
+    print(f"Missing reverse rows: {edge_count - reverse_count:,}")
+    cursor.execute(
+        """
+        SELECT e1.source_node_id, e1.target_node_id
+        FROM edges e1
+        WHERE NOT EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+        )
+        LIMIT 10
+        """
+    )
+    missing_rows = cursor.fetchall()
+    if missing_rows:
+        print("Sample missing reverse rows:")
+        for row in missing_rows:
+            print(f"  source={row[0]} target={row[1]}")
+    else:
+        print("All plain edge rows have matching reverse rows.")
+
 
 def create_lobster_database_with_features(
     db_name: str,
     graphs: list[nx.Graph],
-    directed: bool,
+    edge_mode: str,
+    debug_edges: bool = False,
+    debug_graph_limit: int | None = 2,
+    debug_edge_limit: int | None = 20,
 ) -> None:
     print("\n" + "=" * 70)
     print(f"CREATING DATABASE: {db_name} (LOBSTER WITH ROTATION-INVARIANT FEATURES)")
     print("=" * 70)
+    expected_node_count, expected_source_edge_count, expected_edge_row_count = (
+        print_expected_dataset_counts(graphs, edge_mode)
+    )
 
     connection = connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
     cursor = connection.cursor()
@@ -224,7 +540,7 @@ def create_lobster_database_with_features(
     print("\nEDGES table created")
     print("  - edge_type: INT (1=Spine-Edge, 2=Branch-Edge, 3=Leaf-Edge)")
     print(
-        f"  - edge mode: {'DIRECTED (A->B and B->A)' if directed else 'UNDIRECTED (one stored edge per pair)'}"
+        f"  - edge mode: {EDGE_MODE_LABELS[edge_mode]}"
     )
 
     print("\n" + "=" * 70)
@@ -283,18 +599,42 @@ def create_lobster_database_with_features(
         )
 
         edge_rows = []
-        for source_node, target_node in graph.edges():
+        seen_edges: set[tuple[int, int]] = set()
+        debug_this_graph = should_debug_graph(debug_edges, graph_id, debug_graph_limit)
+        if debug_this_graph:
+            print(
+                f"\n[DEBUG edges] graph={graph_id} mode={edge_mode} "
+                f"nodes={graph.number_of_nodes()} source_edges={graph.number_of_edges()}"
+            )
+        for edge_index, (source_node, target_node) in enumerate(graph.edges()):
             source_node_id = local_to_global[source_node]
             target_node_id = local_to_global[target_node]
             edge_type = compute_edge_type(source_node, target_node, spine_nodes)
+            edge_count_before = len(edge_rows)
             inserted_rows = add_edge_rows(
                 edge_rows,
+                seen_edges,
                 source_node_id,
                 target_node_id,
                 edge_type,
-                directed,
+                edge_mode,
             )
             edge_type_counts[edge_type] += inserted_rows
+            if debug_this_graph and should_debug_edge(edge_index, debug_edge_limit):
+                print_edge_debug(
+                    graph_id,
+                    edge_index,
+                    source_node,
+                    target_node,
+                    source_node_id,
+                    target_node_id,
+                    len(edge_rows) - edge_count_before,
+                    edge_rows,
+                )
+
+        if debug_this_graph:
+            print(f"[DEBUG edges] graph={graph_id} total_db_edge_rows={len(edge_rows)}")
+        print_graph_edge_check(graph_id, graph.number_of_edges(), len(edge_rows), edge_mode)
 
         cursor.executemany(
             """
@@ -317,8 +657,15 @@ def create_lobster_database_with_features(
     node_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM edges")
     edge_count = cursor.fetchone()[0]
+    print_database_total_check(
+        expected_node_count,
+        expected_source_edge_count,
+        expected_edge_row_count,
+        node_count,
+        edge_count,
+    )
 
-    stored_degree = edge_count / node_count if directed else (2 * edge_count) / node_count
+    stored_degree = edge_count / node_count
 
     print("\nDATASET SUMMARY: Lobster Tree (Rotation-Invariant)")
     print("  " + "=" * 70)
@@ -328,6 +675,8 @@ def create_lobster_database_with_features(
     print(f"  Average nodes per graph: {node_count / len(graphs):.2f}")
     print(f"  Average edges per graph: {edge_count / len(graphs):.2f}")
     print(f"  Average stored degree: {stored_degree:.2f}")
+    if edge_mode == "undirected":
+        verify_bidirectional_edges_with_features(cursor)
 
     print("\nNODE FEATURE 1: NODE_DEGREE (Degree-Based)")
     print("  " + "=" * 70)
@@ -456,11 +805,17 @@ def create_database_no_features(
     db_name: str,
     graphs: list[nx.Graph],
     graph_type_name: str,
-    directed: bool,
+    edge_mode: str,
+    debug_edges: bool = False,
+    debug_graph_limit: int | None = 2,
+    debug_edge_limit: int | None = 20,
 ) -> None:
     print("\n" + "=" * 70)
     print(f"CREATING DATABASE: {db_name} ({graph_type_name} STRUCTURE ONLY)")
     print("=" * 70)
+    expected_node_count, expected_source_edge_count, expected_edge_row_count = (
+        print_expected_dataset_counts(graphs, edge_mode)
+    )
 
     connection = connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
     cursor = connection.cursor()
@@ -487,6 +842,7 @@ def create_database_no_features(
         """
     )
     print("\nEDGES table created (no features)")
+    print(f"  - edge mode: {EDGE_MODE_LABELS[edge_mode]}")
 
     print("\n" + "=" * 70)
     print("POPULATING DATABASE")
@@ -509,16 +865,39 @@ def create_database_no_features(
         cursor.executemany("INSERT INTO nodes (node_id) VALUES (%s)", node_rows)
 
         edge_rows = []
-        for source_node, target_node in graph.edges():
+        seen_edges: set[tuple[int, int]] = set()
+        debug_this_graph = should_debug_graph(debug_edges, graph_id, debug_graph_limit)
+        if debug_this_graph:
+            print(
+                f"\n[DEBUG edges] graph={graph_id} mode={edge_mode} "
+                f"nodes={graph.number_of_nodes()} source_edges={graph.number_of_edges()}"
+            )
+        for edge_index, (source_node, target_node) in enumerate(graph.edges()):
             source_node_id = local_to_global[source_node]
             target_node_id = local_to_global[target_node]
-            if directed:
-                edge_rows.append((source_node_id, target_node_id))
-                edge_rows.append((target_node_id, source_node_id))
-            else:
-                src = min(source_node_id, target_node_id)
-                dst = max(source_node_id, target_node_id)
-                edge_rows.append((src, dst))
+            edge_count_before = len(edge_rows)
+            add_plain_edge_rows(
+                edge_rows,
+                seen_edges,
+                source_node_id,
+                target_node_id,
+                edge_mode,
+            )
+            if debug_this_graph and should_debug_edge(edge_index, debug_edge_limit):
+                print_edge_debug(
+                    graph_id,
+                    edge_index,
+                    source_node,
+                    target_node,
+                    source_node_id,
+                    target_node_id,
+                    len(edge_rows) - edge_count_before,
+                    edge_rows,
+                )
+
+        if debug_this_graph:
+            print(f"[DEBUG edges] graph={graph_id} total_db_edge_rows={len(edge_rows)}")
+        print_graph_edge_check(graph_id, graph.number_of_edges(), len(edge_rows), edge_mode)
 
         cursor.executemany(
             "INSERT INTO edges (source_node_id, target_node_id) VALUES (%s, %s)",
@@ -534,11 +913,20 @@ def create_database_no_features(
     node_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM edges")
     edge_count = cursor.fetchone()[0]
+    print_database_total_check(
+        expected_node_count,
+        expected_source_edge_count,
+        expected_edge_row_count,
+        node_count,
+        edge_count,
+    )
 
     print(f"\nDATASET SUMMARY: {graph_type_name} (structure only)")
     print(f"  Total graphs: {len(graphs)}")
     print(f"  Total nodes: {node_count:,}")
     print(f"  Total edges: {edge_count:,}")
+    if edge_mode == "undirected":
+        verify_bidirectional_edges_plain(cursor)
 
     cursor.close()
     connection.close()
@@ -556,7 +944,7 @@ def main() -> None:
     print("  2. without-features - structure only")
     print("=" * 70 + "\n")
 
-    directed = resolve_edge_mode(args)
+    edge_mode = resolve_edge_mode(args)
     print(f"Selected feature mode: {args.feature_mode}\n")
 
     db_name = args.db_name if args.db_name else input("Enter the database name: ").strip()
@@ -564,10 +952,32 @@ def main() -> None:
         db_name = default_db_name_for_mode(args.feature_mode)
 
     lobster_graphs = build_lobster_graphs()
+    source_edge_stats = analyze_source_edge_direction(lobster_graphs)
+    print_source_edge_direction_analysis("LOBSTER", source_edge_stats, edge_mode)
+
+    debug_edges = args.debug_edges or args.debug_all_edges
+    debug_graph_limit = None if args.debug_all_edges else args.debug_graph_limit
+    debug_edge_limit = None if args.debug_all_edges else args.debug_edge_limit
+
     if args.feature_mode == "with-features":
-        create_lobster_database_with_features(db_name, lobster_graphs, directed)
+        create_lobster_database_with_features(
+            db_name,
+            lobster_graphs,
+            edge_mode,
+            debug_edges,
+            debug_graph_limit,
+            debug_edge_limit,
+        )
     else:
-        create_database_no_features(db_name, lobster_graphs, "Lobster Tree", directed)
+        create_database_no_features(
+            db_name,
+            lobster_graphs,
+            "Lobster Tree",
+            edge_mode,
+            debug_edges,
+            debug_graph_limit,
+            debug_edge_limit,
+        )
 
     print("\n" + "=" * 70)
     print("ALL DATABASES CREATED SUCCESSFULLY!")

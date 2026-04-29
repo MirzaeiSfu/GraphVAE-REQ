@@ -17,6 +17,8 @@ try:
 except ImportError:  # pragma: no cover - only used when DGL is unavailable
     torch = None
 
+DEFAULT_EDGE_MODE = "directed"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -28,14 +30,26 @@ def parse_args() -> argparse.Namespace:
     edge_group.add_argument(
         "--directed",
         action="store_true",
-        help="Store both directions for each edge",
+        help="Store exactly the edge directions exposed by the source graph",
     )
     edge_group.add_argument(
         "--undirected",
         action="store_true",
-        help="Store one canonical edge per undirected pair",
+        help="Store both directions for each edge pair",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.directed and not args.undirected:
+        if DEFAULT_EDGE_MODE == "directed":
+            args.directed = True
+        elif DEFAULT_EDGE_MODE == "undirected":
+            args.undirected = True
+    return args
+
+
+EDGE_MODE_LABELS = {
+    "directed": "DIRECTED (source graph edge directions)",
+    "undirected": "UNDIRECTED (A->B and B->A for each edge pair)",
+}
 
 
 @dataclass
@@ -43,6 +57,80 @@ class ProteinGraph:
     node_features: List[int]
     edges: List[Tuple[int, int]]
     graph_label: int
+
+
+def analyze_source_edge_direction(graphs: List[ProteinGraph]) -> dict:
+    stats = {
+        "graphs": len(graphs),
+        "graphs_with_edges": 0,
+        "source_edge_rows": 0,
+        "undirected_edge_pairs": 0,
+        "missing_reverse_rows": 0,
+        "graphs_with_missing_reverse": 0,
+    }
+
+    for graph in graphs:
+        edge_rows = {
+            (int(src), int(dst))
+            for src, dst in graph.edges
+            if int(src) != int(dst)
+        }
+        if not edge_rows:
+            continue
+
+        missing_reverse_rows = sum(
+            1 for src, dst in edge_rows if (dst, src) not in edge_rows
+        )
+
+        stats["graphs_with_edges"] += 1
+        stats["source_edge_rows"] += len(edge_rows)
+        stats["undirected_edge_pairs"] += len({tuple(sorted(edge)) for edge in edge_rows})
+        stats["missing_reverse_rows"] += missing_reverse_rows
+        if missing_reverse_rows:
+            stats["graphs_with_missing_reverse"] += 1
+
+    return stats
+
+
+def print_source_edge_direction_analysis(
+    dataset_name: str,
+    stats: dict,
+    edge_mode: str,
+) -> None:
+    print("=" * 60)
+    print("SOURCE EDGE DIRECTION ANALYSIS")
+    print("=" * 60)
+    print(f"Dataset: {dataset_name}")
+    print(f"Graphs analyzed: {stats['graphs']:,}")
+    print(f"Graphs with edges: {stats['graphs_with_edges']:,}")
+    print(f"Source edge rows: {stats['source_edge_rows']:,}")
+    print(f"Unique undirected edge pairs: {stats['undirected_edge_pairs']:,}")
+    print(f"Rows missing reverse edge: {stats['missing_reverse_rows']:,}")
+
+    has_edges = stats["source_edge_rows"] > 0
+    source_is_bidirectional = has_edges and stats["missing_reverse_rows"] == 0
+
+    if source_is_bidirectional:
+        print("Source appears bidirectional/undirected: every edge row has a reverse row.")
+        if edge_mode == "directed":
+            print(
+                "WARNING: --directed preserves source rows, but this source is already "
+                "bidirectional; the edge table should match --undirected."
+            )
+        else:
+            print(
+                "NOTE: --undirected will ensure reverse rows, but the source already has "
+                "them; no extra edge rows are expected."
+            )
+    elif has_edges:
+        print("Source contains one-way edge rows.")
+        if edge_mode == "directed":
+            print("NOTE: --directed will preserve those one-way source rows.")
+        else:
+            print("NOTE: --undirected will add reverse rows for one-way source edges.")
+    else:
+        print("Source has no edge rows to analyze.")
+    print()
 
 
 def _to_int(value) -> int:
@@ -80,17 +168,16 @@ def _extract_dgl_node_features(graph) -> List[int]:
 
 def _extract_dgl_edges(graph) -> List[Tuple[int, int]]:
     src_nodes, dst_nodes = graph.edges()
-    undirected_edges = set()
+    edges = []
 
     for src, dst in zip(src_nodes.tolist(), dst_nodes.tolist()):
         src = int(src)
         dst = int(dst)
         if src == dst:
             continue
-        edge = (src, dst) if src < dst else (dst, src)
-        undirected_edges.add(edge)
+        edges.append((src, dst))
 
-    return sorted(undirected_edges)
+    return edges
 
 
 def load_proteins_from_dgl() -> Tuple[List[ProteinGraph], str]:
@@ -127,7 +214,7 @@ def load_proteins_from_text(dataset_path: Path) -> Tuple[List[ProteinGraph], str
         line_idx += 1
 
         node_features: List[int] = []
-        undirected_edges = set()
+        edges: List[Tuple[int, int]] = []
 
         for node_id in range(num_nodes):
             tokens = lines[line_idx].split()
@@ -141,13 +228,12 @@ def load_proteins_from_text(dataset_path: Path) -> Tuple[List[ProteinGraph], str
             for neighbor in neighbors:
                 if node_id == neighbor:
                     continue
-                edge = (node_id, neighbor) if node_id < neighbor else (neighbor, node_id)
-                undirected_edges.add(edge)
+                edges.append((node_id, neighbor))
 
         graphs.append(
             ProteinGraph(
                 node_features=node_features,
-                edges=sorted(undirected_edges),
+                edges=edges,
                 graph_label=graph_label,
             )
         )
@@ -197,28 +283,35 @@ print("=" * 60)
 print("GRAPH DIRECTION CONFIGURATION")
 print("=" * 60)
 if args.directed:
-    directed = True
+    edge_mode = "directed"
     print("Selected: DIRECTED\n")
 elif args.undirected:
-    directed = False
+    edge_mode = "undirected"
     print("Selected: UNDIRECTED\n")
 else:
     while True:
         choice = input(
             "Edge storage mode?\n"
-            "  1 - DIRECTED (A->B and B->A)\n"
-            "  2 - UNDIRECTED (only one stored edge per pair)\n"
+            "  1 - DIRECTED (store exactly the source edge directions)\n"
+            "  2 - UNDIRECTED (store A->B and B->A for each edge pair)\n"
             "Choice: "
         ).strip()
         if choice == "1":
-            directed = True
+            edge_mode = "directed"
             print("Selected: DIRECTED\n")
             break
         if choice == "2":
-            directed = False
+            edge_mode = "undirected"
             print("Selected: UNDIRECTED\n")
             break
         print("Please enter 1 or 2.")
+
+source_edge_stats = analyze_source_edge_direction(graphs)
+print_source_edge_direction_analysis(
+    "PROTEINS",
+    source_edge_stats,
+    edge_mode,
+)
 
 print("=" * 60)
 print("ANALYZING DATA DISTRIBUTIONS")
@@ -227,19 +320,19 @@ print("=" * 60)
 node_feature_dist = defaultdict(int)
 graph_label_dist = defaultdict(int)
 sample_nodes = 0
-sample_undirected_edges = 0
+sample_source_edges = 0
 sample_size = min(1000, len(graphs))
 
 for graph in graphs[:sample_size]:
     graph_label_dist[graph.graph_label] += 1
     sample_nodes += len(graph.node_features)
-    sample_undirected_edges += len(graph.edges)
+    sample_source_edges += len(graph.edges)
     for node_feature in graph.node_features:
         node_feature_dist[node_feature] += 1
 
 print(f"Analyzed {sample_size:,} graphs")
 print(f"Sample nodes: {sample_nodes:,}")
-print(f"Sample undirected edges: {sample_undirected_edges:,}")
+print(f"Sample source edge rows: {sample_source_edges:,}")
 print("\nNode feature distribution (1-based labels):")
 for node_feature in sorted(node_feature_dist.keys()):
     print(f"  Feature {node_feature}: {node_feature_dist[node_feature]:,}")
@@ -303,7 +396,7 @@ CREATE TABLE IF NOT EXISTS edges (
 """
 )
 print("EDGES TABLE created")
-print(f"Edge mode: {'DIRECTED (A->B and B->A)' if directed else 'UNDIRECTED (only one stored edge per pair)'}")
+print(f"Edge mode: {EDGE_MODE_LABELS[edge_mode]}")
 print("All protein graphs will be flattened into one disconnected union with no inter-graph edges")
 
 print("\n" + "=" * 60)
@@ -338,12 +431,23 @@ for graph_id, graph in enumerate(graphs):
     )
 
     edge_rows = []
+    seen_edges = set()
     for src_local, dst_local in graph.edges:
         src_global = graph_node_offset + src_local
         dst_global = graph_node_offset + dst_local
-        edge_rows.append((src_global, dst_global))
-        if directed:
-            edge_rows.append((dst_global, src_global))
+        if edge_mode == "directed":
+            edge_key = (src_global, dst_global)
+            if edge_key in seen_edges:
+                continue
+            seen_edges.add(edge_key)
+            edge_rows.append(edge_key)
+            continue
+
+        for edge_key in ((src_global, dst_global), (dst_global, src_global)):
+            if edge_key in seen_edges:
+                continue
+            seen_edges.add(edge_key)
+            edge_rows.append(edge_key)
 
     if edge_rows:
         cursor.executemany(
@@ -381,10 +485,10 @@ for graph_label in sorted(total_graph_label_counts.keys()):
 cursor.execute("SELECT COUNT(*) FROM edges")
 edge_count = cursor.fetchone()[0]
 print(f"\nEDGES: {edge_count:,} total")
-if directed:
-    print(f"  (DIRECTED: 2x undirected edges | Undirected edges: {edge_count // 2:,})")
+if edge_mode == "directed":
+    print(f"  (DIRECTED: exact source edge directions: {edge_count:,})")
 else:
-    print(f"  (UNDIRECTED: 1x undirected edges: {edge_count:,})")
+    print(f"  (UNDIRECTED: 2x edge pairs | Edge pairs: {edge_count // 2:,})")
 
 print(f"  Inserted without cross-graph connections across {len(graphs):,} original protein graphs")
 
@@ -416,7 +520,7 @@ for pattern, label in checks:
     status = "OK" if pattern in result[1] else "MISSING"
     print(f"  [{status}] {label}")
 
-if directed:
+if edge_mode == "undirected":
     print("\nBIDIRECTIONAL EDGE VERIFICATION:")
     cursor.execute(
         """
@@ -443,7 +547,7 @@ print("DATABASE READY!")
 print("=" * 60)
 print(f"  Database : {db_name}")
 print(f"  Source   : {load_source}")
-print(f"  Mode     : {'DIRECTED' if directed else 'UNDIRECTED'}")
+print(f"  Mode     : {edge_mode.upper()}")
 print(f"  Graphs   : {len(graphs):,}")
 print(f"  Nodes    : {node_count:,}")
 print(f"  Edges    : {edge_count:,}")

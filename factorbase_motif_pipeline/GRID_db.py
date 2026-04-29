@@ -5,8 +5,8 @@ Grid graphs to MySQL database converter for FactorBase.
 
 This script now matches the CLI contract used by `run_factorbase_pipeline.py`:
 - `--db-name` selects the MySQL database name to create
-- `--directed` stores both directions for each edge
-- `--undirected` stores one canonical edge per pair
+- `--undirected` stores both directions for each source edge
+- `--directed` is rejected because it mismatches main.py's symmetric adjacency
 - `--feature-mode` selects whether to create a schema with or without features
 """
 
@@ -37,9 +37,28 @@ from dataset_feature_utils.grid_features import (
 
 DEFAULT_DB_NAME = "grid"
 DEFAULT_FEATURE_MODE = "with-features"
+DEFAULT_EDGE_MODE = "undirected"
 DB_HOST = "127.0.0.1"
 DB_USER = "fbuser"
 DB_PASSWORD = ""
+
+# Edge-mode semantics:
+# QM9/PROTEINS --directed:
+#   source gives A->B and B->A
+#   DB stores both
+# Synthetic --directed:
+#   source gives A-B once
+#   DB stores one row
+SYNTHETIC_DIRECTED_MISMATCH_ERROR = (
+    "Synthetic datasets cannot be imported with --directed: using --directed, "
+    "DB will store only one row per undirected edge, while main.py uses symmetric "
+    "adjacency. That would be a mismatch. Use --undirected."
+)
+
+EDGE_MODE_LABELS = {
+    "directed": "DIRECTED (preserve source NetworkX edge rows)",
+    "undirected": "UNDIRECTED (A->B and B->A for each source edge)",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,19 +72,47 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_FEATURE_MODE,
         help="Choose whether to create the GRID schema with or without node/edge features",
     )
+    parser.add_argument(
+        "--debug-edges",
+        action="store_true",
+        help="Print source-to-database edge mappings for the first few graphs",
+    )
+    parser.add_argument(
+        "--debug-all-edges",
+        action="store_true",
+        help="Print every source-to-database edge mapping for every generated graph",
+    )
+    parser.add_argument(
+        "--debug-graph-limit",
+        type=int,
+        default=2,
+        help="When --debug-edges is set, print edge mappings for this many graphs",
+    )
+    parser.add_argument(
+        "--debug-edge-limit",
+        type=int,
+        default=20,
+        help="When --debug-edges is set, print this many source edges per debugged graph",
+    )
 
     edge_group = parser.add_mutually_exclusive_group()
     edge_group.add_argument(
         "--directed",
         action="store_true",
-        help="Store both directions for each edge",
+        help="Rejected for synthetic datasets because main.py uses symmetric adjacency",
     )
     edge_group.add_argument(
         "--undirected",
         action="store_true",
-        help="Store one canonical edge per undirected pair",
+        help="Store both directions for each NetworkX edge",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.directed and not args.undirected:
+        if DEFAULT_EDGE_MODE == "directed":
+            args.directed = True
+        elif DEFAULT_EDGE_MODE == "undirected":
+            args.undirected = True
+    return args
 
 
 def default_db_name_for_mode(feature_mode: str) -> str:
@@ -74,32 +121,17 @@ def default_db_name_for_mode(feature_mode: str) -> str:
     return DEFAULT_DB_NAME
 
 
-def resolve_edge_mode(args: argparse.Namespace) -> bool:
+def resolve_edge_mode(args: argparse.Namespace) -> str:
     print("=" * 60)
     print("GRAPH DIRECTION CONFIGURATION")
     print("=" * 60)
-
     if args.directed:
-        print("Selected: DIRECTED\n")
-        return True
-    if args.undirected:
-        print("Selected: UNDIRECTED\n")
-        return False
+        raise ValueError(SYNTHETIC_DIRECTED_MISMATCH_ERROR)
+    elif args.undirected:
+        print("Selected: UNDIRECTED (store both directions)\n")
+        return "undirected"
 
-    while True:
-        choice = input(
-            "Edge storage mode?\n"
-            "  1 - DIRECTED (A->B and B->A)\n"
-            "  2 - UNDIRECTED (only one stored edge per pair)\n"
-            "Choice: "
-        ).strip()
-        if choice == "1":
-            print("Selected: DIRECTED\n")
-            return True
-        if choice == "2":
-            print("Selected: UNDIRECTED\n")
-            return False
-        print("Please enter 1 or 2.")
+    raise ValueError("No edge mode selected")
 
 
 def build_grid_graphs():
@@ -119,26 +151,359 @@ def build_grid_graphs():
     return grid_graphs
 
 
-def add_edge_rows(edge_rows, source_node_id, target_node_id, edge_orbit, directed):
-    if directed:
-        edge_rows.append((source_node_id, target_node_id, edge_orbit))
-        edge_rows.append((target_node_id, source_node_id, edge_orbit))
-        return 2
+def add_edge_rows(edge_rows, seen_edges, source_node_id, target_node_id, edge_orbit, edge_mode):
+    edge_candidates = [(source_node_id, target_node_id)]
+    if edge_mode == "undirected":
+        edge_candidates.append((target_node_id, source_node_id))
 
-    src = min(source_node_id, target_node_id)
-    dst = max(source_node_id, target_node_id)
-    edge_rows.append((src, dst, edge_orbit))
-    return 1
+    inserted_rows = 0
+    for source_id, target_id in edge_candidates:
+        edge_key = (source_id, target_id)
+        if edge_key in seen_edges:
+            continue
+        seen_edges.add(edge_key)
+        edge_rows.append((source_id, target_id, edge_orbit))
+        inserted_rows += 1
+    return inserted_rows
+
+
+def add_plain_edge_rows(edge_rows, seen_edges, source_node_id, target_node_id, edge_mode):
+    edge_candidates = [(source_node_id, target_node_id)]
+    if edge_mode == "undirected":
+        edge_candidates.append((target_node_id, source_node_id))
+
+    for edge_key in edge_candidates:
+        if edge_key in seen_edges:
+            continue
+        seen_edges.add(edge_key)
+        edge_rows.append(edge_key)
+
+
+def should_debug_graph(debug_edges, graph_id, debug_graph_limit):
+    return debug_edges and (debug_graph_limit is None or graph_id < debug_graph_limit)
+
+
+def should_debug_edge(edge_index, debug_edge_limit):
+    if debug_edge_limit is None:
+        return True
+    return edge_index < debug_edge_limit
+
+
+def print_feature_edge_debug(
+    graph_id,
+    edge_index,
+    node_u,
+    node_v,
+    source_node_id,
+    target_node_id,
+    inserted_rows,
+    edge_rows,
+):
+    emitted_rows = edge_rows[-inserted_rows:] if inserted_rows else []
+    print(
+        f"[DEBUG edges] graph={graph_id} edge={edge_index} "
+        f"source_local={node_u}->{node_v} source_global={source_node_id}->{target_node_id} "
+        f"emitted_rows={emitted_rows}"
+    )
+
+
+def print_plain_edge_debug(
+    graph_id,
+    edge_index,
+    node_u,
+    node_v,
+    source_node_id,
+    target_node_id,
+    inserted_rows,
+    edge_rows,
+):
+    emitted_rows = edge_rows[-inserted_rows:] if inserted_rows else []
+    print(
+        f"[DEBUG edges] graph={graph_id} edge={edge_index} "
+        f"source_local={node_u}->{node_v} source_global={source_node_id}->{target_node_id} "
+        f"emitted_rows={emitted_rows}"
+    )
+
+
+def expected_edge_rows_for_mode(source_edge_count, edge_mode):
+    if edge_mode == "directed":
+        return source_edge_count
+    return source_edge_count * 2
+
+
+def edge_rule_for_mode(edge_mode):
+    if edge_mode == "directed":
+        return "preserve each source NetworkX edge row"
+    return "every NetworkX edge creates A->B and B->A"
+
+
+def analyze_source_edge_direction(graphs):
+    stats = {
+        "graphs": len(graphs),
+        "graphs_with_edges": 0,
+        "source_edge_rows": 0,
+        "undirected_edge_pairs": 0,
+        "missing_reverse_rows": 0,
+        "graphs_with_missing_reverse": 0,
+    }
+
+    for graph in graphs:
+        edge_rows = {
+            (source_node, target_node)
+            for source_node, target_node in graph.edges()
+            if source_node != target_node
+        }
+        if not edge_rows:
+            continue
+
+        missing_reverse_rows = sum(
+            1 for source_node, target_node in edge_rows
+            if (target_node, source_node) not in edge_rows
+        )
+
+        stats["graphs_with_edges"] += 1
+        stats["source_edge_rows"] += len(edge_rows)
+        stats["undirected_edge_pairs"] += len({frozenset(edge) for edge in edge_rows})
+        stats["missing_reverse_rows"] += missing_reverse_rows
+        if missing_reverse_rows:
+            stats["graphs_with_missing_reverse"] += 1
+
+    return stats
+
+
+def print_source_edge_direction_analysis(dataset_name, stats, edge_mode):
+    print("=" * 60)
+    print("SOURCE EDGE DIRECTION ANALYSIS")
+    print("=" * 60)
+    print(f"Dataset: {dataset_name}")
+    print(f"Graphs analyzed: {stats['graphs']:,}")
+    print(f"Graphs with edges: {stats['graphs_with_edges']:,}")
+    print(f"Source edge rows: {stats['source_edge_rows']:,}")
+    print(f"Unique undirected edge pairs: {stats['undirected_edge_pairs']:,}")
+    print(f"Rows missing reverse edge: {stats['missing_reverse_rows']:,}")
+
+    has_edges = stats["source_edge_rows"] > 0
+    source_is_bidirectional = has_edges and stats["missing_reverse_rows"] == 0
+
+    if source_is_bidirectional:
+        print("Source appears bidirectional/undirected: every edge row has a reverse row.")
+        if edge_mode == "directed":
+            print(
+                "WARNING: --directed preserves source rows, but this source is already "
+                "bidirectional; the edge table should match --undirected."
+            )
+        else:
+            print(
+                "NOTE: --undirected will ensure reverse rows, but the source already has "
+                "them; no extra edge rows are expected."
+            )
+    elif has_edges:
+        print("Source edge rows are not bidirectional as exposed by NetworkX.")
+        if edge_mode == "directed":
+            print("NOTE: --directed will preserve one row per source NetworkX edge.")
+        else:
+            print("NOTE: --undirected will add reverse rows for each source NetworkX edge.")
+    else:
+        print("Source has no edge rows to analyze.")
+    print()
+
+
+def print_graph_edge_check(graph_id, source_edge_count, inserted_edge_count, edge_mode):
+    expected_edge_rows = expected_edge_rows_for_mode(source_edge_count, edge_mode)
+    status = "OK" if inserted_edge_count == expected_edge_rows else "MISMATCH"
+    print(
+        f"[CHECK graph] graph={graph_id} source_edges={source_edge_count} "
+        f"expected_db_rows={expected_edge_rows} actual_db_rows={inserted_edge_count} "
+        f"status={status}"
+    )
+
+
+def compute_expected_dataset_counts(graphs, edge_mode):
+    expected_nodes = sum(graph.number_of_nodes() for graph in graphs)
+    expected_source_edges = sum(graph.number_of_edges() for graph in graphs)
+    expected_db_edge_rows = expected_edge_rows_for_mode(expected_source_edges, edge_mode)
+    return expected_nodes, expected_source_edges, expected_db_edge_rows
+
+
+def print_expected_dataset_counts(graphs, edge_mode):
+    expected_nodes, expected_source_edges, expected_db_edge_rows = (
+        compute_expected_dataset_counts(graphs, edge_mode)
+    )
+    print("\n" + "=" * 70)
+    print("EXPECTED GRID DATABASE COUNTS")
+    print("=" * 70)
+    print(f"Expected graphs: {len(graphs):,}")
+    print(f"Expected nodes: {expected_nodes:,}")
+    print(f"Expected source NetworkX edges: {expected_source_edges:,}")
+    print(f"Expected DB edge rows: {expected_db_edge_rows:,}")
+    print(f"Expected DB edge rule: {edge_rule_for_mode(edge_mode)}")
+    return expected_nodes, expected_source_edges, expected_db_edge_rows
+
+
+def print_database_total_check(
+    expected_node_count,
+    expected_source_edge_count,
+    expected_edge_row_count,
+    actual_node_count,
+    actual_edge_count,
+):
+    node_status = "OK" if actual_node_count == expected_node_count else "MISMATCH"
+    edge_status = "OK" if actual_edge_count == expected_edge_row_count else "MISMATCH"
+    print("\n" + "=" * 70)
+    print("FINAL DATABASE COUNT CHECK")
+    print("=" * 70)
+    print(
+        f"[CHECK total nodes] expected={expected_node_count:,} "
+        f"actual={actual_node_count:,} status={node_status}"
+    )
+    print(
+        f"[CHECK total source_edges] source_edges={expected_source_edge_count:,} "
+        f"expected_db_rows={expected_edge_row_count:,}"
+    )
+    print(
+        f"[CHECK total edges] expected={expected_edge_row_count:,} "
+        f"actual={actual_edge_count:,} status={edge_status}"
+    )
+
+
+def verify_bidirectional_edges_with_features(cursor):
+    print("\n" + "=" * 70)
+    print("BIDIRECTIONAL EDGE VERIFICATION")
+    print("=" * 70)
+    cursor.execute("SELECT COUNT(*) FROM edges")
+    edge_count = cursor.fetchone()[0]
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM edges e1
+        WHERE EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+              AND e2.edge_orbit = e1.edge_orbit
+        )
+        """
+    )
+    reverse_count = cursor.fetchone()[0]
+    print(f"Edges with matching reverse row and edge_orbit: {reverse_count:,} / {edge_count:,}")
+    print(f"Missing reverse rows: {edge_count - reverse_count:,}")
+
+    cursor.execute(
+        """
+        SELECT e1.source_node_id, e1.target_node_id, e1.edge_orbit
+        FROM edges e1
+        WHERE NOT EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+              AND e2.edge_orbit = e1.edge_orbit
+        )
+        LIMIT 10
+        """
+    )
+    missing_rows = cursor.fetchall()
+    if missing_rows:
+        print("Sample missing reverse rows:")
+        for row in missing_rows:
+            print(f"  source={row[0]} target={row[1]} edge_orbit={row[2]}")
+    else:
+        print("All feature edge rows have matching reverse rows.")
+
+    cursor.execute(
+        """
+        SELECT e1.source_node_id, e1.target_node_id, e1.edge_orbit,
+               e2.source_node_id, e2.target_node_id, e2.edge_orbit
+        FROM edges e1
+        JOIN edges e2
+          ON e2.source_node_id = e1.target_node_id
+         AND e2.target_node_id = e1.source_node_id
+         AND e2.edge_orbit = e1.edge_orbit
+        WHERE e1.source_node_id < e1.target_node_id
+        LIMIT 10
+        """
+    )
+    print("\nSample edge/reverse pairs:")
+    for row in cursor.fetchall():
+        print(
+            f"  ({row[0]} -> {row[1]}, edge_orbit={row[2]}) "
+            f"<-> ({row[3]} -> {row[4]}, edge_orbit={row[5]})"
+        )
+
+
+def verify_bidirectional_edges_plain(cursor):
+    print("\n" + "=" * 70)
+    print("BIDIRECTIONAL EDGE VERIFICATION")
+    print("=" * 70)
+    cursor.execute("SELECT COUNT(*) FROM edges")
+    edge_count = cursor.fetchone()[0]
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM edges e1
+        WHERE EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+        )
+        """
+    )
+    reverse_count = cursor.fetchone()[0]
+    print(f"Edges with matching reverse row: {reverse_count:,} / {edge_count:,}")
+    print(f"Missing reverse rows: {edge_count - reverse_count:,}")
+
+    cursor.execute(
+        """
+        SELECT e1.source_node_id, e1.target_node_id
+        FROM edges e1
+        WHERE NOT EXISTS (
+            SELECT 1 FROM edges e2
+            WHERE e2.source_node_id = e1.target_node_id
+              AND e2.target_node_id = e1.source_node_id
+        )
+        LIMIT 10
+        """
+    )
+    missing_rows = cursor.fetchall()
+    if missing_rows:
+        print("Sample missing reverse rows:")
+        for row in missing_rows:
+            print(f"  source={row[0]} target={row[1]}")
+    else:
+        print("All plain edge rows have matching reverse rows.")
+
+    cursor.execute(
+        """
+        SELECT e1.source_node_id, e1.target_node_id,
+               e2.source_node_id, e2.target_node_id
+        FROM edges e1
+        JOIN edges e2
+          ON e2.source_node_id = e1.target_node_id
+         AND e2.target_node_id = e1.source_node_id
+        WHERE e1.source_node_id < e1.target_node_id
+        LIMIT 10
+        """
+    )
+    print("\nSample edge/reverse pairs:")
+    for row in cursor.fetchall():
+        print(f"  ({row[0]} -> {row[1]}) <-> ({row[2]} -> {row[3]})")
 
 
 # ============================================
 # DATABASE CREATION - SQUARE GRID WITH FEATURES
 # ============================================
-def create_square_grid_database_with_features(db_name, graphs, directed):
+def create_square_grid_database_with_features(
+    db_name,
+    graphs,
+    edge_mode,
+    debug_edges=False,
+    debug_graph_limit=2,
+    debug_edge_limit=20,
+):
     """Create database for square grids with rotation-invariant features."""
     print("\n" + "=" * 70)
     print(f"CREATING DATABASE: {db_name} (GRID WITH ROTATION-INVARIANT FEATURES)")
     print("=" * 70)
+    expected_node_count, expected_source_edge_count, expected_edge_row_count = (
+        print_expected_dataset_counts(graphs, edge_mode)
+    )
 
     connection = connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
     cursor = connection.cursor()
@@ -181,7 +546,7 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
     print("\nEDGES table created")
     print("  - edge_orbit: INT (1=Boundary, 2=Interior)")
     print(
-        f"  - edge mode: {'DIRECTED (A->B and B->A)' if directed else 'UNDIRECTED (one stored edge per pair)'}"
+        f"  - edge mode: {EDGE_MODE_LABELS[edge_mode]}"
     )
 
     print("\n" + "=" * 70)
@@ -224,18 +589,44 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
         )
 
         edge_rows = []
-        for node_u, node_v in graph.edges():
+        seen_edges = set()
+        debug_this_graph = should_debug_graph(debug_edges, graph_id, debug_graph_limit)
+        if debug_this_graph:
+            print(
+                f"\n[DEBUG edges] graph={graph_id} mode={edge_mode} "
+                f"nodes={graph.number_of_nodes()} source_edges={graph.number_of_edges()} "
+                f"grid_size={grid_size}"
+            )
+
+        for edge_index, (node_u, node_v) in enumerate(graph.edges()):
             source_node_id = local_to_global[node_u]
             target_node_id = local_to_global[node_v]
             edge_orbit = compute_edge_orbit(node_u, node_v, grid_size)
+            edge_count_before = len(edge_rows)
             inserted_rows = add_edge_rows(
                 edge_rows,
+                seen_edges,
                 source_node_id,
                 target_node_id,
                 edge_orbit,
-                directed,
+                edge_mode,
             )
             edge_orbit_counts[edge_orbit] += inserted_rows
+            if debug_this_graph and should_debug_edge(edge_index, debug_edge_limit):
+                print_feature_edge_debug(
+                    graph_id,
+                    edge_index,
+                    node_u,
+                    node_v,
+                    source_node_id,
+                    target_node_id,
+                    len(edge_rows) - edge_count_before,
+                    edge_rows,
+                )
+
+        if debug_this_graph:
+            print(f"[DEBUG edges] graph={graph_id} total_db_edge_rows={len(edge_rows)}")
+        print_graph_edge_check(graph_id, graph.number_of_edges(), len(edge_rows), edge_mode)
 
         cursor.executemany(
             """
@@ -258,8 +649,15 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
     node_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM edges")
     edge_count = cursor.fetchone()[0]
+    print_database_total_check(
+        expected_node_count,
+        expected_source_edge_count,
+        expected_edge_row_count,
+        node_count,
+        edge_count,
+    )
 
-    stored_degree = edge_count / node_count if directed else (2 * edge_count) / node_count
+    stored_degree = edge_count / node_count
 
     print("\nDATASET SUMMARY: Square Grid (Rotation-Invariant)")
     print("  " + "=" * 70)
@@ -269,6 +667,8 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
     print(f"  Average nodes per graph: {node_count / len(graphs):.2f}")
     print(f"  Average edges per graph: {edge_count / len(graphs):.2f}")
     print(f"  Average stored degree: {stored_degree:.2f}")
+    if edge_mode == "undirected":
+        verify_bidirectional_edges_with_features(cursor)
 
     print("\nNODE FEATURE 1: STRUCT_TYPE (Degree-Based)")
     print("  " + "=" * 70)
@@ -355,11 +755,22 @@ def create_square_grid_database_with_features(db_name, graphs, directed):
 # ============================================
 # DATABASE CREATION - NO FEATURES (Structure Only)
 # ============================================
-def create_database_no_features(db_name, graphs, graph_type_name, directed):
+def create_database_no_features(
+    db_name,
+    graphs,
+    graph_type_name,
+    edge_mode,
+    debug_edges=False,
+    debug_graph_limit=2,
+    debug_edge_limit=20,
+):
     """Create database without features (structure only)."""
     print("\n" + "=" * 70)
     print(f"CREATING DATABASE: {db_name} ({graph_type_name} STRUCTURE ONLY)")
     print("=" * 70)
+    expected_node_count, expected_source_edge_count, expected_edge_row_count = (
+        print_expected_dataset_counts(graphs, edge_mode)
+    )
 
     connection = connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
     cursor = connection.cursor()
@@ -410,16 +821,40 @@ def create_database_no_features(db_name, graphs, graph_type_name, directed):
         cursor.executemany("INSERT INTO nodes (node_id) VALUES (%s)", node_rows)
 
         edge_rows = []
-        for node_u, node_v in graph.edges():
+        seen_edges = set()
+        debug_this_graph = should_debug_graph(debug_edges, graph_id, debug_graph_limit)
+        if debug_this_graph:
+            print(
+                f"\n[DEBUG edges] graph={graph_id} mode={edge_mode} "
+                f"nodes={graph.number_of_nodes()} source_edges={graph.number_of_edges()}"
+            )
+
+        for edge_index, (node_u, node_v) in enumerate(graph.edges()):
             source_node_id = local_to_global[node_u]
             target_node_id = local_to_global[node_v]
-            if directed:
-                edge_rows.append((source_node_id, target_node_id))
-                edge_rows.append((target_node_id, source_node_id))
-            else:
-                src = min(source_node_id, target_node_id)
-                dst = max(source_node_id, target_node_id)
-                edge_rows.append((src, dst))
+            edge_count_before = len(edge_rows)
+            add_plain_edge_rows(
+                edge_rows,
+                seen_edges,
+                source_node_id,
+                target_node_id,
+                edge_mode,
+            )
+            if debug_this_graph and should_debug_edge(edge_index, debug_edge_limit):
+                print_plain_edge_debug(
+                    graph_id,
+                    edge_index,
+                    node_u,
+                    node_v,
+                    source_node_id,
+                    target_node_id,
+                    len(edge_rows) - edge_count_before,
+                    edge_rows,
+                )
+
+        if debug_this_graph:
+            print(f"[DEBUG edges] graph={graph_id} total_db_edge_rows={len(edge_rows)}")
+        print_graph_edge_check(graph_id, graph.number_of_edges(), len(edge_rows), edge_mode)
 
         cursor.executemany(
             "INSERT INTO edges (source_node_id, target_node_id) VALUES (%s, %s)",
@@ -435,11 +870,20 @@ def create_database_no_features(db_name, graphs, graph_type_name, directed):
     node_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM edges")
     edge_count = cursor.fetchone()[0]
+    print_database_total_check(
+        expected_node_count,
+        expected_source_edge_count,
+        expected_edge_row_count,
+        node_count,
+        edge_count,
+    )
 
     print(f"\nDATASET SUMMARY: {graph_type_name} (structure only)")
     print(f"  Total graphs: {len(graphs)}")
     print(f"  Total nodes: {node_count:,}")
     print(f"  Total edges: {edge_count:,}")
+    if edge_mode == "undirected":
+        verify_bidirectional_edges_plain(cursor)
 
     cursor.close()
     connection.close()
@@ -457,18 +901,38 @@ def main():
     print("  2. without-features - structure only")
     print("=" * 70 + "\n")
 
-    directed = resolve_edge_mode(args)
+    edge_mode = resolve_edge_mode(args)
     print(f"Selected feature mode: {args.feature_mode}\n")
 
-    db_name = args.db_name if args.db_name else input("Enter the database name: ").strip()
-    if not db_name:
-        db_name = default_db_name_for_mode(args.feature_mode)
+    db_name = args.db_name or default_db_name_for_mode(args.feature_mode)
 
     grid_graphs = build_grid_graphs()
+    source_edge_stats = analyze_source_edge_direction(grid_graphs)
+    print_source_edge_direction_analysis("GRID", source_edge_stats, edge_mode)
+
+    debug_edges = args.debug_edges or args.debug_all_edges
+    debug_graph_limit = None if args.debug_all_edges else args.debug_graph_limit
+    debug_edge_limit = None if args.debug_all_edges else args.debug_edge_limit
+
     if args.feature_mode == "with-features":
-        create_square_grid_database_with_features(db_name, grid_graphs, directed)
+        create_square_grid_database_with_features(
+            db_name,
+            grid_graphs,
+            edge_mode,
+            debug_edges,
+            debug_graph_limit,
+            debug_edge_limit,
+        )
     else:
-        create_database_no_features(db_name, grid_graphs, "Square Grid", directed)
+        create_database_no_features(
+            db_name,
+            grid_graphs,
+            "Square Grid",
+            edge_mode,
+            debug_edges,
+            debug_graph_limit,
+            debug_edge_limit,
+        )
 
     print("\n" + "=" * 70)
     print("ALL DATABASES CREATED SUCCESSFULLY!")
