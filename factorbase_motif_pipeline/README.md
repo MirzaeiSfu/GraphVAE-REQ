@@ -19,14 +19,17 @@ This folder contains the scripts used to load graph datasets into MySQL for Fact
 The pipeline now writes generated artifacts into a few different places:
 
 - config files go in `config/`
-- pipeline wrapper logs go in `log/`
+- per-run rule-learning records go in `runs/<db_name>/`
 - FactorBase still creates a run-output folder named after the database, for example `qm9_experiment1/` or `triangular_grid_logmove_smoke/`
 
 Examples:
 
 - `config/proteins_experiment_config.cfg`
 - `config/qm9_experiment_config.cfg`
-- `log/qm9_experiment1_run.log`
+- `runs/qm9_experiment1/rule_manifest.json`
+- `runs/qm9_experiment1/factorbase_config.cfg`
+- `runs/qm9_experiment1/command.txt`
+- `runs/qm9_experiment1/run.log`
 - `triangular_grid_logmove_smoke/res/`
 
 The per-database output folder is created by FactorBase itself. It is where run artifacts such as `res/*.xml` are written.
@@ -106,9 +109,11 @@ python run_qm9_config_compare.py --prefix qm9_std_compare
 2. Create the MySQL database with the chosen database name.
 3. Create a config file named `config/<db_name>_config.cfg` from `config.tmp`.
 4. Ask which JAR to run, unless you set a default or pass `--jar`.
-5. Write a pipeline log in `log/<db_name>_run.log`.
-6. Launch FactorBase with `java -Dconfig=config/<db_name>_config.cfg -jar <selected-jar>`.
-7. Let FactorBase create its own output folder named `<db_name>/`.
+5. Create a rule-learning record folder at `runs/<db_name>/`.
+6. Write `runs/<db_name>/rule_manifest.json`, `factorbase_config.cfg`, `command.txt`, and `run.log`.
+7. Insert the same manifest details into the SQL `run_metadata` table inside `<db_name>`.
+8. Launch FactorBase with the run-folder config snapshot.
+9. Let FactorBase create its own output folder named `<db_name>/`.
 
 For example, if you run the pipeline with:
 
@@ -119,8 +124,19 @@ python run_factorbase_pipeline.py TRIANGULAR_GRID triangular_grid_logmove_smoke 
 you should expect all of these:
 
 - `config/triangular_grid_logmove_smoke_config.cfg`
-- `log/triangular_grid_logmove_smoke_run.log`
+- `runs/triangular_grid_logmove_smoke/rule_manifest.json`
+- `runs/triangular_grid_logmove_smoke/factorbase_config.cfg`
+- `runs/triangular_grid_logmove_smoke/command.txt`
+- `runs/triangular_grid_logmove_smoke/run.log`
 - `triangular_grid_logmove_smoke/`
+
+The manifest records the dataset, edge mode, effective DB edge relation, feature
+mode, generated FactorBase config hash, template config hash, selected JAR and
+JAR hash, command lines, git commit, git dirty state, and a short reproducibility
+hash. It also includes descriptions for source-edge fields such as
+`source_edge_rows`, `source_undirected_pairs`, and `source_missing_reverse_rows`.
+The SQL database also gets a `run_metadata` table with the same key fields, so
+the database can explain how it was created even if the run folder is moved.
 
 ## Dataset Script Notes
 
@@ -167,8 +183,8 @@ If you use config-file mode, the script also asks whether you want to delete tha
 
 ## Notes
 
-- The wrapper now stores generated config files in `config/` and run logs in `log/`.
+- The wrapper now stores generated config files in `config/` and run-level records in `runs/<db_name>/`.
 - FactorBase can be pointed at the generated file with `-Dconfig=<config-file-path>`.
 - Per-run output folders such as `triangular_grid_logmove_smoke/` are normal and are created by FactorBase, not by the config/log reorganization itself.
 - Smoke-test folders created during verification can be deleted later if you do not want to keep their outputs.
-- Generated config files such as `config/*_config.cfg` and logs such as `log/*.log` are ignored by `factorbase_motif_pipeline/.gitignore`.
+- Generated config files such as `config/*_config.cfg`, logs such as `log/*.log`, and run records under `runs/` are ignored by `factorbase_motif_pipeline/.gitignore`.

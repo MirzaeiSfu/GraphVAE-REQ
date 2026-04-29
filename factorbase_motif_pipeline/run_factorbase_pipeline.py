@@ -7,10 +7,14 @@ FactorBase.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import platform
 import shutil
 import shlex
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from factorbase_utils import (
@@ -27,6 +31,7 @@ from factorbase_utils import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_DIR = SCRIPT_DIR / "config"
 LOG_DIR = SCRIPT_DIR / "log"
+RUNS_DIR = SCRIPT_DIR / "runs"
 
 # Default values you can edit in one place.
 DEFAULT_DATASET = "LOBSTER" #"TRIANGULAR_GRID"#"LOBSTER" #""GRID"" # "PROTEINS" "QM9"
@@ -67,6 +72,7 @@ JAR_FILES = {
 }
 EXPECTED_DATASET_TABLES = ("nodes", "edges")
 REQUIRED_CONFIG_KEYS = ("dbaddress", "dbname", "dbusername", "dbpassword")
+RUN_METADATA_TABLE = "run_metadata"
 
 
 def parse_args() -> argparse.Namespace:
@@ -180,20 +186,14 @@ def build_generated_config_path(db_name: str) -> Path:
     return CONFIG_DIR / config_name
 
 
-def build_run_log_path(db_name: str) -> Path:
-    log_name = f"{sanitize_path_component(db_name)}_run.log"
-    return LOG_DIR / log_name
-
-
-def build_factorbase_log_snapshot_path(db_name: str, jar_filename: str) -> Path:
-    jar_log_name = f"{Path(jar_filename).stem}.log"
-    snapshot_name = f"{sanitize_path_component(db_name)}_{jar_log_name}"
-    return LOG_DIR / snapshot_name
+def build_run_dir(db_name: str) -> Path:
+    return RUNS_DIR / sanitize_path_component(db_name)
 
 
 def ensure_generated_output_dirs() -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def require_path_exists(path: Path, description: str) -> None:
@@ -204,6 +204,52 @@ def require_path_exists(path: Path, description: str) -> None:
 def load_template_config(template_path: Path) -> str:
     require_path_exists(template_path, "config template")
     return template_path.read_text(encoding="utf-8")
+
+
+def sha256_file(path: Path) -> str | None:
+    if not path.exists() or not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as infile:
+        for chunk in iter(lambda: infile.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def run_git_command(args: list[str]) -> str | None:
+    try:
+        return subprocess.check_output(
+            ["git", *args],
+            cwd=SCRIPT_DIR.parent,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return None
+
+
+def get_git_metadata() -> dict[str, str | bool | None]:
+    status = run_git_command(["status", "--short"])
+    return {
+        "commit": run_git_command(["rev-parse", "HEAD"]),
+        "branch": run_git_command(["rev-parse", "--abbrev-ref", "HEAD"]),
+        "dirty": bool(status),
+        "status_short": status or "",
+    }
+
+
+def canonical_json(data: dict) -> str:
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def compute_manifest_hash(manifest: dict) -> str:
+    material = {key: value for key, value in manifest.items() if key != "manifest_hash"}
+    return hashlib.sha256(canonical_json(material).encode("utf-8")).hexdigest()
+
+
+def write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def build_import_command(
@@ -259,6 +305,136 @@ def write_generated_config(config_path: Path, config_text: str, db_name: str) ->
     config_path.write_text(rendered_config, encoding="utf-8")
 
 
+def copy_generated_config_to_run_dir(config_path: Path, run_dir: Path) -> Path:
+    destination = run_dir / "factorbase_config.cfg"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(config_path, destination)
+    return destination
+
+
+def write_command_file(
+    run_dir: Path,
+    wrapper_command: list[str],
+    import_command: list[str] | None,
+    factorbase_command: list[str] | None,
+) -> Path:
+    command_path = run_dir / "command.txt"
+    lines = [
+        "# Wrapper command",
+        shlex.join(wrapper_command),
+        "",
+    ]
+    if import_command is not None:
+        lines.extend(["# Dataset import command", shlex.join(import_command), ""])
+    if factorbase_command is not None:
+        lines.extend(["# FactorBase command", shlex.join(factorbase_command), ""])
+    command_path.write_text("\n".join(lines), encoding="utf-8")
+    return command_path
+
+
+def extract_source_edge_analysis_from_log(log_path: Path) -> dict[str, str]:
+    if not log_path.exists():
+        return {}
+
+    wanted_prefixes = (
+        "Dataset:",
+        "Graphs analyzed:",
+        "Graphs with edges:",
+        "Source edge rows:",
+        "Unique undirected edge pairs:",
+        "Rows missing reverse edge:",
+        "Typed rows missing reverse edge with same bond_type:",
+    )
+    key_map = {
+        "Dataset": "dataset",
+        "Graphs analyzed": "graphs_analyzed",
+        "Graphs with edges": "graphs_with_edges",
+        "Source edge rows": "source_edge_rows",
+        "Unique undirected edge pairs": "source_undirected_pairs",
+        "Rows missing reverse edge": "source_missing_reverse_rows",
+        "Typed rows missing reverse edge with same bond_type": "source_missing_typed_reverse_rows",
+    }
+
+    stats = {}
+    in_section = False
+    for raw_line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw_line.strip()
+        if line == "SOURCE EDGE DIRECTION ANALYSIS":
+            in_section = True
+            continue
+        if not in_section:
+            continue
+        if line.startswith("=") and stats:
+            break
+        if not line.startswith(wanted_prefixes) or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        normalized_key = key_map.get(key)
+        if normalized_key:
+            stats[normalized_key] = value.strip()
+    return stats
+
+
+SOURCE_EDGE_ANALYSIS_DESCRIPTIONS = {
+    "source_edge_rows": (
+        "Number of edge rows exposed by the dataset loader before the importer "
+        "adds or removes anything."
+    ),
+    "source_undirected_pairs": (
+        "Number of unique unordered source edge pairs after treating A->B and "
+        "B->A as the same relation."
+    ),
+    "source_missing_reverse_rows": (
+        "Number of source rows A->B that do not also have B->A in the source."
+    ),
+    "effective_db_edge_relation": (
+        "What the DB edge table represents after applying the selected edge mode."
+    ),
+}
+
+
+def parse_manifest_count(value: str | None) -> int | None:
+    if value is None:
+        return None
+    normalized_value = value.replace(",", "").strip()
+    if not normalized_value:
+        return None
+    try:
+        return int(normalized_value)
+    except ValueError:
+        return None
+
+
+def describe_effective_db_edge_relation(
+    edge_mode_label: str,
+    source_edge_analysis: dict[str, str],
+) -> str:
+    if edge_mode_label == "reused existing database":
+        return "existing database reused; importer did not create or transform edge rows"
+
+    source_edge_rows = parse_manifest_count(source_edge_analysis.get("source_edge_rows"))
+    missing_reverse_rows = parse_manifest_count(
+        source_edge_analysis.get("source_missing_reverse_rows")
+    )
+
+    if edge_mode_label == "undirected":
+        return "bidirectional; importer writes A->B and B->A for each source edge pair"
+
+    if edge_mode_label == "directed":
+        if source_edge_rows == 0:
+            return "source rows preserved; no source edge rows were observed"
+        if missing_reverse_rows == 0:
+            return (
+                "bidirectional source rows preserved; directed mode has no edge-row "
+                "effect compared with undirected"
+            )
+        if missing_reverse_rows is not None:
+            return "source rows preserved; DB may contain one-way edge relations"
+        return "source rows preserved; source bidirectionality was not available"
+
+    return f"{edge_mode_label}; effective DB edge relation was not classified"
+
+
 def append_log_message(log_path: Path, message: str) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as log_file:
@@ -302,14 +478,12 @@ def choose_available_path(path: Path) -> Path:
         counter += 1
 
 
-def archive_factorbase_jar_log(jar_filename: str, db_name: str) -> Path | None:
+def archive_factorbase_jar_log_to_run_dir(jar_filename: str, run_dir: Path) -> Path | None:
     source_log_path = SCRIPT_DIR / f"{Path(jar_filename).stem}.log"
     if not source_log_path.exists():
         return None
 
-    destination_log_path = choose_available_path(
-        build_factorbase_log_snapshot_path(db_name, jar_filename)
-    )
+    destination_log_path = choose_available_path(run_dir / source_log_path.name)
     destination_log_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source_log_path), str(destination_log_path))
     return destination_log_path
@@ -394,6 +568,56 @@ def verify_dataset_database(config_path: Path, expected_db_name: str) -> None:
         connection.close()
 
 
+def write_manifest_to_database(
+    config_values: dict[str, str],
+    db_name: str,
+    manifest: dict,
+) -> None:
+    from pymysql import connect
+
+    host, port = parse_mysql_address(config_values["dbaddress"])
+    host = normalize_mysql_host(host)
+    connection = connect(
+        host=host,
+        port=port,
+        user=config_values["dbusername"],
+        password=config_values["dbpassword"],
+        database=db_name,
+    )
+    metadata_table = quote_mysql_identifier(RUN_METADATA_TABLE)
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {metadata_table} (
+                    meta_key VARCHAR(128) PRIMARY KEY,
+                    meta_value MEDIUMTEXT NOT NULL
+                )
+                """
+            )
+            rows = []
+            for key, value in sorted(manifest.items()):
+                if isinstance(value, (dict, list)):
+                    value_text = json.dumps(value, sort_keys=True)
+                elif value is None:
+                    value_text = "null"
+                else:
+                    value_text = str(value)
+                rows.append((key, value_text))
+            rows.append(("manifest_json", json.dumps(manifest, sort_keys=True)))
+            cursor.executemany(
+                f"""
+                REPLACE INTO {metadata_table} (meta_key, meta_value)
+                VALUES (%s, %s)
+                """,
+                rows,
+            )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def run_subprocess_step(
     step_name: str,
     command: list[str],
@@ -472,6 +696,87 @@ def choose_jar(jar_choice: str | None) -> str:
         print("Please enter 1 or 2.")
 
 
+def dataset_feature_mode(dataset_name: str, args: argparse.Namespace) -> str | None:
+    if dataset_name == "GRID":
+        return args.grid_feature_mode
+    if dataset_name == "LOBSTER":
+        return args.lobster_feature_mode
+    if dataset_name == "TRIANGULAR_GRID":
+        return args.triangular_grid_feature_mode
+    return None
+
+
+def build_rule_manifest(
+    *,
+    args: argparse.Namespace,
+    dataset_name: str,
+    db_name: str,
+    edge_mode_label: str,
+    run_dir: Path,
+    run_log_path: Path,
+    config_template_path: Path,
+    generated_config_path: Path,
+    run_config_path: Path,
+    import_command: list[str] | None,
+    factorbase_command: list[str] | None,
+    command_file_path: Path,
+    jar_filename: str | None,
+    factorbase_status: str,
+    jar_log_archive_path: Path | None = None,
+) -> dict:
+    jar_path = SCRIPT_DIR / jar_filename if jar_filename is not None else None
+    source_edge_analysis = extract_source_edge_analysis_from_log(run_log_path)
+    manifest = {
+        "manifest_schema_version": "rule-learning-v1",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "db_name": db_name,
+        "dataset": dataset_name,
+        "edge_mode": edge_mode_label,
+        "effective_db_edge_relation": describe_effective_db_edge_relation(
+            edge_mode_label,
+            source_edge_analysis,
+        ),
+        "feature_mode": dataset_feature_mode(dataset_name, args),
+        "use_existing_db": bool(args.use_existing_db),
+        "prepare_only": bool(args.prepare_only),
+        "debug_db_edges": bool(args.debug_db_edges),
+        "debug_all_db_edges": bool(args.debug_all_db_edges),
+        "debug_db_graph_limit": args.debug_db_graph_limit,
+        "debug_db_edge_limit": args.debug_db_edge_limit,
+        "synthetic_dataset": dataset_name in SYNTHETIC_DATASETS,
+        "source_edge_analysis": source_edge_analysis,
+        "source_edge_analysis_descriptions": SOURCE_EDGE_ANALYSIS_DESCRIPTIONS,
+        "config_template_path": str(config_template_path),
+        "config_template_sha256": sha256_file(config_template_path),
+        "generated_config_path": str(generated_config_path),
+        "generated_config_sha256": sha256_file(generated_config_path),
+        "run_config_path": str(run_config_path),
+        "run_config_sha256": sha256_file(run_config_path),
+        "jar_choice": args.jar,
+        "jar_filename": jar_filename,
+        "jar_sha256": sha256_file(jar_path) if jar_path is not None else None,
+        "factorbase_status": factorbase_status,
+        "factorbase_jar_log_archive_path": (
+            str(jar_log_archive_path) if jar_log_archive_path is not None else None
+        ),
+        "run_dir": str(run_dir),
+        "run_log_path": str(run_log_path),
+        "command_file_path": str(command_file_path),
+        "wrapper_command": shlex.join([sys.executable, *sys.argv]),
+        "import_command": shlex.join(import_command) if import_command is not None else None,
+        "factorbase_command": (
+            shlex.join(factorbase_command) if factorbase_command is not None else None
+        ),
+        "python_executable": sys.executable,
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "git": get_git_metadata(),
+    }
+    manifest["manifest_hash"] = compute_manifest_hash(manifest)
+    manifest["manifest_hash_short"] = manifest["manifest_hash"][:8]
+    return manifest
+
+
 def main() -> None:
     args = parse_args()
     dataset_name = normalize_dataset_name(args.dataset)
@@ -491,8 +796,15 @@ def main() -> None:
 
     ensure_generated_output_dirs()
     template_text = load_template_config(args.config_template)
+    run_dir = build_run_dir(args.db_name)
+    run_dir.mkdir(parents=True, exist_ok=True)
     config_path = build_generated_config_path(args.db_name)
-    run_log_path = build_run_log_path(args.db_name)
+    run_log_path = run_dir / "run.log"
+    import_command = None
+    factorbase_command = None
+    jar_filename = None
+    command_file_path = run_dir / "command.txt"
+
     if args.use_existing_db:
         edge_mode_label = "reused existing database"
         edge_mode = None
@@ -550,13 +862,43 @@ def main() -> None:
 
     print_section("WRITING FACTORBASE CONFIG")
     write_generated_config(config_path, template_text, args.db_name)
-    load_and_validate_config_values(config_path, args.db_name)
-    verify_dataset_database(config_path, args.db_name)
+    run_config_path = copy_generated_config_to_run_dir(config_path, run_dir)
+    config_values = load_and_validate_config_values(run_config_path, args.db_name)
+    verify_dataset_database(run_config_path, args.db_name)
     print(f"Config file written: {config_path}")
+    print(f"Run config snapshot written: {run_config_path}")
     append_log_message(run_log_path, f"Config file written: {config_path}")
+    append_log_message(run_log_path, f"Run config snapshot written: {run_config_path}")
     append_log_message(run_log_path, "")
 
     if args.prepare_only:
+        command_file_path = write_command_file(
+            run_dir,
+            [sys.executable, *sys.argv],
+            import_command,
+            factorbase_command,
+        )
+        manifest = build_rule_manifest(
+            args=args,
+            dataset_name=dataset_name,
+            db_name=args.db_name,
+            edge_mode_label=edge_mode_label,
+            run_dir=run_dir,
+            run_log_path=run_log_path,
+            config_template_path=args.config_template,
+            generated_config_path=config_path,
+            run_config_path=run_config_path,
+            import_command=import_command,
+            factorbase_command=factorbase_command,
+            command_file_path=command_file_path,
+            jar_filename=jar_filename,
+            factorbase_status="prepare_only",
+        )
+        manifest_path = run_dir / "rule_manifest.json"
+        write_json(manifest_path, manifest)
+        write_manifest_to_database(config_values, args.db_name, manifest)
+        append_log_message(run_log_path, f"Rule manifest written: {manifest_path}")
+        append_log_message(run_log_path, f"SQL metadata table updated: {RUN_METADATA_TABLE}")
         print("\nPreparation complete. Skipping FactorBase launch because --prepare-only was used.")
         append_log_message(
             run_log_path,
@@ -567,19 +909,66 @@ def main() -> None:
     jar_filename = choose_jar(args.jar)
     jar_path = SCRIPT_DIR / jar_filename
     require_path_exists(jar_path, "FactorBase JAR")
+    factorbase_command = ["java", f"-Dconfig={run_config_path}", "-jar", jar_filename]
+    command_file_path = write_command_file(
+        run_dir,
+        [sys.executable, *sys.argv],
+        import_command,
+        factorbase_command,
+    )
+    manifest_path = run_dir / "rule_manifest.json"
+    manifest = build_rule_manifest(
+        args=args,
+        dataset_name=dataset_name,
+        db_name=args.db_name,
+        edge_mode_label=edge_mode_label,
+        run_dir=run_dir,
+        run_log_path=run_log_path,
+        config_template_path=args.config_template,
+        generated_config_path=config_path,
+        run_config_path=run_config_path,
+        import_command=import_command,
+        factorbase_command=factorbase_command,
+        command_file_path=command_file_path,
+        jar_filename=jar_filename,
+        factorbase_status="pending",
+    )
+    write_json(manifest_path, manifest)
+    write_manifest_to_database(config_values, args.db_name, manifest)
 
     print_section("LAUNCHING FACTORBASE")
-    print(f"Running {jar_filename} with config {config_path}")
+    print(f"Running {jar_filename} with config {run_config_path}")
     run_subprocess_step(
         "FactorBase launch",
-        ["java", f"-Dconfig={config_path}", "-jar", jar_filename],
+        factorbase_command,
         SCRIPT_DIR,
         required_markers=(f"Input Database: {args.db_name}", "Program Done!"),
         log_path=run_log_path,
     )
-    jar_log_archive_path = archive_factorbase_jar_log(jar_filename, args.db_name)
+    jar_log_archive_path = archive_factorbase_jar_log_to_run_dir(jar_filename, run_dir)
     if jar_log_archive_path is not None:
         append_log_message(run_log_path, f"FactorBase JAR log moved to: {jar_log_archive_path}")
+    manifest = build_rule_manifest(
+        args=args,
+        dataset_name=dataset_name,
+        db_name=args.db_name,
+        edge_mode_label=edge_mode_label,
+        run_dir=run_dir,
+        run_log_path=run_log_path,
+        config_template_path=args.config_template,
+        generated_config_path=config_path,
+        run_config_path=run_config_path,
+        import_command=import_command,
+        factorbase_command=factorbase_command,
+        command_file_path=command_file_path,
+        jar_filename=jar_filename,
+        factorbase_status="completed",
+        jar_log_archive_path=jar_log_archive_path,
+    )
+    write_json(manifest_path, manifest)
+    write_manifest_to_database(config_values, args.db_name, manifest)
+    append_log_message(run_log_path, f"Rule manifest written: {manifest_path}")
+    append_log_message(run_log_path, f"SQL metadata table updated: {RUN_METADATA_TABLE}")
 
 
 if __name__ == "__main__":

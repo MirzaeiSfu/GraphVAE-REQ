@@ -6,6 +6,7 @@ __pycache__/
 data/
 
 # Generated FactorBase run directories and outputs
+runs/
 factorbase_*_run/
 grid_experiment/
 lobster_experiment/

@@ -23,28 +23,31 @@ def prompt_non_empty(prompt: str) -> str:
         print("Please enter a non-empty value.")
 
 
-def resolve_edge_mode(directed_flag: bool, undirected_flag: bool) -> bool:
+def resolve_edge_mode(
+    directed_flag: bool,
+    undirected_flag: bool,
+) -> str:
     if directed_flag:
         print("Selected: DIRECTED\n")
-        return True
+        return "directed"
 
     if undirected_flag:
         print("Selected: UNDIRECTED\n")
-        return False
+        return "undirected"
 
     while True:
         choice = input(
             "Edge storage mode?\n"
-            "  1 - DIRECTED (A->B and B->A)\n"
-            "  2 - UNDIRECTED (only one stored edge per pair)\n"
+            "  1 - DIRECTED (store exactly the source edge directions)\n"
+            "  2 - UNDIRECTED (store A->B and B->A for each edge pair)\n"
             "Choice: "
         ).strip()
         if choice == "1":
             print("Selected: DIRECTED\n")
-            return True
+            return "directed"
         if choice == "2":
             print("Selected: UNDIRECTED\n")
-            return False
+            return "undirected"
         print("Please enter 1 or 2.")
 
 
