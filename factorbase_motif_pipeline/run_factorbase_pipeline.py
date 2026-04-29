@@ -29,20 +29,18 @@ from factorbase_utils import (
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_DIR = SCRIPT_DIR / "config"
-LOG_DIR = SCRIPT_DIR / "log"
 RUNS_DIR = SCRIPT_DIR / "runs"
 
 # Default values you can edit in one place.
 DEFAULT_DATASET = "LOBSTER" #"TRIANGULAR_GRID"#"LOBSTER" #""GRID"" # "PROTEINS" "QM9"
-DEFAULT_DB_NAME = "lobster_experiment" # "triangular_grid_experiment" #"proteins_experiment" "qm9_experiment"
 DEFAULT_CONFIG_TEMPLATE = SCRIPT_DIR / "config.tmp"
 DEFAULT_JAR = "snapshot"        # "snapshot" or "patched"
-DEFAULT_EDGE_MODE = "directed"  # QM9/PROTEINS: "directed", "undirected", or None to prompt
-DEFAULT_SYNTHETIC_EDGE_MODE = "undirected"  # GRID/LOBSTER/TRIANGULAR_GRID
+DEFAULT_EDGE_MODE = "directed"  # "directed", "undirected", or None to prompt
+DEFAULT_SYNTHETIC_EDGE_MODE = "undirected"
 DEFAULT_GRID_FEATURE_MODE = "with-features"
 DEFAULT_LOBSTER_FEATURE_MODE = "with-features"
 DEFAULT_TRIANGULAR_GRID_FEATURE_MODE = "with-features"
+AUTO_DB_NAME_HASH_LENGTH = 6
 
 DATASET_SCRIPTS = {
     "PROTEINS": SCRIPT_DIR / "PROTEINS_db.py",
@@ -91,8 +89,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "db_name",
         nargs="?",
-        default=DEFAULT_DB_NAME,
-        help=f"MySQL database name to create and place into the generated config file (default: {DEFAULT_DB_NAME})",
+        default=None,
+        help=(
+            "Optional MySQL database name. If omitted, a reproducible name is "
+            "computed from dataset, edge mode, feature mode, config template, and JAR."
+        ),
     )
     parser.add_argument(
         "--config-template",
@@ -104,7 +105,7 @@ def parse_args() -> argparse.Namespace:
         "--jar",
         choices=sorted(JAR_FILES),
         default=DEFAULT_JAR,
-        help="Jar to launch after preparation; if omitted, the script prompts",
+        help=f"Jar to launch after preparation (default: {DEFAULT_JAR})",
     )
     parser.add_argument(
         "--prepare-only",
@@ -181,18 +182,15 @@ def normalize_dataset_name(dataset_name: str) -> str:
     return normalized
 
 
-def build_generated_config_path(db_name: str) -> Path:
-    config_name = f"{sanitize_path_component(db_name)}_config.cfg"
-    return CONFIG_DIR / config_name
-
-
 def build_run_dir(db_name: str) -> Path:
     return RUNS_DIR / sanitize_path_component(db_name)
 
 
+def build_run_config_path(run_dir: Path) -> Path:
+    return run_dir / "factorbase_config.cfg"
+
+
 def ensure_generated_output_dirs() -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -303,13 +301,6 @@ def write_generated_config(config_path: Path, config_text: str, db_name: str) ->
     rendered_config = update_config_dbname(config_text, db_name)
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(rendered_config, encoding="utf-8")
-
-
-def copy_generated_config_to_run_dir(config_path: Path, run_dir: Path) -> Path:
-    destination = run_dir / "factorbase_config.cfg"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(config_path, destination)
-    return destination
 
 
 def write_command_file(
@@ -487,6 +478,25 @@ def archive_factorbase_jar_log_to_run_dir(jar_filename: str, run_dir: Path) -> P
     destination_log_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source_log_path), str(destination_log_path))
     return destination_log_path
+
+
+def archive_factorbase_output_dir_to_run_dir(db_name: str, run_dir: Path) -> Path | None:
+    output_dir_candidates = [
+        SCRIPT_DIR / db_name,
+        SCRIPT_DIR / sanitize_path_component(db_name),
+    ]
+    for source_output_dir in output_dir_candidates:
+        if not source_output_dir.exists() or not source_output_dir.is_dir():
+            continue
+        if source_output_dir.resolve() == run_dir.resolve():
+            continue
+
+        destination_output_dir = choose_available_path(run_dir / "factorbase_output")
+        destination_output_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source_output_dir), str(destination_output_dir))
+        return destination_output_dir
+
+    return None
 
 
 def normalize_mysql_host(host: str) -> str:
@@ -706,16 +716,130 @@ def dataset_feature_mode(dataset_name: str, args: argparse.Namespace) -> str | N
     return None
 
 
+def feature_mode_alias(feature_mode: str | None) -> str:
+    if feature_mode == "without-features":
+        return "nofeat"
+    return "feat"
+
+
+def edge_mode_alias(edge_mode_label: str) -> str:
+    if edge_mode_label == "directed":
+        return "dir"
+    if edge_mode_label == "undirected":
+        return "undir"
+    if edge_mode_label == "reused existing database":
+        return "reuse"
+    return sanitize_path_component(edge_mode_label.lower())
+
+
+def jar_choice_alias(jar_choice: str | None) -> str:
+    if jar_choice == "snapshot":
+        return "snap"
+    if jar_choice == "patched":
+        return "patch"
+    return "jar"
+
+
+def resolve_pipeline_edge_mode(
+    dataset_name: str,
+    args: argparse.Namespace,
+) -> tuple[str | None, str]:
+    directed_flag = args.directed
+    undirected_flag = args.undirected
+    if dataset_name in SYNTHETIC_DATASETS and not directed_flag and not undirected_flag:
+        if DEFAULT_SYNTHETIC_EDGE_MODE == "undirected":
+            undirected_flag = True
+        else:
+            raise ValueError(SYNTHETIC_DIRECTED_MISMATCH_ERROR)
+    elif not directed_flag and not undirected_flag:
+        if DEFAULT_EDGE_MODE == "directed":
+            directed_flag = True
+        elif DEFAULT_EDGE_MODE == "undirected":
+            undirected_flag = True
+
+    edge_mode = resolve_edge_mode(directed_flag, undirected_flag)
+    if args.use_existing_db:
+        return None, edge_mode
+    return edge_mode, edge_mode
+
+
+def build_auto_db_name_material(
+    *,
+    args: argparse.Namespace,
+    dataset_name: str,
+    edge_mode_label: str,
+) -> dict:
+    jar_filename = JAR_FILES.get(args.jar) if args.jar is not None else None
+    jar_path = SCRIPT_DIR / jar_filename if jar_filename is not None else None
+    return {
+        "dataset": dataset_name,
+        "edge_mode": edge_mode_label,
+        "feature_mode": dataset_feature_mode(dataset_name, args),
+        "config_template_sha256": sha256_file(args.config_template),
+        "jar_choice": args.jar,
+        "jar_filename": jar_filename,
+        "jar_sha256": sha256_file(jar_path) if jar_path is not None else None,
+        "synthetic_dataset": dataset_name in SYNTHETIC_DATASETS,
+    }
+
+
+def build_auto_db_name(
+    *,
+    dataset_name: str,
+    edge_mode_label: str,
+    feature_mode: str | None,
+    jar_choice: str | None,
+    material: dict,
+) -> str:
+    digest = hashlib.sha256(canonical_json(material).encode("utf-8")).hexdigest()
+    name_parts = [
+        sanitize_path_component(dataset_name.lower()),
+        edge_mode_alias(edge_mode_label),
+        feature_mode_alias(feature_mode),
+        jar_choice_alias(jar_choice),
+        digest[:AUTO_DB_NAME_HASH_LENGTH],
+    ]
+    return sanitize_path_component("_".join(name_parts))
+
+
+def resolve_db_name(
+    *,
+    args: argparse.Namespace,
+    dataset_name: str,
+    edge_mode_label: str,
+) -> tuple[str, str, dict]:
+    material = build_auto_db_name_material(
+        args=args,
+        dataset_name=dataset_name,
+        edge_mode_label=edge_mode_label,
+    )
+    if args.db_name:
+        return args.db_name, "provided", material
+
+    return (
+        build_auto_db_name(
+            dataset_name=dataset_name,
+            edge_mode_label=edge_mode_label,
+            feature_mode=dataset_feature_mode(dataset_name, args),
+            jar_choice=args.jar,
+            material=material,
+        ),
+        "auto",
+        material,
+    )
+
+
 def build_rule_manifest(
     *,
     args: argparse.Namespace,
     dataset_name: str,
     db_name: str,
+    db_name_source: str,
+    auto_db_name_material: dict,
     edge_mode_label: str,
     run_dir: Path,
     run_log_path: Path,
     config_template_path: Path,
-    generated_config_path: Path,
     run_config_path: Path,
     import_command: list[str] | None,
     factorbase_command: list[str] | None,
@@ -723,6 +847,7 @@ def build_rule_manifest(
     jar_filename: str | None,
     factorbase_status: str,
     jar_log_archive_path: Path | None = None,
+    factorbase_output_dir_archive_path: Path | None = None,
 ) -> dict:
     jar_path = SCRIPT_DIR / jar_filename if jar_filename is not None else None
     source_edge_analysis = extract_source_edge_analysis_from_log(run_log_path)
@@ -730,6 +855,8 @@ def build_rule_manifest(
         "manifest_schema_version": "rule-learning-v1",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "db_name": db_name,
+        "db_name_source": db_name_source,
+        "auto_db_name_material": auto_db_name_material,
         "dataset": dataset_name,
         "edge_mode": edge_mode_label,
         "effective_db_edge_relation": describe_effective_db_edge_relation(
@@ -748,8 +875,6 @@ def build_rule_manifest(
         "source_edge_analysis_descriptions": SOURCE_EDGE_ANALYSIS_DESCRIPTIONS,
         "config_template_path": str(config_template_path),
         "config_template_sha256": sha256_file(config_template_path),
-        "generated_config_path": str(generated_config_path),
-        "generated_config_sha256": sha256_file(generated_config_path),
         "run_config_path": str(run_config_path),
         "run_config_sha256": sha256_file(run_config_path),
         "jar_choice": args.jar,
@@ -758,6 +883,11 @@ def build_rule_manifest(
         "factorbase_status": factorbase_status,
         "factorbase_jar_log_archive_path": (
             str(jar_log_archive_path) if jar_log_archive_path is not None else None
+        ),
+        "factorbase_output_dir_archive_path": (
+            str(factorbase_output_dir_archive_path)
+            if factorbase_output_dir_archive_path is not None
+            else None
         ),
         "run_dir": str(run_dir),
         "run_log_path": str(run_log_path),
@@ -796,47 +926,43 @@ def main() -> None:
 
     ensure_generated_output_dirs()
     template_text = load_template_config(args.config_template)
-    run_dir = build_run_dir(args.db_name)
+    edge_mode, edge_mode_label = resolve_pipeline_edge_mode(dataset_name, args)
+    db_name, db_name_source, auto_db_name_material = resolve_db_name(
+        args=args,
+        dataset_name=dataset_name,
+        edge_mode_label=edge_mode_label,
+    )
+    args.db_name = db_name
+    run_dir = build_run_dir(db_name)
     run_dir.mkdir(parents=True, exist_ok=True)
-    config_path = build_generated_config_path(args.db_name)
+    run_config_path = build_run_config_path(run_dir)
     run_log_path = run_dir / "run.log"
     import_command = None
     factorbase_command = None
-    jar_filename = None
+    jar_filename = JAR_FILES.get(args.jar) if args.jar is not None else None
     command_file_path = run_dir / "command.txt"
 
-    if args.use_existing_db:
-        edge_mode_label = "reused existing database"
-        edge_mode = None
-    else:
-        directed_flag = args.directed
-        undirected_flag = args.undirected
-        if dataset_name in SYNTHETIC_DATASETS and not directed_flag and not undirected_flag:
-            if DEFAULT_SYNTHETIC_EDGE_MODE == "undirected":
-                undirected_flag = True
-            else:
-                raise ValueError(SYNTHETIC_DIRECTED_MISMATCH_ERROR)
-        elif not directed_flag and not undirected_flag:
-            if DEFAULT_EDGE_MODE == "directed":
-                directed_flag = True
-            elif DEFAULT_EDGE_MODE == "undirected":
-                undirected_flag = True
-        edge_mode = resolve_edge_mode(directed_flag, undirected_flag)
-        edge_mode_label = edge_mode
+    print_section("RESOLVED RUN IDENTITY")
+    print(f"Dataset: {dataset_name}")
+    print(f"Database: {db_name} ({db_name_source})")
+    print(f"Run directory: {run_dir}")
 
     initialize_run_log(
         run_log_path,
         dataset_name,
-        args.db_name,
+        db_name,
         edge_mode_label,
         args.prepare_only,
         args.use_existing_db,
     )
+    append_log_message(run_log_path, f"Database name source: {db_name_source}")
+    append_log_message(run_log_path, f"Run directory: {run_dir}")
+    append_log_message(run_log_path, "")
 
     if args.use_existing_db:
         print_section("REUSING EXISTING DATASET DATABASE")
         message = (
-            f"Skipping dataset import and reusing existing database '{args.db_name}'."
+            f"Skipping dataset import and reusing existing database '{db_name}'."
         )
         print(message)
         append_log_message(run_log_path, message)
@@ -847,7 +973,7 @@ def main() -> None:
         print_section("RUNNING DATASET IMPORT")
         import_command = build_import_command(
             dataset_name,
-            args.db_name,
+            db_name,
             edge_mode,
         )
         import_command = append_dataset_specific_args(
@@ -861,14 +987,11 @@ def main() -> None:
         run_subprocess_step("Dataset import", import_command, SCRIPT_DIR, log_path=run_log_path)
 
     print_section("WRITING FACTORBASE CONFIG")
-    write_generated_config(config_path, template_text, args.db_name)
-    run_config_path = copy_generated_config_to_run_dir(config_path, run_dir)
-    config_values = load_and_validate_config_values(run_config_path, args.db_name)
-    verify_dataset_database(run_config_path, args.db_name)
-    print(f"Config file written: {config_path}")
-    print(f"Run config snapshot written: {run_config_path}")
-    append_log_message(run_log_path, f"Config file written: {config_path}")
-    append_log_message(run_log_path, f"Run config snapshot written: {run_config_path}")
+    write_generated_config(run_config_path, template_text, db_name)
+    config_values = load_and_validate_config_values(run_config_path, db_name)
+    verify_dataset_database(run_config_path, db_name)
+    print(f"Run config written: {run_config_path}")
+    append_log_message(run_log_path, f"Run config written: {run_config_path}")
     append_log_message(run_log_path, "")
 
     if args.prepare_only:
@@ -881,12 +1004,13 @@ def main() -> None:
         manifest = build_rule_manifest(
             args=args,
             dataset_name=dataset_name,
-            db_name=args.db_name,
+            db_name=db_name,
+            db_name_source=db_name_source,
+            auto_db_name_material=auto_db_name_material,
             edge_mode_label=edge_mode_label,
             run_dir=run_dir,
             run_log_path=run_log_path,
             config_template_path=args.config_template,
-            generated_config_path=config_path,
             run_config_path=run_config_path,
             import_command=import_command,
             factorbase_command=factorbase_command,
@@ -896,7 +1020,7 @@ def main() -> None:
         )
         manifest_path = run_dir / "rule_manifest.json"
         write_json(manifest_path, manifest)
-        write_manifest_to_database(config_values, args.db_name, manifest)
+        write_manifest_to_database(config_values, db_name, manifest)
         append_log_message(run_log_path, f"Rule manifest written: {manifest_path}")
         append_log_message(run_log_path, f"SQL metadata table updated: {RUN_METADATA_TABLE}")
         print("\nPreparation complete. Skipping FactorBase launch because --prepare-only was used.")
@@ -920,12 +1044,13 @@ def main() -> None:
     manifest = build_rule_manifest(
         args=args,
         dataset_name=dataset_name,
-        db_name=args.db_name,
+        db_name=db_name,
+        db_name_source=db_name_source,
+        auto_db_name_material=auto_db_name_material,
         edge_mode_label=edge_mode_label,
         run_dir=run_dir,
         run_log_path=run_log_path,
         config_template_path=args.config_template,
-        generated_config_path=config_path,
         run_config_path=run_config_path,
         import_command=import_command,
         factorbase_command=factorbase_command,
@@ -934,7 +1059,7 @@ def main() -> None:
         factorbase_status="pending",
     )
     write_json(manifest_path, manifest)
-    write_manifest_to_database(config_values, args.db_name, manifest)
+    write_manifest_to_database(config_values, db_name, manifest)
 
     print_section("LAUNCHING FACTORBASE")
     print(f"Running {jar_filename} with config {run_config_path}")
@@ -942,21 +1067,28 @@ def main() -> None:
         "FactorBase launch",
         factorbase_command,
         SCRIPT_DIR,
-        required_markers=(f"Input Database: {args.db_name}", "Program Done!"),
+        required_markers=(f"Input Database: {db_name}", "Program Done!"),
         log_path=run_log_path,
     )
     jar_log_archive_path = archive_factorbase_jar_log_to_run_dir(jar_filename, run_dir)
     if jar_log_archive_path is not None:
         append_log_message(run_log_path, f"FactorBase JAR log moved to: {jar_log_archive_path}")
+    factorbase_output_dir_archive_path = archive_factorbase_output_dir_to_run_dir(db_name, run_dir)
+    if factorbase_output_dir_archive_path is not None:
+        append_log_message(
+            run_log_path,
+            f"FactorBase output directory moved to: {factorbase_output_dir_archive_path}",
+        )
     manifest = build_rule_manifest(
         args=args,
         dataset_name=dataset_name,
-        db_name=args.db_name,
+        db_name=db_name,
+        db_name_source=db_name_source,
+        auto_db_name_material=auto_db_name_material,
         edge_mode_label=edge_mode_label,
         run_dir=run_dir,
         run_log_path=run_log_path,
         config_template_path=args.config_template,
-        generated_config_path=config_path,
         run_config_path=run_config_path,
         import_command=import_command,
         factorbase_command=factorbase_command,
@@ -964,9 +1096,10 @@ def main() -> None:
         jar_filename=jar_filename,
         factorbase_status="completed",
         jar_log_archive_path=jar_log_archive_path,
+        factorbase_output_dir_archive_path=factorbase_output_dir_archive_path,
     )
     write_json(manifest_path, manifest)
-    write_manifest_to_database(config_values, args.db_name, manifest)
+    write_manifest_to_database(config_values, db_name, manifest)
     append_log_message(run_log_path, f"Rule manifest written: {manifest_path}")
     append_log_message(run_log_path, f"SQL metadata table updated: {RUN_METADATA_TABLE}")
 

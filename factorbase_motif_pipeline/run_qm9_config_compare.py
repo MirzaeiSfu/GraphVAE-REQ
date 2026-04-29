@@ -105,7 +105,7 @@ def build_target_db_name(prefix: str, config_path: Path) -> str:
 
 
 def build_run_log_path(db_name: str) -> Path:
-    return SCRIPT_DIR / "log" / f"{sanitize_path_component(db_name)}_run.log"
+    return SCRIPT_DIR / "runs" / sanitize_path_component(db_name) / "run.log"
 
 
 def run_command(command: list[str], step_name: str) -> None:
@@ -306,7 +306,7 @@ if __name__ == "__main__":
   
 #result summary printed by the script on the qm9 CFG_COMPARE_CONFIG configs with the default settings:
 #DEFAULT_EDGE_MODE = "directed" DEFAULT_JAR = "snapshot"
-    # SUCCESS | config=config.tmp | db=qm9_cfg_compare_config | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/log/qm9_cfg_compare_config_run.log
-    # FAILED  | config=config1.tmp | db=qm9_cfg_compare_config1 | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/log/qm9_cfg_compare_config1_run.log
-    # SUCCESS | config=config2.tmp | db=qm9_cfg_compare_config2 | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/log/qm9_cfg_compare_config2_run.log
+    # SUCCESS | config=config.tmp | db=qm9_cfg_compare_config | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/runs/qm9_cfg_compare_config/run.log
+    # FAILED  | config=config1.tmp | db=qm9_cfg_compare_config1 | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/runs/qm9_cfg_compare_config1/run.log
+    # SUCCESS | config=config2.tmp | db=qm9_cfg_compare_config2 | log=/local-scratch/localhome/mirzaei/GraphVAE-REQ/factorbase_motif_pipeline/runs/qm9_cfg_compare_config2/run.log
     # Base database kept: qm9_cfg_compare_base

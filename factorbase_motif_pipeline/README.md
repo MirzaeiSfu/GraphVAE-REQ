@@ -16,23 +16,22 @@ This folder contains the scripts used to load graph datasets into MySQL for Fact
 
 ## Generated Artifacts
 
-The pipeline now writes generated artifacts into a few different places:
+The pipeline writes generated artifacts into one run folder:
 
-- config files go in `config/`
 - per-run rule-learning records go in `runs/<db_name>/`
-- FactorBase still creates a run-output folder named after the database, for example `qm9_experiment1/` or `triangular_grid_logmove_smoke/`
+- the generated FactorBase config is `runs/<db_name>/factorbase_config.cfg`
+- FactorBase output is moved into `runs/<db_name>/factorbase_output/` after Java finishes
 
 Examples:
 
-- `config/proteins_experiment_config.cfg`
-- `config/qm9_experiment_config.cfg`
 - `runs/qm9_experiment1/rule_manifest.json`
 - `runs/qm9_experiment1/factorbase_config.cfg`
 - `runs/qm9_experiment1/command.txt`
 - `runs/qm9_experiment1/run.log`
-- `triangular_grid_logmove_smoke/res/`
+- `runs/qm9_experiment1/factorbase_output/res/`
 
-The per-database output folder is created by FactorBase itself. It is where run artifacts such as `res/*.xml` are written.
+The per-database output folder is created by FactorBase itself while Java runs,
+then the wrapper moves it under the matching run folder.
 
 FactorBase can then be launched with:
 
@@ -43,7 +42,7 @@ java -Dconfig=<config-file-path> -jar <jar-file-name>
 Example:
 
 ```bash
-java -Dconfig=config/proteins_experiment_config.cfg -jar factorbase-1.0-SNAPSHOT.jar
+java -Dconfig=runs/proteins_experiment/factorbase_config.cfg -jar factorbase-1.0-SNAPSHOT.jar
 ```
 
 ## Current Defaults In `run_factorbase_pipeline.py`
@@ -51,7 +50,6 @@ java -Dconfig=config/proteins_experiment_config.cfg -jar factorbase-1.0-SNAPSHOT
 Right now the wrapper script is set to:
 
 - `DEFAULT_DATASET = "LOBSTER"`
-- `DEFAULT_DB_NAME = "lobster_experiment"`
 - `DEFAULT_CONFIG_TEMPLATE = config.tmp`
 - `DEFAULT_JAR = "snapshot"`
 - `DEFAULT_EDGE_MODE = "directed"`
@@ -59,7 +57,8 @@ Right now the wrapper script is set to:
 
 That means:
 
-- if you run the wrapper with no positional arguments, it will use `LOBSTER` and `lobster_experiment`
+- if you run the wrapper with no positional arguments, it will use `LOBSTER`
+  and compute a database name from the selected options
 - it will use undirected edge mode for LOBSTER so the DB matches `main.py`'s symmetric adjacency
 - it will run the snapshot JAR because `DEFAULT_JAR` is `"snapshot"`
 
@@ -75,9 +74,9 @@ python run_factorbase_pipeline.py
 With the current defaults, that will use:
 
 - dataset: `LOBSTER`
-- database name: `lobster_experiment`
+- database name: computed automatically, for example `lobster_undir_feat_snap_ab31c9`
 
-If you want to override the defaults:
+If you want to choose the database name yourself, pass it after the dataset:
 
 ```bash
 python run_factorbase_pipeline.py PROTEINS proteins_experiment
@@ -106,14 +105,14 @@ python run_qm9_config_compare.py --prefix qm9_std_compare
 1. Run the selected dataset import script.
    If you pass `--use-existing-db`, it skips this import step and reuses the current
    `dbname` database instead.
-2. Create the MySQL database with the chosen database name.
-3. Create a config file named `config/<db_name>_config.cfg` from `config.tmp`.
-4. Ask which JAR to run, unless you set a default or pass `--jar`.
-5. Create a rule-learning record folder at `runs/<db_name>/`.
-6. Write `runs/<db_name>/rule_manifest.json`, `factorbase_config.cfg`, `command.txt`, and `run.log`.
+2. Use the provided database name, or compute one from dataset, edge mode,
+   feature mode, config template hash, and JAR.
+3. Create the MySQL database with that database name.
+4. Create a rule-learning record folder at `runs/<db_name>/`.
+5. Write `runs/<db_name>/rule_manifest.json`, `factorbase_config.cfg`, `command.txt`, and `run.log`.
 7. Insert the same manifest details into the SQL `run_metadata` table inside `<db_name>`.
-8. Launch FactorBase with the run-folder config snapshot.
-9. Let FactorBase create its own output folder named `<db_name>/`.
+8. Launch FactorBase with `runs/<db_name>/factorbase_config.cfg`.
+9. Move the FactorBase-created output folder into `runs/<db_name>/factorbase_output/`.
 
 For example, if you run the pipeline with:
 
@@ -123,12 +122,11 @@ python run_factorbase_pipeline.py TRIANGULAR_GRID triangular_grid_logmove_smoke 
 
 you should expect all of these:
 
-- `config/triangular_grid_logmove_smoke_config.cfg`
 - `runs/triangular_grid_logmove_smoke/rule_manifest.json`
 - `runs/triangular_grid_logmove_smoke/factorbase_config.cfg`
 - `runs/triangular_grid_logmove_smoke/command.txt`
 - `runs/triangular_grid_logmove_smoke/run.log`
-- `triangular_grid_logmove_smoke/`
+- `runs/triangular_grid_logmove_smoke/factorbase_output/`
 
 The manifest records the dataset, edge mode, effective DB edge relation, feature
 mode, generated FactorBase config hash, template config hash, selected JAR and
@@ -157,7 +155,7 @@ the database can explain how it was created even if the run folder is moved.
 `drop_factorbase_databases.sh` supports two modes:
 
 1. Config-file mode
-   Give it a generated config file such as `config/proteins_experiment_config.cfg`.
+   Give it a generated config file such as `runs/proteins_experiment/factorbase_config.cfg`.
    It reads the MySQL connection settings and `dbname` from that config.
 
 2. Database-name mode
@@ -173,8 +171,8 @@ the database can explain how it was created even if the run folder is moved.
 Examples:
 
 ```bash
-./drop_factorbase_databases.sh --dry-run config/proteins_experiment_config.cfg
-./drop_factorbase_databases.sh config/proteins_experiment_config.cfg
+./drop_factorbase_databases.sh --dry-run runs/proteins_experiment/factorbase_config.cfg
+./drop_factorbase_databases.sh runs/proteins_experiment/factorbase_config.cfg
 ./drop_factorbase_databases.sh --dry-run ali
 ./drop_factorbase_databases.sh ali
 ```
@@ -183,8 +181,8 @@ If you use config-file mode, the script also asks whether you want to delete tha
 
 ## Notes
 
-- The wrapper now stores generated config files in `config/` and run-level records in `runs/<db_name>/`.
+- The wrapper now stores generated configs, logs, manifests, command records, and FactorBase output under `runs/<db_name>/`.
 - FactorBase can be pointed at the generated file with `-Dconfig=<config-file-path>`.
-- Per-run output folders such as `triangular_grid_logmove_smoke/` are normal and are created by FactorBase, not by the config/log reorganization itself.
+- Per-run output folders such as `runs/triangular_grid_logmove_smoke/factorbase_output/` are normal and are created by FactorBase before the wrapper moves them into the run folder.
 - Smoke-test folders created during verification can be deleted later if you do not want to keep their outputs.
-- Generated config files such as `config/*_config.cfg`, logs such as `log/*.log`, and run records under `runs/` are ignored by `factorbase_motif_pipeline/.gitignore`.
+- Generated run records under `runs/` are ignored by `factorbase_motif_pipeline/.gitignore`.
