@@ -17,6 +17,8 @@ try:
 except ImportError:  # pragma: no cover - only used when DGL is unavailable
     torch = None
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_ROOT = REPO_ROOT / "data"
 DEFAULT_EDGE_MODE = "directed"
 
 
@@ -183,7 +185,17 @@ def _extract_dgl_edges(graph) -> List[Tuple[int, int]]:
 def load_proteins_from_dgl() -> Tuple[List[ProteinGraph], str]:
     import dgl
 
-    dataset = dgl.data.GINDataset(name="PROTEINS", self_loop=False)
+    dgl_root = DATA_ROOT / "dgl"
+    try:
+        dataset = dgl.data.GINDataset(
+            name="PROTEINS",
+            self_loop=False,
+            raw_dir=str(dgl_root),
+        )
+        dataset_source = f"DGL GINDataset(name='PROTEINS', raw_dir='{dgl_root}')"
+    except TypeError:  # pragma: no cover - depends on installed DGL version
+        dataset = dgl.data.GINDataset(name="PROTEINS", self_loop=False)
+        dataset_source = "DGL GINDataset(name='PROTEINS')"
     graphs = []
 
     for graph, label in zip(dataset.graphs, dataset.labels):
@@ -195,7 +207,7 @@ def load_proteins_from_dgl() -> Tuple[List[ProteinGraph], str]:
             )
         )
 
-    return graphs, "DGL GINDataset(name='PROTEINS')"
+    return graphs, dataset_source
 
 
 def load_proteins_from_text(dataset_path: Path) -> Tuple[List[ProteinGraph], str]:
@@ -254,7 +266,7 @@ def load_proteins_dataset() -> Tuple[List[ProteinGraph], str]:
 
     candidate_paths = [
         Path.home() / ".dgl" / "GINDataset" / "dataset" / "PROTEINS" / "PROTEINS.txt",
-        Path(__file__).resolve().parent / "data" / "Kernel_dataset" / "PROTEINS" / "PROTEINS.txt",
+        DATA_ROOT / "Kernel_dataset" / "PROTEINS" / "PROTEINS.txt",
     ]
 
     for candidate_path in candidate_paths:

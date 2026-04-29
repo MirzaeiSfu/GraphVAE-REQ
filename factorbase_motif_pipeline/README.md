@@ -149,7 +149,7 @@ the database can explain how it was created even if the run folder is moved.
 - Every dataset import script prints a source-edge bidirectionality analysis before import.
 - If every source edge already has its reverse, the scripts warn that `--directed` and `--undirected` should produce the same edge table.
 - The current simplified dataset scripts still use the hard-coded MySQL connection values inside those files.
-- `QM9_db.py` now uses a script-relative dataset path so it consistently reuses `factorbase_motif_pipeline/data/QM9` instead of depending on the shell working directory.
+- `QM9_db.py` now uses the repository-level `data/QM9` cache, matching the dataset root used by `main.py`.
 - `QM9_db.py` now batches node and edge inserts with `executemany(...)` to reduce SQL round-trips during database population.
 
 ## Database Cleanup

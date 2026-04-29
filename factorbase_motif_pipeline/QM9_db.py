@@ -8,6 +8,8 @@ import argparse
 from collections import defaultdict
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_ROOT = REPO_ROOT / "data"
 DEFAULT_EDGE_MODE = "directed"
 
 
@@ -149,7 +151,7 @@ def print_source_edge_direction_analysis(dataset_name, stats, edge_mode):
 print("=" * 60)
 print("LOADING QM9 DATASET")
 print("=" * 60)
-dataset_root = Path(__file__).resolve().parent / "data" / "QM9"
+dataset_root = DATA_ROOT / "QM9"
 dataset = QM9(root=str(dataset_root))
 print(f"Loaded {len(dataset):,} molecules\n")
 

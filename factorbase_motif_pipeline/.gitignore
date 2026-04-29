@@ -2,9 +2,6 @@
 __pycache__/
 *.py[cod]
 
-# Local dataset cache/downloads for this pipeline
-data/
-
 # Generated FactorBase run directories and outputs
 runs/
 factorbase_*_run/
