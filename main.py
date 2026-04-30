@@ -156,7 +156,7 @@ parser.add_argument(
 parser.add_argument(
     '--dataset',
     dest="dataset",
-    default="QM9",
+    default="PROTEINS",
     help="possible choices are: wheel_graph, PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD"
 )
 parser.add_argument(

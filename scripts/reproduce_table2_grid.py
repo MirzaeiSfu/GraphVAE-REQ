@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Reproduce Kia paper Table 2 metrics for the Grid dataset.
+"""Reproduce Kia paper Table 2 metrics for supported synthetic datasets.
 
 This script is intentionally separate from the training entrypoint. It can:
 
 1. Compute the Table 2 `50/50 split` ideal/reference row.
-2. Compare a saved generated-graphs `.npy` file against the paper-style Grid
-   test split for the `GraphVAE` row.
+2. Compare a saved generated-graphs `.npy` file against the paper-style
+   70/10/20 test split for the `GraphVAE` row.
 
 Outputs are written under `runs/table2_reproduction/...` by default.
 """
@@ -41,20 +41,38 @@ from stat_rnn import (  # noqa: E402
 )
 
 
-PAPER_TABLE2_GRID = {
-    "50/50 split": {
-        "degree": 1e-5,
-        "clustering": 0.0,
-        "orbit": 2e-5,
-        "spectral": 0.004,
-        "diameter": 0.014,
+PAPER_TABLE2_BY_DATASET = {
+    "GRID": {
+        "50/50 split": {
+            "degree": 1e-5,
+            "clustering": 0.0,
+            "orbit": 2e-5,
+            "spectral": 0.004,
+            "diameter": 0.014,
+        },
+        "GraphVAE": {
+            "degree": 0.062,
+            "clustering": 0.055,
+            "orbit": 0.515,
+            "spectral": 0.018,
+            "diameter": 0.143,
+        },
     },
-    "GraphVAE": {
-        "degree": 0.062,
-        "clustering": 0.055,
-        "orbit": 0.515,
-        "spectral": 0.018,
-        "diameter": 0.143,
+    "LOBSTER": {
+        "50/50 split": {
+            "degree": 0.002,
+            "clustering": 0.0,
+            "orbit": 0.002,
+            "spectral": 0.005,
+            "diameter": 0.032,
+        },
+        "GraphVAE": {
+            "degree": 0.081,
+            "clustering": 0.739,
+            "orbit": 0.372,
+            "spectral": 0.056,
+            "diameter": 0.129,
+        },
     },
 }
 
@@ -107,12 +125,12 @@ def to_graphs(items, keep_largest_component: bool = False) -> list[nx.Graph]:
     return graphs
 
 
-def load_grid_adjacencies(max_graphs: int | None = None, seed: int = 123):
+def load_adjacencies(dataset: str, max_graphs: int | None = None, seed: int = 123):
     # list_graph_loader shuffles internally through the global random module.
     # Seed it here so --seed controls the full 50/50 reproduction pipeline.
     random.seed(seed)
     np.random.seed(seed)
-    list_adj = list_graph_loader("GRID", return_labels=True)[0]
+    list_adj = list_graph_loader(dataset, return_labels=True)[0]
     if max_graphs is not None:
         list_adj = list_adj[:max_graphs]
     return list_adj
@@ -157,8 +175,8 @@ def compute_table2_metrics(reference_graphs: list[nx.Graph], generated_graphs: l
     }
 
 
-def compare_to_paper(row_name: str, current: dict[str, float]):
-    paper = PAPER_TABLE2_GRID[row_name]
+def compare_to_paper(dataset: str, row_name: str, current: dict[str, float]):
+    paper = PAPER_TABLE2_BY_DATASET[dataset][row_name]
     comparison = {}
     for metric, paper_value in paper.items():
         current_value = current[metric]
@@ -176,19 +194,19 @@ def format_value(value: float) -> str:
     return f"{value:.6f}"
 
 
-def write_outputs(output_dir: Path, rows: dict[str, dict], metadata: dict):
+def write_outputs(output_dir: Path, rows: dict[str, dict], metadata: dict, dataset: str):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     payload = {
         "metadata": metadata,
-        "paper_table2_grid": PAPER_TABLE2_GRID,
+        "paper_table2": PAPER_TABLE2_BY_DATASET[dataset],
         "rows": rows,
     }
     metrics_path = output_dir / "metrics.json"
     metrics_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
     lines = [
-        "# Table 2 Grid Reproduction",
+        f"# Table 2 {dataset.title()} Reproduction",
         "",
         "Lower is better for all MMD metrics.",
         "",
@@ -215,13 +233,19 @@ def write_outputs(output_dir: Path, rows: dict[str, dict], metadata: dict):
     for key, value in metadata.items():
         lines.append(f"- `{key}`: `{value}`")
 
-    table_path = output_dir / "table2_grid_reproduction.md"
+    table_path = output_dir / f"table2_{dataset.lower()}_reproduction.md"
     table_path.write_text("\n".join(lines) + "\n")
     return metrics_path, table_path
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dataset",
+        choices=sorted(PAPER_TABLE2_BY_DATASET),
+        default="GRID",
+        help="Dataset/Table 2 block to evaluate.",
+    )
     parser.add_argument(
         "--mode",
         choices=["ideal-50-50", "evaluate-generated", "all"],
@@ -244,7 +268,7 @@ def main():
         "--output-dir",
         type=Path,
         default=Path("runs/table2_reproduction/grid_metrics"),
-        help="Directory for metrics.json and table2_grid_reproduction.md.",
+        help="Directory for metrics.json and table2_<dataset>_reproduction.md.",
     )
     parser.add_argument(
         "--seed",
@@ -259,27 +283,28 @@ def main():
         help="Optional smoke-test limit. Do not use for paper numbers.",
     )
     args = parser.parse_args()
+    dataset = args.dataset.upper()
 
     if args.mode in {"evaluate-generated", "all"} and args.generated is None:
         raise SystemExit("--generated is required for evaluate-generated/all mode.")
 
     rows = {}
     metadata = {
-        "dataset": "GRID",
+        "dataset": dataset,
         "seed": args.seed,
         "max_graphs": args.max_graphs,
         "mode": args.mode,
     }
 
-    grid_adjs = load_grid_adjacencies(max_graphs=args.max_graphs, seed=args.seed)
+    dataset_adjs = load_adjacencies(dataset, max_graphs=args.max_graphs, seed=args.seed)
 
     with locked_orca_tmp():
         if args.mode in {"ideal-50-50", "all"}:
-            left, right = split_50_50(grid_adjs, seed=args.seed)
+            left, right = split_50_50(dataset_adjs, seed=args.seed)
             left_graphs = to_graphs(left)
             right_graphs = to_graphs(right)
             current = compute_table2_metrics(left_graphs, right_graphs)
-            rows["50/50 split"] = compare_to_paper("50/50 split", current)
+            rows["50/50 split"] = compare_to_paper(dataset, "50/50 split", current)
             metadata["ideal_50_50_counts"] = f"{len(left_graphs)}/{len(right_graphs)}"
 
         if args.mode in {"evaluate-generated", "all"}:
@@ -288,16 +313,16 @@ def main():
                 test_graphs = load_npy_graphs(args.test_graphs, keep_largest_component=False)
                 metadata["test_source"] = str(args.test_graphs)
             else:
-                _, _, test_adjs = split_paper_70_10_20(grid_adjs, seed=args.seed)
+                _, _, test_adjs = split_paper_70_10_20(dataset_adjs, seed=args.seed)
                 test_graphs = to_graphs(test_adjs)
                 metadata["test_source"] = "regenerated paper_70_10_20 split"
 
             current = compute_table2_metrics(test_graphs, generated_graphs)
-            rows["GraphVAE"] = compare_to_paper("GraphVAE", current)
+            rows["GraphVAE"] = compare_to_paper(dataset, "GraphVAE", current)
             metadata["generated_source"] = str(args.generated)
             metadata["graphvae_counts"] = f"{len(test_graphs)}/{len(generated_graphs)}"
 
-    metrics_path, table_path = write_outputs(args.output_dir, rows, metadata)
+    metrics_path, table_path = write_outputs(args.output_dir, rows, metadata, dataset)
     print(f"Wrote {metrics_path}")
     print(f"Wrote {table_path}")
 
