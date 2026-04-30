@@ -499,6 +499,25 @@ def archive_factorbase_output_dir_to_run_dir(db_name: str, run_dir: Path) -> Pat
     return None
 
 
+def archive_factorbase_loose_outputs_to_run_dir(db_name: str, run_dir: Path) -> list[Path]:
+    output_candidates = [
+        SCRIPT_DIR / f"Bif_{db_name}.xml",
+        SCRIPT_DIR / f"Bif_{sanitize_path_component(db_name)}.xml",
+        SCRIPT_DIR / "dag_.txt",
+    ]
+    archived_paths = []
+    for source_output_path in output_candidates:
+        if not source_output_path.exists() or not source_output_path.is_file():
+            continue
+
+        destination_path = choose_available_path(run_dir / source_output_path.name)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source_output_path), str(destination_path))
+        archived_paths.append(destination_path)
+
+    return archived_paths
+
+
 def normalize_mysql_host(host: str) -> str:
     return "127.0.0.1" if host == "localhost" else host
 
@@ -623,6 +642,31 @@ def write_manifest_to_database(
                 """,
                 rows,
             )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def drop_manifest_metadata_table_from_database(
+    config_values: dict[str, str],
+    db_name: str,
+) -> None:
+    from pymysql import connect
+
+    host, port = parse_mysql_address(config_values["dbaddress"])
+    host = normalize_mysql_host(host)
+    connection = connect(
+        host=host,
+        port=port,
+        user=config_values["dbusername"],
+        password=config_values["dbpassword"],
+        database=db_name,
+    )
+    metadata_table = quote_mysql_identifier(RUN_METADATA_TABLE)
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"DROP TABLE IF EXISTS {metadata_table}")
         connection.commit()
     finally:
         connection.close()
@@ -848,6 +892,7 @@ def build_rule_manifest(
     factorbase_status: str,
     jar_log_archive_path: Path | None = None,
     factorbase_output_dir_archive_path: Path | None = None,
+    factorbase_loose_output_archive_paths: list[Path] | None = None,
 ) -> dict:
     jar_path = SCRIPT_DIR / jar_filename if jar_filename is not None else None
     source_edge_analysis = extract_source_edge_analysis_from_log(run_log_path)
@@ -889,6 +934,9 @@ def build_rule_manifest(
             if factorbase_output_dir_archive_path is not None
             else None
         ),
+        "factorbase_loose_output_archive_paths": [
+            str(path) for path in factorbase_loose_output_archive_paths or []
+        ],
         "run_dir": str(run_dir),
         "run_log_path": str(run_log_path),
         "command_file_path": str(command_file_path),
@@ -1020,9 +1068,14 @@ def main() -> None:
         )
         manifest_path = run_dir / "rule_manifest.json"
         write_json(manifest_path, manifest)
-        write_manifest_to_database(config_values, db_name, manifest)
         append_log_message(run_log_path, f"Rule manifest written: {manifest_path}")
-        append_log_message(run_log_path, f"SQL metadata table updated: {RUN_METADATA_TABLE}")
+        append_log_message(
+            run_log_path,
+            (
+                f"SQL metadata table not written during --prepare-only because "
+                f"FactorBase scans source tables during setup."
+            ),
+        )
         print("\nPreparation complete. Skipping FactorBase launch because --prepare-only was used.")
         append_log_message(
             run_log_path,
@@ -1059,7 +1112,11 @@ def main() -> None:
         factorbase_status="pending",
     )
     write_json(manifest_path, manifest)
-    write_manifest_to_database(config_values, db_name, manifest)
+    drop_manifest_metadata_table_from_database(config_values, db_name)
+    append_log_message(
+        run_log_path,
+        f"SQL metadata table cleared before FactorBase launch: {RUN_METADATA_TABLE}",
+    )
 
     print_section("LAUNCHING FACTORBASE")
     print(f"Running {jar_filename} with config {run_config_path}")
@@ -1079,6 +1136,12 @@ def main() -> None:
             run_log_path,
             f"FactorBase output directory moved to: {factorbase_output_dir_archive_path}",
         )
+    factorbase_loose_output_archive_paths = archive_factorbase_loose_outputs_to_run_dir(
+        db_name,
+        run_dir,
+    )
+    for archive_path in factorbase_loose_output_archive_paths:
+        append_log_message(run_log_path, f"FactorBase output file moved to: {archive_path}")
     manifest = build_rule_manifest(
         args=args,
         dataset_name=dataset_name,
@@ -1097,6 +1160,7 @@ def main() -> None:
         factorbase_status="completed",
         jar_log_archive_path=jar_log_archive_path,
         factorbase_output_dir_archive_path=factorbase_output_dir_archive_path,
+        factorbase_loose_output_archive_paths=factorbase_loose_output_archive_paths,
     )
     write_json(manifest_path, manifest)
     write_manifest_to_database(config_values, db_name, manifest)

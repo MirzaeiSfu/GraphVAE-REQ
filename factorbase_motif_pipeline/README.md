@@ -21,6 +21,7 @@ The pipeline writes generated artifacts into one run folder:
 - per-run rule-learning records go in `runs/<db_name>/`
 - the generated FactorBase config is `runs/<db_name>/factorbase_config.cfg`
 - FactorBase output is moved into `runs/<db_name>/factorbase_output/` after Java finishes
+- loose FactorBase files such as `Bif_<db_name>.xml` and `dag_.txt` are moved into `runs/<db_name>/`
 
 Examples:
 
@@ -28,6 +29,7 @@ Examples:
 - `runs/qm9_experiment1/factorbase_config.cfg`
 - `runs/qm9_experiment1/command.txt`
 - `runs/qm9_experiment1/run.log`
+- `runs/qm9_experiment1/Bif_qm9_experiment1.xml`
 - `runs/qm9_experiment1/factorbase_output/res/`
 
 The per-database output folder is created by FactorBase itself while Java runs,
@@ -110,9 +112,10 @@ python run_qm9_config_compare.py --prefix qm9_std_compare
 3. Create the MySQL database with that database name.
 4. Create a rule-learning record folder at `runs/<db_name>/`.
 5. Write `runs/<db_name>/rule_manifest.json`, `factorbase_config.cfg`, `command.txt`, and `run.log`.
-7. Insert the same manifest details into the SQL `run_metadata` table inside `<db_name>`.
+7. Clear any old SQL `run_metadata` table before Java starts, because FactorBase scans source tables during setup.
 8. Launch FactorBase with `runs/<db_name>/factorbase_config.cfg`.
 9. Move the FactorBase-created output folder into `runs/<db_name>/factorbase_output/`.
+10. Insert the completed manifest details into the SQL `run_metadata` table inside `<db_name>`.
 
 For example, if you run the pipeline with:
 
@@ -133,8 +136,11 @@ mode, generated FactorBase config hash, template config hash, selected JAR and
 JAR hash, command lines, git commit, git dirty state, and a short reproducibility
 hash. It also includes descriptions for source-edge fields such as
 `source_edge_rows`, `source_undirected_pairs`, and `source_missing_reverse_rows`.
-The SQL database also gets a `run_metadata` table with the same key fields, so
-the database can explain how it was created even if the run folder is moved.
+After FactorBase completes, the SQL database also gets a `run_metadata` table
+with the same key fields, so the database can explain how it was created even if
+the run folder is moved. `--prepare-only` writes the manifest in the run folder
+but does not add `run_metadata`, because extra source tables can confuse
+FactorBase setup.
 
 ## Dataset Script Notes
 
@@ -148,6 +154,7 @@ the database can explain how it was created even if the run folder is moved.
 - If every source edge already has its reverse, the scripts warn that `--directed` and `--undirected` should produce the same edge table.
 - The current simplified dataset scripts still use the hard-coded MySQL connection values inside those files.
 - `QM9_db.py` now uses the repository-level `data/QM9` cache, matching the dataset root used by `main.py`.
+- `PROTEINS_db.py` now uses the repository-level `data/dgl` cache when loading through DGL.
 - `QM9_db.py` now batches node and edge inserts with `executemany(...)` to reduce SQL round-trips during database population.
 
 ## Database Cleanup
