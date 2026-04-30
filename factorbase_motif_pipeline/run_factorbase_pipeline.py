@@ -43,11 +43,11 @@ DEFAULT_TRIANGULAR_GRID_FEATURE_MODE = "with-features"
 AUTO_DB_NAME_HASH_LENGTH = 6
 
 DATASET_SCRIPTS = {
-    "PROTEINS": SCRIPT_DIR / "PROTEINS_db.py",
-    "QM9": SCRIPT_DIR / "QM9_db.py",
-    "GRID": SCRIPT_DIR / "GRID_db.py",
-    "LOBSTER": SCRIPT_DIR / "LOBSTER_db.py",
-    "TRIANGULAR_GRID": SCRIPT_DIR / "TRIANGULAR_GRID_db.py",
+    "PROTEINS": SCRIPT_DIR / "to_db_proteins.py",
+    "QM9": SCRIPT_DIR / "to_db_qm9.py",
+    "GRID": SCRIPT_DIR / "to_db_grid.py",
+    "LOBSTER": SCRIPT_DIR / "to_db_lobster.py",
+    "TRIANGULAR_GRID": SCRIPT_DIR / "to_db_triangular_grid.py",
 }
 SYNTHETIC_DATASETS = {"GRID", "LOBSTER", "TRIANGULAR_GRID"}
 

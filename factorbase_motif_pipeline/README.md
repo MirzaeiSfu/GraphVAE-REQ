@@ -6,8 +6,11 @@ This folder contains the scripts used to load graph datasets into MySQL for Fact
 
 - `run_factorbase_pipeline.py`: wrapper script that runs the dataset import, creates a database-specific config file, and launches FactorBase with the selected JAR.
 - `run_qm9_config_compare.py`: helper script that builds QM9 once, clones the prepared database per config, and runs FactorBase for each config.
-- `PROTEINS_db.py`: loads the PROTEINS dataset into MySQL.
-- `QM9_db.py`: loads the QM9 dataset into MySQL.
+- `to_db_proteins.py`: loads the PROTEINS dataset into MySQL.
+- `to_db_qm9.py`: loads the QM9 dataset into MySQL.
+- `to_db_grid.py`: loads the GRID dataset into MySQL.
+- `to_db_lobster.py`: loads the LOBSTER dataset into MySQL.
+- `to_db_triangular_grid.py`: loads the TRIANGULAR_GRID dataset into MySQL.
 - `config.tmp`: template used to generate database-specific config files.
 - `drop_factorbase_databases.sh`: helper script to drop a base database and the related FactorBase-created databases.
 - `factorbase-1.0-SNAPSHOT.jar`: main FactorBase JAR.
@@ -153,9 +156,9 @@ FactorBase setup.
 - Every dataset import script prints a source-edge bidirectionality analysis before import.
 - If every source edge already has its reverse, the scripts warn that `--directed` and `--undirected` should produce the same edge table.
 - The current simplified dataset scripts still use the hard-coded MySQL connection values inside those files.
-- `QM9_db.py` now uses the repository-level `data/QM9` cache, matching the dataset root used by `main.py`.
-- `PROTEINS_db.py` now uses the repository-level `data/dgl` cache when loading through DGL.
-- `QM9_db.py` now batches node and edge inserts with `executemany(...)` to reduce SQL round-trips during database population.
+- `to_db_qm9.py` now uses the repository-level `data/QM9` cache, matching the dataset root used by `main.py`.
+- `to_db_proteins.py` now uses the repository-level `data/dgl` cache when loading through DGL.
+- `to_db_qm9.py` now batches node and edge inserts with `executemany(...)` to reduce SQL round-trips during database population.
 
 ## Database Cleanup
 
