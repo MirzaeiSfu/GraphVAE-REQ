@@ -4,13 +4,13 @@ runlog/
 generated_graph_train/
 ReportedResult/
 !mmd_rnn.py
-data/geometric/
+data_raw/geometric/
 
-data/QM9/
-data/dgl/
-db/
-dataset/
-dataset_cached/
+data_raw/QM9/
+data_raw/dgl/
+data_raw/ogb/
+cache_motifs/
+cache_datasets/
 graph_cache/
 saved_state/
 factorbase_motif_pipeline/*_experiment/

@@ -9,7 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_ROOT = REPO_ROOT / "data"
+DATA_ROOT = REPO_ROOT / "data_raw"
 DEFAULT_EDGE_MODE = "directed"
 
 

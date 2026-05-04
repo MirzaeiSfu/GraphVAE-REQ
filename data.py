@@ -32,11 +32,22 @@ import dataset_feature_utils.triangular_grid_features as triangular_grid_feature
 
 
 def get_data_dir() -> Path:
-    return Path(os.environ.get("DATA_DIR", "data")).expanduser()
+    return Path(os.environ.get("DATA_DIR", "data_raw")).expanduser()
 
 
 def data_path(*parts: str) -> Path:
     return get_data_dir().joinpath(*parts)
+
+
+def load_gin_dataset(name: str):
+    try:
+        return dgl.data.GINDataset(
+            name=name,
+            self_loop=False,
+            raw_dir=str(data_path("dgl")),
+        )
+    except TypeError:  # pragma: no cover - depends on installed DGL version
+        return dgl.data.GINDataset(name=name, self_loop=False)
 
 
 def parse_index_file(filename):
@@ -580,7 +591,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       )
 
   if graph_type=="IMDBBINARY":
-      data = dgl.data.GINDataset(name='IMDBBINARY', self_loop=False)
+      data = load_gin_dataset('IMDBBINARY')
       graphs, labels = data.graphs, data.labels
       for i, graph in enumerate(graphs):
           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
@@ -591,7 +602,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       np.save('IMDBBINARY_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
 
   elif graph_type=="NCI1":
-      data = dgl.data.GINDataset(name='NCI1', self_loop=False)
+      data = load_gin_dataset('NCI1')
       graphs, labels = data.graphs, data.labels
       for i, graph in enumerate(graphs):
           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
@@ -601,7 +612,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
       np.save('NCI1_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
   elif graph_type=="MUTAG":
-      data = dgl.data.GINDataset(name='MUTAG', self_loop=False)
+      data = load_gin_dataset('MUTAG')
       graphs, labels = data.graphs, data.labels
       for i, graph in enumerate(graphs):
           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
@@ -611,7 +622,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
       np.save('MUTAG_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
   elif graph_type=="COLLAB":
-      data = dgl.data.GINDataset(name='COLLAB', self_loop=False)
+      data = load_gin_dataset('COLLAB')
       graphs, labels = data.graphs, data.labels
       for i, graph in enumerate(graphs):
           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
@@ -621,7 +632,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
       # np.save('COLLAB_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
   elif graph_type=="PTC":
-      data = dgl.data.GINDataset(name='PTC', self_loop=False)
+      data = load_gin_dataset('PTC')
       graphs, labels = data.graphs, data.labels
       for i, graph in enumerate(graphs):
           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
@@ -644,7 +655,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       # # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
       # # np.save('PROTEINS.npy', graphs_to_writeOnDisk, allow_pickle=True)
 #==================================end kiarash code
-      data = dgl.data.GINDataset(name='PROTEINS', self_loop=False)
+      data = load_gin_dataset('PROTEINS')
       graphs, labels = data.graphs, data.labels
 
       node_feature_info = {
@@ -752,7 +763,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 #       # https://ogb.stanford.edu/docs/graphprop/
 #       from ogb.graphproppred import DglGraphPropPredDataset, collate_dgl
 #       d_name = "ogbg-molbbbp"  # ogbg-molhiv   'ogbg-code2' ogbg-ppa
-#       dataset = DglGraphPropPredDataset(name=d_name)
+#       dataset = DglGraphPropPredDataset(name=d_name, root=str(data_path("ogb")))
 
 
 #       list_adj = []

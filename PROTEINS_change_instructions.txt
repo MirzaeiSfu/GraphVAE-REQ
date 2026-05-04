@@ -75,7 +75,7 @@ Recommended feature design for PROTEINS
 
 Important local dataset caveat
 
-- The repo contains `data/Kernel_dataset/PROTEINS_full`, and it has:
+- The repo contains `data_raw/Kernel_dataset/PROTEINS_full`, and it has:
   - `PROTEINS_full_node_labels.txt`
   - `PROTEINS_full_node_attributes.txt`
   - no `edge_labels` file

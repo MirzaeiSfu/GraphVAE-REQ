@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover - only used when DGL is unavailable
     torch = None
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_ROOT = REPO_ROOT / "data"
+DATA_ROOT = REPO_ROOT / "data_raw"
 DEFAULT_EDGE_MODE = "directed"
 
 

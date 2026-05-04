@@ -1,11 +1,22 @@
 import numpy as np
+import os
 import sys
 import pickle as pkl
 import networkx as nx
 import scipy.sparse as sp
 import zipfile
 import math
+from pathlib import Path
 from  Synthatic_graph_generator import Synthetic_data
+
+
+def get_data_dir() -> Path:
+    return Path(os.environ.get("DATA_DIR", "data_raw")).expanduser()
+
+
+def data_path(*parts: str) -> Path:
+    return get_data_dir().joinpath(*parts)
+
 
 def parse_index_file(filename):
     index = []
@@ -57,13 +68,13 @@ def load_data(dataset):
     names = ['x', 'tx', 'allx', 'graph']
     objects = []
     for i in range(len(names)):
-        with open("data/ind.{}.{}".format(dataset, names[i]), 'rb') as f:
+        with open(data_path(f"ind.{dataset}.{names[i]}"), 'rb') as f:
             if sys.version_info > (3, 0):
                 objects.append(pkl.load(f, encoding='latin1'))
             else:
                 objects.append(pkl.load(f))
     x, tx, allx, graph = tuple(objects)
-    test_idx_reorder = parse_index_file("data/ind.{}.test.index".format(dataset))
+    test_idx_reorder = parse_index_file(data_path(f"ind.{dataset}.test.index"))
     test_idx_range = np.sort(test_idx_reorder)
 
     if dataset == 'citeseer':
@@ -103,11 +114,11 @@ def build_karate_club_graph():
 
 def AMiner():
     ob = []
-    with open("data/AMiner/paper_author_matrix.pickle", 'rb') as f:
+    with open(data_path("AMiner", "paper_author_matrix.pickle"), 'rb') as f:
             ob.append(pkl.load(f))
 
     adj = ob[0].tocsr()
-    with open("data/AMiner/feature_matrix.pickle", 'rb') as f:
+    with open(data_path("AMiner", "feature_matrix.pickle"), 'rb') as f:
             ob.append(pkl.load(f))
 
     feature = ob[1].tocsr()
@@ -117,15 +128,15 @@ def AMiner():
 
 def facebook_egoes__dataset():
     ob = []
-    with open("data/facebook_matrix.pickle", 'rb') as f:
+    with open(data_path("facebook_matrix.pickle"), 'rb') as f:
             ob.append(pkl.load(f))
 
     adj = ob[0].tocsr()
-    with open("data/facebook_feature_matrix.pickle", 'rb') as f:
+    with open(data_path("facebook_feature_matrix.pickle"), 'rb') as f:
             ob.append(pkl.load(f))
     feature = ob[1].tocsr()
 
-    with open("data/facebook_circle_dict.pickle", 'rb') as f:
+    with open(data_path("facebook_circle_dict.pickle"), 'rb') as f:
             circules = pkl.load(f)
 
     return adj, feature, None , None, circules
@@ -134,7 +145,7 @@ def facebook_egoes__dataset():
 def IMDB():
     obj = []
 
-    adj_file_name = "data/IMDB/edges.pkl"
+    adj_file_name = data_path("IMDB", "edges.pkl")
 
 
     with open(adj_file_name, 'rb') as f:
@@ -159,7 +170,7 @@ def IMDB():
 
 
     obj = []
-    with open("data/IMDB/node_features.pkl", 'rb') as f:
+    with open(data_path("IMDB", "node_features.pkl"), 'rb') as f:
         obj.append(pkl.load(f))
     feature = sp.csr_matrix(obj[0])
 
@@ -170,7 +181,7 @@ def IMDB():
 def DBLP():
     obj = []
 
-    adj_file_name = "data/DBLP/edges.pkl"
+    adj_file_name = data_path("DBLP", "edges.pkl")
 
 
     with open(adj_file_name, 'rb') as f:
@@ -199,7 +210,7 @@ def DBLP():
 
 
     obj = []
-    with open("data/DBLP/node_features.pkl", 'rb') as f:
+    with open(data_path("DBLP", "node_features.pkl"), 'rb') as f:
         obj.append(pkl.load(f))
     feature = sp.csr_matrix(obj[0])
 
@@ -210,10 +221,10 @@ def ACM():
     obj = []
 
 
-    with zipfile.ZipFile('data/ACM/ACM/ACM.zip', 'r') as zip_ref:
-        zip_ref.extractall('data/ACM/')
+    with zipfile.ZipFile(data_path("ACM", "ACM", "ACM.zip"), 'r') as zip_ref:
+        zip_ref.extractall(data_path("ACM"))
 
-    adj_file_name = "data/ACM/ACM/edges.pkl"
+    adj_file_name = data_path("ACM", "ACM", "edges.pkl")
 
     with open(adj_file_name, 'rb') as f:
             obj.append(pkl.load(f))
@@ -235,7 +246,7 @@ def ACM():
 
 
     obj = []
-    with open("data/ACM/ACM/node_features.pkl", 'rb') as f:
+    with open(data_path("ACM", "ACM", "node_features.pkl"), 'rb') as f:
         obj.append(pkl.load(f))
     feature = sp.csr_matrix(obj[0])
 
@@ -247,10 +258,10 @@ def ACM():
 #     obj = []
 #
 #
-#     with zipfile.ZipFile('data/ACM/ACM/ACM.zip', 'r') as zip_ref:
-#         zip_ref.extractall('data/ACM/')
+#     with zipfile.ZipFile(data_path("ACM", "ACM", "ACM.zip"), 'r') as zip_ref:
+#         zip_ref.extractall(data_path("ACM"))
 #
-#     adj_file_name = "data/ACM/ACM/edges.pkl"
+#     adj_file_name = data_path("ACM", "ACM", "edges.pkl")
 #
 #     with open(adj_file_name, 'rb') as f:
 #             obj.append(pkl.load(f))
@@ -273,7 +284,7 @@ def ACM():
 #
 #
 #     obj = []
-#     with open("data/ACM/ACM/node_features.pkl", 'rb') as f:
+#     with open(data_path("ACM", "ACM", "node_features.pkl"), 'rb') as f:
 #         obj.append(pkl.load(f))
 #     feature = sp.csr_matrix(obj[0])
 #
@@ -285,20 +296,20 @@ def ACM():
 def facebook_pages():
 
 
-    adj_file_name = "data/facebook_pages/edges.pickle"
+    adj_file_name = data_path("facebook_pages", "edges.pickle")
 
     with open(adj_file_name, 'rb') as f:
         adj=pkl.load(f)
 
 
 
-    adj_file_name = "data/facebook_pages/labels.pickle"
+    adj_file_name = data_path("facebook_pages", "labels.pickle")
     with open(adj_file_name, 'rb') as f:
         node_label = pkl.load(f)
     node_label = [j for (i,j) in node_label]
 
     obj = []
-    with open("data/facebook_pages/node_features.pickle", 'rb') as f:
+    with open(data_path("facebook_pages", "node_features.pickle"), 'rb') as f:
         obj.append(pkl.load(f))
     feature = sp.csr_matrix(obj[0])
 
@@ -306,15 +317,15 @@ def facebook_pages():
 
 def NELL():
     A = []
-    data_path = "data/NELL/"
-    with open(data_path+'X.pkl', 'rb') as f:
+    base_path = data_path("NELL")
+    with open(base_path / "X.pkl", 'rb') as f:
         feature = pkl.load(f)
-    with open(data_path+'test_A.pkl', 'rb') as f:
+    with open(base_path / "test_A.pkl", 'rb') as f:
         A.extend(pkl.load(f))
 
-    with open(data_path+'train_A.pkl', 'rb') as f:
+    with open(base_path / "train_A.pkl", 'rb') as f:
         A.extend(pkl.load(f))
-    with open(data_path+'val_A.pkl', 'rb') as f:
+    with open(base_path / "val_A.pkl", 'rb') as f:
         A.extend(pkl.load(f))
     adj =  A[0]
     for a in A:
@@ -336,7 +347,6 @@ if __name__ == '__main__':
 
     facebook_pages()
     facebook_egoes__dataset()
-
 
 
 

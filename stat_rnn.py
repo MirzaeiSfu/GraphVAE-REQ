@@ -516,26 +516,26 @@ if __name__ == '__main__':
 
     models = []
     # rnn DD
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/DD/test.npy"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/DD/test.npy"
     pred_fname = "/local-scratch/kiarash/GraphENN_remote_c/Reprted/DD-RNN/crossEntropy_bestLR001_GraphRNN_RNN_DD_4_128_pred_600_1.dat_nx22_"
     models.append([test_fname, pred_fname, None])
 
     # DD BiGG
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/DD/test.npy"
-    pred_fname = "/local-scratch/kiarash/google-research/bigg/data/DD/epoch-1000.ckpt.graphs-0"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/DD/test.npy"
+    pred_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/DD/epoch-1000.ckpt.graphs-0"
     models.append([test_fname, pred_fname, None])
 
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/tri/test.npy"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/tri/test.npy"
     pred_fname = "/local-scratch/kiarash/GraphENN_remote_c/Reprted/tri-RNN/crossEntropy_bestLR001_GraphRNN_RNN_tri-grid_4_128_pred_3000_1.dat_nx22_"
     models.append([test_fname, pred_fname, None])
 
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/tri/test.npy"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/tri/test.npy"
     pred_fname = "/local-scratch/kiarash/GraphENN_remote_c/Reprted/tri-MLP/crossEntropy_bestLR001_GraphRNN_MLP_tri-grid_4_128_pred_3000_3.dat_nx22_"
     models.append([test_fname, pred_fname, None])
 
 
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/tri/test.npy"
-    pred_fname = "/local-scratch/kiarash/google-research/bigg/data/tri/epoch-1000.ckpt.graphs-0"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/tri/test.npy"
+    pred_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/tri/epoch-1000.ckpt.graphs-0"
     models.append([test_fname, pred_fname, None])
 
 
@@ -595,13 +595,13 @@ if __name__ == '__main__':
 
 
     # lobster bigg
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/lobster_Kernel/test.npy"
-    pred_fname = "/local-scratch/kiarash/google-research/bigg/data/lobster_Kernel/epoch-1000.ckpt.graphs-0.npy"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/lobster_Kernel/test.npy"
+    pred_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/lobster_Kernel/epoch-1000.ckpt.graphs-0.npy"
     models.append([test_fname, pred_fname, None])
 
     # grid bigg
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/grid-BFS/test.npy"
-    pred_fname = "/local-scratch/kiarash/google-research/bigg/data/grid-BFS/generated.npy"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/grid-BFS/test.npy"
+    pred_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/grid-BFS/generated.npy"
     models.append([test_fname, pred_fname, None])
 
     # grid kernel
@@ -609,8 +609,8 @@ if __name__ == '__main__':
     models.append([None, pred_fname, "grid"])
 
     # big obg
-    test_fname = "/local-scratch/kiarash/google-research/bigg/data/ogbg-molbbbp/test.npy"
-    pred_fname = "/local-scratch/kiarash/google-research/bigg/data/ogbg-molbbbp/generated.npy"
+    test_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/ogbg-molbbbp/test.npy"
+    pred_fname = "/local-scratch/kiarash/google-research/bigg/data_raw/ogbg-molbbbp/generated.npy"
     models.append([test_fname,pred_fname, None])
 
 

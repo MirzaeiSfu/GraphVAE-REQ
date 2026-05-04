@@ -33,7 +33,7 @@ Notes:
 ## Project Flow (`main.py`)
 
 1. Parse CLI arguments and set experiment config.
-2. Load cache from `dataset_cached/<dataset>.pkl` by default if present.
+2. Load cache from `cache_datasets/<dataset>.pkl` by default if present.
 3. Otherwise:
    - load raw graphs (`data.py:list_graph_loader`)
    - apply BFS ordering
@@ -46,7 +46,7 @@ Notes:
 
 ## Cache Keys (Current)
 
-By default, `dataset_cached/<dataset>.pkl` stores at least:
+By default, `cache_datasets/<dataset>.pkl` stores at least:
 - `list_adj`, `list_x`, `list_label`
 - node/edge raw features and metadata
 - node/edge one-hot tensors and metadata
@@ -64,7 +64,7 @@ Motif counting uses:
 - `RuleBasedMotifStore` (`motif_counting/motif_store.py`)
 - `RelationalMotifCounter` (`motif_counting/motif_counter.py`)
 
-It writes/reads motif pickle files under `./db/<database_name>.pkl` by default.
+It writes/reads motif pickle files under `./cache_motifs/<database_name>.pkl` by default.
 
 If no motif pickle exists, it connects to MySQL with defaults:
 - host: `localhost`
@@ -111,9 +111,11 @@ Run artifact directories contain:
 - training plot images
 - `generated_graph_train/` samples from intermediate training snapshots
 
-Dataset cache files are under `dataset_cached/` by default, but can be redirected with `DATASET_CACHE_DIR` or `--dataset_cache_dir`.
+Raw datasets are under `data_raw/` by default. OGB downloads/caches should live under `data_raw/ogb/`.
 
-Motif cache files are under `db/` by default, but can be redirected with `MOTIF_CACHE_DIR` or `--motif_cache_dir`.
+Dataset cache files are under `cache_datasets/` by default, but can be redirected with `DATASET_CACHE_DIR` or `--dataset_cache_dir`.
+
+Motif cache files are under `cache_motifs/` by default, but can be redirected with `MOTIF_CACHE_DIR` or `--motif_cache_dir`.
 
 ## Key Files
 

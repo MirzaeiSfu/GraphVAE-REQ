@@ -12,7 +12,7 @@
 # it compares.
 #
 # With use_cache = True:
-# - main.py may load cached processed graphs from dataset_cached/<dataset>.pkl
+# - main.py may load cached processed graphs from cache_datasets/<dataset>.pkl
 # - then sanity check counts those cached graphs
 # - then this comparator still compares those counts against the live
 #   FactorBase database
@@ -30,11 +30,11 @@
 # - or delete the relevant cache file first, then cache can be turned back on later
 #
 # Examples:
-# - dataset_cached/PROTEINS.pkl
-# - dataset_cached/QM9.pkl
+# - cache_datasets/PROTEINS.pkl
+# - cache_datasets/QM9.pkl
 #
 # Also remember there is a second cache-like artifact:
-# - db/<database_name>.pkl
+# - cache_motifs/<database_name>.pkl
 #
 # That file stores motif/rule metadata read from FactorBase. If the database is
 # rebuilt or changed, that pickle can also become stale.

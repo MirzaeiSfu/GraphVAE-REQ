@@ -156,8 +156,8 @@ FactorBase setup.
 - Every dataset import script prints a source-edge bidirectionality analysis before import.
 - If every source edge already has its reverse, the scripts warn that `--directed` and `--undirected` should produce the same edge table.
 - The current simplified dataset scripts still use the hard-coded MySQL connection values inside those files.
-- `to_db_qm9.py` now uses the repository-level `data/QM9` cache, matching the dataset root used by `main.py`.
-- `to_db_proteins.py` now uses the repository-level `data/dgl` cache when loading through DGL.
+- `to_db_qm9.py` now uses the repository-level `data_raw/QM9` cache, matching the dataset root used by `main.py`.
+- `to_db_proteins.py` now uses the repository-level `data_raw/dgl` cache when loading through DGL.
 - `to_db_qm9.py` now batches node and edge inserts with `executemany(...)` to reduce SQL round-trips during database population.
 
 ## Database Cleanup

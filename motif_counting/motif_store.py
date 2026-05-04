@@ -16,7 +16,7 @@ def get_motif_cache_dir(args=None) -> Path:
     configured_dir = getattr(args, 'motif_cache_dir', None) if args is not None else None
     if configured_dir is not None:
         return Path(configured_dir).expanduser()
-    return Path(os.environ.get("MOTIF_CACHE_DIR", "db")).expanduser()
+    return Path(os.environ.get("MOTIF_CACHE_DIR", "cache_motifs")).expanduser()
 
 
 class RuleBasedMotifStore:

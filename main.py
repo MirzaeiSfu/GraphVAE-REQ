@@ -215,7 +215,7 @@ parser.add_argument(
     '--data_dir',
     type=str,
     default=None,
-    help='Optional dataset root. If set, main.py exports DATA_DIR for data.py; otherwise data.py uses DATA_DIR or local data/.'
+    help='Optional raw dataset root. If set, main.py exports DATA_DIR for data.py; otherwise data.py uses DATA_DIR or local data_raw/.'
 )
 parser.add_argument(
     '--split_mode',
@@ -401,13 +401,13 @@ parser.add_argument(
     '--dataset_cache_dir',
     type=str,
     default=None,
-    help='Directory for processed dataset cache files. Defaults to DATASET_CACHE_DIR or dataset_cached/.'
+    help='Directory for processed dataset cache files. Defaults to DATASET_CACHE_DIR or cache_datasets/.'
 )
 parser.add_argument(
     '--motif_cache_dir',
     type=str,
     default=None,
-    help='Directory for motif cache pickle files. Defaults to MOTIF_CACHE_DIR or db/.'
+    help='Directory for motif cache pickle files. Defaults to MOTIF_CACHE_DIR or cache_motifs/.'
 )
 parser.add_argument(
     '-p',
@@ -1113,7 +1113,7 @@ def getBack(var_grad_fn):
 #region Load the data
 
 dataset_cache_root = Path(
-    os.environ.get("DATASET_CACHE_DIR", "dataset_cached")
+    os.environ.get("DATASET_CACHE_DIR", "cache_datasets")
 ).expanduser()
 dataset_cache_root.mkdir(parents=True, exist_ok=True)
 cache_name = f"{dataset}.pkl"
