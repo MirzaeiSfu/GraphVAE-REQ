@@ -47,6 +47,16 @@ python scripts/reproduce_table2_grid.py \
 
 Use `--test-graphs` when available so the comparison uses the exact test graphs saved by the run.
 
+## Motif Variant
+
+To train the same Grid / GraphVAE Table 2 setup with motif-count loss added:
+
+```bash
+python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif.yaml
+```
+
+This keeps the Table 2 reproduction split, BFS strategy, VAE latent mode, epochs, learning rate, and batch size. The changed training weights are node `10`, edge `10`, motif `1`, and adjacency reconstruction `0.01`. The motif DB points at the live Grid FactorBase snapshot on this machine: `grid_undir_feat_snap_7a58e6`.
+
 ## Notes
 
 - The reproduction path is opt-in. Existing configs and default CLI behavior still use the legacy split.

@@ -1320,6 +1320,11 @@ if tiny_overfit:
           f"train_batch_size={train_batch_size}, shuffle=off")
     logging.info(f"[TinyOverfit] Enabled: using {keep_n} fixed training graphs, "
                  f"train_batch_size={train_batch_size}, shuffle=off")
+else:
+    print(f"[TrainingData] Full training set enabled: using {len(list_graphs.list_adjs)} graphs, "
+          f"train_batch_size={train_batch_size}, shuffle=on")
+    logging.info(f"[TrainingData] Full training set enabled: using {len(list_graphs.list_adjs)} graphs, "
+                 f"train_batch_size={train_batch_size}, shuffle=on")
 #endregion
 #====================================================================================
 
@@ -1467,8 +1472,12 @@ has_edge_feature_targets = (
     bool(list_graphs.edge_onehot_s) and list_graphs.edge_onehot_s[0] is not None
 )
 
-use_node_feature_decoder = alpha_node_feat > 0 and has_node_feature_targets
-use_edge_feature_decoder = alpha_edge_feat > 0 and has_edge_feature_targets
+use_node_feature_decoder = (
+    (alpha_node_feat > 0 or use_motif_loss) and has_node_feature_targets
+)
+use_edge_feature_decoder = (
+    (alpha_edge_feat > 0 or use_motif_loss) and has_edge_feature_targets
+)
 
 if alpha_node_feat > 0 and not has_node_feature_targets:
     print("[FeatureLoss] Node feature loss requested but no node one-hot targets are available. Disabling node feature decoder/loss.")
@@ -1476,6 +1485,12 @@ if alpha_node_feat > 0 and not has_node_feature_targets:
 if alpha_edge_feat > 0 and not has_edge_feature_targets:
     print("[FeatureLoss] Edge feature loss requested but no edge one-hot targets are available. Disabling edge feature decoder/loss.")
     logging.info("[FeatureLoss] Edge feature loss requested but no edge one-hot targets are available. Disabling edge feature decoder/loss.")
+if use_motif_loss and not has_node_feature_targets:
+    raise RuntimeError(
+        "Motif loss requires node one-hot targets so reconstructed node "
+        "features can be counted. Disable motif_loss or use a dataset with "
+        "node feature targets."
+    )
 
 node_feat_decoder = None
 edge_feat_decoder = None
@@ -1551,9 +1566,9 @@ for epoch in range(epoch_number):
     if not tiny_overfit:
         list_graphs.shuffle()
     batch = 0
-    for iter in range(0, max(int(len(list_graphs.list_adjs) / train_batch_size), 1) * train_batch_size, train_batch_size):
+    for iter in range(0, len(list_graphs.list_adjs), train_batch_size):
         from_ = iter
-        to_ = train_batch_size * (batch + 1)
+        to_ = min(train_batch_size * (batch + 1), len(list_graphs.list_adjs))
         # for iter in range(0, len(list_graphs.list_adjs), train_batch_size):
         #     from_ = iter
         #     to_= train_batch_size*(batch+1) if train_batch_size*(batch+2)<len(list_graphs.list_adjs) else len(list_graphs.list_adjs)
@@ -1813,10 +1828,17 @@ for epoch in range(epoch_number):
             f"Epoch: {epoch + 1:03d} |Batch: {batch:03d} | latent_mode: {latent_mode} "
             f"| loss: {loss.item():05f} | motif_loss: {motif_loss.item():05f} "
             f"| motif_temp: {motif_temperature:.3f} "
+            f"| node_feat_loss: {node_feat_loss.item():05f} "
+            f"| edge_feat_loss: {edge_feat_loss.item():05f} "
             f"| hard_motif_loss: {hard_motif_loss.item():05f} "
             f"| hard_exact_all: {int(bool(hard_motif_exact_zero.item()))} "
             f"| hard_exact_graphs: {hard_exact_match_count}/{hard_exact_match_total} "
             f"| reconstruction_loss: {reconstruction_loss.item():05f} "
+            f"| weighted_components: kernel={float((alpha_kernel_cost * kernel_cost).detach().cpu().item()):05f},"
+            f" node={float((alpha_node_feat * node_feat_loss).detach().cpu().item()):05f},"
+            f" edge={float((alpha_edge_feat * edge_feat_loss).detach().cpu().item()):05f},"
+            f" motif={float((alpha_motif_loss * motif_loss).detach().cpu().item()):05f},"
+            f" adj={float((alpha_adj_recon * reconstruction_loss).detach().cpu().item()):05f} "
             f"| z_kl_loss: {kl_loss.item():05f} | accu: {(acc.item() if torch.is_tensor(acc) else float(acc)):03f}"
         )
         print(epoch_status, k_loss_str)
