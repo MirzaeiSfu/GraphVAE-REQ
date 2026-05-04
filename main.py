@@ -10,10 +10,13 @@
 # region imports
 import logging
 import os
+import json
 from pathlib import Path
 import plotter
 import torch.nn.functional as F
 import argparse
+import subprocess
+import sys
 try:
     import yaml
 except ImportError:
@@ -136,6 +139,79 @@ def normalize_model_name(model_name):
 
     normalized = str(model_name).strip()
     return MODEL_NAME_ALIASES.get(normalized.lower(), normalized)
+
+
+def _run_git_command(git_args):
+    try:
+        result = subprocess.run(
+            ["git", *git_args],
+            cwd=Path(__file__).resolve().parent,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except Exception as exc:
+        return f"<git command failed: {exc}>"
+
+    output = result.stdout.strip()
+    if result.returncode != 0:
+        error_output = result.stderr.strip()
+        return f"<git {' '.join(git_args)} failed: {error_output}>"
+    return output
+
+
+def write_run_reproducibility_files(run_dir, args, run_tag):
+    run_dir = Path(run_dir)
+    config_path = Path(args.config).expanduser() if args.config else None
+    git_commit = _run_git_command(["rev-parse", "HEAD"])
+    git_describe = _run_git_command(["describe", "--tags", "--always", "--dirty"])
+    git_tags_at_head = _run_git_command(["tag", "--points-at", "HEAD"])
+    git_status = _run_git_command(["status", "--short"])
+    git_diff = _run_git_command(["diff", "HEAD", "--"])
+
+    command = " ".join(sys.argv)
+    metadata = {
+        "run_tag": run_tag,
+        "command": command,
+        "config_path": str(config_path) if config_path is not None else None,
+        "git_commit": git_commit,
+        "git_describe": git_describe,
+        "git_tags_at_head": git_tags_at_head.splitlines() if git_tags_at_head else [],
+        "git_status_short": git_status.splitlines() if git_status else [],
+        "args": vars(args),
+    }
+
+    (run_dir / "RUN_TAG.txt").write_text((run_tag or "untagged") + "\n", encoding="utf-8")
+    (run_dir / "reproducibility.json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "git_status.txt").write_text((git_status or "clean") + "\n", encoding="utf-8")
+    (run_dir / "git_diff.patch").write_text((git_diff or "") + "\n", encoding="utf-8")
+
+    if config_path is not None and config_path.exists():
+        (run_dir / "run_config_used.yaml").write_text(
+            config_path.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    reproduce_lines = [
+        "# Run Reproducibility",
+        "",
+        f"- run_tag: `{run_tag or 'untagged'}`",
+        f"- git_commit: `{git_commit}`",
+        f"- git_describe: `{git_describe}`",
+        f"- config: `{config_path}`" if config_path is not None else "- config: CLI/defaults",
+        "",
+        "```bash",
+        command,
+        "```",
+        "",
+        "Use `run_config_used.yaml` and `reproducibility.json` in this folder",
+        "to recover the exact config and git state recorded when the run started.",
+    ]
+    (run_dir / "REPRODUCE.md").write_text("\n".join(reproduce_lines) + "\n", encoding="utf-8")
 
 
 parser = argparse.ArgumentParser(description='Kernel VGAE')
@@ -398,6 +474,12 @@ parser.add_argument(
     help="the direc to save generated synthatic graphs"
 )
 parser.add_argument(
+    '--run_tag',
+    type=str,
+    default=None,
+    help='Readable run/Git tag written into the run folder for reproducibility.'
+)
+parser.add_argument(
     '--dataset_cache_dir',
     type=str,
     default=None,
@@ -547,6 +629,7 @@ alpha_adj_recon = args.alpha_adj_recon
 device = args.device
 use_gpu = args.UseGPU
 graph_save_path = args.graph_save_path
+run_tag = args.run_tag
 dataset_cache_dir = args.dataset_cache_dir
 motif_cache_dir = args.motif_cache_dir
 PATH = args.PATH  # the dir to save the with the best performance on validation data
@@ -613,6 +696,7 @@ generated_graph_train_dir = graph_save_dir / "generated_graph_train"
 generated_graph_train_dir.mkdir(parents=True, exist_ok=True)
 run_log_path = graph_save_dir / "train.log"
 run_mmd_log_path = graph_save_dir / "mmd.log"
+write_run_reproducibility_files(graph_save_dir, args, run_tag)
 
 # maybe to the beest way
 for handler in logging.root.handlers[:]:

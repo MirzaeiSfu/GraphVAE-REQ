@@ -49,6 +49,7 @@ loss:
   alpha_adj_recon: 0.01
 
 runtime:
+  run_tag: grid-table2-graphvae-motif-v1
   graph_save_path: runs/table2_reproduction/grid_graphvae_motif
   dataset_cache_dir: runs/table2_reproduction/dataset_cache
   motif_cache_dir: null
