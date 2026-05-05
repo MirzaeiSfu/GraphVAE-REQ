@@ -75,6 +75,36 @@ The dedicated best-MMD config writes to `runs/table2_reproduction/grid_graphvae_
 
 By default, checkpoint selection uses `best_validation_mmd_metric: normalized_table2`: each metric is divided by the Grid GraphVAE paper value before averaging, so large-scale metrics such as orbit do not dominate just because of their numeric scale. Other supported modes are `raw_mean`, `degree`, `clustering`, `orbit`, `spectral`, and `diameter`.
 
+## Edge-Count Loss and Resampling Selection
+
+To train the Grid / GraphVAE Table 2 motif setup with the additional edge-count loss and cheap periodic checkpoint saving:
+
+```bash
+python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_edge_count_best_mmd.yaml
+```
+
+This writes to `runs/table2_reproduction/grid_graphvae_motif_edge_count_best_mmd`, so the earlier motif and best-MMD runs are not overwritten. The config keeps the motif weights at node `10`, edge `10`, motif `1`, adjacency reconstruction `0.01`, and adds `edge_count_loss: true` with `alpha_edge_count: 0.1`.
+
+Training still evaluates and saves checkpoints only at the existing validation cadence, `Vis_step: 1000`. The separate post-training resampling script then evaluates saved checkpoints across multiple generations:
+
+```bash
+python scripts/resample_grid_checkpoints.py \
+  --config configs/reproduce_table2/grid_graphvae_table2_motif_edge_count_best_mmd.yaml \
+  --run-dir runs/table2_reproduction/grid_graphvae_motif_edge_count_best_mmd \
+  --samples 10 \
+  --dense-definition twice_mean
+```
+
+The script writes `resampling_eval/resampling_metrics.json` and `resampling_eval/resampling_report.md` under the run folder. It selects the checkpoint by median normalized validation MMD across repeated generations. Table 2 MMD scores use the largest connected component of each generated graph for compatibility with the original evaluation path, while the report also includes raw generated graph edge counts and dense-outlier rates before largest-component filtering. Dense-rate selection penalties are optional through `--dense-penalty-weight`; the default is `0.0`, so dense rates are reported without changing the selection rule. When a penalty is enabled, it uses the raw validation dense rate.
+
+Dense graph definitions are selected with `--dense-definition`:
+
+- `twice_mean`: edge count is greater than `2 * mean(edge_count)` in the reference split.
+- `mean_plus_3std`: edge count is greater than `mean(edge_count) + 3 * std(edge_count)` in the reference split.
+- `max_reference`: edge count is greater than the maximum edge count in the reference split.
+
+For leakage control, checkpoint selection uses validation metrics and validation dense rates only. Test metrics, test edge-count summaries, and test dense rates are final reporting fields after the checkpoint has already been selected; they should not be used to tune weights or choose a checkpoint.
+
 ## Notes
 
 - The reproduction path is opt-in. Existing configs and default CLI behavior still use the legacy split.

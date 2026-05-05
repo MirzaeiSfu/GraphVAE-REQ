@@ -1,22 +1,23 @@
-#===============================
-# Data arguments
-#===============================
+# Paper-style reproduction config for Kia paper Table 2, Grid / GraphVAE
+# with motif-count loss, edge-count loss, periodic checkpoint saving, and
+# post-training best-validation-MMD checkpoint selection.
+#
+# This is intentionally separate from the previous motif configs so their
+# completed run folders and behavior remain reproducible.
+
 data:
-  dataset: QM9
+  dataset: GRID
   use_feature: true
   bfsOrdering: true
-  bfs_strategy: all_components
-  directed: false
-  database_name: qm9_experiment
+  bfs_strategy: legacy_first_component
+  directed: true
+  database_name: grid_undir_feat_snap_7a58e6
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
   data_dir: null
-  split_mode: legacy_80_20
+  split_mode: paper_70_10_20
 
-#===============================
-# Model arguments
-#===============================
 model:
   model: GraphVAE
   encoder_type: AvePool
@@ -24,22 +25,16 @@ model:
   graphEmDim: 1024
   beta: null
 
-#===============================
-# Experiment arguments
-#===============================
 experiment:
   epoch_number: 20000
-  Vis_step: 2
+  Vis_step: 1000
   redraw: false
   lr: 0.0003
   train_batch_size: 200
   task: graphGeneration
 
-#===============================
-# Motif arguments
-#===============================
 motif:
-  motif_loss: false
+  motif_loss: true
   motif_loss_mode: abs_log_ratio
   motif_temperature_start: 1.0
   motif_temperature_end: 0.5
@@ -47,34 +42,29 @@ motif:
   rule_prune: false
   motif_batch_size: 50000
 
-#===============================
-# Loss arguments
-#===============================
 loss:
-  alpha_kernel_cost: 0.0
+  alpha_kernel_cost: 1.0
   alpha_node_feat: 10.0
   alpha_edge_feat: 10.0
   alpha_motif_loss: 1.0
-  edge_count_loss: false
+  edge_count_loss: true
   edge_count_loss_mode: abs_log_ratio
-  alpha_edge_count: 0.0
+  alpha_edge_count: 0.1
   alpha_adj_recon: 0.01
 
-#===============================
-# Runtime, output, and evaluation arguments
-#===============================
 runtime:
-  graph_save_path: null
-  dataset_cache_dir: null
+  run_label: grid-table2-graphvae-motif-edgecount-best-mmd-v1
+  graph_save_path: runs/table2_reproduction/grid_graphvae_motif_edge_count_best_mmd
+  dataset_cache_dir: runs/table2_reproduction/dataset_cache
   motif_cache_dir: null
   PATH: model
   UseGPU: true
-  device: cuda
+  device: cuda:0
   plot_testGraphs: true
   ideal_Evalaution: false
-  keep_best_validation_mmd: false
+  keep_best_validation_mmd: true
   best_validation_mmd_metric: normalized_table2
-  save_validation_checkpoints: false
+  save_validation_checkpoints: true
   tiny_overfit: false
   tiny_overfit_size: 32
   interactive: false

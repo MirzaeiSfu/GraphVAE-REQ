@@ -540,6 +540,24 @@ parser.add_argument(
     default=0.01,
     help='Weight for adjacency reconstruction loss.'
 )
+parser.add_argument(
+    '--edge_count_loss',
+    type=str2bool,
+    default=False,
+    help='Add an expected undirected edge-count log-ratio loss on reconstructed adjacency.'
+)
+parser.add_argument(
+    '--edge_count_loss_mode',
+    choices=['abs_log_ratio', 'squared_log_ratio'],
+    default='abs_log_ratio',
+    help='Edge-count loss variant.'
+)
+parser.add_argument(
+    '--alpha_edge_count',
+    type=float,
+    default=0.0,
+    help='Weight for edge_count_loss in the total loss.'
+)
 
 #===============================
 # Runtime, output, and evaluation arguments
@@ -617,6 +635,12 @@ parser.add_argument(
         'metric after dividing by the Grid GraphVAE paper value; raw_mean '
         'averages raw MMDs; a metric name tracks only that metric.'
     )
+)
+parser.add_argument(
+    '--save_validation_checkpoints',
+    default=False,
+    type=str2bool,
+    help='Save a model state_dict at each validation step for post-training resampling.'
 )
 parser.set_defaults(tiny_overfit=False)
 parser.add_argument(
@@ -715,6 +739,9 @@ alpha_node_feat = args.alpha_node_feat
 alpha_edge_feat = args.alpha_edge_feat
 alpha_motif_loss = args.alpha_motif_loss
 alpha_adj_recon = args.alpha_adj_recon
+use_edge_count_loss = args.edge_count_loss
+edge_count_loss_mode = args.edge_count_loss_mode
+alpha_edge_count = args.alpha_edge_count
 
 #===============================
 # Runtime, output, and evaluation settings
@@ -730,6 +757,7 @@ plot_testGraphs = args.plot_testGraphs
 ideal_Evalaution = args.ideal_Evalaution
 keep_best_validation_mmd = args.keep_best_validation_mmd
 best_validation_mmd_metric = args.best_validation_mmd_metric
+save_validation_checkpoints = args.save_validation_checkpoints
 interactive = args.interactive
 sanity_check = args.sanity_check
 sanity_check_only = args.sanity_check_only
@@ -902,9 +930,12 @@ print(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
+      f" edge_count={alpha_edge_count},"
       f" adj_recon={alpha_adj_recon}"
 )
 print("motif_loss_mode:" + str(motif_loss_mode))
+print("edge_count_loss:" + str(use_edge_count_loss))
+print("edge_count_loss_mode:" + str(edge_count_loss_mode))
 print(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -920,9 +951,12 @@ logging.info(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
+      f" edge_count={alpha_edge_count},"
       f" adj_recon={alpha_adj_recon}"
 )
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
+logging.info("edge_count_loss:" + str(use_edge_count_loss))
+logging.info("edge_count_loss_mode:" + str(edge_count_loss_mode))
 logging.info(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -1241,6 +1275,59 @@ def compute_true_edge_feat_loss(edge_feat_logits, target_edge_onehot, true_node_
     supervised_count = supervision_mask_f.sum().clamp(min=1.0)
 
     return masked_loss_sum / supervised_count
+
+
+def compute_edge_count_loss(reconstructed_adj_logit, target_adj, true_node_num,
+                            loss_mode='abs_log_ratio', eps=1e-6):
+    """Match expected undirected edge counts on real nodes only.
+
+    The generated graphs are evaluated as undirected NetworkX graphs. For each
+    unordered pair (i, j), use P(edge exists) = 1 - (1-p_ij)(1-p_ji), then
+    compare the expected edge count with the target count using a log-ratio.
+    """
+    if reconstructed_adj_logit.ndim != 3 or target_adj.ndim != 3:
+        raise ValueError("edge-count loss expects BxNxN reconstructed and target adjacency tensors.")
+    if reconstructed_adj_logit.shape != target_adj.shape:
+        raise ValueError(
+            f"Shape mismatch: logits {tuple(reconstructed_adj_logit.shape)} vs target {tuple(target_adj.shape)}."
+        )
+
+    batch_size, max_nodes, _ = reconstructed_adj_logit.shape
+    true_node_num = torch.as_tensor(true_node_num, device=reconstructed_adj_logit.device)
+    if true_node_num.ndim != 1 or true_node_num.numel() != batch_size:
+        raise ValueError(
+            f"true_node_num must be 1D with length {batch_size}; got shape {tuple(true_node_num.shape)}."
+        )
+    true_node_num = true_node_num.long().clamp(min=0, max=max_nodes)
+
+    node_positions = torch.arange(max_nodes, device=reconstructed_adj_logit.device).unsqueeze(0)
+    valid_node_mask = node_positions < true_node_num.unsqueeze(1)
+    valid_pair_mask = valid_node_mask.unsqueeze(1) & valid_node_mask.unsqueeze(2)
+    upper_pair_mask = torch.triu(
+        torch.ones(max_nodes, max_nodes, dtype=torch.bool, device=reconstructed_adj_logit.device),
+        diagonal=1,
+    ).unsqueeze(0)
+    pair_mask = valid_pair_mask & upper_pair_mask
+
+    adj_probs = torch.sigmoid(reconstructed_adj_logit)
+    undirected_edge_probs = 1.0 - (
+        (1.0 - adj_probs) * (1.0 - adj_probs.transpose(1, 2))
+    )
+    target_adj = target_adj.to(device=reconstructed_adj_logit.device, dtype=reconstructed_adj_logit.dtype)
+    undirected_target_edges = ((target_adj > 0) | (target_adj.transpose(1, 2) > 0)).to(
+        reconstructed_adj_logit.dtype
+    )
+
+    pair_mask_f = pair_mask.to(reconstructed_adj_logit.dtype)
+    predicted_edge_counts = (undirected_edge_probs * pair_mask_f).sum(dim=(1, 2))
+    target_edge_counts = (undirected_target_edges * pair_mask_f).sum(dim=(1, 2))
+
+    log_ratio = torch.log((predicted_edge_counts + eps) / (target_edge_counts + eps))
+    if loss_mode == 'squared_log_ratio':
+        return torch.mean(log_ratio.pow(2))
+    if loss_mode == 'abs_log_ratio':
+        return torch.mean(torch.abs(log_ratio))
+    raise ValueError(f"Unknown edge_count_loss_mode: {loss_mode}")
 #endregion
 #
 def OptimizerVAE(reconstructed_adj, reconstructed_kernel_val, targert_adj, target_kernel_val, log_std, mean, alpha,
@@ -1808,6 +1895,7 @@ for epoch in range(epoch_number):
         #=============================================================================
         node_feat_loss = reconstructed_adj_logit.new_tensor(0.0)
         edge_feat_loss = reconstructed_adj_logit.new_tensor(0.0)
+        edge_count_loss = reconstructed_adj_logit.new_tensor(0.0)
 
         if node_feat_logits is not None:
             target_node_oh = torch.stack(
@@ -1829,6 +1917,13 @@ for epoch in range(epoch_number):
                 edge_feat_logits=edge_feat_logits,
                 target_edge_onehot=target_edge_oh,
                 true_node_num=true_node_num
+            )
+        if use_edge_count_loss:
+            edge_count_loss = compute_edge_count_loss(
+                reconstructed_adj_logit=reconstructed_adj_logit,
+                target_adj=subgraphs.to(device),
+                true_node_num=true_node_num,
+                loss_mode=edge_count_loss_mode,
             )
         # These hard metrics are evaluation-only diagnostics. They answer a
         # stricter question than the soft training loss: after discretizing the
@@ -1915,6 +2010,7 @@ for epoch in range(epoch_number):
             alpha_node_feat * node_feat_loss +\
             alpha_edge_feat * edge_feat_loss+\
             motif_loss * alpha_motif_loss + \
+            edge_count_loss * alpha_edge_count + \
             reconstruction_loss * alpha_adj_recon
 
         hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
@@ -1938,6 +2034,7 @@ for epoch in range(epoch_number):
                   f"hard_exact_all={bool(hard_motif_exact_zero.item())} "
                   f"hard_exact_graphs={hard_exact_match_count}/{hard_exact_match_total} "
                   f"recon={reconstruction_loss.item():.6f} "
+                  f"edge_count={edge_count_loss.item():.6f} "
                   f"node={node_feat_loss.item():.6f} edge={edge_feat_loss.item():.6f}")
     #    
     #   loss = kernel_cost  # Graph generation loss without feature decoding
@@ -2045,6 +2142,13 @@ for epoch in range(epoch_number):
                         print(best_message)
                         logging.info(best_message)
 
+                if save_validation_checkpoints:
+                    checkpoint_path = graph_save_dir / f"checkpoint_epoch_{epoch + 1:05d}_batch_{batch}.pt"
+                    torch.save(model.state_dict(), str(checkpoint_path))
+                    checkpoint_message = f"Saved validation checkpoint: {checkpoint_path}"
+                    print(checkpoint_message)
+                    logging.info(checkpoint_message)
+
                 if ((step + 1) % visulizer_step * 2):
                     torch.save(model.state_dict(), graph_save_path + "model_" + str(epoch) + "_" + str(batch))
             stop = timeit.default_timer()
@@ -2064,6 +2168,7 @@ for epoch in range(epoch_number):
             f"| motif_temp: {motif_temperature:.3f} "
             f"| node_feat_loss: {node_feat_loss.item():05f} "
             f"| edge_feat_loss: {edge_feat_loss.item():05f} "
+            f"| edge_count_loss: {edge_count_loss.item():05f} "
             f"| hard_motif_loss: {hard_motif_loss.item():05f} "
             f"| hard_exact_all: {int(bool(hard_motif_exact_zero.item()))} "
             f"| hard_exact_graphs: {hard_exact_match_count}/{hard_exact_match_total} "
@@ -2072,6 +2177,7 @@ for epoch in range(epoch_number):
             f" node={float((alpha_node_feat * node_feat_loss).detach().cpu().item()):05f},"
             f" edge={float((alpha_edge_feat * edge_feat_loss).detach().cpu().item()):05f},"
             f" motif={float((alpha_motif_loss * motif_loss).detach().cpu().item()):05f},"
+            f" edge_count={float((alpha_edge_count * edge_count_loss).detach().cpu().item()):05f},"
             f" adj={float((alpha_adj_recon * reconstruction_loss).detach().cpu().item()):05f} "
             f"| z_kl_loss: {kl_loss.item():05f} | accu: {(acc.item() if torch.is_tensor(acc) else float(acc)):03f}"
         )

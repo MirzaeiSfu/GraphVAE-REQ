@@ -46,6 +46,9 @@ loss:
   alpha_node_feat: 10.0
   alpha_edge_feat: 10.0
   alpha_motif_loss: 1.0
+  edge_count_loss: false
+  edge_count_loss_mode: abs_log_ratio
+  alpha_edge_count: 0.0
   alpha_adj_recon: 0.01
 
 runtime:
@@ -60,6 +63,7 @@ runtime:
   ideal_Evalaution: false
   keep_best_validation_mmd: true
   best_validation_mmd_metric: normalized_table2
+  save_validation_checkpoints: false
   tiny_overfit: false
   tiny_overfit_size: 32
   interactive: false
