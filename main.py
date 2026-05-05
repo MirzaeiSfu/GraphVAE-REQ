@@ -238,7 +238,7 @@ def _run_git_command(git_args):
     return output
 
 
-def write_run_reproducibility_files(run_dir, args, run_tag):
+def write_run_reproducibility_files(run_dir, args, run_label):
     run_dir = Path(run_dir)
     config_path = Path(args.config).expanduser() if args.config else None
     git_commit = _run_git_command(["rev-parse", "HEAD"])
@@ -249,7 +249,7 @@ def write_run_reproducibility_files(run_dir, args, run_tag):
 
     command = " ".join(sys.argv)
     metadata = {
-        "run_tag": run_tag,
+        "run_label": run_label,
         "command": command,
         "config_path": str(config_path) if config_path is not None else None,
         "git_commit": git_commit,
@@ -259,7 +259,7 @@ def write_run_reproducibility_files(run_dir, args, run_tag):
         "args": vars(args),
     }
 
-    (run_dir / "RUN_TAG.txt").write_text((run_tag or "untagged") + "\n", encoding="utf-8")
+    (run_dir / "RUN_LABEL.txt").write_text((run_label or "unlabeled") + "\n", encoding="utf-8")
     (run_dir / "reproducibility.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -276,7 +276,7 @@ def write_run_reproducibility_files(run_dir, args, run_tag):
     reproduce_lines = [
         "# Run Reproducibility",
         "",
-        f"- run_tag: `{run_tag or 'untagged'}`",
+        f"- run_label: `{run_label or 'unlabeled'}`",
         f"- git_commit: `{git_commit}`",
         f"- git_describe: `{git_describe}`",
         f"- config: `{config_path}`" if config_path is not None else "- config: CLI/defaults",
@@ -551,10 +551,10 @@ parser.add_argument(
     help="the direc to save generated synthatic graphs"
 )
 parser.add_argument(
-    '--run_tag',
+    '--run_label',
     type=str,
     default=None,
-    help='Readable run/Git tag written into the run folder for reproducibility.'
+    help='Readable experiment label written into the run folder.'
 )
 parser.add_argument(
     '--dataset_cache_dir',
@@ -722,7 +722,7 @@ alpha_adj_recon = args.alpha_adj_recon
 device = args.device
 use_gpu = args.UseGPU
 graph_save_path = args.graph_save_path
-run_tag = args.run_tag
+run_label = args.run_label
 dataset_cache_dir = args.dataset_cache_dir
 motif_cache_dir = args.motif_cache_dir
 PATH = args.PATH  # the dir to save the with the best performance on validation data
@@ -795,7 +795,7 @@ best_validation_mmd_model_path = graph_save_dir / "best_validation_mmd_model"
 best_validation_mmd_metadata_path = graph_save_dir / "best_validation_mmd.json"
 best_validation_mmd_score = float("inf")
 best_validation_mmd_metadata = None
-write_run_reproducibility_files(graph_save_dir, args, run_tag)
+write_run_reproducibility_files(graph_save_dir, args, run_label)
 
 # maybe to the beest way
 for handler in logging.root.handlers[:]:

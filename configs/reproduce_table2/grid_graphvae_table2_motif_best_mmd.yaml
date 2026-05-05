@@ -1,8 +1,8 @@
 # Paper-style reproduction config for Kia paper Table 2, Grid / GraphVAE
-# with relational motif-count loss added.
+# with relational motif-count loss and best validation MMD checkpoint selection.
 #
-# This keeps the Table 2 Grid reproduction data/model/training settings:
-# split_mode: paper_70_10_20, bfs_strategy: legacy_first_component, VAE mode.
+# This is intentionally separate from grid_graphvae_table2_motif.yaml so the
+# previous final-epoch motif run is not overwritten or behavior-changed.
 
 data:
   dataset: GRID
@@ -49,8 +49,8 @@ loss:
   alpha_adj_recon: 0.01
 
 runtime:
-  run_label: grid-table2-graphvae-motif-v1
-  graph_save_path: runs/table2_reproduction/grid_graphvae_motif
+  run_label: grid-table2-graphvae-motif-best-mmd-v1
+  graph_save_path: runs/table2_reproduction/grid_graphvae_motif_best_mmd
   dataset_cache_dir: runs/table2_reproduction/dataset_cache
   motif_cache_dir: null
   PATH: model
@@ -58,7 +58,7 @@ runtime:
   device: cuda:0
   plot_testGraphs: true
   ideal_Evalaution: false
-  keep_best_validation_mmd: false
+  keep_best_validation_mmd: true
   best_validation_mmd_metric: normalized_table2
   tiny_overfit: false
   tiny_overfit_size: 32
