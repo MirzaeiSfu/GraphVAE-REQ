@@ -59,6 +59,22 @@ This keeps the Table 2 reproduction split, BFS strategy, VAE latent mode, epochs
 
 The readable run tag is `grid-table2-graphvae-motif-v1`. At startup, `main.py` writes `RUN_TAG.txt`, `REPRODUCE.md`, `reproducibility.json`, `run_config_used.yaml`, `git_status.txt`, and `git_diff.patch` into the run folder.
 
+## Best Validation MMD Checkpoint
+
+To save the checkpoint with the best validation MMD and use it for final test generation, add:
+
+```bash
+python main.py \
+  --config configs/reproduce_table2/grid_graphvae_table2_motif.yaml \
+  --keep_best_validation_mmd true
+```
+
+The default validation score is a normalized mean over the Table 2 MMD metrics: degree, clustering, orbit, spectral, and diameter. When enabled, the run folder contains `best_validation_mmd_model` and `best_validation_mmd.json`, and `Single_comp_generatedGraphs_adj_final_eval.npy` is generated from that best checkpoint.
+
+Existing configs explicitly set `keep_best_validation_mmd: false`, so old runs still use the final epoch unless the flag is enabled from the command line or changed in the config.
+
+By default, checkpoint selection uses `best_validation_mmd_metric: normalized_table2`: each metric is divided by the Grid GraphVAE paper value before averaging, so large-scale metrics such as orbit do not dominate just because of their numeric scale. Other supported modes are `raw_mean`, `degree`, `clustering`, `orbit`, `spectral`, and `diameter`.
+
 ## Notes
 
 - The reproduction path is opt-in. Existing configs and default CLI behavior still use the legacy split.

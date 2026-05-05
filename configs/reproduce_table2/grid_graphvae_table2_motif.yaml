@@ -58,6 +58,8 @@ runtime:
   device: cuda:0
   plot_testGraphs: true
   ideal_Evalaution: false
+  keep_best_validation_mmd: false
+  best_validation_mmd_metric: normalized_table2
   tiny_overfit: false
   tiny_overfit_size: 32
   interactive: false

@@ -11,10 +11,12 @@
 import logging
 import os
 import json
+import math
 from pathlib import Path
 import plotter
 import torch.nn.functional as F
 import argparse
+import re
 import subprocess
 import sys
 try:
@@ -139,6 +141,81 @@ def normalize_model_name(model_name):
 
     normalized = str(model_name).strip()
     return MODEL_NAME_ALIASES.get(normalized.lower(), normalized)
+
+
+MMD_FLOAT_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+TABLE2_VALIDATION_MMD_KEYS = ("degree", "clustering", "orbit", "spectral", "diameter")
+GRID_GRAPHVAE_TABLE2_PAPER_MMD = {
+    "degree": 0.062,
+    "clustering": 0.055,
+    "orbit": 0.515,
+    "spectral": 0.018,
+    "diameter": 0.143,
+}
+BEST_VALIDATION_MMD_SCORE_MODES = (
+    "normalized_table2",
+    "raw_mean",
+    *TABLE2_VALIDATION_MMD_KEYS,
+)
+MMD_RESULT_LABELS = {
+    "degree": "degree",
+    "clustering": "clustering",
+    "orbit": "orbits",
+    "spectral": "Spec",
+    "diameter": "diameter",
+}
+
+
+def parse_table2_mmd_result(mmd_result):
+    metrics = {}
+    for metric_name, result_label in MMD_RESULT_LABELS.items():
+        match = re.search(
+            rf"{re.escape(result_label)}\s*:\s*({MMD_FLOAT_PATTERN})",
+            str(mmd_result),
+        )
+        metrics[metric_name] = float(match.group(1)) if match else None
+    return metrics
+
+
+def _valid_mmd_value(metrics, metric_name):
+    value = metrics.get(metric_name)
+    if value is None or not math.isfinite(value) or value < 0:
+        return None
+    return value
+
+
+def compute_validation_mmd_score(metrics, score_mode):
+    if score_mode in TABLE2_VALIDATION_MMD_KEYS:
+        return _valid_mmd_value(metrics, score_mode)
+
+    raw_values = []
+    for metric_name in TABLE2_VALIDATION_MMD_KEYS:
+        value = _valid_mmd_value(metrics, metric_name)
+        if value is None:
+            return None
+        raw_values.append(value)
+
+    if score_mode == "raw_mean":
+        return sum(raw_values) / len(raw_values)
+    if score_mode == "normalized_table2":
+        normalized_values = [
+            metrics[metric_name] / GRID_GRAPHVAE_TABLE2_PAPER_MMD[metric_name]
+            for metric_name in TABLE2_VALIDATION_MMD_KEYS
+        ]
+        return sum(normalized_values) / len(normalized_values)
+
+    raise ValueError(f"Unknown best validation MMD score mode: {score_mode}")
+
+
+def score_metrics_for_mode(score_mode):
+    if score_mode in TABLE2_VALIDATION_MMD_KEYS:
+        return [score_mode]
+    return list(TABLE2_VALIDATION_MMD_KEYS)
+
+
+def write_best_validation_mmd_metadata(metadata_path, metadata):
+    with Path(metadata_path).open("w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2, sort_keys=True)
 
 
 def _run_git_command(git_args):
@@ -525,6 +602,22 @@ parser.add_argument(
     type=str2bool,
     help="if you want to compare the 50%%50 subset of dataset comparison"
 )
+parser.add_argument(
+    '--keep_best_validation_mmd',
+    default=False,
+    type=str2bool,
+    help='Save and use the checkpoint with the lowest validation MMD score.'
+)
+parser.add_argument(
+    '--best_validation_mmd_metric',
+    default='normalized_table2',
+    choices=BEST_VALIDATION_MMD_SCORE_MODES,
+    help=(
+        'Validation checkpoint score. normalized_table2 averages each Table 2 '
+        'metric after dividing by the Grid GraphVAE paper value; raw_mean '
+        'averages raw MMDs; a metric name tracks only that metric.'
+    )
+)
 parser.set_defaults(tiny_overfit=False)
 parser.add_argument(
     '--tiny_overfit',
@@ -635,6 +728,8 @@ motif_cache_dir = args.motif_cache_dir
 PATH = args.PATH  # the dir to save the with the best performance on validation data
 plot_testGraphs = args.plot_testGraphs
 ideal_Evalaution = args.ideal_Evalaution
+keep_best_validation_mmd = args.keep_best_validation_mmd
+best_validation_mmd_metric = args.best_validation_mmd_metric
 interactive = args.interactive
 sanity_check = args.sanity_check
 sanity_check_only = args.sanity_check_only
@@ -696,6 +791,10 @@ generated_graph_train_dir = graph_save_dir / "generated_graph_train"
 generated_graph_train_dir.mkdir(parents=True, exist_ok=True)
 run_log_path = graph_save_dir / "train.log"
 run_mmd_log_path = graph_save_dir / "mmd.log"
+best_validation_mmd_model_path = graph_save_dir / "best_validation_mmd_model"
+best_validation_mmd_metadata_path = graph_save_dir / "best_validation_mmd.json"
+best_validation_mmd_score = float("inf")
+best_validation_mmd_metadata = None
 write_run_reproducibility_files(graph_save_dir, args, run_tag)
 
 # maybe to the beest way
@@ -1895,6 +1994,57 @@ for epoch in range(epoch_number):
                 with open(run_mmd_log_path, 'a') as f:
                         f.write(str(step)+" @ loss @ , "+str(loss.item())+" , @ Reconstruction @ , "+reconstruc_MMD_loss+" , @ Val @ , " +mmd_res+"\n")
 
+                if keep_best_validation_mmd:
+                    validation_mmd_metrics = parse_table2_mmd_result(mmd_res)
+                    validation_mmd_score = compute_validation_mmd_score(
+                        validation_mmd_metrics,
+                        best_validation_mmd_metric,
+                    )
+                    if validation_mmd_score is None:
+                        logging.warning(
+                            "Could not compute %s validation MMD checkpoint score from: %s",
+                            best_validation_mmd_metric,
+                            mmd_res,
+                        )
+                    elif validation_mmd_score < best_validation_mmd_score:
+                        best_validation_mmd_score = validation_mmd_score
+                        best_validation_mmd_metadata = {
+                            "epoch": int(epoch),
+                            "epoch_1_based": int(epoch + 1),
+                            "batch": int(batch),
+                            "step": int(step),
+                            "loss": float(loss.item()),
+                            "score": float(validation_mmd_score),
+                            "score_mode": best_validation_mmd_metric,
+                            "score_metrics": score_metrics_for_mode(best_validation_mmd_metric),
+                            "score_denominators": (
+                                GRID_GRAPHVAE_TABLE2_PAPER_MMD
+                                if best_validation_mmd_metric == "normalized_table2"
+                                else None
+                            ),
+                            "metrics": validation_mmd_metrics,
+                            "model_path": str(best_validation_mmd_model_path),
+                            "validation_generated_graphs": (
+                                graph_save_path
+                                + "Single_comp_generatedGraphs_adj_"
+                                + str(epoch)
+                                + ".npy"
+                            ),
+                            "validation_mmd_result": mmd_res,
+                        }
+                        torch.save(model.state_dict(), str(best_validation_mmd_model_path))
+                        write_best_validation_mmd_metadata(
+                            best_validation_mmd_metadata_path,
+                            best_validation_mmd_metadata,
+                        )
+                        best_message = (
+                            "New best validation MMD checkpoint: "
+                            f"score={validation_mmd_score:.6f}, "
+                            f"mode={best_validation_mmd_metric}, epoch={epoch + 1}"
+                        )
+                        print(best_message)
+                        logging.info(best_message)
+
                 if ((step + 1) % visulizer_step * 2):
                     torch.save(model.state_dict(), graph_save_path + "model_" + str(epoch) + "_" + str(batch))
             stop = timeit.default_timer()
@@ -1977,6 +2127,21 @@ if not tiny_overfit:
 #   %% Evaluation of the model on graph generation task
 # region graph generation task
 if task == "graphGeneration":
+    if keep_best_validation_mmd and best_validation_mmd_model_path.exists():
+        model.load_state_dict(
+            torch.load(str(best_validation_mmd_model_path), map_location=device)
+        )
+        best_eval_message = (
+            "Loaded best validation MMD checkpoint for final evaluation: "
+            f"{best_validation_mmd_model_path}"
+        )
+        if best_validation_mmd_metadata is not None:
+            best_eval_message += (
+                f" (score={best_validation_mmd_metadata['score']:.6f}, "
+                f"epoch={best_validation_mmd_metadata['epoch_1_based']})"
+            )
+        print(best_eval_message)
+        logging.info(best_eval_message)
     EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_name="final_eval")
 # endregion
 #==========================================================================================
