@@ -47,6 +47,33 @@ python scripts/reproduce_table2_grid.py \
 
 Use `--test-graphs` when available so the comparison uses the exact test graphs saved by the run.
 
+## 4. Batch GNN-Based Graph Realism Evaluation
+
+For Kia-style Random-GIN graph realism metrics on already-saved `VGAREQ` outputs,
+use the batch evaluator:
+
+```bash
+python scripts/evaluate_graph_realism_batch.py \
+  --root-dir runs/table2_reproduction
+```
+
+This script scans recursively for run directories containing:
+
+- `Single_comp_generatedGraphs_adj_final_eval.npy`
+- `testGraphs_adj_.npy`
+
+For each matching run directory it writes:
+
+- `graph_realism_random_gin.json` inside the run directory
+
+It also writes one batch summary CSV:
+
+- `runs/table2_reproduction/graph_realism_batch_summary.csv`
+
+This path is intentionally post-hoc. It lets us re-run GNN evaluation on old
+saved graph sets after changing the evaluator, without retraining or
+regenerating graphs.
+
 ## Motif Variant
 
 To train the same Grid / GraphVAE Table 2 setup with motif-count loss added:
@@ -110,3 +137,6 @@ For leakage control, checkpoint selection uses validation metrics and validation
 - The reproduction path is opt-in. Existing configs and default CLI behavior still use the legacy split.
 - The script computes the statistics-based Table 2 metrics only: degree, clustering, orbit, spectral, and diameter MMD.
 - The script does not compute Table 1 GNN-based metrics (`MMD RBF`, `F1 PR`).
+- Our local statistics evaluator for Table 2 lives in `stat_rnn.py` and `eval/`; it does not depend on `third_party/ggmeval`.
+- The vendored `third_party/ggmeval` folder is kept for Kia-style GNN-based graph realism evaluation.
+- Within that folder, `RuleEval.py` is the narrow runner for the VGAE `SaveSamples(...)` output format, while `eval_all_in_dir_2023.py` is the broader directory-based runner used for GraphVAE-style saved graph sets.
