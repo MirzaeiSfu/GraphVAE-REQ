@@ -239,31 +239,16 @@ def summarize_metric(values: list[float]) -> dict[str, float]:
     return {"mean": float(array.mean()), "std": float(array.std())}
 
 
-def evaluate_run(
-    run_dir: Path,
-    generated_filename: str,
-    reference_filename: str,
+def evaluate_graph_collections(
+    generated_graphs: list[nx.Graph],
+    reference_graphs: list[nx.Graph],
     repeats: int,
-    max_graphs: int,
     seed: int,
     device: torch.device,
     use_structural_features: bool,
 ) -> dict:
-    generated_path = run_dir / generated_filename
-    reference_path = run_dir / reference_filename
-
-    generated_graphs = preprocess_graphs(
-        load_graph_items(generated_path),
-        max_graphs=max_graphs,
-        seed=seed,
-        shuffle=True,
-    )
-    reference_graphs = preprocess_graphs(
-        load_graph_items(reference_path),
-        max_graphs=max_graphs,
-        seed=seed,
-        shuffle=False,
-    )
+    generated_graphs = list(generated_graphs)
+    reference_graphs = list(reference_graphs)
     generated_graphs = generated_graphs[: len(reference_graphs)]
     reference_graphs = reference_graphs[: len(generated_graphs)]
 
@@ -295,13 +280,9 @@ def evaluate_run(
         recall_values.append(float(result["recall"]))
 
     return {
-        "run_dir": str(run_dir),
-        "generated_filename": generated_filename,
-        "reference_filename": reference_filename,
         "num_generated_graphs": len(generated_graphs),
         "num_reference_graphs": len(reference_graphs),
         "repeats": repeats,
-        "max_graphs": max_graphs,
         "seed": seed,
         "device": str(device),
         "structural_features": use_structural_features,
@@ -318,6 +299,49 @@ def evaluate_run(
             "recall": recall_values,
         },
     }
+
+
+def evaluate_run(
+    run_dir: Path,
+    generated_filename: str,
+    reference_filename: str,
+    repeats: int,
+    max_graphs: int,
+    seed: int,
+    device: torch.device,
+    use_structural_features: bool,
+) -> dict:
+    generated_path = run_dir / generated_filename
+    reference_path = run_dir / reference_filename
+
+    generated_graphs = preprocess_graphs(
+        load_graph_items(generated_path),
+        max_graphs=max_graphs,
+        seed=seed,
+        shuffle=True,
+    )
+    reference_graphs = preprocess_graphs(
+        load_graph_items(reference_path),
+        max_graphs=max_graphs,
+        seed=seed,
+        shuffle=False,
+    )
+
+    result = evaluate_graph_collections(
+        generated_graphs=generated_graphs,
+        reference_graphs=reference_graphs,
+        repeats=repeats,
+        seed=seed,
+        device=device,
+        use_structural_features=use_structural_features,
+    )
+    result.update({
+        "run_dir": str(run_dir),
+        "generated_filename": generated_filename,
+        "reference_filename": reference_filename,
+        "max_graphs": max_graphs,
+    })
+    return result
 
 
 def summary_row(result: dict) -> dict[str, object]:
