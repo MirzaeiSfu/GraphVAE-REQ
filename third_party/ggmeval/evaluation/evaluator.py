@@ -61,7 +61,7 @@ class Evaluator():
 
                 metrics.update(res)
             except Exception as e:
-                print(NameError)
+                print(f"{type(e).__name__}: {e}")
         del generated_dataset
         del reference_dataset
         return metrics

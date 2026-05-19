@@ -274,6 +274,15 @@ def evaluate_graph_collections(
 
         evaluator = Evaluator(input_dim=input_dim, device=device)
         result = evaluator.evaluate_all(generated_dgl, reference_dgl)
+        required_keys = ("f1_pr", "mmd_rbf", "precision", "recall")
+        missing_keys = [key for key in required_keys if key not in result]
+        if missing_keys:
+            present_keys = sorted(result.keys())
+            raise ValueError(
+                "Evaluator did not return the required Random-GIN metrics. "
+                f"Missing keys: {missing_keys}. Present keys: {present_keys}. "
+                f"generated_graphs={len(generated_graphs)}, reference_graphs={len(reference_graphs)}"
+            )
         f1_values.append(float(result["f1_pr"]))
         mmd_rbf_values.append(float(result["mmd_rbf"]))
         precision_values.append(float(result["precision"]))

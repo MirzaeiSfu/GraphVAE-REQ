@@ -3,8 +3,8 @@ import torch
 import numpy as np
 import time
 from scipy import linalg
-import sklearn
 import dgl
+from sklearn.metrics import pairwise_distances
 from sklearn.preprocessing import StandardScaler
 
 from evaluation.models.gin.gin import GIN
@@ -175,7 +175,7 @@ class MMDEvaluation(GINMetric):
             raise Exception()
 
     def __get_pairwise_distances(self, generated_dataset, reference_dataset):
-        return sklearn.metrics.pairwise_distances(
+        return pairwise_distances(
             reference_dataset, generated_dataset,
             metric='euclidean', n_jobs=8) ** 2
 
@@ -331,6 +331,16 @@ class prdcEvaluation(GINMetric):
         if not isinstance(generated_dataset, torch.Tensor) and not isinstance(generated_dataset, np.ndarray):
             generated_dataset, reference_dataset, _ = self.get_activations(generated_dataset, reference_dataset)
 
+        num_real = len(reference_dataset)
+        num_fake = len(generated_dataset)
+        max_valid_k = min(num_real, num_fake) - 1
+        if max_valid_k < 1:
+            raise ValueError(
+                "PRDC metrics need at least 2 generated and 2 reference graphs; "
+                f"got generated={num_fake}, reference={num_real}"
+            )
+        nearest_k = min(nearest_k, max_valid_k)
+
         real_nearest_neighbour_distances = self.__compute_nearest_neighbour_distances(
             reference_dataset, nearest_k)
         distance_real_fake = self.__compute_pairwise_distance(
@@ -379,7 +389,7 @@ class prdcEvaluation(GINMetric):
         """
         if data_y is None:
             data_y = data_x
-        dists = sklearn.metrics.pairwise_distances(
+        dists = pairwise_distances(
             data_x, data_y, metric='euclidean', n_jobs=8)
         return dists
 
