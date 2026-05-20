@@ -51,6 +51,10 @@ TABLE3_METRIC_LABELS = {
     "mmd_rbf": "MMD RBF",
     "f1_pr": "F1 PR",
 }
+TABLE3_METRIC_SCALES = {
+    "mmd_rbf": 1.0,
+    "f1_pr": 100.0,
+}
 DATASET_DISPLAY_NAMES = {
     "TRIANGULAR_GRID": "Triangle Grid",
     "LOBSTER": "Lobster",
@@ -351,11 +355,27 @@ def load_source_items(dataset: str, source_graphs: Path | None, seed: int):
     return load_dataset_items(dataset, seed)
 
 
+def scale_metric_summary_for_table3(metric_name: str, metric_summary: dict[str, float]) -> dict[str, float]:
+    scale = TABLE3_METRIC_SCALES.get(metric_name, 1.0)
+    return {
+        "mean": metric_summary["mean"] * scale,
+        "std": metric_summary["std"] * scale,
+    }
+
+
+def scale_metrics_for_table3(metrics: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
+    return {
+        metric_name: scale_metric_summary_for_table3(metric_name, metric_summary)
+        for metric_name, metric_summary in metrics.items()
+    }
+
+
 def compare_to_paper(dataset: str, paper_row: str, current_metrics: dict[str, dict[str, float]]):
     paper_metrics = PAPER_TABLE3_BY_DATASET[dataset][paper_row]
+    scaled_current_metrics = scale_metrics_for_table3(current_metrics)
     comparison = {}
     for metric_name in TABLE3_METRIC_ORDER:
-        current_summary = current_metrics[metric_name]
+        current_summary = scaled_current_metrics[metric_name]
         paper_summary = paper_metrics[metric_name]
         comparison[metric_name] = {
             "paper_mean": paper_summary["mean"],
@@ -398,6 +418,7 @@ def write_outputs(
         f"# Table 3 {dataset_display_name(dataset)} Reproduction",
         "",
         "Lower is better for `MMD RBF`; higher is better for `F1 PR`.",
+        "For paper comparability, `F1 PR` is reported as a percentage here.",
         "",
         "## Current vs Paper",
         "",
@@ -564,6 +585,7 @@ def main() -> int:
         current_rows["50/50 split"] = {
             "paper_row": "50/50 split",
             "metrics": ideal_result["metrics"],
+            "table3_metrics": scale_metrics_for_table3(ideal_result["metrics"]),
             "raw_metrics": ideal_result["raw_metrics"],
             "comparison": compare_to_paper(dataset, "50/50 split", ideal_result["metrics"]),
             "details": ideal_result,
@@ -584,6 +606,7 @@ def main() -> int:
         current_rows[args.row_label] = {
             "paper_row": args.paper_row,
             "metrics": generated_result["metrics"],
+            "table3_metrics": scale_metrics_for_table3(generated_result["metrics"]),
             "raw_metrics": generated_result["raw_metrics"],
             "comparison": compare_to_paper(dataset, args.paper_row, generated_result["metrics"]),
             "details": generated_result,
