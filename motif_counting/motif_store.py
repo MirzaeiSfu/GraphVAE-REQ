@@ -5,6 +5,7 @@ import torch
 import pickle
 from pathlib import Path
 from typing import Dict, List
+from decimal import Decimal
 from pymysql import connect
 from pymysql.err import OperationalError, MySQLError
 from pandas import DataFrame
@@ -17,6 +18,15 @@ def get_motif_cache_dir(args=None) -> Path:
     if configured_dir is not None:
         return Path(configured_dir).expanduser()
     return Path(os.environ.get("MOTIF_CACHE_DIR", "cache_motifs")).expanduser()
+
+
+def use_syntactic_literal_rules(args=None) -> bool:
+    return getattr(args, 'use_syntactic_literal_rules', True) if args is not None else True
+
+
+def get_motif_pickle_path(database_name: str, args=None) -> Path:
+    suffix = "with_syntactic_literals" if use_syntactic_literal_rules(args) else "without_syntactic_literals"
+    return get_motif_cache_dir(args) / f"{database_name}__{suffix}.pkl"
 
 
 class RuleBasedMotifStore:
@@ -46,6 +56,7 @@ class RuleBasedMotifStore:
         self.host = host
         self.user = user
         self.password = password
+        self.use_syntactic_literal_rules = use_syntactic_literal_rules(args)
         
         # Initialize data structures
         self._initialize_structures()
@@ -53,7 +64,7 @@ class RuleBasedMotifStore:
         # Determine pickle path
         db_dir = get_motif_cache_dir(args)
         db_dir.mkdir(parents=True, exist_ok=True)
-        self.pickle_path = db_dir / f"{database_name}.pkl"
+        self.pickle_path = get_motif_pickle_path(database_name, args)
         
         # Load or create motif data
         if self.pickle_path.exists():
@@ -98,12 +109,17 @@ class RuleBasedMotifStore:
         
         # Feature mapping structures
         self.entity_feature_columns: Dict = {}
+        self.entity_literal_values: Dict = {}
         self.relation_feature_columns: Dict = {}
+        self.relation_entity_tables: Dict = {}
+        self.relation_literal_values: Dict = {}
+        self.relation_occurrence_counts: Dict = {}
         self.feature_info_mapping: Dict = {}
         
         # Configuration
         self.device = getattr(self.args, 'device', 'cuda')
         self.num_nodes_graph: int = 0
+        self.total_relation_occurrences: Dict = {}
     
     @property
     def num_motifs(self) -> int:
@@ -146,9 +162,15 @@ class RuleBasedMotifStore:
             "masks": self.masks,
             "multiples": self.multiples,
             "entity_feature_columns": self.entity_feature_columns,
+            "entity_literal_values": self.entity_literal_values,
             "relation_feature_columns": self.relation_feature_columns,
+            "relation_entity_tables": self.relation_entity_tables,
+            "relation_literal_values": self.relation_literal_values,
+            "relation_occurrence_counts": self.relation_occurrence_counts,
             "feature_info_mapping": self.feature_info_mapping,
             "num_nodes_graph": self.num_nodes_graph,
+            "total_relation_occurrences": self.total_relation_occurrences,
+            "use_syntactic_literal_rules": self.use_syntactic_literal_rules,
         }
         
         with open(self.pickle_path, "wb") as f:
@@ -246,6 +268,11 @@ class RuleBasedMotifStore:
             
             self.entities[table_name] = DataFrame(rows, columns=columns_names)
             self.entity_feature_columns[table_name] = columns_names[1:]
+            if self.use_syntactic_literal_rules:
+                self.entity_literal_values[table_name] = {
+                    feature_name: self._get_unique_literal_values(self.entities[table_name][feature_name])
+                    for feature_name in self.entity_feature_columns[table_name]
+                }
             
             cursor_setup.execute("SELECT COLUMN_NAME FROM EntityTables WHERE TABLE_NAME = %s", (table_name,))
             key = cursor_setup.fetchall()
@@ -269,10 +296,22 @@ class RuleBasedMotifStore:
             
             self.relations[table_name] = DataFrame(rows, columns=columns_names)
             self.relation_feature_columns[table_name] = columns_names[2:]
+            if self.use_syntactic_literal_rules:
+                self.relation_literal_values[table_name] = {
+                    feature_name: self._get_unique_literal_values(self.relations[table_name][feature_name])
+                    for feature_name in self.relation_feature_columns[table_name]
+                }
+                self.relation_occurrence_counts[table_name] = len(self.relations[table_name])
+                self.total_relation_occurrences[table_name] = self.relation_occurrence_counts[table_name]
             
             cursor_setup.execute("SELECT COLUMN_NAME FROM ForeignKeyColumns WHERE TABLE_NAME = %s", (table_name,))
             key = cursor_setup.fetchall()
             self.keys[table_name] = (key[0][0], key[1][0])
+
+            if self.use_syntactic_literal_rules:
+                cursor_setup.execute("SELECT REFERENCED_TABLE_NAME FROM ForeignKeyColumns WHERE TABLE_NAME = %s", (table_name,))
+                references = cursor_setup.fetchall()
+                self.relation_entity_tables[table_name] = (references[0][0], references[1][0])
     
     def _fetch_attributes(self, setup_conn):
         """Fetch attribute columns."""
@@ -288,6 +327,30 @@ class RuleBasedMotifStore:
         for table_name, df in self.entities.items():
             key = self.keys[table_name]
             self.indices[key] = {row[key]: idx for idx, row in df.iterrows()}
+
+    @staticmethod
+    def _get_unique_literal_values(series):
+        """Return `(value, count)` tuples for the literals in a feature column."""
+        value_counts = series.dropna().value_counts(sort=False)
+        value_count_pairs = []
+        for value, count in value_counts.items():
+            if hasattr(value, "item"):
+                try:
+                    value = value.item()
+                except ValueError:
+                    pass
+            if hasattr(count, "item"):
+                try:
+                    count = count.item()
+                except ValueError:
+                    pass
+            value_count_pairs.append((value, count))
+
+        try:
+            value_count_pairs = sorted(value_count_pairs, key=lambda pair: pair[0])
+        except TypeError:
+            pass
+        return value_count_pairs
     
     def _create_mask_matrices(self, setup_conn):
         """Create mask matrices representing relations between entities."""
@@ -339,107 +402,224 @@ class RuleBasedMotifStore:
             for (parent,) in parents:
                 if parent != '':
                     rule.append(parent)
-            
-            self.rules.append(rule)
-            self.multiples.append(1 if len(rule) > 1 else 0)
-            
-            relation_check = any(',' in atom for atom in rule)
-            functor, variable, node, state, mask = {}, {}, {}, [], {}
-            unmasked_variables = []
-            
-            for j in range(len(rule)):
-                fun = rule[j].split('(')[0]
-                functor[j] = fun
-                
-                if ',' not in rule[j]:
-                    var = rule[j].split('(')[1][:-1]
-                    variable[j] = var
-                    node[j] = var[:-1]
-                    
-                    if not relation_check:
-                        unmasked_variables.append(var)
-                        state.append(0)
-                    else:
-                        mas = []
-                        for k in rule:
-                            func = k.split('(')[0]
-                            if func not in relation_names:
-                                func = self.attributes.get(func, func)
-                            if ',' in k and var in k:
-                                var1, var2 = k.split('(')[1][:-1].split(',')
-                                mas.append([func, var1, var2])
-                                unmasked_variables.append(k.split('(')[1][:-1])
-                        mask[j] = mas
-                        state.append(1)
-                else:
-                    unmasked_variables.append(rule[j].split('(')[1][:-1])
-                    if fun in relation_names:
-                        state.append(2)
-                    else:
-                        state.append(3)
-            
-            self.functors[i] = functor
-            self.variables[i] = variable
-            self.nodes[i] = node
-            self.states.append(state)
-            self.masks[i] = mask
-            
-            masked_variables = [unmasked_variables[0]]
-            base_indice = [0]
-            mask_indice = []
-            
-            for j in range(1, len(unmasked_variables)):
-                mask_check = False
-                for k in range(len(masked_variables)):
-                    if unmasked_variables[j] == masked_variables[k]:
-                        mask_indice.append([k, j])
-                        mask_check = True
-                        break
-                if not mask_check:
-                    base_indice.append(j)
-                    masked_variables.append(unmasked_variables[j])
-            
-            sort_indice, sorted_variables = self._create_sort_indices(masked_variables, relation_check, relation_names)
-            stack_indice = self._create_stack_indices(sorted_variables)
-            
-            self.base_indices.append(base_indice)
-            self.mask_indices.append(mask_indice)
-            self.sort_indices.append(sort_indice)
-            self.stack_indices.append(stack_indice)
-            
+
             cursor_bn.execute(f"SELECT * FROM `{childs[i][0]}_CP`")
             value = cursor_bn.fetchall()
+            self._add_processed_rule(rule, value, relation_names)
 
-            # Remove N/A rows regardless of pruning setting.
-            value = [row for row in value if 'N/A' not in row]
+        if self.use_syntactic_literal_rules:
+            self._ensure_entity_unary_literal_rules(relation_names)
+            self._ensure_relation_literal_rules(relation_names)
+        
+        self._adjust_matrices()
 
-            # ── Always compute BOTH value sets so a single pickle works
-            # for either value of --rule_prune without deleting the cache.
+    def _add_processed_rule(self, rule, value_rows, relation_names, keep_all_values=False):
+        """Add one rule and populate all aligned rule metadata structures."""
+        rule_idx = len(self.rules)
+        self.rules.append(rule)
+        self.multiples.append(1 if len(rule) > 1 else 0)
 
-            # Full (unpruned) — rule_prune=False
-            self.values_full.append(value)
+        relation_check = any(',' in atom for atom in rule)
+        functor, variable, node, state, mask = {}, {}, {}, [], {}
+        unmasked_variables = []
 
-            # Pruned — rule_prune=True: keep only statistically significant rows
-            pruned_value = []
-            for j in value:
-                size = len(j)
+        for j in range(len(rule)):
+            fun = rule[j].split('(')[0]
+            functor[j] = fun
+
+            if ',' not in rule[j]:
+                var = rule[j].split('(')[1][:-1]
+                variable[j] = var
+                node[j] = var[:-1]
+
+                if not relation_check:
+                    unmasked_variables.append(var)
+                    state.append(0)
+                else:
+                    mas = []
+                    for k in rule:
+                        func = k.split('(')[0]
+                        if func not in relation_names:
+                            func = self.attributes.get(func, func)
+                        if ',' in k and var in k:
+                            var1, var2 = k.split('(')[1][:-1].split(',')
+                            mas.append([func, var1, var2])
+                            unmasked_variables.append(k.split('(')[1][:-1])
+                    mask[j] = mas
+                    state.append(1)
+            else:
+                unmasked_variables.append(rule[j].split('(')[1][:-1])
+                if fun in relation_names:
+                    state.append(2)
+                else:
+                    state.append(3)
+
+        self.functors[rule_idx] = functor
+        self.variables[rule_idx] = variable
+        self.nodes[rule_idx] = node
+        self.states.append(state)
+        self.masks[rule_idx] = mask
+
+        masked_variables = [unmasked_variables[0]]
+        base_indice = [0]
+        mask_indice = []
+
+        for j in range(1, len(unmasked_variables)):
+            mask_check = False
+            for k in range(len(masked_variables)):
+                if unmasked_variables[j] == masked_variables[k]:
+                    mask_indice.append([k, j])
+                    mask_check = True
+                    break
+            if not mask_check:
+                base_indice.append(j)
+                masked_variables.append(unmasked_variables[j])
+
+        sort_indice, sorted_variables = self._create_sort_indices(masked_variables, relation_check, relation_names)
+        stack_indice = self._create_stack_indices(sorted_variables)
+
+        self.base_indices.append(base_indice)
+        self.mask_indices.append(mask_indice)
+        self.sort_indices.append(sort_indice)
+        self.stack_indices.append(stack_indice)
+
+        # Remove N/A rows regardless of pruning setting.
+        value_rows = [row for row in value_rows if 'N/A' not in row]
+
+        # ── Always compute BOTH value sets so a single pickle works
+        # for either value of --rule_prune without deleting the cache.
+        self.values_full.append(value_rows)
+
+        # Unary rules are never pruned; they keep all rows.
+        pruned_value = []
+        if keep_all_values or len(rule) == 1:
+            pruned_value = list(value_rows)
+        else:
+            for row in value_rows:
+                size = len(row)
                 try:
-                    if self.multiples[i]:
-                        if 2 * j[size-4] * (log(j[size-3]) - log(j[size-1])) - log(j[size-4]) > 0:
-                            pruned_value.append(j)
+                    if self.multiples[rule_idx]:
+                        if 2 * row[size-4] * (log(row[size-3]) - log(row[size-1])) - log(row[size-4]) > 0:
+                            pruned_value.append(row)
                     else:
-                        if 2 * int(j[size-3]) * (log(j[size-5]) - log(j[size-1])) - log(int(j[size-3])) > 0:
-                            pruned_value.append(j)
+                        if 2 * int(row[size-3]) * (log(row[size-5]) - log(row[size-1])) - log(int(row[size-3])) > 0:
+                            pruned_value.append(row)
                 except (ValueError, ZeroDivisionError):
                     # log(0) or log(negative) — row has zero count/probability, skip it
                     pass
-            self.values_pruned.append(pruned_value)
+        self.values_pruned.append(pruned_value)
 
-            # Keep self.values pointing at full for any in-memory use within
-            # motif_store (e.g. _adjust_matrices). motif_counter re-selects at load.
-            self.values.append(value)
-        
-        self._adjust_matrices()
+        # Keep self.values pointing at full for any in-memory use within
+        # motif_store (e.g. _adjust_matrices). motif_counter re-selects at load.
+        self.values.append(value_rows)
+
+    def _ensure_entity_unary_literal_rules(self, relation_names):
+        """Add missing unary rules for entity literals using entity feature values."""
+        unary_functors = {
+            rule[0].split('(')[0]
+            for rule in self.rules
+            if len(rule) == 1
+        }
+
+        for table_name, feature_values in self.entity_literal_values.items():
+            variable_name = f"{table_name}0"
+            for feature_name, value_rows in feature_values.items():
+                if feature_name in unary_functors:
+                    continue
+                unary_rule = [f"{feature_name}({variable_name})"]
+                synthetic_value_rows = self._build_synthetic_unary_value_rows(value_rows)
+                self._add_processed_rule(
+                    unary_rule,
+                    synthetic_value_rows,
+                    relation_names,
+                    keep_all_values=True,
+                )
+                unary_functors.add(feature_name)
+
+    def _ensure_relation_literal_rules(self, relation_names):
+        """Add missing binary edge-feature and standalone relation rules."""
+        existing_rules = {tuple(rule) for rule in self.rules}
+
+        for relation_name, feature_values in self.relation_literal_values.items():
+            entity1, entity2 = self.relation_entity_tables[relation_name]
+            variable1 = f"{entity1}0"
+            variable2 = f"{entity2}1"
+            relation_atom = f"{relation_name}({variable1},{variable2})"
+
+            for feature_name in feature_values:
+                feature_rule = (
+                    f"{feature_name}({variable1},{variable2})",
+                    relation_atom,
+                )
+                if feature_rule not in existing_rules:
+                    synthetic_value_rows = self._build_synthetic_relation_feature_value_rows(
+                        feature_values[feature_name]
+                    )
+                    self._add_processed_rule(
+                        list(feature_rule),
+                        synthetic_value_rows,
+                        relation_names,
+                        keep_all_values=True,
+                    )
+                    existing_rules.add(feature_rule)
+
+            standalone_rule = (relation_atom,)
+            if standalone_rule not in existing_rules:
+                synthetic_value_rows = self._build_synthetic_standalone_relation_value_rows(
+                    self.relation_occurrence_counts[relation_name]
+                )
+                self._add_processed_rule(
+                    [relation_atom],
+                    synthetic_value_rows,
+                    relation_names,
+                    keep_all_values=True,
+                )
+                existing_rules.add(standalone_rule)
+
+    @staticmethod
+    def _build_synthetic_unary_value_rows(value_rows):
+        """Convert `(value, count)` pairs into 5-element rows for synthetic unary rules."""
+        synthetic_rows = []
+        for value, count in value_rows:
+            synthetic_rows.append([
+                str(value),
+                Decimal(str(count)),
+                Decimal(str(count)),
+                "",
+                "",
+            ])
+        return synthetic_rows
+
+    @staticmethod
+    def _build_synthetic_relation_feature_value_rows(value_rows):
+        """Convert `(value, count)` pairs into synthetic binary rule rows."""
+        synthetic_rows = []
+        for value, count in value_rows:
+            count_decimal = Decimal(str(count))
+            synthetic_rows.append([
+                count_decimal,
+                value,
+                "T",
+                "",
+                count_decimal,
+                "",
+                "",
+                "",
+            ])
+        return synthetic_rows
+
+    @staticmethod
+    def _build_synthetic_standalone_relation_value_rows(count):
+        """Build the single synthetic row for a standalone relation rule."""
+        count_decimal = Decimal(str(count))
+        return [[
+            "T",
+            1.0,
+            count_decimal,
+            count_decimal,
+            0.0,
+            1.0,
+        ]]
     
     def _create_sort_indices(self, masked_variables, relation_check, relation_names):
         """Create indices to sort variables for matrix multiplication chain."""
