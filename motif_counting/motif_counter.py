@@ -21,8 +21,8 @@ def use_syntactic_literal_rules(args=None) -> bool:
 
 
 def get_motif_pickle_path(database_name: str, args=None) -> Path:
-    suffix = "with_syntactic_literals" if use_syntactic_literal_rules(args) else "without_syntactic_literals"
-    return get_motif_cache_dir(args) / f"{database_name}__{suffix}.pkl"
+    marker = "injectedUC" if use_syntactic_literal_rules(args) else "noInjectedUC"
+    return get_motif_cache_dir(args) / f"{database_name}_{marker}.pkl"
 
 
 class RelationalMotifCounter:
