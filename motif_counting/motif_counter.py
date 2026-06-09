@@ -16,6 +16,15 @@ def get_motif_cache_dir(args=None) -> Path:
     return Path(os.environ.get("MOTIF_CACHE_DIR", "cache_motifs")).expanduser()
 
 
+def use_syntactic_literal_rules(args=None) -> bool:
+    return getattr(args, 'use_syntactic_literal_rules', True) if args is not None else True
+
+
+def get_motif_pickle_path(database_name: str, args=None) -> Path:
+    suffix = "with_syntactic_literals" if use_syntactic_literal_rules(args) else "without_syntactic_literals"
+    return get_motif_cache_dir(args) / f"{database_name}__{suffix}.pkl"
+
+
 class RelationalMotifCounter:
     """
     Counts motifs in a graph using relational algebra and Bayesian Network rules.
@@ -60,8 +69,7 @@ class RelationalMotifCounter:
         self.database_name = database_name
         self.args = args
 
-        db_dir = get_motif_cache_dir(args)
-        pickle_path = db_dir / f"{database_name}.pkl"
+        pickle_path = get_motif_pickle_path(database_name, args)
 
         if not pickle_path.exists():
             raise FileNotFoundError(
@@ -94,9 +102,22 @@ class RelationalMotifCounter:
         self.masks                 = data["masks"]
         self.multiples             = data["multiples"]
         self.entity_feature_columns   = data.get("entity_feature_columns", {})
+        self.entity_literal_values    = data.get("entity_literal_values", {})
         self.relation_feature_columns = data.get("relation_feature_columns", {})
+        self.relation_entity_tables   = data.get("relation_entity_tables", {})
+        self.relation_literal_values  = data.get("relation_literal_values", {})
+        self.relation_occurrence_counts = data.get("relation_occurrence_counts", {})
         self.feature_info_mapping  = data.get("feature_info_mapping", {})
         self.num_nodes_graph       = data.get("num_nodes_graph", 0)
+        self.use_syntactic_literal_rules = data.get(
+            "use_syntactic_literal_rules",
+            use_syntactic_literal_rules(self.args),
+        )
+        loaded_total_relation_occurrences = data.get("total_relation_occurrences", {})
+        if isinstance(loaded_total_relation_occurrences, dict):
+            self.total_relation_occurrences = loaded_total_relation_occurrences
+        else:
+            self.total_relation_occurrences = dict(self.relation_occurrence_counts)
 
         # ── Select value set based on --rule_prune ────────────────────
         rule_prune = getattr(self.args, 'rule_prune', False)
@@ -104,10 +125,21 @@ class RelationalMotifCounter:
         if "values_full" in data:
             # New-format pickle
             if rule_prune:
-                self.values = data["values_pruned"]
+                self.values = [
+                    list(full_rows) if len(rule) == 1 else pruned_rows
+                    for rule, full_rows, pruned_rows in zip(
+                        self.rules,
+                        data["values_full"],
+                        data["values_pruned"],
+                    )
+                ]
                 n_full   = sum(len(v) for v in data["values_full"])
-                n_pruned = sum(len(v) for v in data["values_pruned"])
-                print(f"  rule_prune=True: {n_pruned} / {n_full} value combinations kept")
+                n_pruned = sum(len(v) for v in self.values)
+                print(
+                    "  rule_prune=True: "
+                    f"{n_pruned} / {n_full} value combinations kept "
+                    "(unary rules kept unpruned)"
+                )
             else:
                 self.values = data["values_full"]
                 print(f"  rule_prune=False: using all {sum(len(v) for v in data['values_full'])} value combinations")
@@ -116,6 +148,8 @@ class RelationalMotifCounter:
             self.values = data["values"]
             print(f"  Warning: old-format pickle — delete {pickle_path} "
                   f"to regenerate with both value sets cached.")
+
+        self._build_syntactic_literal_masks()
 
         self.device = getattr(self.args, 'device', 'cuda')
 
@@ -147,6 +181,12 @@ class RelationalMotifCounter:
             )
         """
         return list(self.matrices.keys())
+
+    def get_syntactic_literal_motif_mask(self, device=None) -> torch.Tensor:
+        mask = self.syntactic_literal_motif_mask
+        if device is not None:
+            return mask.to(device)
+        return mask
 
     def do_interactive_selection(self) -> Dict:
         """Interactive rule/value selection for multi-graph runs (ask only once)."""
@@ -572,6 +612,95 @@ class RelationalMotifCounter:
             return f"{int(m)}m {s:.0f}s"
         h, m = divmod(m, 60)
         return f"{int(h)}h {int(m)}m {s:.0f}s"
+
+    @staticmethod
+    def _strip_trailing_digits(variable_name: str) -> str:
+        return variable_name.rstrip("0123456789")
+
+    @staticmethod
+    def _parse_atom(atom: str) -> Tuple[str, List[str]]:
+        functor, rest = atom.split("(", 1)
+        arguments = rest[:-1].split(",")
+        return functor, arguments
+
+    def _is_entity_syntactic_literal_rule(self, rule: List[str]) -> bool:
+        if len(rule) != 1:
+            return False
+
+        functor, arguments = self._parse_atom(rule[0])
+        if len(arguments) != 1:
+            return False
+
+        variable_name = arguments[0]
+        for table_name, feature_list in self.entity_feature_columns.items():
+            if functor in feature_list and self._strip_trailing_digits(variable_name) == table_name:
+                return True
+        return False
+
+    def _is_relation_syntactic_literal_rule(self, rule: List[str]) -> bool:
+        if len(rule) != 2:
+            return False
+
+        parsed_atoms = [self._parse_atom(atom) for atom in rule]
+
+        for relation_name, feature_list in self.relation_feature_columns.items():
+            entity_tables = self.relation_entity_tables.get(relation_name)
+            if entity_tables is None:
+                continue
+
+            feature_arguments = None
+            relation_arguments = None
+            for functor, arguments in parsed_atoms:
+                if functor in feature_list:
+                    feature_arguments = arguments
+                elif functor == relation_name:
+                    relation_arguments = arguments
+
+            if feature_arguments is None or relation_arguments is None:
+                continue
+            if len(feature_arguments) != 2 or len(relation_arguments) != 2:
+                continue
+            if feature_arguments != relation_arguments:
+                continue
+
+            variable_bases = tuple(
+                self._strip_trailing_digits(variable_name)
+                for variable_name in relation_arguments
+            )
+            if variable_bases == tuple(entity_tables):
+                return True
+
+        return False
+
+    def _is_syntactic_literal_rule(self, rule: List[str]) -> bool:
+        return (
+            self._is_entity_syntactic_literal_rule(rule)
+            or self._is_relation_syntactic_literal_rule(rule)
+        )
+
+    def _build_syntactic_literal_masks(self):
+        rule_mask: List[bool] = []
+        motif_mask: List[bool] = []
+
+        if self.use_syntactic_literal_rules:
+            for rule_idx, rule in enumerate(self.rules):
+                is_literal_rule = self._is_syntactic_literal_rule(rule)
+                rule_mask.append(is_literal_rule)
+                motif_mask.extend([is_literal_rule] * len(self.values[rule_idx]))
+        else:
+            rule_mask = [False] * len(self.rules)
+            motif_mask = [False] * sum(len(value_rows) for value_rows in self.values)
+
+        self.syntactic_literal_rule_mask = rule_mask
+        self.syntactic_literal_rule_indices = [
+            rule_idx for rule_idx, is_literal_rule in enumerate(rule_mask)
+            if is_literal_rule
+        ]
+        self.syntactic_literal_motif_mask = torch.tensor(motif_mask, dtype=torch.bool)
+        self.num_syntactic_literal_motifs = int(self.syntactic_literal_motif_mask.sum().item())
+        self.num_non_syntactic_literal_motifs = int(
+            self.syntactic_literal_motif_mask.numel() - self.num_syntactic_literal_motifs
+        )
 
     def _find_feature(self, functor: str) -> Tuple[bool, Optional[int], Optional[str]]:
         for key, feature_list in self.entity_feature_columns.items():

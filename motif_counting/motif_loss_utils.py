@@ -86,6 +86,51 @@ def compute_motif_loss(
     return per_graph_loss.mean()
 
 
+def compute_masked_motif_loss(
+    observed_counts,
+    predicted_counts,
+    motif_mask,
+    loss_mode="abs_log_ratio",
+    laplace_pseudocount=1.0,
+):
+    """
+    Compute motif loss on only a selected subset of motif-vector columns.
+
+    `motif_mask` is a 1D boolean mask over the motif dimension. If it selects
+    no columns, the returned loss is zero.
+    """
+    _validate_motif_count_shapes(observed_counts, predicted_counts)
+
+    if motif_mask is None:
+        return compute_motif_loss(
+            observed_counts=observed_counts,
+            predicted_counts=predicted_counts,
+            loss_mode=loss_mode,
+            laplace_pseudocount=laplace_pseudocount,
+        )
+
+    if motif_mask.ndim != 1:
+        raise ValueError(
+            f"Expected 1D motif mask, got shape {tuple(motif_mask.shape)}."
+        )
+    if motif_mask.numel() != observed_counts.shape[1]:
+        raise ValueError(
+            f"Motif mask length {motif_mask.numel()} does not match motif dimension "
+            f"{observed_counts.shape[1]}."
+        )
+
+    motif_mask = motif_mask.to(device=observed_counts.device, dtype=torch.bool)
+    if not motif_mask.any():
+        return torch.tensor(0.0, device=observed_counts.device)
+
+    return compute_motif_loss(
+        observed_counts=observed_counts[:, motif_mask],
+        predicted_counts=predicted_counts[:, motif_mask],
+        loss_mode=loss_mode,
+        laplace_pseudocount=laplace_pseudocount,
+    )
+
+
 def compute_hard_motif_metrics(observed_counts, hard_predicted_counts):
     """
     Compute evaluation-only motif metrics on the discretized reconstruction.

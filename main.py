@@ -37,6 +37,7 @@ from motif_counting.motif_store import RuleBasedMotifStore
 from motif_counting.motif_counter import RelationalMotifCounter
 from motif_counting.motif_loss_utils import (
     compute_hard_motif_metrics,
+    compute_masked_motif_loss,
     compute_motif_loss,
     get_motif_temperature,
     get_reconstructed_adj_probs,
@@ -309,7 +310,7 @@ parser.add_argument(
 parser.add_argument(
     '--dataset',
     dest="dataset",
-    default="PROTEINS",
+    default="GRID",
     help="possible choices are: wheel_graph, PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD"
 )
 parser.add_argument(
@@ -344,7 +345,7 @@ parser.add_argument(
 parser.add_argument(
     '--database_name',
     type=str,
-    default='qm9_experiment'
+    default='grid_undir_feat_snap_7a58e6'
 )  # qm9_experiment, ogbg-molbbbp_experiment, PTC_experiment, MUTAG_experiment, PVGAErandomGraphs_experiment, FIRSTMM_DB_experiment, DD_experiment, GRID_experiment, PROTEINS_experiment, lobster_experiment, wheel_graph_experiment, TRIANGULAR_GRID_experiment, tree_experiment
 parser.add_argument(
     '--graph_type',
@@ -465,7 +466,13 @@ parser.add_argument(
 #===============================
 # Motif arguments
 #===============================
-parser.add_argument('--motif_loss', type=str2bool, default=False)
+parser.add_argument('--motif_loss', type=str2bool, default=True)
+parser.add_argument(
+    '--use_syntactic_literal_rules',
+    type=str2bool,
+    default=True,
+    help='Enable the synthetic literal-derived motif rules and literal-value metadata.'
+)
 # The default motif loss is now symmetric: zero-observed motifs are included
 # through Laplace smoothing so extra motifs in the reconstruction are penalized
 # too. This flag only chooses between absolute and squared log-ratio penalties.
@@ -533,6 +540,12 @@ parser.add_argument(
     type=float,
     default=1.0,
     help='Weight for motif loss.'
+)
+parser.add_argument(
+    '--alpha_syntactic_literal_motif_loss',
+    type=float,
+    default=None,
+    help='Optional separate weight for motifs belonging to synthetic-literal rule shapes.'
 )
 parser.add_argument(
     '--alpha_adj_recon',
@@ -665,13 +678,13 @@ parser.add_argument('--interactive', action='store_true', default=False)
 parser.add_argument(
     '--sanity_check',
     action='store_true',
-    default=False,
+    default=True,
     help='Run sanity check and print readable results.'
 )
 parser.add_argument(
     '--sanity_check_only',
     action='store_true',
-    default=False,
+    default=True,
     help='Run sanity check and exit before training.'
 )
 
@@ -730,6 +743,7 @@ motif_temperature_anneal_start_frac = min(
 )
 rule_prune = args.rule_prune
 motif_batch_size = args.motif_batch_size
+use_syntactic_literal_rules = args.use_syntactic_literal_rules
 
 #===============================
 # Loss settings
@@ -738,6 +752,11 @@ alpha_kernel_cost = args.alpha_kernel_cost
 alpha_node_feat = args.alpha_node_feat
 alpha_edge_feat = args.alpha_edge_feat
 alpha_motif_loss = args.alpha_motif_loss
+alpha_syntactic_literal_motif_loss = (
+    alpha_motif_loss
+    if args.alpha_syntactic_literal_motif_loss is None
+    else args.alpha_syntactic_literal_motif_loss
+)
 alpha_adj_recon = args.alpha_adj_recon
 use_edge_count_loss = args.edge_count_loss
 edge_count_loss_mode = args.edge_count_loss_mode
@@ -930,6 +949,7 @@ print(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
+      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
       f" edge_count={alpha_edge_count},"
       f" adj_recon={alpha_adj_recon}"
 )
@@ -951,6 +971,7 @@ logging.info(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
+      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
       f" edge_count={alpha_edge_count},"
       f" adj_recon={alpha_adj_recon}"
 )
@@ -1616,6 +1637,19 @@ if use_motif_loss:
 
     # Creates a relational motif counter and wraps data for counting on CUDA.
     motif_counter = RelationalMotifCounter(database_name=database_name, args=args)
+    if use_syntactic_literal_rules:
+        print(
+            "SYNTACTIC LITERAL MOTIF MASK:"
+            + f" rules={len(motif_counter.syntactic_literal_rule_indices)},"
+              f" motif_entries={motif_counter.num_syntactic_literal_motifs}/"
+              f"{motif_counter.num_syntactic_literal_motifs + motif_counter.num_non_syntactic_literal_motifs}"
+        )
+        logging.info(
+            "SYNTACTIC LITERAL MOTIF MASK:"
+            + f" rules={len(motif_counter.syntactic_literal_rule_indices)},"
+              f" motif_entries={motif_counter.num_syntactic_literal_motifs}/"
+              f"{motif_counter.num_syntactic_literal_motifs + motif_counter.num_non_syntactic_literal_motifs}"
+        )
     wrapper = DataWrapper(dataa, motif_counter.relation_keys,node_onehot_info, device='cuda')
 
     # Computes motif counts in batches.
@@ -1933,6 +1967,9 @@ for epoch in range(epoch_number):
         hard_motif_exact_zero_per_graph = torch.zeros(
             len(true_node_num), dtype=torch.bool, device=device
         )
+        syntactic_literal_motif_loss = torch.tensor(0.0, device=device)
+        non_literal_motif_loss = torch.tensor(0.0, device=device)
+        weighted_motif_loss_term = torch.tensor(0.0, device=device)
         hard_threshold_sweep_summary = None
         motif_temperature = get_motif_temperature(
             epoch=epoch,
@@ -1961,6 +1998,51 @@ for epoch in range(epoch_number):
                 predicted_counts=recon_counts,
                 loss_mode=motif_loss_mode,
             )
+            non_literal_motif_loss = motif_loss
+            weighted_motif_loss_term = motif_loss * alpha_motif_loss
+
+            if (
+                use_syntactic_literal_rules
+                and motif_counter.num_syntactic_literal_motifs > 0
+            ):
+                syntactic_literal_mask = motif_counter.get_syntactic_literal_motif_mask(
+                    device=observed_motif_counts.device
+                )
+                non_literal_mask = ~syntactic_literal_mask
+
+                syntactic_literal_motif_loss = compute_masked_motif_loss(
+                    observed_counts=observed_motif_counts,
+                    predicted_counts=recon_counts,
+                    motif_mask=syntactic_literal_mask,
+                    loss_mode=motif_loss_mode,
+                )
+
+                if non_literal_mask.any():
+                    non_literal_motif_loss = compute_masked_motif_loss(
+                        observed_counts=observed_motif_counts,
+                        predicted_counts=recon_counts,
+                        motif_mask=non_literal_mask,
+                        loss_mode=motif_loss_mode,
+                    )
+                else:
+                    non_literal_motif_loss = torch.tensor(0.0, device=device)
+
+                total_motif_entries = (
+                    motif_counter.num_syntactic_literal_motifs
+                    + motif_counter.num_non_syntactic_literal_motifs
+                )
+                literal_fraction = (
+                    motif_counter.num_syntactic_literal_motifs / total_motif_entries
+                )
+                non_literal_fraction = (
+                    motif_counter.num_non_syntactic_literal_motifs / total_motif_entries
+                )
+                weighted_motif_loss_term = (
+                    alpha_motif_loss * non_literal_fraction * non_literal_motif_loss
+                    + alpha_syntactic_literal_motif_loss
+                    * literal_fraction
+                    * syntactic_literal_motif_loss
+                )
 
             # The hard wrapper thresholds adjacency and converts categorical
             # predictions to one-hot assignments, so these metrics reflect the
@@ -2009,7 +2091,7 @@ for epoch in range(epoch_number):
         loss = alpha_kernel_cost * kernel_cost + \
             alpha_node_feat * node_feat_loss +\
             alpha_edge_feat * edge_feat_loss+\
-            motif_loss * alpha_motif_loss + \
+            weighted_motif_loss_term + \
             edge_count_loss * alpha_edge_count + \
             reconstruction_loss * alpha_adj_recon
 
@@ -2030,6 +2112,8 @@ for epoch in range(epoch_number):
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
                   f"motif={motif_loss.item():.6f} hard_motif={hard_motif_loss.item():.6f} "
+                  f"regular_motif={non_literal_motif_loss.item():.6f} "
+                  f"syntactic_literal_motif={syntactic_literal_motif_loss.item():.6f} "
                   f"motif_temp={motif_temperature:.3f} "
                   f"hard_exact_all={bool(hard_motif_exact_zero.item())} "
                   f"hard_exact_graphs={hard_exact_match_count}/{hard_exact_match_total} "
@@ -2165,6 +2249,8 @@ for epoch in range(epoch_number):
         epoch_status = (
             f"Epoch: {epoch + 1:03d} |Batch: {batch:03d} | latent_mode: {latent_mode} "
             f"| loss: {loss.item():05f} | motif_loss: {motif_loss.item():05f} "
+            f"| regular_motif_loss: {non_literal_motif_loss.item():05f} "
+            f"| syntactic_literal_motif_loss: {syntactic_literal_motif_loss.item():05f} "
             f"| motif_temp: {motif_temperature:.3f} "
             f"| node_feat_loss: {node_feat_loss.item():05f} "
             f"| edge_feat_loss: {edge_feat_loss.item():05f} "
@@ -2176,7 +2262,7 @@ for epoch in range(epoch_number):
             f"| weighted_components: kernel={float((alpha_kernel_cost * kernel_cost).detach().cpu().item()):05f},"
             f" node={float((alpha_node_feat * node_feat_loss).detach().cpu().item()):05f},"
             f" edge={float((alpha_edge_feat * edge_feat_loss).detach().cpu().item()):05f},"
-            f" motif={float((alpha_motif_loss * motif_loss).detach().cpu().item()):05f},"
+            f" motif={float(weighted_motif_loss_term.detach().cpu().item()):05f},"
             f" edge_count={float((alpha_edge_count * edge_count_loss).detach().cpu().item()):05f},"
             f" adj={float((alpha_adj_recon * reconstruction_loss).detach().cpu().item()):05f} "
             f"| z_kl_loss: {kl_loss.item():05f} | accu: {(acc.item() if torch.is_tensor(acc) else float(acc)):03f}"
