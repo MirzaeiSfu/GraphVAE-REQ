@@ -12,6 +12,8 @@ import mmd_rnn as mmd
 import pickle
 from scipy.linalg import eigvalsh
 PRINT_TIME = False
+GGM_GNN_EVAL_RUNS = int(os.environ.get("GRAPHVAE_GGM_GNN_EVAL_RUNS", "10"))
+GGM_GNN_ADD_SELF_LOOPS = os.environ.get("GRAPHVAE_GGM_ADD_SELF_LOOPS", "1") != "0"
 
 
 def degree_worker(G):
@@ -336,6 +338,122 @@ def orbit_stats_all(graph_ref_list, graph_pred_list):
     print('-------------------------')
     return mmd_dist
 
+
+def _to_dgl_graphs(graph_list, device):
+    import dgl
+
+    dgl_graphs = []
+    for graph in graph_list:
+        if graph.number_of_nodes() == 0:
+            continue
+        nx_graph = nx.convert_node_labels_to_integers(graph)
+        if GGM_GNN_ADD_SELF_LOOPS:
+            nx_graph.add_edges_from((node, node) for node in nx_graph.nodes())
+        dgl_graphs.append(dgl.DGLGraph(nx_graph).to(device))
+    return dgl_graphs
+
+
+def ggm_gnn_quality_stats(graph_ref_list, graph_pred_list, runs=GGM_GNN_EVAL_RUNS):
+    """Compute GGM Random-GIN MMD-RBF and F1-PR metrics."""
+    try:
+        import torch
+
+        repo_root = os.path.dirname(os.path.abspath(__file__))
+        ggmeval_root = os.path.join(repo_root, "third_party", "ggmeval")
+        if os.path.isdir(ggmeval_root) and ggmeval_root not in sys.path:
+            sys.path.insert(0, ggmeval_root)
+
+        try:
+            from evaluation.gin_evaluation import (
+                MMDEvaluation,
+                load_feature_extractor,
+                prdcEvaluation,
+            )
+        except Exception:
+            from ggm_metrics.gin_evaluation import (
+                MMDEvaluation,
+                load_feature_extractor,
+                prdcEvaluation,
+            )
+    except Exception as exc:
+        return {
+            "mmd_rbf": None,
+            "precision": None,
+            "recall": None,
+            "f1_pr": None,
+            "error": str(exc),
+        }
+
+    graph_pred_list = [G for G in graph_pred_list if not G.number_of_nodes() == 0]
+    graph_ref_list = [G for G in graph_ref_list if not G.number_of_nodes() == 0]
+    if len(graph_ref_list) == 0 or len(graph_pred_list) == 0:
+        return {
+            "mmd_rbf": None,
+            "precision": None,
+            "recall": None,
+            "f1_pr": None,
+            "error": "empty reference or generated graph list",
+        }
+
+    nearest_k = min(5, len(graph_ref_list) - 2, len(graph_pred_list) - 2)
+    if nearest_k < 1:
+        return {
+            "mmd_rbf": None,
+            "precision": None,
+            "recall": None,
+            "f1_pr": None,
+            "error": "F1 PR needs at least two reference and two generated graphs",
+        }
+
+    try:
+        device = torch.device(os.environ.get("GRAPHVAE_GGM_GNN_DEVICE", "cpu"))
+        generated_dgl = _to_dgl_graphs(graph_pred_list, device)
+        reference_dgl = _to_dgl_graphs(graph_ref_list, device)
+
+        mmd_rbf_values = []
+        precision_values = []
+        recall_values = []
+        f1_pr_values = []
+        for _ in range(max(1, runs)):
+            model = load_feature_extractor(device=device)
+            mmd_eval = MMDEvaluation(model, kernel="rbf", sigma="range", multiplier="mean")
+            pr_eval = prdcEvaluation(model=model, use_pr=True)
+
+            (generated_activations, reference_activations), _ = mmd_eval.get_activations(
+                generated_dgl, reference_dgl
+            )
+            mmd_result, _ = mmd_eval.evaluate(generated_activations, reference_activations)
+            pr_result, _ = pr_eval.evaluate(
+                generated_activations, reference_activations, nearest_k=nearest_k
+            )
+
+            mmd_rbf_values.append(mmd_result["mmd_rbf"])
+            precision_values.append(pr_result["precision"])
+            recall_values.append(pr_result["recall"])
+            f1_pr_values.append(pr_result["f1_pr"])
+
+        return {
+            "mmd_rbf": float(np.mean(mmd_rbf_values)),
+            "mmd_rbf_std": float(np.std(mmd_rbf_values)),
+            "precision": float(np.mean(precision_values)),
+            "precision_std": float(np.std(precision_values)),
+            "recall": float(np.mean(recall_values)),
+            "recall_std": float(np.std(recall_values)),
+            "f1_pr": float(np.mean(f1_pr_values)),
+            "f1_pr_std": float(np.std(f1_pr_values)),
+            "runs": int(max(1, runs)),
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "mmd_rbf": None,
+            "precision": None,
+            "recall": None,
+            "f1_pr": None,
+            "error": str(exc),
+        }
+
+
 # This function takes two list of networkx2 objects and compare their mmd for preddefined statistics
 def mmd_eval(generated_graph_list, original_graph_list, diam = False):
     generated_graph_list = [G for G in generated_graph_list if not G.number_of_nodes() == 0]
@@ -364,9 +482,10 @@ def mmd_eval(generated_graph_list, original_graph_list, diam = False):
     else:
         mmd_diam = "_"
     mmd_tri = MMD_triangles(original_graph_list, generated_graph_list)
+    ggm_gnn_stats = ggm_gnn_quality_stats(original_graph_list, generated_graph_list)
 
-    print('degree', mmd_degree, 'clustering', mmd_clustering,'sparsity',mmd_sparsity, 'orbits', mmd_4orbits, "Spec:", mmd_spectral, "Tri", mmd_tri,  " diameter:" , mmd_diam)
-    return('degree: '+str(mmd_degree) +' clustering: ' + str(mmd_clustering) + str(' sparsity: ')+str(mmd_sparsity)+' orbits: '+str(mmd_4orbits)+" Spec: "+str( mmd_spectral) +" Tri: "+ str(mmd_tri) + " average edge # in test set: "+ str(degree1) + " average edge # in grnrated set: "+ str(degree2)+ " diameter:" + str(mmd_diam))
+    print('degree', mmd_degree, 'clustering', mmd_clustering,'sparsity',mmd_sparsity, 'orbits', mmd_4orbits, "Spec:", mmd_spectral, "Tri", mmd_tri,  " diameter:" , mmd_diam, " GGM GNN:", ggm_gnn_stats)
+    return('degree: '+str(mmd_degree) +' clustering: ' + str(mmd_clustering) + str(' sparsity: ')+str(mmd_sparsity)+' orbits: '+str(mmd_4orbits)+" Spec: "+str( mmd_spectral) +" Tri: "+ str(mmd_tri) + " average edge # in test set: "+ str(degree1) + " average edge # in grnrated set: "+ str(degree2)+ " diameter:" + str(mmd_diam) + " mmd_rbf: " + str(ggm_gnn_stats.get("mmd_rbf")) + " mmd_rbf_std: " + str(ggm_gnn_stats.get("mmd_rbf_std")) + " precision: " + str(ggm_gnn_stats.get("precision")) + " precision_std: " + str(ggm_gnn_stats.get("precision_std")) + " recall: " + str(ggm_gnn_stats.get("recall")) + " recall_std: " + str(ggm_gnn_stats.get("recall_std")) + " f1_pr: " + str(ggm_gnn_stats.get("f1_pr")) + " f1_pr_std: " + str(ggm_gnn_stats.get("f1_pr_std")) + " ggm_gnn_runs: " + str(ggm_gnn_stats.get("runs")) + " ggm_gnn_error: " + str(ggm_gnn_stats.get("error")))
 # load a list of graphs
 def load_graph_list(fname,remove_self=True):
     with open(fname, "rb") as f:

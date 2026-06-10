@@ -1,0 +1,68 @@
+# Closest local GraphVAE baseline config for reproducing the Grid Table 3
+# setting while staying on the current GRID dataset path.
+
+data:
+  dataset: GRID
+  use_feature: true
+  bfsOrdering: true
+  bfs_strategy: legacy_first_component
+  directed: true
+  database_name: grid_experiment
+  graph_type: homogeneous
+  graph_index_start: null
+  graph_index_end: null
+  data_dir: null
+  split_mode: legacy_80_20
+
+model:
+  model: GraphVAE
+  encoder_type: AvePool
+  decoder: FC
+  graphEmDim: 1024
+  beta: null
+
+experiment:
+  epoch_number: 20000
+  Vis_step: 1000
+  redraw: false
+  lr: 0.0003
+  train_batch_size: 200
+  task: graphGeneration
+
+motif:
+  motif_loss: false
+  motif_loss_mode: abs_log_ratio
+  motif_temperature_start: 1.0
+  motif_temperature_end: 0.5
+  motif_temperature_anneal_start_frac: 0.5
+  rule_prune: false
+  motif_batch_size: 50000
+
+loss:
+  alpha_kernel_cost: 1.0
+  alpha_node_feat: 0.0
+  alpha_edge_feat: 0.0
+  alpha_motif_loss: 0.0
+  edge_count_loss: false
+  edge_count_loss_mode: abs_log_ratio
+  alpha_edge_count: 0.0
+  alpha_adj_recon: 0.0
+
+runtime:
+  graph_save_path: runs/table3_reproduction/grid_graphvae_table3_nearest_run
+  dataset_cache_dir: runs/table3_reproduction/dataset_cache
+  motif_cache_dir: null
+  PATH: model
+  UseGPU: true
+  device: cuda:0
+  plot_testGraphs: false
+  ideal_Evalaution: false
+  keep_best_validation_mmd: false
+  best_validation_mmd_metric: normalized_table2
+  save_validation_checkpoints: false
+  tiny_overfit: false
+  tiny_overfit_size: 32
+  interactive: false
+  sanity_check: false
+  sanity_check_only: false
+  run_label: grid-graphvae-table3-nearest-v1

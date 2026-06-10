@@ -1,7 +1,6 @@
 # Generate graphs for demonstration purposes
 import random
 
-import utils.graph_generators as gen
 import pickle
 import torch
 import dgl
