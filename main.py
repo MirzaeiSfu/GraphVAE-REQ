@@ -129,6 +129,133 @@ def load_config_defaults(config_path, valid_keys):
     return flat_config
 
 
+DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v2"
+DEFAULT_SPLIT_SEED = 123
+DEFAULT_LEGACY_TRAIN_FRACTION = 0.8
+DEFAULT_PAPER_TRAIN_FRACTION = 0.7
+DEFAULT_PAPER_VAL_FRACTION = 0.1
+
+
+def _sanitize_cache_component(value):
+    text = str(value)
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", text).strip("-") or "none"
+
+
+def _format_cache_float(value):
+    text = f"{float(value):.6g}"
+    return text.replace("-", "m").replace(".", "p")
+
+
+def resolve_split_plan(split_mode, train_fraction_arg, val_fraction_arg, split_seed):
+    split_seed = int(split_seed)
+
+    if split_mode == "paper_70_10_20":
+        train_fraction = (
+            DEFAULT_PAPER_TRAIN_FRACTION
+            if train_fraction_arg is None
+            else float(train_fraction_arg)
+        )
+        val_fraction = (
+            DEFAULT_PAPER_VAL_FRACTION
+            if val_fraction_arg is None
+            else float(val_fraction_arg)
+        )
+        split_kind = "three_way"
+    else:
+        train_fraction = (
+            DEFAULT_LEGACY_TRAIN_FRACTION
+            if train_fraction_arg is None
+            else float(train_fraction_arg)
+        )
+        val_fraction = 0.0 if val_fraction_arg is None else float(val_fraction_arg)
+        if val_fraction != 0.0:
+            raise ValueError(
+                "--val_fraction is only supported with split_mode=paper_70_10_20."
+            )
+        split_kind = "two_way"
+
+    test_fraction = 1.0 - train_fraction - val_fraction
+    if not (0.0 < train_fraction < 1.0):
+        raise ValueError(f"train_fraction must be in (0, 1), got {train_fraction}.")
+    if not (0.0 <= val_fraction < 1.0):
+        raise ValueError(f"val_fraction must be in [0, 1), got {val_fraction}.")
+    if test_fraction <= 0.0:
+        raise ValueError(
+            "Split fractions must leave a positive test fraction; "
+            f"got train={train_fraction}, val={val_fraction}, test={test_fraction}."
+        )
+
+    return {
+        "split_kind": split_kind,
+        "train_fraction": train_fraction,
+        "val_fraction": val_fraction,
+        "test_fraction": test_fraction,
+        "split_seed": split_seed,
+    }
+
+
+def build_dataset_cache_metadata(dataset, split_mode, bfs_strategy, split_plan):
+    return {
+        "cache_schema_version": DATASET_CACHE_SCHEMA_VERSION,
+        "dataset": dataset,
+        "split_mode": split_mode,
+        "bfs_strategy": bfs_strategy,
+        "split_kind": split_plan["split_kind"],
+        "train_fraction": float(split_plan["train_fraction"]),
+        "val_fraction": float(split_plan["val_fraction"]),
+        "test_fraction": float(split_plan["test_fraction"]),
+        "split_seed": int(split_plan["split_seed"]),
+    }
+
+
+def build_dataset_cache_name(cache_metadata):
+    return (
+        f"{_sanitize_cache_component(cache_metadata['dataset'])}"
+        f"_split-{_sanitize_cache_component(cache_metadata['split_mode'])}"
+        f"_train{_format_cache_float(cache_metadata['train_fraction'])}"
+        f"_val{_format_cache_float(cache_metadata['val_fraction'])}"
+        f"_test{_format_cache_float(cache_metadata['test_fraction'])}"
+        f"_seed{cache_metadata['split_seed']}"
+        f"_bfs-{_sanitize_cache_component(cache_metadata['bfs_strategy'])}.pkl"
+    )
+
+
+def _metadata_values_match(expected_value, cached_value):
+    if isinstance(expected_value, float):
+        try:
+            return math.isclose(
+                expected_value, float(cached_value), rel_tol=0.0, abs_tol=1e-12
+            )
+        except (TypeError, ValueError):
+            return False
+    return expected_value == cached_value
+
+
+def validate_dataset_cache_metadata(cache_payload, expected_metadata, cache_path):
+    cached_metadata = cache_payload.get("cache_metadata")
+    if cached_metadata is None:
+        raise ValueError(
+            "Dataset cache is missing cache_metadata and may come from an older "
+            f"split definition. Delete/regenerate this cache: {cache_path}"
+        )
+
+    mismatches = []
+    for key, expected_value in expected_metadata.items():
+        cached_value = cached_metadata.get(key)
+        if not _metadata_values_match(expected_value, cached_value):
+            mismatches.append((key, expected_value, cached_value))
+
+    if mismatches:
+        details = "; ".join(
+            f"{key}: expected {expected!r}, cached {cached!r}"
+            for key, expected, cached in mismatches
+        )
+        raise ValueError(
+            f"Dataset cache metadata mismatch for {cache_path}. {details}. "
+            "Delete/regenerate the cache or use a different --dataset_cache_dir."
+        )
+
+
 MODEL_NAME_ALIASES = {
     "graphvae": "kipf",
     "graphvae-mm": "GraphVAE-MM",
@@ -377,6 +504,24 @@ parser.add_argument(
     default='legacy_80_20',
     choices=['legacy_80_20', 'paper_70_10_20'],
     help='Dataset split protocol. legacy_80_20 preserves current behavior; paper_70_10_20 is opt-in for Table 2 reproduction.'
+)
+parser.add_argument(
+    '--split_seed',
+    type=int,
+    default=DEFAULT_SPLIT_SEED,
+    help='Random seed used when shuffling graphs before train/validation/test splitting.'
+)
+parser.add_argument(
+    '--train_fraction',
+    type=float,
+    default=None,
+    help='Optional override for the training split fraction. Defaults to 0.8 for legacy_80_20 and 0.7 for paper_70_10_20.'
+)
+parser.add_argument(
+    '--val_fraction',
+    type=float,
+    default=None,
+    help='Optional validation split fraction for paper_70_10_20. The test fraction is 1 - train_fraction - val_fraction.'
 )
 
 #===============================
@@ -711,6 +856,15 @@ graph_index_start = args.graph_index_start
 graph_index_end = args.graph_index_end
 data_dir = args.data_dir
 split_mode = args.split_mode
+split_plan = resolve_split_plan(
+    split_mode=split_mode,
+    train_fraction_arg=args.train_fraction,
+    val_fraction_arg=args.val_fraction,
+    split_seed=args.split_seed,
+)
+split_seed = split_plan["split_seed"]
+split_train_fraction = split_plan["train_fraction"]
+split_val_fraction = split_plan["val_fraction"]
 
 #===============================
 # Model settings
@@ -1407,9 +1561,13 @@ dataset_cache_root = Path(
     os.environ.get("DATASET_CACHE_DIR", "cache_datasets")
 ).expanduser()
 dataset_cache_root.mkdir(parents=True, exist_ok=True)
-cache_name = f"{dataset}.pkl"
-if split_mode != "legacy_80_20" or bfs_strategy != "all_components":
-    cache_name = f"{dataset}_{split_mode}_{bfs_strategy}.pkl"
+dataset_cache_metadata = build_dataset_cache_metadata(
+    dataset=dataset,
+    split_mode=split_mode,
+    bfs_strategy=bfs_strategy,
+    split_plan=split_plan,
+)
+cache_name = build_dataset_cache_name(dataset_cache_metadata)
 cache_path = dataset_cache_root / cache_name
 
 self_for_none = True
@@ -1422,6 +1580,7 @@ if use_cache and cache_path.exists():
     logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
     with open(cache_path, "rb") as _f:
         _cache = pickle.load(_f)
+    validate_dataset_cache_metadata(_cache, dataset_cache_metadata, cache_path)
 
     list_adj          = _cache["list_adj"]
     list_x            = _cache["list_x"]
@@ -1504,9 +1663,9 @@ else:
                 list_label       = list_label,
                 list_node_onehot = list_node_onehot,
                 list_edge_onehot = list_edge_onehot,
-                train_fraction   = 0.7,
-                val_fraction     = 0.1,
-                seed             = 123,
+                train_fraction   = split_train_fraction,
+                val_fraction     = split_val_fraction,
+                seed             = split_seed,
             )
         else:
             (list_adj,         test_list_adj,
@@ -1519,6 +1678,8 @@ else:
                 list_label       = list_label,
                 list_node_onehot = list_node_onehot,
                 list_edge_onehot = list_edge_onehot,
+                train_fraction   = split_train_fraction,
+                seed             = split_seed,
             )
             list_x_val = None
             list_label_val = None
@@ -1560,6 +1721,7 @@ else:
         "list_test_graphs":  list_test_graphs,
         "self_for_none":     self_for_none,
         "split_mode":        split_mode,
+        "cache_metadata":    dataset_cache_metadata,
     }
 
     if not is_single_graph:

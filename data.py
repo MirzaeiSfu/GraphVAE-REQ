@@ -1137,10 +1137,16 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           list_node_feature, list_edge_feature,
           node_feature_info, edge_feature_info)
 
-def data_split(graph_lis, list_x=None, list_label=None,
-               list_node_onehot=None, list_edge_onehot=None):
+def data_split(
+        graph_lis,
+        list_x=None,
+        list_label=None,
+        list_node_onehot=None,
+        list_edge_onehot=None,
+        train_fraction=0.8,
+        seed=123):
 
-    random.seed(123)
+    random.seed(seed)
     index = list(range(len(graph_lis)))
     random.shuffle(index)
 
@@ -1157,7 +1163,7 @@ def data_split(graph_lis, list_x=None, list_label=None,
 
     # ── split ────────────────────────────────────────────────────
     n       = len(graph_lis)
-    n_train = int(0.8 * n)
+    n_train = int(train_fraction * n)
 
     def split(lst):
         if lst is None:
