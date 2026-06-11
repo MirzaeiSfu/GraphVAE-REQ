@@ -24,8 +24,22 @@ def use_syntactic_literal_rules(args=None) -> bool:
     return getattr(args, 'use_syntactic_literal_rules', True) if args is not None else True
 
 
+def syntactic_literal_rule_mode(args=None) -> str:
+    if not use_syntactic_literal_rules(args):
+        return "original"
+
+    mode = getattr(args, 'syntactic_literal_rule_mode', 'both') if args is not None else 'both'
+    if mode not in {"original", "literals", "both"}:
+        raise ValueError(f"Unknown syntactic_literal_rule_mode: {mode}")
+    return mode
+
+
 def get_motif_pickle_path(database_name: str, args=None) -> Path:
-    marker = "injectedUC" if use_syntactic_literal_rules(args) else "noInjectedUC"
+    marker = {
+        "original": "originalRules",
+        "literals": "literalRules",
+        "both": "allRules",
+    }[syntactic_literal_rule_mode(args)]
     return get_motif_cache_dir(args) / f"{database_name}_{marker}.pkl"
 
 
@@ -56,7 +70,8 @@ class RuleBasedMotifStore:
         self.host = host
         self.user = user
         self.password = password
-        self.use_syntactic_literal_rules = use_syntactic_literal_rules(args)
+        self.syntactic_literal_rule_mode = syntactic_literal_rule_mode(args)
+        self.use_syntactic_literal_rules = self.syntactic_literal_rule_mode != "original"
 
         # Initialize data structures
         self._initialize_structures()
@@ -171,6 +186,7 @@ class RuleBasedMotifStore:
             "num_nodes_graph": self.num_nodes_graph,
             "total_relation_occurrences": self.total_relation_occurrences,
             "use_syntactic_literal_rules": self.use_syntactic_literal_rules,
+            "syntactic_literal_rule_mode": self.syntactic_literal_rule_mode,
         }
 
         with open(self.pickle_path, "wb") as f:
@@ -411,6 +427,8 @@ class RuleBasedMotifStore:
             self._ensure_entity_unary_literal_rules(relation_names)
             self._ensure_relation_literal_rules(relation_names)
 
+        self._filter_rules_for_mode(relation_names)
+
         self._adjust_matrices()
 
     @staticmethod
@@ -457,6 +475,91 @@ class RuleBasedMotifStore:
             self._is_entity_feature_rule(rule)
             or self._is_relation_feature_rule(rule, relation_names)
         )
+
+    def _is_entity_syntactic_literal_rule(self, rule) -> bool:
+        return len(rule) == 1 and self._is_entity_feature_rule(rule)
+
+    def _is_relation_syntactic_literal_rule(self, rule, relation_names) -> bool:
+        if len(rule) != 2:
+            return False
+
+        parsed_atoms = [self._parse_atom(atom) for atom in rule]
+        for relation_name, feature_columns in self.relation_feature_columns.items():
+            if relation_name not in relation_names:
+                continue
+            entity_tables = self.relation_entity_tables.get(relation_name)
+
+            feature_arguments = None
+            relation_arguments = None
+            for functor, arguments in parsed_atoms:
+                if functor in feature_columns:
+                    feature_arguments = arguments
+                elif functor == relation_name:
+                    relation_arguments = arguments
+
+            if feature_arguments is None or relation_arguments is None:
+                continue
+            if len(feature_arguments) != 2 or feature_arguments != relation_arguments:
+                continue
+            if entity_tables is None:
+                return True
+
+            variable_bases = tuple(
+                self._strip_trailing_digits(variable_name)
+                for variable_name in relation_arguments
+            )
+            if variable_bases == tuple(entity_tables):
+                return True
+
+        return False
+
+    def _is_syntactic_literal_rule(self, rule, relation_names) -> bool:
+        return (
+            self._is_entity_syntactic_literal_rule(rule)
+            or self._is_relation_syntactic_literal_rule(rule, relation_names)
+        )
+
+    def _filter_rules_for_mode(self, relation_names) -> None:
+        if self.syntactic_literal_rule_mode != "literals":
+            return
+
+        keep_indices = [
+            rule_idx for rule_idx, rule in enumerate(self.rules)
+            if self._is_syntactic_literal_rule(rule, relation_names)
+        ]
+        print(
+            "    • Filtering to syntactic literal rules: "
+            f"{len(keep_indices)} / {len(self.rules)} rules kept"
+        )
+
+        self._keep_rule_indices(keep_indices)
+
+    def _keep_rule_indices(self, keep_indices) -> None:
+        list_attrs = (
+            "rules",
+            "multiples",
+            "states",
+            "values",
+            "values_full",
+            "values_pruned",
+            "base_indices",
+            "mask_indices",
+            "sort_indices",
+            "stack_indices",
+        )
+        dict_attrs = ("functors", "variables", "nodes", "masks")
+
+        for attr in list_attrs:
+            old_values = getattr(self, attr)
+            setattr(self, attr, [old_values[old_idx] for old_idx in keep_indices])
+
+        for attr in dict_attrs:
+            old_values = getattr(self, attr)
+            setattr(
+                self,
+                attr,
+                {new_idx: old_values[old_idx] for new_idx, old_idx in enumerate(keep_indices)}
+            )
 
     def _add_processed_rule(self, rule, value_rows, relation_names, keep_all_values=False):
         """Add one rule and populate all aligned rule metadata structures."""

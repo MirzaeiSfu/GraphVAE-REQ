@@ -618,6 +618,17 @@ parser.add_argument(
     default=True,
     help='Enable the synthetic literal-derived motif rules and literal-value metadata.'
 )
+parser.add_argument(
+    '--syntactic_literal_rule_mode',
+    type=str,
+    default='both',
+    choices=['original', 'literals', 'both'],
+    help=(
+        'Motif rule scope when syntactic literals are enabled: original uses only '
+        'FactorBase DB rules, literals uses only node/edge feature literal rules, '
+        'and both uses DB rules plus injected literal rules with split loss weights.'
+    )
+)
 # The default motif loss is now symmetric: zero-observed motifs are included
 # through Laplace smoothing so extra motifs in the reconstruction are penalized
 # too. This flag only chooses between absolute and squared log-ratio penalties.
@@ -897,7 +908,14 @@ motif_temperature_anneal_start_frac = min(
 )
 rule_prune = args.rule_prune
 motif_batch_size = args.motif_batch_size
-use_syntactic_literal_rules = args.use_syntactic_literal_rules
+syntactic_literal_rule_mode = (
+    args.syntactic_literal_rule_mode
+    if args.use_syntactic_literal_rules
+    else 'original'
+)
+args.syntactic_literal_rule_mode = syntactic_literal_rule_mode
+use_syntactic_literal_rules = syntactic_literal_rule_mode != 'original'
+args.use_syntactic_literal_rules = use_syntactic_literal_rules
 
 #===============================
 # Loss settings
@@ -1108,6 +1126,7 @@ print(
       f" adj_recon={alpha_adj_recon}"
 )
 print("motif_loss_mode:" + str(motif_loss_mode))
+print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
 print("edge_count_loss:" + str(use_edge_count_loss))
 print("edge_count_loss_mode:" + str(edge_count_loss_mode))
 print(
@@ -1130,6 +1149,7 @@ logging.info(
       f" adj_recon={alpha_adj_recon}"
 )
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
+logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
 logging.info("edge_count_loss:" + str(use_edge_count_loss))
 logging.info("edge_count_loss_mode:" + str(edge_count_loss_mode))
 logging.info(
@@ -2163,8 +2183,12 @@ for epoch in range(epoch_number):
             non_literal_motif_loss = motif_loss
             weighted_motif_loss_term = motif_loss * alpha_motif_loss
 
+            if syntactic_literal_rule_mode == 'literals':
+                syntactic_literal_motif_loss = motif_loss
+                non_literal_motif_loss = torch.tensor(0.0, device=device)
+
             if (
-                use_syntactic_literal_rules
+                syntactic_literal_rule_mode == 'both'
                 and motif_counter.num_syntactic_literal_motifs > 0
             ):
                 syntactic_literal_mask = motif_counter.get_syntactic_literal_motif_mask(

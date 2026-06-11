@@ -40,6 +40,8 @@ experiment:
 #===============================
 motif:
   motif_loss: false
+  use_syntactic_literal_rules: true
+  syntactic_literal_rule_mode: both
   motif_loss_mode: abs_log_ratio
   motif_temperature_start: 1.0
   motif_temperature_end: 0.5

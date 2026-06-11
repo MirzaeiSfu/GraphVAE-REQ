@@ -20,8 +20,22 @@ def use_syntactic_literal_rules(args=None) -> bool:
     return getattr(args, 'use_syntactic_literal_rules', True) if args is not None else True
 
 
+def syntactic_literal_rule_mode(args=None) -> str:
+    if not use_syntactic_literal_rules(args):
+        return "original"
+
+    mode = getattr(args, 'syntactic_literal_rule_mode', 'both') if args is not None else 'both'
+    if mode not in {"original", "literals", "both"}:
+        raise ValueError(f"Unknown syntactic_literal_rule_mode: {mode}")
+    return mode
+
+
 def get_motif_pickle_path(database_name: str, args=None) -> Path:
-    marker = "injectedUC" if use_syntactic_literal_rules(args) else "noInjectedUC"
+    marker = {
+        "original": "originalRules",
+        "literals": "literalRules",
+        "both": "allRules",
+    }[syntactic_literal_rule_mode(args)]
     return get_motif_cache_dir(args) / f"{database_name}_{marker}.pkl"
 
 
@@ -109,10 +123,11 @@ class RelationalMotifCounter:
         self.relation_occurrence_counts = data.get("relation_occurrence_counts", {})
         self.feature_info_mapping  = data.get("feature_info_mapping", {})
         self.num_nodes_graph       = data.get("num_nodes_graph", 0)
-        self.use_syntactic_literal_rules = data.get(
-            "use_syntactic_literal_rules",
-            use_syntactic_literal_rules(self.args),
+        self.syntactic_literal_rule_mode = data.get(
+            "syntactic_literal_rule_mode",
+            syntactic_literal_rule_mode(self.args),
         )
+        self.use_syntactic_literal_rules = self.syntactic_literal_rule_mode != "original"
         loaded_total_relation_occurrences = data.get("total_relation_occurrences", {})
         if isinstance(loaded_total_relation_occurrences, dict):
             self.total_relation_occurrences = loaded_total_relation_occurrences
@@ -138,7 +153,7 @@ class RelationalMotifCounter:
                 print(
                     "  rule_prune=True: "
                     f"{n_pruned} / {n_full} value combinations kept "
-                    "(unary rules kept unpruned)"
+                    "(unary and feature rules kept unpruned)"
                 )
             else:
                 self.values = data["values_full"]
