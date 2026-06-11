@@ -118,6 +118,13 @@ def _build_local_count_maps(
     for rule_idx, rule in enumerate(motif_counter.rules):
         cp_table_name = f"{rule[0]}_CP"
         start_idx = motif_counter.multiples[rule_idx]
+        syntactic_literal_rule_mask = getattr(
+            motif_counter, "syntactic_literal_rule_mask", []
+        )
+        is_syntactic_literal_rule = (
+            rule_idx < len(syntactic_literal_rule_mask)
+            and bool(syntactic_literal_rule_mask[rule_idx])
+        )
         table_map: Dict[Tuple[Any, ...], float] = {}
 
         for table_row in motif_counter.values[rule_idx]:
@@ -129,16 +136,33 @@ def _build_local_count_maps(
         rule_metadata[cp_table_name] = {
             "rule": tuple(rule),
             "start_idx": start_idx,
+            "is_syntactic_literal_rule": is_syntactic_literal_rule,
         }
 
     return local_maps, rule_metadata
+
+
+def _table_exists(cursor, database_name: str, table_name: str) -> bool:
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM information_schema.tables
+        WHERE table_schema = %s AND table_name = %s
+        """,
+        (database_name, table_name),
+    )
+    return int(cursor.fetchone()[0]) > 0
 
 
 def _fetch_database_count_maps(
     database_name: str,
     rule_metadata: Dict[str, Dict[str, Any]],
     config_path: Path,
-) -> Dict[str, Dict[Tuple[Any, ...], float]]:
+) -> Tuple[
+    Dict[str, Dict[Tuple[Any, ...], float]],
+    Dict[str, str],
+    Dict[str, str],
+]:
     connection_settings = _load_mysql_connection_settings(config_path)
     db_bn = f"{database_name}_BN"
 
@@ -146,19 +170,37 @@ def _fetch_database_count_maps(
     try:
         with connection.cursor() as cursor:
             db_maps: Dict[str, Dict[Tuple[Any, ...], float]] = {}
+            graph_only_tables: Dict[str, str] = {}
+            unavailable_tables: Dict[str, str] = {}
 
             for cp_table_name, meta in rule_metadata.items():
                 rule_len = len(meta["rule"])
                 start_idx = int(meta["start_idx"])
+                is_syntactic_literal_rule = bool(
+                    meta.get("is_syntactic_literal_rule", False)
+                )
+
+                if not _table_exists(cursor, db_bn, cp_table_name):
+                    message = (
+                        f"{cp_table_name}: no FactorBase CP table found in {db_bn}"
+                    )
+                    if is_syntactic_literal_rule:
+                        graph_only_tables[cp_table_name] = (
+                            f"{message}; using graph-computed count only"
+                        )
+                    else:
+                        unavailable_tables[cp_table_name] = message
+                    continue
 
                 cursor.execute(
                     f"SHOW COLUMNS FROM {quote_mysql_identifier(cp_table_name)}"
                 )
                 column_names = [row[0] for row in cursor.fetchall()]
                 if "local_mult" not in column_names:
-                    raise KeyError(
+                    unavailable_tables[cp_table_name] = (
                         f"'local_mult' column not found in {db_bn}.{cp_table_name}"
                     )
+                    continue
                 local_mult_idx = column_names.index("local_mult")
 
                 cursor.execute(
@@ -175,7 +217,7 @@ def _fetch_database_count_maps(
 
                 db_maps[cp_table_name] = table_map
 
-            return db_maps
+            return db_maps, graph_only_tables, unavailable_tables
     finally:
         connection.close()
 
@@ -190,26 +232,37 @@ def compare_aggregated_counts_to_factorbase_detailed(
     database_name: str,
     config_path: str | Path = Path("factorbase_motif_pipeline/config.tmp"),
     atol: float = 1e-4,
-) -> Tuple[bool, List[str]]:
+    include_graph_only: bool = False,
+) -> Tuple[bool, List[str]] | Tuple[bool, List[str], List[str]]:
     """
     Compare sanity-check motif counts against live FactorBase local_mult values.
 
     The comparison is performed only for the rule/value rows currently active in
     motif_counter.values. That means it respects rule pruning if --rule_prune is
-    enabled.
+    enabled. Syntactic literal rules injected by --syntactic_literal_rule_mode
+    may not have FactorBase CP tables; those rules are kept as graph-only checks
+    instead of being treated as DB mismatches.
 
     Returns
     -------
     (matches, mismatches)
         matches    : True if every local count matches the DB local_mult value
-        mismatches : human-readable mismatch descriptions
+                     for DB-backed rules
+        mismatches : human-readable mismatch descriptions for DB-backed rules
+
+    When include_graph_only=True, returns (matches, mismatches, graph_only).
     """
     config_path = Path(config_path)
     local_maps, rule_metadata = _build_local_count_maps(aggregated_counts, motif_counter)
-    db_maps = _fetch_database_count_maps(database_name, rule_metadata, config_path)
+    db_maps, graph_only_tables, unavailable_tables = _fetch_database_count_maps(
+        database_name, rule_metadata, config_path
+    )
 
-    mismatches: List[str] = []
+    mismatches: List[str] = list(unavailable_tables.values())
     for cp_table_name, meta in rule_metadata.items():
+        if cp_table_name in graph_only_tables or cp_table_name in unavailable_tables:
+            continue
+
         rule = meta["rule"]
         local_table = local_maps.get(cp_table_name, {})
         db_table = db_maps.get(cp_table_name, {})
@@ -228,7 +281,10 @@ def compare_aggregated_counts_to_factorbase_detailed(
                     f"local={local_count:.4f} db={db_count:.4f}"
                 )
 
-    return len(mismatches) == 0, mismatches
+    matches = len(mismatches) == 0
+    if include_graph_only:
+        return matches, mismatches, list(graph_only_tables.values())
+    return matches, mismatches
 
 
 def compare_aggregated_counts_to_factorbase(

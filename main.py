@@ -1853,17 +1853,24 @@ if use_motif_loss:
             motif_counter.display_rules_and_motifs(aggregated)
 
             try:
-                matches_factorbase, mismatches = (
+                matches_factorbase, mismatches, graph_only_rules = (
                     compare_aggregated_counts_to_factorbase_detailed(
                         aggregated_counts=aggregated,
                         motif_counter=motif_counter,
                         database_name=database_name,
+                        include_graph_only=True,
                     )
                 )
                 print("\n" + "=" * 80)
                 print("FACTORBASE LOCAL_MULT COMPARISON")
                 print("=" * 80)
-                print(f"Counts match database local_mult values: {matches_factorbase}")
+                print(f"DB-backed counts match database local_mult values: {matches_factorbase}")
+                if graph_only_rules:
+                    print("Graph-only syntactic literal rules:")
+                    for graph_only_rule in graph_only_rules[:20]:
+                        print(f"  {graph_only_rule}")
+                    if len(graph_only_rules) > 20:
+                        print(f"  ... and {len(graph_only_rules) - 20} more graph-only rules")
                 if not matches_factorbase:
                     print("First mismatches:")
                     for mismatch in mismatches[:20]:
