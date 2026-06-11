@@ -413,6 +413,51 @@ class RuleBasedMotifStore:
 
         self._adjust_matrices()
 
+    @staticmethod
+    def _strip_trailing_digits(variable_name: str) -> str:
+        return variable_name.rstrip("0123456789")
+
+    @staticmethod
+    def _parse_atom(atom: str):
+        if "(" not in atom or not atom.endswith(")"):
+            return atom, []
+        functor, rest = atom.split("(", 1)
+        argument_text = rest[:-1]
+        arguments = argument_text.split(",") if argument_text else []
+        return functor, arguments
+
+    def _is_entity_feature_rule(self, rule) -> bool:
+        parsed_atoms = [self._parse_atom(atom) for atom in rule]
+
+        for functor, arguments in parsed_atoms:
+            if len(arguments) != 1:
+                continue
+            variable_table = self._strip_trailing_digits(arguments[0])
+            for table_name, feature_columns in self.entity_feature_columns.items():
+                if functor in feature_columns and variable_table == table_name:
+                    return True
+        return False
+
+    def _is_relation_feature_rule(self, rule, relation_names) -> bool:
+        parsed_atoms = [self._parse_atom(atom) for atom in rule]
+
+        for functor, arguments in parsed_atoms:
+            if len(arguments) != 2:
+                continue
+            for relation_name, feature_columns in self.relation_feature_columns.items():
+                if relation_name not in relation_names:
+                    continue
+                if functor in feature_columns:
+                    return True
+
+        return False
+
+    def _is_feature_rule(self, rule, relation_names) -> bool:
+        return (
+            self._is_entity_feature_rule(rule)
+            or self._is_relation_feature_rule(rule, relation_names)
+        )
+
     def _add_processed_rule(self, rule, value_rows, relation_names, keep_all_values=False):
         """Add one rule and populate all aligned rule metadata structures."""
         rule_idx = len(self.rules)
@@ -490,9 +535,9 @@ class RuleBasedMotifStore:
         # for either value of --rule_prune without deleting the cache.
         self.values_full.append(value_rows)
 
-        # Unary rules are never pruned; they keep all rows.
+        # Unary and node/edge feature rules are never pruned; they keep all rows.
         pruned_value = []
-        if keep_all_values or len(rule) == 1:
+        if keep_all_values or len(rule) == 1 or self._is_feature_rule(rule, relation_names):
             pruned_value = list(value_rows)
         else:
             for row in value_rows:
