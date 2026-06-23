@@ -62,31 +62,6 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 #endregion
 
-PARITY_PROBE = os.environ.get("GRAPHVAE_PARITY_PROBE") == "1"
-PARITY_SKIP_VIS = os.environ.get("GRAPHVAE_PARITY_SKIP_VIS") == "1"
-
-
-def _parity_value(value):
-    if torch.is_tensor(value):
-        if value.numel() == 1:
-            return value.detach().cpu().item()
-        return value.detach().cpu().tolist()
-    if isinstance(value, np.generic):
-        return value.item()
-    if isinstance(value, Path):
-        return str(value)
-    if isinstance(value, (list, tuple)):
-        return [_parity_value(item) for item in value]
-    return value
-
-
-def parity_print(tag, **values):
-    if not PARITY_PROBE:
-        return
-    payload = {key: _parity_value(value) for key, value in values.items()}
-    print("PARITY|" + tag + "|" + json.dumps(payload, sort_keys=True, default=str), flush=True)
-
-
 subgraphSize = None
 keepThebest = False
 
@@ -978,28 +953,6 @@ interactive = args.interactive
 sanity_check = args.sanity_check
 sanity_check_only = args.sanity_check_only
 # endregion
-
-parity_print(
-    "settings",
-    codebase="GraphVAE-REQ",
-    dataset=dataset,
-    model=model_name,
-    device=device,
-    epochs=epoch_number,
-    train_batch_size=train_batch_size,
-    motif_loss=use_motif_loss,
-    alpha_kernel_cost=alpha_kernel_cost,
-    alpha_node_feat=alpha_node_feat,
-    alpha_edge_feat=alpha_edge_feat,
-    alpha_adj_recon=alpha_adj_recon,
-    alpha_motif_loss=alpha_motif_loss,
-    edge_count_loss=use_edge_count_loss,
-    alpha_edge_count=alpha_edge_count,
-    split_mode=split_mode,
-    split_seed=split_seed,
-    bfs_ordering=bfs_ordering,
-    bfs_strategy=bfs_strategy,
-)
 #====================================================================================
 
 if data_dir is not None:
@@ -1641,7 +1594,7 @@ self_for_none = True
 if (decoder_type) in ("FCdecoder"): 
     self_for_none = True
     
-use_cache = os.environ.get("GRAPHVAE_PARITY_DISABLE_CACHE") != "1"
+use_cache = True
 if use_cache and cache_path.exists():
     print(f"[Cache] Loading '{dataset}' from {cache_path}")
     logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
@@ -1850,16 +1803,6 @@ else:
           f"train_batch_size={train_batch_size}, shuffle=on")
     logging.info(f"[TrainingData] Full training set enabled: using {len(list_graphs.list_adjs)} graphs, "
                  f"train_batch_size={train_batch_size}, shuffle=on")
-parity_print(
-    "data",
-    codebase="GraphVAE-REQ",
-    dataset=dataset,
-    train_graphs=len(list_graphs.list_adjs),
-    test_graphs=len(list_test_graphs.list_adjs) if "list_test_graphs" in globals() else 0,
-    max_nodes=list_graphs.max_num_nodes,
-    feature_size=list_graphs.feature_size,
-    labels_present=list_graphs.labels is not None,
-)
 #endregion
 #====================================================================================
 
@@ -2347,27 +2290,6 @@ for epoch in range(epoch_number):
             edge_count_loss * alpha_edge_count + \
             reconstruction_loss * alpha_adj_recon
 
-        parity_print(
-            "batch_loss",
-            codebase="GraphVAE-REQ",
-            dataset=dataset,
-            epoch=epoch + 1,
-            batch=batch,
-            from_idx=from_,
-            to_idx=to_,
-            train_size=len(list_graphs.list_adjs),
-            loss=loss,
-            kernel_cost=kernel_cost,
-            reconstruction_loss=reconstruction_loss,
-            kl_loss=kl_loss,
-            acc=acc,
-            pos_weight=pos_wight,
-            node_feat_loss=node_feat_loss,
-            edge_feat_loss=edge_feat_loss,
-            motif_loss=motif_loss,
-            edge_count_loss=edge_count_loss,
-        )
-
         hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
         hard_exact_match_total = int(hard_motif_exact_zero_per_graph.numel())
         detailed_hard_motif_counts = None
@@ -2410,9 +2332,7 @@ for epoch in range(epoch_number):
         # torch.nn.utils.clip_grad_norm(model.parameters(),  1.0044e-05)
         optimizer.step()
 
-        if (not PARITY_SKIP_VIS) and (
-            (step + 1) % visulizer_step == 0 or epoch_number == epoch + 1
-        ):
+        if (step + 1) % visulizer_step == 0 or epoch_number == epoch + 1:
             model.eval()
             if not tiny_overfit:
                 pltr.redraw()
@@ -2586,7 +2506,7 @@ if not tiny_overfit:
 #     json.dump(pltr.values_train[1], fp)
 
 # save the log plot on the current directory
-if not tiny_overfit and (not PARITY_SKIP_VIS):
+if not tiny_overfit:
     pltr.save_plot(graph_save_path + "KernelVGAE_log_plot")
 
 
