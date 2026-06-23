@@ -1,6 +1,13 @@
 """Utilities for motif-loss computation and motif diagnostics."""
 
+import math
 import torch
+import torch.nn.functional as F
+
+
+CALIBRATED_GAUSSIAN_MOTIF_LOSS_MODES = {
+    "calibrated_gaussian",
+}
 
 
 def _validate_motif_count_shapes(observed_counts, predicted_counts):
@@ -17,6 +24,47 @@ def _apply_log_ratio_loss_mode(log_ratio, loss_mode):
     if loss_mode == "squared_log_ratio":
         return log_ratio.pow(2)
     raise ValueError(f"Unknown motif loss mode: {loss_mode}")
+
+
+def _softclip_min(tensor, minimum):
+    return minimum + F.softplus(tensor - minimum)
+
+
+def compute_calibrated_gaussian_motif_loss(
+    observed_counts,
+    predicted_counts,
+    min_log_sigma=-6.0,
+    eps=1e-12,
+):
+    """
+    Compute Kia-MM style calibrated Gaussian NLL for motif counts.
+
+    This is the Gaussian negative log-likelihood, commonly called Gaussian
+    NLL, with sigma calibrated from the current minibatch.
+
+    Each motif-vector column is treated as its own graph statistic. For motif
+    column u, sigma_u is estimated from the minibatch RMSE between the observed
+    counts and the reconstructed expected counts. The loss then evaluates the
+    Gaussian negative log-likelihood of the observed count under
+    N(predicted_count, sigma_u^2).
+    """
+    _validate_motif_count_shapes(observed_counts, predicted_counts)
+
+    if observed_counts.shape[-1] == 0:
+        return torch.tensor(0.0, device=observed_counts.device)
+
+    residual = observed_counts - predicted_counts
+    rmse_by_motif = residual.pow(2).mean(dim=0).sqrt()
+    log_sigma = torch.log(rmse_by_motif.clamp_min(float(eps)))
+    log_sigma = _softclip_min(log_sigma, float(min_log_sigma))
+
+    sigma = torch.exp(log_sigma).unsqueeze(0)
+    per_entry_nll = (
+        0.5 * (residual / sigma).pow(2)
+        + log_sigma.unsqueeze(0)
+        + 0.5 * math.log(2.0 * math.pi)
+    )
+    return per_entry_nll.mean()
 
 
 def compute_motif_loss_asymmetric(observed_counts, predicted_counts, loss_mode="abs_log_ratio"):
@@ -72,6 +120,12 @@ def compute_motif_loss(
 
     if observed_counts.shape[-1] == 0:
         return torch.tensor(0.0, device=observed_counts.device)
+
+    if loss_mode in CALIBRATED_GAUSSIAN_MOTIF_LOSS_MODES:
+        return compute_calibrated_gaussian_motif_loss(
+            observed_counts=observed_counts,
+            predicted_counts=predicted_counts,
+        )
 
     laplace_pseudocount = float(laplace_pseudocount)
     if laplace_pseudocount <= 0.0:

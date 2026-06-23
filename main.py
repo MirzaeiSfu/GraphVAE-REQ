@@ -629,15 +629,20 @@ parser.add_argument(
         'and both uses DB rules plus injected literal rules with split loss weights.'
     )
 )
-# The default motif loss is now symmetric: zero-observed motifs are included
-# through Laplace smoothing so extra motifs in the reconstruction are penalized
-# too. This flag only chooses between absolute and squared log-ratio penalties.
+# The default motif loss is symmetric: zero-observed motifs are included through
+# Laplace smoothing so extra motifs in the reconstruction are penalized too.
+# `calibrated_gaussian` switches to a Kia-MM style Gaussian NLL where sigma for
+# each motif column is estimated from the minibatch RMSE.
 parser.add_argument(
     '--motif_loss_mode',
     type=str,
     default='abs_log_ratio',
-    choices=['abs_log_ratio', 'squared_log_ratio'],
-    help='Motif loss variant: symmetric abs(log-ratio) or squared log-ratio.'
+    choices=['abs_log_ratio', 'squared_log_ratio', 'calibrated_gaussian'],
+    help=(
+        'Motif loss variant: symmetric abs(log-ratio), squared log-ratio, '
+        'or calibrated_gaussian for Kia-MM style Gaussian NLL '
+        'with per-motif sigma estimated from minibatch RMSE.'
+    )
 )
 # Motif-temperature annealing only affects motif counting, not the main
 # reconstruction loss. Keep start=end=1.0 to disable it, or use a schedule like
