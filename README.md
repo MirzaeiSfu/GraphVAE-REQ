@@ -1,134 +1,308 @@
 # GraphVAE-REQ
 
-GraphVAE-REQ is a GraphVAE / GraphVAE-MM training codebase with:
-- graph generation and reconstruction
-- optional node/edge feature decoding heads
-- optional relational motif counting pipeline (MySQL -> pickle -> batched counting)
+GraphVAE-REQ is a graph-level **GraphVAE** codebase for graph generation with
+optional rule- and feature-aware training losses. The current project extends a
+GraphVAE-style encoder/decoder pipeline with:
 
-The main entry point is `main.py`.
+- graph generation from a graph-level latent vector
+- optional graph-statistics kernels for GraphVAE-MM style training
+- optional node and edge feature decoders
+- optional differentiable motif/rule-count losses from FactorBase rules
+- reproducibility scripts for statistics-based and GNN-based graph realism
+  evaluation
 
-## What The Current Code Trains
+This repository is **not** the VGAE implementation described in the related
+paper below. The paper studies Variational Graph Autoencoders (VGAE), while this
+repository uses a GraphVAE architecture: a DGL graph-convolution encoder, graph
+pooling to a single graph embedding, and an MLP decoder that reconstructs the
+whole adjacency matrix.
 
-Important: in the current training loop, the final loss is hard-coded as:
-- `alpha_kernel_cost = 0`
-- `alpha_node_feat = 1.0`
-- `alpha_edge_feat = 0.0`
+## Related Paper
 
-So by default it optimizes **node feature loss only** (`node_feat_loss`), not graph reconstruction/kernel loss.
+The rule-learning motivation is related to:
 
-## Environment (Python 3.8.20)
+- [Rule-Enhanced Graph Learning on OpenReview](https://openreview.net/forum?id=m02qzfjlHA)
+- [ICML 2024 workshop listing](https://icml.cc/virtual/2024/36995)
+- [PDF](https://openreview.net/pdf?id=m02qzfjlHA)
 
-Use your micro/micromamba env with Python 3.8.20:
+That paper introduces rule moment matching for graph generative models: expected
+rule or motif counts produced by a model are encouraged to match observed rule
+counts in data. This repository uses that idea as related motivation, but the
+implementation here is different: it is built on GraphVAE and integrates
+rule/motif losses into this repository's existing graph-level training loop.
 
-```bash
-micromamba create -n graphvae-req python=3.8.20 -y
-micromamba activate graphvae-req
-pip install -r requirements.txt
+## Current Architecture
+
+```mermaid
+flowchart LR
+    A[Input graphs] --> B[Dataset loader and BFS ordering]
+    B --> C[DGL GraphConv encoder]
+    C --> D[Average pooling]
+    D --> E[Graph latent z]
+    E --> F[FC adjacency decoder]
+    E --> G[Optional node feature decoder]
+    E --> H[Optional edge feature decoder]
+    F --> I[Adjacency BCE and KL]
+    F --> J[Optional graph-statistics kernels]
+    F --> K[Optional motif/rule counter]
+    G --> K
+    H --> K
+    K --> L[Rule/motif loss]
+    I --> M[Total training loss]
+    J --> M
+    G --> M
+    H --> M
+    L --> M
 ```
 
-Notes:
-- `torch-geometric` may require extra wheels (`torch-scatter`, `torch-sparse`, `torch-cluster`, `torch-spline-conv`) depending on OS/CUDA.
-- `dgl==0.4.3.post2` is kept to match this codebase.
+The main entry point is [`main.py`](main.py).
 
-## Project Flow (`main.py`)
+## What The Code Trains
 
-1. Parse CLI arguments and set experiment config.
-2. Load cache from `cache_datasets/<dataset>.pkl` by default if present.
-3. Otherwise:
-   - load raw graphs (`data.py:list_graph_loader`)
-   - apply BFS ordering
-   - build node/edge one-hot features (`util.py:build_onehot_features`)
-   - build train/test `Datasets`
-   - save all artifacts to cache
-4. Optional motif pipeline (`motif_counting/motif_store.py`, `motif_counting/motif_counter.py`).
-5. Build model (`model.py`) and run training.
-6. Save logs, generated graphs, and checkpoints.
+The model in [`model.py`](model.py) is `kernelGVAE`, a graph-level VAE wrapper
+around:
 
-## Cache Keys (Current)
+- `AveEncoder`: DGL `GraphConv` layers followed by average pooling and latent
+  mean/log-std heads.
+- `GraphTransformerDecoder_FC`: an MLP that decodes a graph latent vector into a
+  dense adjacency matrix.
+- optional `NodeFeatureDecoder` and `EdgeFeatureDecoder` heads from
+  [`util.py`](util.py).
 
-By default, `cache_datasets/<dataset>.pkl` stores at least:
-- `list_adj`, `list_x`, `list_label`
-- node/edge raw features and metadata
-- node/edge one-hot tensors and metadata
-- `test_list_adj`, `val_adj`
-- `list_graphs`, `list_test_graphs`
-- split tensors for multi-graph datasets:
-  - `list_x_train/test`, `list_label_train/test`
-  - `list_noh_train/test`, `list_eoh_train/test`
+Model aliases:
 
-The load path expects these keys to exist (new-cache format).
+- `GraphVAE` maps to the base graph-level VAE path.
+- `GraphVAE-MM` enables graph-statistics kernels such as transition matrices,
+  degree distributions, and triangle counts.
 
-## Motif Pipeline Requirements
+The total loss is assembled in [`main.py`](main.py) from:
 
-Motif counting uses:
-- `RuleBasedMotifStore` (`motif_counting/motif_store.py`)
-- `RelationalMotifCounter` (`motif_counting/motif_counter.py`)
+- adjacency reconstruction and KL terms
+- optional graph-statistics kernel terms
+- optional node feature reconstruction loss
+- optional edge feature reconstruction loss
+- optional edge-count loss
+- optional motif/rule-count loss
 
-It writes/reads motif pickle files under `./cache_motifs/<database_name>.pkl` by default.
-
-If no motif pickle exists, it connects to MySQL with defaults:
-- host: `localhost`
-- user: `fbuser`
-- password: `''`
-
-Required databases:
-- `<database_name>`
-- `<database_name>_setup`
-- `<database_name>_BN`
-
-## Running
-
-Typical run:
+The default config currently trains a QM9 GraphVAE baseline with motif loss and
+feature losses disabled:
 
 ```bash
 python main.py --config configs/default.yaml
 ```
 
-### Important defaults in current code
+## Rule And Motif Support
 
-- `configs/default.yaml` is now a QM9 baseline preset:
-  - `dataset=QM9`
-  - `model=GraphVAE`
-  - `motif_loss=false`
-  - `tiny_overfit=false`
-- CLI aliases now accept:
-  - `-model GraphVAE` for the baseline (`kipf` internally)
-  - `-batchSize` as a legacy alias for `--train_batch_size`
-  - `--no-tiny_overfit` to disable the debug preset explicitly
+Rule-enhanced training is implemented through:
+
+- [`motif_counting/motif_store.py`](motif_counting/motif_store.py): loads or
+  builds rule/motif definitions from FactorBase outputs.
+- [`motif_counting/motif_counter.py`](motif_counting/motif_counter.py): counts
+  observed and reconstructed motifs with batched tensor operations.
+- [`motif_counting/motif_loss_utils.py`](motif_counting/motif_loss_utils.py):
+  symmetric log-ratio motif losses, masked literal-rule losses, temperature
+  schedules, and hard motif diagnostics.
+- [`factorbase_motif_pipeline/`](factorbase_motif_pipeline/): scripts for
+  importing graph datasets into MySQL and running FactorBase.
+
+Motif training is off by default. Enable it with a motif config, for example:
+
+```bash
+python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif.yaml
+```
+
+If the required motif pickle does not exist under `cache_motifs/`, the
+FactorBase databases must be available so `RuleBasedMotifStore` can build the
+cache. The default MySQL values in the code are:
+
+- host: `localhost`
+- user: `fbuser`
+- password: empty string
+
+## Common Runs
+
+Baseline GraphVAE on the default QM9 config:
+
+```bash
+python main.py --config configs/default.yaml
+```
+
+Paper-style Grid GraphVAE reproduction config:
+
+```bash
+python main.py --config configs/reproduce_table2/grid_graphvae_table2.yaml
+```
+
+Grid GraphVAE with motif-count loss:
+
+```bash
+python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif.yaml
+```
+
+Grid GraphVAE with motif loss, edge-count loss, and best-validation-MMD
+checkpointing:
+
+```bash
+python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_edge_count_best_mmd.yaml
+```
+
+For a short CPU smoke run, override the expensive settings:
+
+```bash
+python main.py \
+  --config configs/reproduce_table2/grid_graphvae_table2.yaml \
+  --epoch_number 1 \
+  --vis_step 1 \
+  --use_gpu false \
+  --device cpu \
+  --plot_test_graphs false
+```
+
+## Configuration
+
+Configs are YAML files whose sections are flattened into `main.py` arguments.
+Important groups are:
+
+- `data`: dataset, BFS strategy, split mode, raw data directory, FactorBase
+  database name.
+- `model`: `GraphVAE` or `GraphVAE-MM`, encoder, decoder, latent dimension.
+- `experiment`: epochs, learning rate, batch size, task.
+- `motif`: motif loss, literal-rule mode, motif loss mode, temperature schedule,
+  rule pruning, motif batch size.
+- `loss`: weights for node features, edge features, motifs, edge counts, and
+  adjacency-related terms.
+- `runtime`: output directory, cache directories, device, reproducibility flags,
+  validation checkpointing.
+
+Useful config folders:
+
+- [`configs/reproduce_table2/`](configs/reproduce_table2/): current Grid and
+  Lobster reproduction experiments.
+- [`configs/reproduce_table3/`](configs/reproduce_table3/): notes for
+  GNN-based graph realism evaluation.
+- [`configs/kiarash_graphvae/`](configs/kiarash_graphvae/): legacy baseline
+  configs kept for comparison, not the main project description.
+
+## Datasets
+
+The loader in [`data.py`](data.py) supports synthetic and benchmark graph
+datasets used by this project, including:
+
+- `QM9`
+- `GRID`
+- `TRIANGULAR_GRID`
+- `LOBSTER`
+- `PROTEINS`
+- `DD`
+- `IMDbMulti`
+- OGB-style molecular data paths when available locally
+
+Raw data lives under `data_raw/` by default. Processed dataset caches are written
+under `cache_datasets/` unless `DATASET_CACHE_DIR` or `--dataset_cache_dir` is
+set.
 
 ## Outputs
 
-During/after runs you will see artifacts in `graph_save_path`.
-By default, auto-created run directories now live under `runs/<run_name>/`.
+Training runs write to `runs/<run_name>/` unless `--graph_save_path` is set.
+Typical artifacts include:
 
-Run logs now live inside the run directory:
 - `train.log`
-- `mmd.log` (validation MMD logging)
+- `mmd.log`
+- generated graph `.npy` files
+- generated graph plots
+- model checkpoints
+- `RUN_LABEL.txt`
+- `REPRODUCE.md`
+- `reproducibility.json`
+- `run_config_used.yaml`
+- `git_status.txt`
+- `git_diff.patch`
 
-Run artifact directories contain:
-- generated graph `.npy` dumps
-- model checkpoints (`model_<epoch>_<batch>`)
-- training plot images
-- `generated_graph_train/` samples from intermediate training snapshots
+Motif caches are written under `cache_motifs/` unless `MOTIF_CACHE_DIR` or
+`--motif_cache_dir` is set.
 
-Raw datasets are under `data_raw/` by default. OGB downloads/caches should live under `data_raw/ogb/`.
+## Evaluation
 
-Dataset cache files are under `cache_datasets/` by default, but can be redirected with `DATASET_CACHE_DIR` or `--dataset_cache_dir`.
+Statistics-based Table 2 style evaluation:
 
-Motif cache files are under `cache_motifs/` by default, but can be redirected with `MOTIF_CACHE_DIR` or `--motif_cache_dir`.
+```bash
+python scripts/reproduce_table2_grid.py \
+  --mode evaluate-generated \
+  --generated runs/table2_reproduction/grid_graphvae/Single_comp_generatedGraphs_adj_final_eval.npy \
+  --test-graphs runs/table2_reproduction/grid_graphvae/testGraphs_adj_.npy \
+  --output-dir runs/table2_reproduction/grid_graphvae_eval
+```
 
-## Key Files
+GNN-based Table 3 style evaluation:
 
-- `main.py`: full training/eval pipeline and cache orchestration
-- `model.py`: encoder/decoder and `kernelGVAE`
-- `data.py`: dataset loading, preprocessing, `Datasets`, merge wrapper
-- `util.py`: kernels, one-hot feature builders, utility layers
-- `motif_counting/motif_store.py`: DB -> motif pickle builder
-- `motif_counting/motif_counter.py`: batched motif counting
-- `stat_rnn.py`, `mmd_rnn.py`, `eval/`: MMD/statistics utilities
+```bash
+python scripts/reproduce_table3.py \
+  --dataset GRID \
+  --mode evaluate-generated \
+  --run-dir runs/table2_reproduction/grid_graphvae \
+  --paper-row GraphVAE-MM \
+  --row-label grid_graphvae_current
+```
 
-## Practical Notes
+Batch graph-realism evaluation over saved run directories:
 
-- `accu` printed in training is adjacency reconstruction accuracy, not node-feature accuracy.
-- Node feature loss is currently masked by true node counts to ignore padded nodes.
-- If you only optimize node-feature loss, adjacency metrics may stay near random.
+```bash
+python scripts/evaluate_graph_realism_batch.py \
+  --root-dir runs/table2_reproduction
+```
+
+Regenerate 50/50 reference reports:
+
+```bash
+python scripts/regenerate_50_50_paper_results.py
+```
+
+## Environment
+
+The repository has both legacy and newer dependency snapshots:
+
+- [`requirements.txt`](requirements.txt): legacy Python/PyTorch/DGL stack.
+- [`newrequirements.txt`](newrequirements.txt): newer CUDA/PyTorch/DGL stack
+  used by recent work.
+
+A typical environment starts with Python 3.8:
+
+```bash
+micromamba create -n graphvae-req python=3.8 -y
+micromamba activate graphvae-req
+pip install -r newrequirements.txt
+```
+
+Depending on the machine, DGL, PyTorch, PyTorch Geometric, and CUDA wheels may
+need to be installed from the wheel indexes matching the local CUDA version.
+
+## Repository Map
+
+- [`main.py`](main.py): config parsing, data caching, model setup, training,
+  validation, final generation.
+- [`model.py`](model.py): GraphVAE encoder/decoder wrapper.
+- [`util.py`](util.py): kernels, feature decoders, feature one-hot builders, data
+  wrappers for motif counting.
+- [`data.py`](data.py): dataset loading, BFS ordering, splits, padded dataset
+  objects.
+- [`motif_counting/`](motif_counting/): motif cache loading, motif counting, and
+  motif loss utilities.
+- [`factorbase_motif_pipeline/`](factorbase_motif_pipeline/): MySQL/FactorBase
+  rule-learning pipeline.
+- [`scripts/`](scripts/): reproduction, evaluation, checkpoint resampling, and
+  remote-run helpers.
+- [`eval/`](eval/), [`stat_rnn.py`](stat_rnn.py), [`mmd_rnn.py`](mmd_rnn.py):
+  graph statistics and MMD evaluation code.
+- [`third_party/ggmeval/`](third_party/ggmeval/): vendored GNN-based graph
+  realism evaluator.
+
+## Project Notes
+
+- The root README describes the current GraphVAE-REQ project. Older Kiarash
+  GraphVAE configs remain in `configs/kiarash_graphvae/` only as comparison and
+  reproduction utilities.
+- The linked ICML/OpenReview paper is related work and motivation, not a direct
+  description of this repository.
+- The distinction matters: VGAE usually refers to node-level variational graph
+  autoencoders for link prediction, while this code uses a graph-level GraphVAE
+  generator that reconstructs complete graphs.
