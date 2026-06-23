@@ -5,7 +5,7 @@ This script is intentionally separate from the training entrypoint. It can:
 
 1. Compute the Table 2 `50/50 split` ideal/reference row.
 2. Compare a saved generated-graphs `.npy` file against the paper-style
-   70/10/20 test split for the `GraphVAE` row.
+   70/10/20 test split for a selected paper row.
 
 Outputs are written under `runs/table2_reproduction/...` by default.
 """
@@ -42,6 +42,29 @@ from stat_rnn import (  # noqa: E402
 
 
 PAPER_TABLE2_BY_DATASET = {
+    "TRIANGULAR_GRID": {
+        "50/50 split": {
+            "degree": 3e-5,
+            "clustering": 0.002,
+            "orbit": 8e-5,
+            "spectral": 0.004,
+            "diameter": 0.014,
+        },
+        "GraphVAE": {
+            "degree": 0.082,
+            "clustering": 0.442,
+            "orbit": 0.421,
+            "spectral": 0.020,
+            "diameter": 0.152,
+        },
+        "GraphVAE-MM": {
+            "degree": 0.001,
+            "clustering": 0.093,
+            "orbit": 0.001,
+            "spectral": 0.013,
+            "diameter": 0.133,
+        },
+    },
     "GRID": {
         "50/50 split": {
             "degree": 1e-5,
@@ -56,6 +79,13 @@ PAPER_TABLE2_BY_DATASET = {
             "orbit": 0.515,
             "spectral": 0.018,
             "diameter": 0.143,
+        },
+        "GraphVAE-MM": {
+            "degree": 5e-4,
+            "clustering": 0.0,
+            "orbit": 0.001,
+            "spectral": 0.014,
+            "diameter": 0.065,
         },
     },
     "LOBSTER": {
@@ -72,6 +102,13 @@ PAPER_TABLE2_BY_DATASET = {
             "orbit": 0.372,
             "spectral": 0.056,
             "diameter": 0.129,
+        },
+        "GraphVAE-MM": {
+            "degree": 2e-4,
+            "clustering": 0.0,
+            "orbit": 0.008,
+            "spectral": 0.017,
+            "diameter": 0.187,
         },
     },
 }
@@ -256,7 +293,18 @@ def main():
         "--generated",
         type=Path,
         default=None,
-        help="Saved generated graph .npy file for the GraphVAE row.",
+        help="Saved generated graph .npy file to evaluate.",
+    )
+    parser.add_argument(
+        "--paper-row",
+        choices=["GraphVAE", "GraphVAE-MM"],
+        default="GraphVAE",
+        help="Paper row to compare generated graphs against in evaluate-generated/all mode.",
+    )
+    parser.add_argument(
+        "--row-label",
+        default=None,
+        help="Optional label to use for the generated row in the output report.",
     )
     parser.add_argument(
         "--test-graphs",
@@ -294,6 +342,8 @@ def main():
         "seed": args.seed,
         "max_graphs": args.max_graphs,
         "mode": args.mode,
+        "paper_row": args.paper_row,
+        "row_label": args.row_label,
     }
 
     dataset_adjs = load_adjacencies(dataset, max_graphs=args.max_graphs, seed=args.seed)
@@ -318,7 +368,8 @@ def main():
                 metadata["test_source"] = "regenerated paper_70_10_20 split"
 
             current = compute_table2_metrics(test_graphs, generated_graphs)
-            rows["GraphVAE"] = compare_to_paper(dataset, "GraphVAE", current)
+            generated_row_label = args.row_label or args.paper_row
+            rows[generated_row_label] = compare_to_paper(dataset, args.paper_row, current)
             metadata["generated_source"] = str(args.generated)
             metadata["graphvae_counts"] = f"{len(test_graphs)}/{len(generated_graphs)}"
 

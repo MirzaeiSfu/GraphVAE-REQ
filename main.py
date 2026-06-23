@@ -262,6 +262,12 @@ MODEL_NAME_ALIASES = {
     "kernelaugmentedwithtotalnumberoftriangles": "GraphVAE-MM",
 }
 
+GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET = {
+    "GRID": (50, 2000),
+    "TRIANGULAR_GRID": (50, 2000),
+    "LOBSTER": (40, 2000),
+}
+
 
 def normalize_model_name(model_name):
     if model_name is None:
@@ -703,6 +709,16 @@ parser.add_argument(
     help='Weight for motif loss.'
 )
 parser.add_argument(
+    '--use_graphvae_mm_bce_kl_weights',
+    type=str2bool,
+    default=False,
+    help=(
+        'Use Kia GraphVAE-MM dataset-specific BCE/KL alpha weights without '
+        'enabling graph-statistics kernels. Intended for motif-only replacements '
+        'of the GraphVAE-MM stats loss.'
+    )
+)
+parser.add_argument(
     '--alpha_syntactic_literal_motif_loss',
     type=float,
     default=None,
@@ -929,6 +945,7 @@ alpha_kernel_cost = args.alpha_kernel_cost
 alpha_node_feat = args.alpha_node_feat
 alpha_edge_feat = args.alpha_edge_feat
 alpha_motif_loss = args.alpha_motif_loss
+use_graphvae_mm_bce_kl_weights = args.use_graphvae_mm_bce_kl_weights
 alpha_syntactic_literal_motif_loss = (
     alpha_motif_loss
     if args.alpha_syntactic_literal_motif_loss is None
@@ -1104,6 +1121,15 @@ elif model_name == "kipf" or model_name == "graphVAE":
     alpha = [1, 1]
     step_num = 0
 
+if use_graphvae_mm_bce_kl_weights:
+    if dataset not in GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET:
+        supported_datasets = ", ".join(sorted(GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET))
+        raise ValueError(
+            "use_graphvae_mm_bce_kl_weights is only defined for "
+            f"{supported_datasets}; received dataset={dataset!r}."
+        )
+    alpha[-2], alpha[-1] = GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET[dataset]
+
 AutoEncoder = False
 
 # Make sure if we are using tiny overfit debug mode, we are actually training an autoencoder (no kernel loss).
@@ -1127,7 +1153,8 @@ print(
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
       f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
-      f" edge_count={alpha_edge_count}"
+      f" edge_count={alpha_edge_count},"
+      f" graphvae_mm_bce_kl={use_graphvae_mm_bce_kl_weights}"
 )
 print("motif_loss_mode:" + str(motif_loss_mode))
 print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
@@ -1149,7 +1176,8 @@ logging.info(
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
       f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
-      f" edge_count={alpha_edge_count}"
+      f" edge_count={alpha_edge_count},"
+      f" graphvae_mm_bce_kl={use_graphvae_mm_bce_kl_weights}"
 )
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
 logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))

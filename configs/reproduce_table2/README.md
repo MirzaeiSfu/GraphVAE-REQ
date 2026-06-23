@@ -86,6 +86,66 @@ This keeps the Table 2 reproduction split, BFS strategy, VAE latent mode, epochs
 
 The readable run label is `grid-table2-graphvae-motif-v1`. At startup, `main.py` writes `RUN_LABEL.txt`, `REPRODUCE.md`, `reproducibility.json`, `run_config_used.yaml`, `git_status.txt`, and `git_diff.patch` into the run folder.
 
+## Controlled Baseline / GraphVAE-MM / Motif Configs
+
+Kia's GraphVAE-MM stats loss uses the internal `alpha` vector in `main.py`.
+For `GRID` and `TRIANGULAR_GRID`, the GraphVAE-MM vector is
+`[1,1,1,1,1,1,1,1,50,2000]`; for `LOBSTER` it is
+`[1,1,1,1,1,1,1,1,40,2000]`. The first eight entries are the graph-statistic
+loss weights, so each graph-statistic loss has weight `1`.
+
+The motif configs therefore use `alpha_motif_loss: 1.0` and
+`motif_loss_mode: calibrated_gaussian`. They also set
+`use_graphvae_mm_bce_kl_weights: true`, so the plain GraphVAE BCE/KL terms use
+the same hardcoded GraphVAE-MM weights: `[50,2000]` for `GRID` and
+`TRIANGULAR_GRID`, and `[40,2000]` for `LOBSTER`. Direct node-feature,
+edge-feature, and edge-count losses remain disabled. The feature decoders are
+still created when motif loss is enabled because reconstructed motif counts may
+depend on reconstructed node/edge features, but they are not separately
+supervised by `alpha_node_feat` or `alpha_edge_feat`.
+
+Grid:
+
+```bash
+python main.py --config configs/reproduce_table2/grid_table2_graphvae_baseline.yaml
+python main.py --config configs/reproduce_table2/grid_table2_graphvae_mm.yaml
+python main.py --config configs/reproduce_table2/grid_table2_graphvae_motif.yaml
+```
+
+Triangular Grid:
+
+```bash
+python main.py --config configs/reproduce_table2/triangular_grid_table2_graphvae_baseline.yaml
+python main.py --config configs/reproduce_table2/triangular_grid_table2_graphvae_mm.yaml
+python main.py --config configs/reproduce_table2/triangular_grid_table2_graphvae_motif.yaml
+```
+
+Lobster:
+
+```bash
+python main.py --config configs/reproduce_table2/lobster_table2_graphvae_baseline.yaml
+python main.py --config configs/reproduce_table2/lobster_table2_graphvae_mm.yaml
+python main.py --config configs/reproduce_table2/lobster_table2_graphvae_motif.yaml
+```
+
+For generated outputs from the GraphVAE-MM configs, compare against the paper's
+`GraphVAE-MM` row:
+
+```bash
+python scripts/reproduce_table2_grid.py \
+  --dataset GRID \
+  --mode evaluate-generated \
+  --paper-row GraphVAE-MM \
+  --row-label grid_graphvae_mm \
+  --generated runs/table2_reproduction/grid_graphvae_mm/Single_comp_generatedGraphs_adj_final_eval.npy \
+  --test-graphs runs/table2_reproduction/grid_graphvae_mm/testGraphs_adj_.npy \
+  --output-dir runs/table2_reproduction/grid_graphvae_mm_eval
+```
+
+For motif outputs, use `--paper-row GraphVAE-MM` when the question is
+"does motif loss replace the stats loss?", or `--paper-row GraphVAE` when the
+question is "how much does the motif run improve over the plain baseline?".
+
 ## Best Validation MMD Checkpoint
 
 To save the checkpoint with the best validation MMD and use it for final test generation, add:
