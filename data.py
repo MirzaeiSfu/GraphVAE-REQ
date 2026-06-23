@@ -456,7 +456,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       )
 
   def _build_grid_graph_features(graph):
-      nodes = sorted(graph.nodes())
+      nodes = list(graph.nodes())
       node_to_idx = {node: idx for idx, node in enumerate(nodes)}
       adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
 
@@ -494,7 +494,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       )
 
   def _build_triangular_grid_graph_features(graph):
-      nodes = sorted(graph.nodes())
+      nodes = list(graph.nodes())
       node_to_idx = {node: idx for idx, node in enumerate(nodes)}
       adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
 
@@ -538,7 +538,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       )
 
   def _build_lobster_graph_features(graph):
-      nodes = sorted(graph.nodes())
+      nodes = list(graph.nodes())
       node_to_idx = {node: idx for idx, node in enumerate(nodes)}
       adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
 
@@ -655,7 +655,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       # # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
       # # np.save('PROTEINS.npy', graphs_to_writeOnDisk, allow_pickle=True)
 #==================================end kiarash code
-      data = load_gin_dataset('PROTEINS')
+      data = dgl.data.GINDataset(name='PROTEINS', self_loop=False)
       graphs, labels = data.graphs, data.labels
 
       node_feature_info = {
@@ -664,8 +664,8 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       edge_feature_info = None
 
       for i, graph in enumerate(graphs):
-        #   if graph.num_nodes() >= 100:
-        #       continue
+          if graph.adjacency_matrix().shape[0] >= 100:
+              continue
 
           if i % 100 == 0:
               print(f"PROTEINS loading: {i}/{len(graphs)}")
@@ -673,7 +673,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           adj = csr_matrix(graph.adjacency_matrix().to_dense().numpy())
           list_adj.append(adj)
           list_x.append(None)
-          list_labels.append(int(labels[i].cpu().item()))
+          list_labels.append(labels[i].cpu().item())
 
           node_feature = _extract_proteins_node_feature(graph)
           list_node_feature.append(
@@ -806,7 +806,6 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
             adj, node_feature, edge_feature = _build_grid_graph_features(graph)
             list_adj.append(adj)
             list_x.append(None)
-            list_labels.append(None)
             list_node_feature.append(node_feature)
             list_edge_feature.append(edge_feature)
 
@@ -838,7 +837,6 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
             adj, node_feature, edge_feature = _build_triangular_grid_graph_features(graph)
             list_adj.append(adj)
             list_x.append(None)
-            list_labels.append(None)
             list_node_feature.append(node_feature)
             list_edge_feature.append(edge_feature)
   elif graph_type=="small_triangular_grid":
@@ -1027,7 +1025,6 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
               adj, node_feature, edge_feature = _build_lobster_graph_features(G)
               list_adj.append(adj)
               list_x.append(None)
-              list_labels.append(None)
               list_node_feature.append(node_feature)
               list_edge_feature.append(edge_feature)
               count += 1

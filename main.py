@@ -62,6 +62,31 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 #endregion
 
+PARITY_PROBE = os.environ.get("GRAPHVAE_PARITY_PROBE") == "1"
+PARITY_SKIP_VIS = os.environ.get("GRAPHVAE_PARITY_SKIP_VIS") == "1"
+
+
+def _parity_value(value):
+    if torch.is_tensor(value):
+        if value.numel() == 1:
+            return value.detach().cpu().item()
+        return value.detach().cpu().tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return [_parity_value(item) for item in value]
+    return value
+
+
+def parity_print(tag, **values):
+    if not PARITY_PROBE:
+        return
+    payload = {key: _parity_value(value) for key, value in values.items()}
+    print("PARITY|" + tag + "|" + json.dumps(payload, sort_keys=True, default=str), flush=True)
+
+
 subgraphSize = None
 keepThebest = False
 
@@ -611,7 +636,7 @@ parser.add_argument(
 #===============================
 # Motif arguments
 #===============================
-parser.add_argument('--motif_loss', type=str2bool, default=True)
+parser.add_argument('--motif_loss', type=str2bool, default=False)
 parser.add_argument(
     '--use_syntactic_literal_rules',
     type=str2bool,
@@ -953,6 +978,28 @@ interactive = args.interactive
 sanity_check = args.sanity_check
 sanity_check_only = args.sanity_check_only
 # endregion
+
+parity_print(
+    "settings",
+    codebase="GraphVAE-REQ",
+    dataset=dataset,
+    model=model_name,
+    device=device,
+    epochs=epoch_number,
+    train_batch_size=train_batch_size,
+    motif_loss=use_motif_loss,
+    alpha_kernel_cost=alpha_kernel_cost,
+    alpha_node_feat=alpha_node_feat,
+    alpha_edge_feat=alpha_edge_feat,
+    alpha_adj_recon=alpha_adj_recon,
+    alpha_motif_loss=alpha_motif_loss,
+    edge_count_loss=use_edge_count_loss,
+    alpha_edge_count=alpha_edge_count,
+    split_mode=split_mode,
+    split_seed=split_seed,
+    bfs_ordering=bfs_ordering,
+    bfs_strategy=bfs_strategy,
+)
 #====================================================================================
 
 if data_dir is not None:
@@ -1594,7 +1641,7 @@ self_for_none = True
 if (decoder_type) in ("FCdecoder"): 
     self_for_none = True
     
-use_cache = True  # Set to True to enable caching of processed datasets for faster subsequent loading.
+use_cache = os.environ.get("GRAPHVAE_PARITY_DISABLE_CACHE") != "1"
 if use_cache and cache_path.exists():
     print(f"[Cache] Loading '{dataset}' from {cache_path}")
     logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
@@ -1643,14 +1690,15 @@ else:
     # list_x     = list_x[:400]
     # list_label = list_label[:400]
 
-    bfs_reorder_fn = BFS if bfs_strategy == "legacy_first_component" else BFS_all_components
-    print("[BFS] Using {} ordering.".format(
-        "legacy single-component BFS" if bfs_strategy == "legacy_first_component" else "all-components BFS"
-    ))
+    if bfs_ordering:
+        bfs_reorder_fn = BFS if bfs_strategy == "legacy_first_component" else BFS_all_components
+        print("[BFS] Using {} ordering.".format(
+            "legacy single-component BFS" if bfs_strategy == "legacy_first_component" else "all-components BFS"
+        ))
 
-    list_adj, list_node_feature, list_edge_feature = bfs_reorder_fn(
-        list_adj, list_node_feature, list_edge_feature
-    )
+        list_adj, list_node_feature, list_edge_feature = bfs_reorder_fn(
+            list_adj, list_node_feature, list_edge_feature
+        )
 
     list_node_onehot, list_edge_onehot, node_onehot_info, edge_onehot_info = \
         build_onehot_features(list_node_feature, list_edge_feature, list_adj,
@@ -1760,12 +1808,16 @@ else:
             "list_eoh_val":     list_eoh_val,
         })
 
-    print(f"[Cache] Saving to {cache_path} ...")
-    logging.info(f"[Cache] Saving to {cache_path} ...")
-    with open(cache_path, "wb") as _f:
-        pickle.dump(_cache, _f)
-    print("[Cache] Saved successfully.")
-    logging.info("[Cache] Saved successfully.")
+    if use_cache:
+        print(f"[Cache] Saving to {cache_path} ...")
+        logging.info(f"[Cache] Saving to {cache_path} ...")
+        with open(cache_path, "wb") as _f:
+            pickle.dump(_cache, _f)
+        print("[Cache] Saved successfully.")
+        logging.info("[Cache] Saved successfully.")
+    else:
+        print("[Cache] Disabled; processed dataset was not saved.")
+        logging.info("[Cache] Disabled; processed dataset was not saved.")
 
 #endregion
 #====================================================================================
@@ -1798,6 +1850,16 @@ else:
           f"train_batch_size={train_batch_size}, shuffle=on")
     logging.info(f"[TrainingData] Full training set enabled: using {len(list_graphs.list_adjs)} graphs, "
                  f"train_batch_size={train_batch_size}, shuffle=on")
+parity_print(
+    "data",
+    codebase="GraphVAE-REQ",
+    dataset=dataset,
+    train_graphs=len(list_graphs.list_adjs),
+    test_graphs=len(list_test_graphs.list_adjs) if "list_test_graphs" in globals() else 0,
+    max_nodes=list_graphs.max_num_nodes,
+    feature_size=list_graphs.feature_size,
+    labels_present=list_graphs.labels is not None,
+)
 #endregion
 #====================================================================================
 
@@ -2052,9 +2114,13 @@ for epoch in range(epoch_number):
     if not tiny_overfit:
         list_graphs.shuffle()
     batch = 0
-    for iter in range(0, len(list_graphs.list_adjs), train_batch_size):
+    for iter in range(
+        0,
+        max(int(len(list_graphs.list_adjs) / train_batch_size), 1) * train_batch_size,
+        train_batch_size,
+    ):
         from_ = iter
-        to_ = min(train_batch_size * (batch + 1), len(list_graphs.list_adjs))
+        to_ = train_batch_size * (batch + 1)
         # for iter in range(0, len(list_graphs.list_adjs), train_batch_size):
         #     from_ = iter
         #     to_= train_batch_size*(batch+1) if train_batch_size*(batch+2)<len(list_graphs.list_adjs) else len(list_graphs.list_adjs)
@@ -2281,6 +2347,27 @@ for epoch in range(epoch_number):
             edge_count_loss * alpha_edge_count + \
             reconstruction_loss * alpha_adj_recon
 
+        parity_print(
+            "batch_loss",
+            codebase="GraphVAE-REQ",
+            dataset=dataset,
+            epoch=epoch + 1,
+            batch=batch,
+            from_idx=from_,
+            to_idx=to_,
+            train_size=len(list_graphs.list_adjs),
+            loss=loss,
+            kernel_cost=kernel_cost,
+            reconstruction_loss=reconstruction_loss,
+            kl_loss=kl_loss,
+            acc=acc,
+            pos_weight=pos_wight,
+            node_feat_loss=node_feat_loss,
+            edge_feat_loss=edge_feat_loss,
+            motif_loss=motif_loss,
+            edge_count_loss=edge_count_loss,
+        )
+
         hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
         hard_exact_match_total = int(hard_motif_exact_zero_per_graph.numel())
         detailed_hard_motif_counts = None
@@ -2323,7 +2410,9 @@ for epoch in range(epoch_number):
         # torch.nn.utils.clip_grad_norm(model.parameters(),  1.0044e-05)
         optimizer.step()
 
-        if (step + 1) % visulizer_step == 0 or epoch_number==epoch+1:
+        if (not PARITY_SKIP_VIS) and (
+            (step + 1) % visulizer_step == 0 or epoch_number == epoch + 1
+        ):
             model.eval()
             if not tiny_overfit:
                 pltr.redraw()
@@ -2497,7 +2586,7 @@ if not tiny_overfit:
 #     json.dump(pltr.values_train[1], fp)
 
 # save the log plot on the current directory
-if not tiny_overfit:
+if not tiny_overfit and (not PARITY_SKIP_VIS):
     pltr.save_plot(graph_save_path + "KernelVGAE_log_plot")
 
 
