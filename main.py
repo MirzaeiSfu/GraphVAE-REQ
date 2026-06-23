@@ -437,7 +437,7 @@ parser.add_argument(
 parser.add_argument(
     '--dataset',
     dest="dataset",
-    default="GRID",
+    default="TRIANGULAR_GRID",
     help="possible choices are: wheel_graph, PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD"
 )
 parser.add_argument(
@@ -458,7 +458,7 @@ parser.add_argument(
 parser.add_argument(
     '--bfs_strategy',
     type=str,
-    default='all_components',
+    default='legacy_first_component',
     choices=['all_components', 'legacy_first_component'],
     help='BFS ordering strategy. all_components preserves current behavior; legacy_first_component matches the original paper code path.'
 )
@@ -676,25 +676,25 @@ parser.add_argument(
 parser.add_argument(
     '--alpha_kernel_cost',
     type=float,
-    default=0.0,
-    help='Weight for kernel_cost in the total loss.'
+    default=1.0,
+    help='Deprecated. Reference-compatible training always includes kernel_cost with weight 1.0.'
 )
 parser.add_argument(
     '--alpha_node_feat',
     type=float,
-    default=10.0,
+    default=0.0,
     help='Weight for node feature reconstruction loss.'
 )
 parser.add_argument(
     '--alpha_edge_feat',
     type=float,
-    default=10.0,
+    default=0.0,
     help='Weight for edge feature reconstruction loss.'
 )
 parser.add_argument(
     '--alpha_motif_loss',
     type=float,
-    default=1.0,
+    default=0.0,
     help='Weight for motif loss.'
 )
 parser.add_argument(
@@ -706,8 +706,8 @@ parser.add_argument(
 parser.add_argument(
     '--alpha_adj_recon',
     type=float,
-    default=0.01,
-    help='Weight for adjacency reconstruction loss.'
+    default=0.0,
+    help='Deprecated. Reference-compatible training already includes adjacency reconstruction inside kernel_cost.'
 )
 parser.add_argument(
     '--edge_count_loss',
@@ -1117,13 +1117,12 @@ print("kernl_type:" + str(kernl_type))
 print("alpha: " + str(alpha) + " num_step:" + str(step_num))
 print(
     "loss_weights:"
-    + f" kernel={alpha_kernel_cost},"
+    + " base=kernel_cost,"
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
       f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
-      f" edge_count={alpha_edge_count},"
-      f" adj_recon={alpha_adj_recon}"
+      f" edge_count={alpha_edge_count}"
 )
 print("motif_loss_mode:" + str(motif_loss_mode))
 print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
@@ -1140,13 +1139,12 @@ logging.info("kernl_type:" + str(kernl_type))
 logging.info("alpha: " + str(alpha) + " num_step:" + str(step_num))
 logging.info(
     "loss_weights:"
-    + f" kernel={alpha_kernel_cost},"
+    + " base=kernel_cost,"
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
       f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
-      f" edge_count={alpha_edge_count},"
-      f" adj_recon={alpha_adj_recon}"
+      f" edge_count={alpha_edge_count}"
 )
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
 logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
@@ -2283,12 +2281,11 @@ for epoch in range(epoch_number):
             motif_loss=torch.tensor(0.0, device=device)
 #====================-------=-==-=-=-===-*****%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@@
 
-        loss = alpha_kernel_cost * kernel_cost + \
+        loss = kernel_cost + \
             alpha_node_feat * node_feat_loss +\
             alpha_edge_feat * edge_feat_loss+\
             weighted_motif_loss_term + \
-            edge_count_loss * alpha_edge_count + \
-            reconstruction_loss * alpha_adj_recon
+            edge_count_loss * alpha_edge_count
 
         hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
         hard_exact_match_total = int(hard_motif_exact_zero_per_graph.numel())
@@ -2454,12 +2451,11 @@ for epoch in range(epoch_number):
             f"| hard_exact_all: {int(bool(hard_motif_exact_zero.item()))} "
             f"| hard_exact_graphs: {hard_exact_match_count}/{hard_exact_match_total} "
             f"| reconstruction_loss: {reconstruction_loss.item():05f} "
-            f"| weighted_components: kernel={float((alpha_kernel_cost * kernel_cost).detach().cpu().item()):05f},"
+            f"| weighted_components: kernel={float(kernel_cost.detach().cpu().item()):05f},"
             f" node={float((alpha_node_feat * node_feat_loss).detach().cpu().item()):05f},"
             f" edge={float((alpha_edge_feat * edge_feat_loss).detach().cpu().item()):05f},"
             f" motif={float(weighted_motif_loss_term.detach().cpu().item()):05f},"
-            f" edge_count={float((alpha_edge_count * edge_count_loss).detach().cpu().item()):05f},"
-            f" adj={float((alpha_adj_recon * reconstruction_loss).detach().cpu().item()):05f} "
+            f" edge_count={float((alpha_edge_count * edge_count_loss).detach().cpu().item()):05f} "
             f"| z_kl_loss: {kl_loss.item():05f} | accu: {(acc.item() if torch.is_tensor(acc) else float(acc)):03f}"
         )
         print(epoch_status, k_loss_str)
