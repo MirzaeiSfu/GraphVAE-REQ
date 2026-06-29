@@ -1,0 +1,280 @@
+GraphVAE-REQ cluster pipeline
+=============================
+
+This pipeline uses cs-cl-18 as the controller. The workers only need code,
+raw data, motif pickle caches, Python/conda/PyTorch/DGL, and GPU access.
+Workers do not need MySQL or FactorBase for training.
+
+Important before a real worker run
+----------------------------------
+
+The distribution script updates workers with git clone/pull from GitHub.
+Commit and push the current controller code before running on workers:
+
+  git status --short
+  git add main.py CLUSTER_REPO_PATHS.txt CLUSTER_GPU_CONFIGS_SAMPLE.txt scripts/cluster_*.sh CLUSTER_PIPELINE_README.txt
+  git commit -m "Add cluster training pipeline"
+  git push
+
+If the workers do not receive the current code, they may fail on newer flags
+such as --disable_dataset_cache.
+
+Input files
+-----------
+
+CLUSTER_REPO_PATHS.txt
+  Format:
+    HOST REPO_PATH
+
+  Example:
+    cs-cl-17 /local-scratch/graphvae-req-work/GraphVAE-REQ
+
+CLUSTER_GPU_CONFIGS_SAMPLE.txt
+  Format:
+    HOST GPU CONFIG_YAML
+
+  Example:
+    cs-cl-17 0 configs/reproduce_table2/grid_table2_graphvae_motif.yaml
+
+Lines may contain comments after #. Blank lines are ignored.
+
+Recommended order
+-----------------
+
+1. Prepare fresh motif caches on the controller.
+2. Distribute code, raw data, and motif caches to workers.
+3. Launch the scheduled tmux training jobs.
+4. Collect run outputs back to the controller.
+
+Use --dry-run first for every step.
+
+
+1. Prepare motif caches
+-----------------------
+
+Script:
+  scripts/cluster_prepare_motif_caches.sh
+
+Purpose:
+  Rebuild local motif pickle caches on the controller. This is the only step
+  that needs FactorBase/MySQL.
+
+Default command:
+  scripts/cluster_prepare_motif_caches.sh
+
+Dry run:
+  scripts/cluster_prepare_motif_caches.sh --dry-run
+
+Typical explicit command:
+  scripts/cluster_prepare_motif_caches.sh \
+    --schedule CLUSTER_GPU_CONFIGS_SAMPLE.txt \
+    --motif-cache-dir cache_motifs
+
+Useful options:
+  --schedule FILE
+    Schedule file with rows: HOST GPU CONFIG_YAML.
+
+  --python-bin BIN
+    Python executable for running main.py.
+
+  --motif-cache-dir DIR
+    Directory where fresh motif pickles are written. Default: cache_motifs.
+
+  --archive-root DIR
+    Directory where an old motif cache folder is moved before rebuild.
+    Default: cache_motifs_archive.
+
+  --manifest FILE
+    Manifest output path. Default:
+      <motif-cache-dir>/MOTIF_CACHE_MANIFEST.tsv
+
+What it does:
+  - Archives the old cache_motifs directory if it exists.
+  - Creates a fresh cache_motifs directory.
+  - Reads each unique YAML from the schedule.
+  - Runs only configs with motif_loss: true.
+  - Runs main.py with --prepare_motif_cache_only true.
+  - Writes a TSV manifest with motif pickle path, sha256, size, and mtime.
+
+Notes:
+  Non-motif configs are skipped because they do not need motif pickles.
+
+
+2. Distribute code and inputs
+-----------------------------
+
+Script:
+  scripts/cluster_distribute_code.sh
+
+Purpose:
+  Clone or pull the GitHub repo on each worker, then optionally sync raw data
+  and motif caches.
+
+Dry run, code only:
+  scripts/cluster_distribute_code.sh --dry-run
+
+Dry run, code plus inputs:
+  scripts/cluster_distribute_code.sh --dry-run --sync-inputs
+
+Real command after motif caches exist:
+  scripts/cluster_distribute_code.sh \
+    --repo-paths CLUSTER_REPO_PATHS.txt \
+    --sync-inputs
+
+Useful options:
+  --repo-paths FILE
+    Repo path file with rows: HOST REPO_PATH.
+
+  --remote-url URL
+    Git remote used when a worker repo does not exist.
+    Default: git@github.com:MirzaeiSfu/GraphVAE-REQ.git
+
+  --sync-inputs
+    Sync the default input folders:
+      data_raw
+      cache_motifs
+
+  --sync-path PATH
+    Replace the default sync list with explicit paths. Repeatable.
+
+  --ssh-connect-timeout SEC
+    SSH connection timeout. Default: 10.
+
+What it does:
+  - For each host, git pulls if the repo exists or git clones if missing.
+  - With --sync-inputs, rsyncs data_raw and cache_motifs.
+  - Before syncing cache_motifs, deletes the worker's old cache_motifs folder.
+  - Uses checksum rsync for cache_motifs.
+  - Continues with other hosts if one host fails.
+
+Notes:
+  Dataset caches are not synced. Real worker training disables dataset caches
+  and reads/processes the raw data directly.
+
+
+3. Launch scheduled training
+----------------------------
+
+Script:
+  scripts/cluster_run_schedule.sh
+
+Purpose:
+  Start one tmux training session per schedule row.
+
+Dry run:
+  scripts/cluster_run_schedule.sh --dry-run --date-prefix YYYYMMDD
+
+Real command:
+  scripts/cluster_run_schedule.sh \
+    --repo-paths CLUSTER_REPO_PATHS.txt \
+    --schedule CLUSTER_GPU_CONFIGS_SAMPLE.txt \
+    --date-prefix YYYYMMDD
+
+Useful options:
+  --repo-paths FILE
+    Repo path file with rows: HOST REPO_PATH.
+
+  --schedule FILE
+    Schedule file with rows: HOST GPU CONFIG_YAML.
+
+  --date-prefix YYYYMMDD
+    Date prefix for run folder names. Default is today's date.
+
+  --run-root PATH
+    Output root inside each worker repo. Default: runs/distributed.
+
+  --python-bin BIN
+    Python executable on workers.
+
+  --env-activate CMD
+    Optional environment activation command on workers.
+    Example:
+      --env-activate "source ~/miniconda3/etc/profile.d/conda.sh && conda activate graphvae"
+
+  --ssh-connect-timeout SEC
+    SSH connection timeout. Default: 10.
+
+  -- extra main.py args
+    Arguments after -- are appended to the main.py command.
+
+What it does:
+  - Reads the repo path file.
+  - Reads the schedule file.
+  - Builds one run folder per row:
+      runs/distributed/<config-name>/<YYYYMMDD>_<host>_gpu<gpu>
+  - Starts a detached tmux session on the worker.
+  - Writes stdout/stderr to:
+      <run-folder>/stdout.log
+  - Passes --disable_dataset_cache true by default.
+  - If SSH fails for a host, later rows for that host are skipped.
+
+Notes:
+  Date-only names are simple, but the same schedule should not be launched
+  twice with the same date prefix and run root. For same-day repeats, use a
+  different --run-root.
+
+  To enable dataset cache for debugging only:
+    scripts/cluster_run_schedule.sh --dry-run -- \
+      --disable_dataset_cache false \
+      --dataset_cache_dir cache_datasets
+
+
+4. Collect results
+------------------
+
+Script:
+  scripts/cluster_collect_results.sh
+
+Purpose:
+  Copy worker run outputs back to the controller.
+
+Dry run:
+  scripts/cluster_collect_results.sh --dry-run --date-prefix YYYYMMDD
+
+Real command:
+  scripts/cluster_collect_results.sh \
+    --repo-paths CLUSTER_REPO_PATHS.txt \
+    --date-prefix YYYYMMDD
+
+Useful options:
+  --repo-paths FILE
+    Repo path file with rows: HOST REPO_PATH.
+
+  --remote-run-root PATH
+    Remote run root inside each worker repo. Default: runs/distributed.
+
+  --collect-root PATH
+    Local collection root. Default: collected_runs.
+
+  --date-prefix YYYYMMDD
+    Local collection batch folder. Default is today's date.
+
+  --ssh-connect-timeout SEC
+    SSH connection timeout. Default: 10.
+
+What it does:
+  - Rsyncs each worker's runs/distributed folder to:
+      collected_runs/<YYYYMMDD>/<host>/
+  - Continues with other hosts if one host fails.
+
+Notes:
+  The date prefix controls the local collection folder. The current script
+  collects the whole remote runs/distributed tree from each worker.
+
+
+Quick full dry-run checklist
+----------------------------
+
+Run these from the controller repo:
+
+  bash -n scripts/cluster_prepare_motif_caches.sh scripts/cluster_distribute_code.sh scripts/cluster_run_schedule.sh scripts/cluster_collect_results.sh
+  python -m py_compile main.py
+  scripts/cluster_prepare_motif_caches.sh --dry-run
+  scripts/cluster_distribute_code.sh --dry-run
+  scripts/cluster_run_schedule.sh --dry-run --date-prefix YYYYMMDD
+  scripts/cluster_collect_results.sh --dry-run --date-prefix YYYYMMDD
+
+After real motif cache preparation, this should also pass:
+
+  scripts/cluster_distribute_code.sh --dry-run --sync-inputs
+

@@ -1,0 +1,13 @@
+cs-cl-17 0 configs/reproduce_table2/grid_table2_graphvae_motif.yaml
+cs-cl-17 1 configs/reproduce_table2/lobster_table2_graphvae_motif.yaml
+cs-cl-13 0 configs/reproduce_table2/triangular_grid_table2_graphvae_motif.yaml
+cs-cl-09 0 configs/reproduce_table2/grid_table2_graphvae_mm.yaml
+cs-cl-09 1 configs/reproduce_table2/lobster_table2_graphvae_mm.yaml
+cs-cl-26 0 configs/reproduce_table2/triangular_grid_table2_graphvae_mm.yaml
+cs-cl-26 1 configs/reproduce_table2/grid_table2_graphvae_baseline.yaml
+cs-cl-18 0 configs/reproduce_table2/lobster_table2_graphvae_baseline.yaml
+cs-cl-18 1 configs/reproduce_table2/triangular_grid_table2_graphvae_baseline.yaml
+cs-cl-19 0 configs/reproduce_table2/grid_graphvae_table2_motif_best_mmd.yaml
+cs-cl-19 1 configs/reproduce_table2/grid_graphvae_table2_motif_edge_count_best_mmd.yaml
+cs-cl-16 0 configs/reproduce_table2/grid_graphvae_table2_motif.yaml
+cs-cl-36 0 configs/reproduce_table2/grid_graphvae_table2.yaml

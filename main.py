@@ -11,6 +11,7 @@
 import logging
 import os
 import json
+import hashlib
 import math
 from pathlib import Path
 import plotter
@@ -372,6 +373,47 @@ def _run_git_command(git_args):
     return output
 
 
+def _file_sha256(path):
+    hasher = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def build_motif_cache_reproducibility_metadata(args):
+    metadata = {
+        "enabled": bool(getattr(args, "motif_loss", False)),
+    }
+    if not metadata["enabled"]:
+        return metadata
+
+    motif_pickle_path = get_motif_pickle_path(args.database_name, args)
+    metadata.update(
+        {
+            "database_name": args.database_name,
+            "syntactic_literal_rule_mode": getattr(
+                args, "syntactic_literal_rule_mode", None
+            ),
+            "motif_cache_dir": str(motif_pickle_path.parent),
+            "motif_pickle_path": str(motif_pickle_path),
+            "motif_pickle_exists_at_run_start": motif_pickle_path.exists(),
+        }
+    )
+
+    if motif_pickle_path.exists():
+        stat = motif_pickle_path.stat()
+        metadata.update(
+            {
+                "motif_pickle_size_bytes": stat.st_size,
+                "motif_pickle_mtime": stat.st_mtime,
+                "motif_pickle_sha256": _file_sha256(motif_pickle_path),
+            }
+        )
+
+    return metadata
+
+
 def write_run_reproducibility_files(run_dir, args, run_label):
     run_dir = Path(run_dir)
     config_path = Path(args.config).expanduser() if args.config else None
@@ -390,6 +432,7 @@ def write_run_reproducibility_files(run_dir, args, run_label):
         "git_describe": git_describe,
         "git_tags_at_head": git_tags_at_head.splitlines() if git_tags_at_head else [],
         "git_status_short": git_status.splitlines() if git_status else [],
+        "motif_cache": build_motif_cache_reproducibility_metadata(args),
         "args": vars(args),
     }
 
@@ -780,6 +823,12 @@ parser.add_argument(
     help='Directory for processed dataset cache files. Defaults to DATASET_CACHE_DIR or cache_datasets/.'
 )
 parser.add_argument(
+    '--disable_dataset_cache',
+    type=str2bool,
+    default=False,
+    help='Read/process raw dataset files without loading or saving processed dataset cache pickles.'
+)
+parser.add_argument(
     '--motif_cache_dir',
     type=str,
     default=None,
@@ -974,6 +1023,7 @@ use_gpu = args.UseGPU
 graph_save_path = args.graph_save_path
 run_label = args.run_label
 dataset_cache_dir = args.dataset_cache_dir
+disable_dataset_cache = args.disable_dataset_cache
 motif_cache_dir = args.motif_cache_dir
 PATH = args.PATH  # the dir to save the with the best performance on validation data
 plot_testGraphs = args.plot_testGraphs
@@ -1628,24 +1678,29 @@ def getBack(var_grad_fn):
 # load the data
 #region Load the data
 
-dataset_cache_root = Path(
-    os.environ.get("DATASET_CACHE_DIR", "cache_datasets")
-).expanduser()
-dataset_cache_root.mkdir(parents=True, exist_ok=True)
 dataset_cache_metadata = build_dataset_cache_metadata(
     dataset=dataset,
     split_mode=split_mode,
     bfs_strategy=bfs_strategy,
     split_plan=split_plan,
 )
-cache_name = build_dataset_cache_name(dataset_cache_metadata)
-cache_path = dataset_cache_root / cache_name
+use_cache = not disable_dataset_cache
+cache_path = None
+if use_cache:
+    dataset_cache_root = Path(
+        os.environ.get("DATASET_CACHE_DIR", "cache_datasets")
+    ).expanduser()
+    dataset_cache_root.mkdir(parents=True, exist_ok=True)
+    cache_name = build_dataset_cache_name(dataset_cache_metadata)
+    cache_path = dataset_cache_root / cache_name
+else:
+    print("[Cache] Dataset cache disabled. Running data pipeline from raw data.")
+    logging.info("[Cache] Dataset cache disabled. Running data pipeline from raw data.")
 
 self_for_none = True
 if (decoder_type) in ("FCdecoder"): 
     self_for_none = True
     
-use_cache = True
 if use_cache and cache_path.exists():
     print(f"[Cache] Loading '{dataset}' from {cache_path}")
     logging.info(f"[Cache] Loading '{dataset}' from {cache_path}")
