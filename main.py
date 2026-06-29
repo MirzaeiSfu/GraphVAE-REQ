@@ -2099,7 +2099,14 @@ if use_motif_loss:
               f" motif_entries={motif_counter.num_syntactic_literal_motifs}/"
               f"{motif_counter.num_syntactic_literal_motifs + motif_counter.num_non_syntactic_literal_motifs}"
         )
-    wrapper = DataWrapper(dataa, motif_counter.relation_keys,node_onehot_info, device='cuda')
+    wrapper = DataWrapper(
+        dataa,
+        motif_counter.relation_keys,
+        node_onehot_info,
+        edge_onehot_info=edge_onehot_info,
+        edge_feature_info_mapping=motif_counter.feature_info_mapping,
+        device='cuda',
+    )
 
     # Computes motif counts in batches.
     counts  = motif_counter.count_batch(wrapper, batch_size=motif_batch_size)
@@ -2440,6 +2447,8 @@ for epoch in range(epoch_number):
                 relation_keys=motif_counter.relation_keys,
                 node_onehot_info=node_onehot_info,
                 feature_onehot_mapping=wrapper.feature_onehot_mapping,
+                edge_onehot_info=edge_onehot_info,
+                edge_feature_info_mapping=motif_counter.feature_info_mapping,
                 use_soft_adj=True,
                 prob_temperature=motif_temperature,
                 device=device,
@@ -2512,6 +2521,8 @@ for epoch in range(epoch_number):
                     relation_keys=motif_counter.relation_keys,
                     node_onehot_info=node_onehot_info,
                     feature_onehot_mapping=wrapper.feature_onehot_mapping,
+                    edge_onehot_info=edge_onehot_info,
+                    edge_feature_info_mapping=motif_counter.feature_info_mapping,
                     use_soft_adj=False,
                     prob_temperature=motif_temperature,
                     device=device,

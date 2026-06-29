@@ -1641,6 +1641,77 @@ def _build_fom(node_onehot_info: Dict) -> Dict:
     return mapping
 
 
+def _edge_feature_channel_groups(edge_onehot_info: Optional[Dict]) -> Dict[str, List[int]]:
+    groups: Dict[str, List[int]] = {}
+    if not edge_onehot_info:
+        return groups
+
+    for channel_idx, meta in sorted(edge_onehot_info.items()):
+        feature_name = meta['feature_name']
+        groups.setdefault(feature_name, []).append(int(channel_idx))
+    return groups
+
+
+def _split_edge_tensor_by_feature(
+    edge_tensor: torch.Tensor,
+    edge_onehot_info: Optional[Dict] = None,
+    edge_feature_info_mapping: Optional[Dict] = None,
+) -> List[torch.Tensor]:
+    """
+    Convert a packed edge channel tensor into the list layout expected by
+    RelationalMotifCounter: edge_b[feature_idx] is one categorical feature.
+    """
+    if not edge_onehot_info:
+        return [edge_tensor]
+
+    groups = _edge_feature_channel_groups(edge_onehot_info)
+    channel_by_feature_value = {
+        (meta['feature_name'], int(meta['value'])): int(channel_idx)
+        for channel_idx, meta in edge_onehot_info.items()
+    }
+
+    split_tensors: List[torch.Tensor] = []
+    if edge_feature_info_mapping:
+        feature_items = [
+            (info['feature_name'], [
+                int(value)
+                for _value_idx, value in sorted(info['value_index_mapping'].items())
+            ])
+            for _idx, info in sorted(edge_feature_info_mapping.items())
+        ]
+    else:
+        feature_items = [
+            (feature_name, None)
+            for feature_name in groups.keys()
+        ]
+
+    for feature_name, expected_values in feature_items:
+        if expected_values is None:
+            channels = groups.get(feature_name)
+        else:
+            channels = [
+                channel_by_feature_value.get((feature_name, value))
+                for value in expected_values
+            ]
+            if any(channel is None for channel in channels):
+                missing_values = [
+                    value for value, channel in zip(expected_values, channels)
+                    if channel is None
+                ]
+                raise RuntimeError(
+                    f"Edge feature '{feature_name}' is missing loaded values "
+                    f"required by the motif cache: {missing_values}"
+                )
+        if not channels:
+            raise RuntimeError(
+                f"Edge feature '{feature_name}' is present in the motif cache, "
+                "but not in the loaded graph edge features."
+            )
+        split_tensors.append(edge_tensor[:, channels, :, :])
+
+    return split_tensors
+
+
 # ════════════════════════════════════════════════════════════════════════
 #  DataWrapper
 # ════════════════════════════════════════════════════════════════════════
@@ -1656,6 +1727,8 @@ class DataWrapper:
     relation_keys : list    — motif_counter.relation_keys  e.g. ['edges']
     node_onehot_info : dict — from build_onehot_features()
                               {oh_col: {'feature_name': str, 'value': int}}
+    edge_onehot_info : dict — from build_onehot_features(), used to split
+                              packed edge channels into counter feature groups
     device : str
     """
 
@@ -1664,6 +1737,8 @@ class DataWrapper:
         merged:           dict,
         relation_keys:    List[str],
         node_onehot_info: Optional[Dict] = None,
+        edge_onehot_info: Optional[Dict] = None,
+        edge_feature_info_mapping: Optional[Dict] = None,
         device:           str = 'cuda',
     ):
         self.device        = device
@@ -1714,18 +1789,25 @@ class DataWrapper:
         if has_eoh:
             C           = next(x for x in edge_ohs if x is not None).shape[0]
             stacked_eoh = _stack_3d(edge_ohs, C, N_max)
-            self.all_edge          = [stacked_eoh]
+            self.all_edge = _split_edge_tensor_by_feature(
+                stacked_eoh,
+                edge_onehot_info=edge_onehot_info,
+                edge_feature_info_mapping=edge_feature_info_mapping,
+            )
             self.has_edge_features = True
         else:
             self.all_edge          = None
             self.has_edge_features = False
 
+        edge_shapes = (
+            "[" + ", ".join(str(tuple(edge.shape)) for edge in self.all_edge) + "]"
+            if self.all_edge else "None"
+        )
         print(f"  [DataWrapper] Ready."
               f"  features={tuple(self.all_features.shape)}"
               f"  onehot={tuple(self.all_feat_onehot.shape)}"
               f"  adj={tuple(stacked_adj.shape)}"
-              + (f"  edge={tuple(self.all_edge[0].shape)}"
-                 if self.all_edge else "  edge=None"))
+              f"  edge={edge_shapes}")
 
     # ------------------------------------------------------------------
     #  DataPreprocessor-compatible interface (called by count_batch)
@@ -1820,6 +1902,8 @@ class ReconstructedDataWrapper:
         relation_keys: List[str],
         node_onehot_info: Optional[Dict],
         feature_onehot_mapping: Dict,
+        edge_onehot_info: Optional[Dict] = None,
+        edge_feature_info_mapping: Optional[Dict] = None,
         adj_threshold: float = 0.5,
         use_soft_adj: bool = True,
         prob_temperature: float = 1.0,
@@ -1909,34 +1993,46 @@ class ReconstructedDataWrapper:
             assert ef.dim() == 4, \
                 f"edge_feat_logits must be (B, C, N, N), got {ef.shape}"
 
-            # Apply softmax over channel dimension C (differentiable)
-            # This gives soft edge-type probabilities
-            edge_soft = F.softmax(ef / self.prob_temperature, dim=1)  # (B, C, N, N)
+            edge_logits_by_feature = _split_edge_tensor_by_feature(
+                ef,
+                edge_onehot_info=edge_onehot_info,
+                edge_feature_info_mapping=edge_feature_info_mapping,
+            )
 
-            if use_soft_adj:
-                edge_view = edge_soft
-            else:
-                # Match the hard adjacency view with discrete edge-type labels.
-                edge_view = F.one_hot(
-                    edge_soft.argmax(dim=1),
-                    num_classes=edge_soft.shape[1],
-                ).permute(0, 3, 1, 2).to(edge_soft.dtype)
+            edge_views = []
+            for edge_logits in edge_logits_by_feature:
+                # Apply softmax within each categorical edge feature group.
+                edge_soft = F.softmax(edge_logits / self.prob_temperature, dim=1)
 
-            # all_edge is a list of tensors, each (B, C, N, N)
-            self.all_edge = [edge_view]
+                if use_soft_adj:
+                    edge_views.append(edge_soft)
+                else:
+                    # Match the hard adjacency view with discrete edge-type labels.
+                    edge_views.append(
+                        F.one_hot(
+                            edge_soft.argmax(dim=1),
+                            num_classes=edge_soft.shape[1],
+                        ).permute(0, 3, 1, 2).to(edge_soft.dtype)
+                    )
+
+            # all_edge is a list of tensors, each (B, C_feature, N, N)
+            self.all_edge = edge_views
             self.has_edge_features = True
         else:
             self.all_edge = None
             self.has_edge_features = False
 
+        edge_shapes = (
+            "[" + ", ".join(str(tuple(edge.shape)) for edge in self.all_edge) + "]"
+            if self.all_edge else "None"
+        )
         print(
             f"[ReconstructedDataWrapper] Ready."
             f" B={B}, N_max={N}"
             f" adj={'soft' if use_soft_adj else 'hard'}"
             f" temp={self.prob_temperature:.3f}"
             f" node_onehot={tuple(self.all_feat_onehot.shape)}"
-            + (f" edge={tuple(self.all_edge[0].shape)}"
-               if self.all_edge else " edge=None")
+            f" edge={edge_shapes}"
         )
 
     def _harden_node_assignments(
