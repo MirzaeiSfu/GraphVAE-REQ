@@ -92,14 +92,6 @@ BEST_SCRIPT_DATASETS = {
     "GRID", "LOBSTER", "TRIANGULAR_GRID",
     "GRID_BEST", "LOBSTER_BEST", "TRIANGULAR_GRID_BEST",
 }
-BEST_SCRIPT_DEFAULT_BASE_NAME = {
-    "GRID": "grid_optimal",
-    "LOBSTER": "lobster_optimal",
-    "TRIANGULAR_GRID": "triangular_grid_optimal",
-    "GRID_BEST": "grid_optimal",
-    "LOBSTER_BEST": "lobster_optimal",
-    "TRIANGULAR_GRID_BEST": "triangular_grid_optimal",
-}
 BEST_SCRIPT_EDGE_MODE_ALIAS = {"directed": "dir", "undirected": "undir"}
 
 # Edge-mode semantics:
@@ -609,10 +601,8 @@ def rename_mysql_database(old_name: str, new_name: str) -> None:
     """
     MySQL has no RENAME DATABASE statement, so this creates new_name, moves
     every table from old_name into it via RENAME TABLE, then drops old_name.
-    Used to append the FactorBase-config suffix to a BEST_SCRIPT_DATASETS
-    database after the import script creates it under its own
-    edge-mode/feature-mode-suffixed name, so the config settings end up at
-    the true end of the final db name.
+    Used to finalize a BEST_SCRIPT_DATASETS database name after the import
+    script creates it under its own edge-mode/feature-mode-suffixed name.
     """
     from pymysql import connect
 
@@ -1020,12 +1010,12 @@ def resolve_db_name(
 
     For BEST_SCRIPT_DATASETS, those import scripts append their own
     edge-mode/feature-mode suffix to whatever base name they're given
-    (script_base_name -> script_produced_name). The FactorBase config
-    settings then get appended as a further suffix, at the true end of the
-    name, by renaming the database after import (see rename_mysql_database
-    in main()) since the script itself has no notion of FactorBase config.
-    final_db_name is always the actual database name everything else in the
-    pipeline (config writing, verification, JAR launch) should use.
+    (script_base_name -> script_produced_name). For automatic names, keep
+    the legacy reproducible identity from build_auto_db_name: dataset, edge
+    mode, feature mode, jar choice, and the material hash. The script may
+    create a temporary suffixed name, which main() then renames to
+    final_db_name so the rest of the pipeline (config writing, verification,
+    JAR launch) uses the same hashed name format as older commits.
     """
     material = build_auto_db_name_material(
         args=args,
@@ -1045,12 +1035,29 @@ def resolve_db_name(
     if dataset_name in BEST_SCRIPT_DATASETS:
         if args.db_name:
             base_name = args.db_name
+            script_produced_name = compute_best_script_db_name(
+                base_name,
+                edge_mode_label,
+                feature_mode,
+            )
+            final_db_name = f"{script_produced_name}_{config_settings_alias(args.config_template)}"
             source = "provided"
         else:
-            base_name = BEST_SCRIPT_DEFAULT_BASE_NAME[dataset_name]
+            final_db_name = build_auto_db_name(
+                dataset_name=dataset_name,
+                edge_mode_label=edge_mode_label,
+                feature_mode=feature_mode,
+                jar_choice=args.jar,
+                config_template_path=args.config_template,
+                material=material,
+            )
+            base_name = final_db_name
+            script_produced_name = compute_best_script_db_name(
+                base_name,
+                edge_mode_label,
+                feature_mode,
+            )
             source = "auto"
-        script_produced_name = compute_best_script_db_name(base_name, edge_mode_label, feature_mode)
-        final_db_name = f"{script_produced_name}_{config_settings_alias(args.config_template)}"
         return final_db_name, source, material, base_name, script_produced_name
 
     if args.db_name:
@@ -1185,8 +1192,8 @@ def main() -> None:
     args.db_name = db_name
     if script_base_name is not None:
         print(f"Database base name passed to import script: {script_base_name}")
-        print(f"Script will append its own edge-mode/feature-mode suffix -> {script_produced_name}")
-        print(f"Wrapper then appends the FactorBase config suffix -> final name: {db_name}")
+        print(f"Script-created database name: {script_produced_name}")
+        print(f"Wrapper final database name: {db_name}")
     run_dir = build_run_dir(db_name)
     run_dir.mkdir(parents=True, exist_ok=True)
     run_config_path = build_run_config_path(run_dir)
@@ -1241,7 +1248,7 @@ def main() -> None:
         run_subprocess_step("Dataset import", import_command, SCRIPT_DIR, log_path=run_log_path)
 
         if script_produced_name is not None and script_produced_name != db_name:
-            print_section("APPENDING FACTORBASE CONFIG SUFFIX TO DB NAME")
+            print_section("FINALIZING BEST-SCRIPT DB NAME")
             message = f"Renaming '{script_produced_name}' -> '{db_name}'"
             print(message)
             rename_mysql_database(script_produced_name, db_name)
