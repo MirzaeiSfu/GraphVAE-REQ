@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections import Counter
+from math import sqrt
+
 
 STRUCT_TYPE_TO_ID = {
     "Vertex": 1,
@@ -126,3 +129,119 @@ def compute_edge_orbit(source_node, target_node, bounds):
     if touches_boundary:
         return EDGE_ORBIT_TO_ID["Boundary"]
     return EDGE_ORBIT_TO_ID["Interior"]
+
+
+# --- "optimal" feature schema (see factorbase_motif_pipeline/best_triangular_grid.py) ---
+#
+# compute_struct_type() and compute_num_6cycles() above are kept only so
+# existing to_db_triangular_grid.py/new_tri.py callers don't break. Verified
+# (via direct SQL on a learned FactorBase BN) that struct_type/num_3cycles/
+# num_6cycles in that old schema are a 100% deterministic relabeling of node
+# degree -- struct_type is intentionally NOT reused below, and
+# compute_num_6cycles() is replaced by a REAL induced-hexagon count
+# (compute_induced_hexagon_participation()), not a degree>=4 proxy.
+
+EDGE_DIRECTION_TO_ID = {
+    "Horizontal": 1,
+    "Positive-60": 2,
+    "Negative-60": 3,
+}
+
+EDGE_DIRECTION_LABELS = {
+    value: key for key, value in EDGE_DIRECTION_TO_ID.items()
+}
+
+
+def get_node_position(graph, node):
+    position = graph.nodes[node].get("pos")
+    if position is not None:
+        return position
+    col, row = node
+    return 0.5 * (row % 2) + col, (sqrt(3) / 2) * row
+
+
+def _canonical_cycle(cycle):
+    rotations = []
+    cycle = list(cycle)
+    for sequence in (cycle, list(reversed(cycle))):
+        for index in range(len(sequence)):
+            rotations.append(tuple(sequence[index:] + sequence[:index]))
+    return min(rotations)
+
+
+def induced_cycles_len_k(graph, cycle_length=6):
+    cycles = set()
+    for start_node in sorted(graph.nodes()):
+        stack = [(start_node, [start_node], {start_node})]
+        while stack:
+            current_node, path, seen_nodes = stack.pop()
+            if len(path) == cycle_length:
+                if graph.has_edge(current_node, start_node):
+                    cycle = _canonical_cycle(path)
+                    if cycle[0] == start_node and graph.subgraph(cycle).number_of_edges() == cycle_length:
+                        cycles.add(cycle)
+                continue
+            for neighbor in graph.neighbors(current_node):
+                if neighbor in seen_nodes:
+                    continue
+                if neighbor < start_node:
+                    continue
+                stack.append((neighbor, path + [neighbor], seen_nodes | {neighbor}))
+    return cycles
+
+
+def compute_induced_hexagon_participation(graph):
+    """
+    Real induced-6-cycle (hexagon) participation count, per node and per
+    edge, for a whole graph. Call ONCE per graph (it's O(graph)), then index
+    the returned Counters per node/edge -- do not call per node.
+
+    Returns (node_counts, edge_counts), both raw (0-based) counts; callers
+    add +1 to get the 1-based categorical convention used elsewhere.
+    """
+    node_counts = Counter({node: 0 for node in graph.nodes()})
+    edge_counts = Counter({tuple(sorted(edge)): 0 for edge in graph.edges()})
+    for cycle in induced_cycles_len_k(graph, 6):
+        for node in cycle:
+            node_counts[node] += 1
+        for index, source_node in enumerate(cycle):
+            target_node = cycle[(index + 1) % len(cycle)]
+            edge_counts[tuple(sorted((source_node, target_node)))] += 1
+    return node_counts, edge_counts
+
+
+def compute_edge_direction(graph, source_node, target_node):
+    """
+    Triangular-lattice edge orientation category.
+
+    Returns:
+        1 = Horizontal
+        2 = Positive-60
+        3 = Negative-60
+    """
+    source_x, source_y = get_node_position(graph, source_node)
+    target_x, target_y = get_node_position(graph, target_node)
+    delta_x = target_x - source_x
+    delta_y = target_y - source_y
+
+    # Fold opposite directions together since edges are stored in both
+    # source/target orders but the feature must remain symmetric.
+    if delta_y < -1e-9 or (abs(delta_y) <= 1e-9 and delta_x < 0):
+        delta_x = -delta_x
+        delta_y = -delta_y
+
+    axis_vectors = {
+        1: (1.0, 0.0),
+        2: (0.5, sqrt(3) / 2),
+        3: (-0.5, sqrt(3) / 2),
+    }
+    return min(
+        axis_vectors,
+        key=lambda axis: (delta_x - axis_vectors[axis][0]) ** 2
+        + (delta_y - axis_vectors[axis][1]) ** 2,
+    )
+
+
+def compute_edge_triangle_count(graph, source_node, target_node):
+    """Number of triangles (0/1/2) the edge participates in."""
+    return len(set(graph.neighbors(source_node)).intersection(graph.neighbors(target_node)))

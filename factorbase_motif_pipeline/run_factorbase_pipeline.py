@@ -45,11 +45,62 @@ AUTO_DB_NAME_HASH_LENGTH = 6
 DATASET_SCRIPTS = {
     "PROTEINS": SCRIPT_DIR / "to_db_proteins.py",
     "QM9": SCRIPT_DIR / "to_db_qm9.py",
-    "GRID": SCRIPT_DIR / "to_db_grid.py",
-    "LOBSTER": SCRIPT_DIR / "to_db_lobster.py",
-    "TRIANGULAR_GRID": SCRIPT_DIR / "to_db_triangular_grid.py",
+    # Synthetic dataset names use the evidence-grounded optimal feature
+    # schema by default. Legacy aliases keep the previous importers available
+    # for exact reproduction of older FactorBase runs.
+    "GRID": SCRIPT_DIR / "best_grid.py",
+    "LOBSTER": SCRIPT_DIR / "best_lobster.py",
+    "TRIANGULAR_GRID": SCRIPT_DIR / "best_triangular_grid.py",
+    "GRID_BEST": SCRIPT_DIR / "best_grid.py",
+    "LOBSTER_BEST": SCRIPT_DIR / "best_lobster.py",
+    "TRIANGULAR_GRID_BEST": SCRIPT_DIR / "best_triangular_grid.py",
+    "GRID_LEGACY": SCRIPT_DIR / "to_db_grid.py",
+    "LOBSTER_LEGACY": SCRIPT_DIR / "to_db_lobster.py",
+    "TRIANGULAR_GRID_LEGACY": SCRIPT_DIR / "to_db_triangular_grid.py",
 }
-SYNTHETIC_DATASETS = {"GRID", "LOBSTER", "TRIANGULAR_GRID"}
+SYNTHETIC_DATASETS = {
+    "GRID", "LOBSTER", "TRIANGULAR_GRID",
+    "GRID_BEST", "LOBSTER_BEST", "TRIANGULAR_GRID_BEST",
+    "GRID_LEGACY", "LOBSTER_LEGACY", "TRIANGULAR_GRID_LEGACY",
+}
+
+# Maps each dataset key to the "family" used for --grid-feature-mode /
+# --lobster-feature-mode / --triangular-grid-feature-mode flag application
+# and other family-level checks, so "GRID" and "GRID_BEST" behave identically
+# for those purposes despite using different import scripts.
+DATASET_FAMILY = {
+    "PROTEINS": "PROTEINS",
+    "QM9": "QM9",
+    "GRID": "GRID",
+    "GRID_BEST": "GRID",
+    "GRID_LEGACY": "GRID",
+    "LOBSTER": "LOBSTER",
+    "LOBSTER_BEST": "LOBSTER",
+    "LOBSTER_LEGACY": "LOBSTER",
+    "TRIANGULAR_GRID": "TRIANGULAR_GRID",
+    "TRIANGULAR_GRID_BEST": "TRIANGULAR_GRID",
+    "TRIANGULAR_GRID_LEGACY": "TRIANGULAR_GRID",
+}
+
+# Datasets whose import script itself appends the edge-mode (and, for
+# without-features runs, the "_no_feature") suffix to the db name it's given
+# (see best_grid.py/best_lobster.py/best_triangular_grid.py's build_db_name).
+# For these, the wrapper passes a BASE name to the script and must compute
+# the resulting FINAL name itself (compute_best_script_db_name) to know what
+# database actually gets created.
+BEST_SCRIPT_DATASETS = {
+    "GRID", "LOBSTER", "TRIANGULAR_GRID",
+    "GRID_BEST", "LOBSTER_BEST", "TRIANGULAR_GRID_BEST",
+}
+BEST_SCRIPT_DEFAULT_BASE_NAME = {
+    "GRID": "grid_optimal",
+    "LOBSTER": "lobster_optimal",
+    "TRIANGULAR_GRID": "triangular_grid_optimal",
+    "GRID_BEST": "grid_optimal",
+    "LOBSTER_BEST": "lobster_optimal",
+    "TRIANGULAR_GRID_BEST": "triangular_grid_optimal",
+}
+BEST_SCRIPT_EDGE_MODE_ALIAS = {"directed": "dir", "undirected": "undir"}
 
 # Edge-mode semantics:
 # QM9/PROTEINS --directed:
@@ -84,7 +135,12 @@ def parse_args() -> argparse.Namespace:
         "dataset",
         nargs="?",
         default=DEFAULT_DATASET,
-        help=f"Dataset name, for example PROTEINS or QM9 (default: {DEFAULT_DATASET})",
+        help=(
+            f"Dataset name, for example PROTEINS, QM9, GRID, LOBSTER, or "
+            f"TRIANGULAR_GRID. Synthetic names use optimal schemas by default; "
+            f"use *_LEGACY for the previous to_db_* importers. "
+            f"(default: {DEFAULT_DATASET})"
+        ),
     )
     parser.add_argument(
         "db_name",
@@ -273,11 +329,12 @@ def append_dataset_specific_args(
     lobster_feature_mode: str,
     triangular_grid_feature_mode: str,
 ) -> list[str]:
-    if dataset_name == "GRID":
+    family = DATASET_FAMILY.get(dataset_name)
+    if family == "GRID":
         command.extend(["--feature-mode", grid_feature_mode])
-    elif dataset_name == "LOBSTER":
+    elif family == "LOBSTER":
         command.extend(["--feature-mode", lobster_feature_mode])
-    elif dataset_name == "TRIANGULAR_GRID":
+    elif family == "TRIANGULAR_GRID":
         command.extend(["--feature-mode", triangular_grid_feature_mode])
     return command
 
@@ -541,6 +598,46 @@ def load_and_validate_config_values(config_path: Path, expected_db_name: str) ->
     return config_values
 
 
+# Matches the hardcoded connection constants every to_db_*.py/new_*.py/
+# best_*.py import script already uses for local MySQL access.
+DATASET_DB_HOST = "127.0.0.1"
+DATASET_DB_USER = "fbuser"
+DATASET_DB_PASSWORD = ""
+
+
+def rename_mysql_database(old_name: str, new_name: str) -> None:
+    """
+    MySQL has no RENAME DATABASE statement, so this creates new_name, moves
+    every table from old_name into it via RENAME TABLE, then drops old_name.
+    Used to append the FactorBase-config suffix to a BEST_SCRIPT_DATASETS
+    database after the import script creates it under its own
+    edge-mode/feature-mode-suffixed name, so the config settings end up at
+    the true end of the final db name.
+    """
+    from pymysql import connect
+
+    connection = connect(host=DATASET_DB_HOST, user=DATASET_DB_USER, password=DATASET_DB_PASSWORD)
+    try:
+        with connection.cursor() as cursor:
+            # Intentionally no "IF NOT EXISTS": a pre-existing target means a
+            # stale leftover database from an earlier run with the same
+            # config settings. Fail loudly here rather than silently
+            # renaming tables into a database that may already hold
+            # unrelated data (which previously caused a confusing partial
+            # failure on whichever table happened to collide first).
+            cursor.execute(f"CREATE DATABASE `{new_name}`")
+            cursor.execute(f"SHOW TABLES FROM `{old_name}`")
+            tables = [row[0] for row in cursor.fetchall()]
+            for table in tables:
+                cursor.execute(
+                    f"RENAME TABLE `{old_name}`.`{table}` TO `{new_name}`.`{table}`"
+                )
+            cursor.execute(f"DROP DATABASE IF EXISTS `{old_name}`")
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def verify_dataset_database(config_path: Path, expected_db_name: str) -> None:
     from pymysql import connect
 
@@ -751,11 +848,12 @@ def choose_jar(jar_choice: str | None) -> str:
 
 
 def dataset_feature_mode(dataset_name: str, args: argparse.Namespace) -> str | None:
-    if dataset_name == "GRID":
+    family = DATASET_FAMILY.get(dataset_name)
+    if family == "GRID":
         return args.grid_feature_mode
-    if dataset_name == "LOBSTER":
+    if family == "LOBSTER":
         return args.lobster_feature_mode
-    if dataset_name == "TRIANGULAR_GRID":
+    if family == "TRIANGULAR_GRID":
         return args.triangular_grid_feature_mode
     return None
 
@@ -782,6 +880,66 @@ def jar_choice_alias(jar_choice: str | None) -> str:
     if jar_choice == "patched":
         return "patch"
     return "jar"
+
+
+# Fixed, documented order the numeric FactorBase config settings are
+# concatenated in for db naming. Two config files differing in only one of
+# these values (e.g. config.tmp vs config1.tmp, which differ only in
+# UseLocal_CT) produce visibly different db names instead of both reading as
+# an opaque hash or an arbitrary filename stem.
+CONFIG_NAMING_ORDER = [
+    ("dbtemporarytablesize", "tts"),
+    ("AutomaticSetup", "as"),
+    ("ComputeKLD", "kld"),
+    ("Continuous", "cont"),
+    ("LinkAnalysis", "la"),
+    ("LinkCorrelations", "lc"),
+    ("UseLocal_CT", "ulct"),
+    ("SkipParameterLearning", "spl"),
+    ("CountingStrategy", "cs"),
+]
+
+
+def config_settings_alias(config_template_path: Path) -> str:
+    """
+    Reads the actual FactorBase config template and concatenates its numeric
+    settings' raw values, in the fixed CONFIG_NAMING_ORDER, e.g. "410000000"
+    for config.tmp (dbtemporarytablesize=4, AutomaticSetup=1, the rest 0).
+    Two configs that differ in any of these values get different db names;
+    two configs with identical values (even from different template files)
+    get the same alias, since what matters for reproducing a learned BN is
+    the settings, not the filename. Position N's meaning is documented by
+    CONFIG_NAMING_ORDER[N] -- e.g. "11..." means the first two settings
+    (dbtemporarytablesize, AutomaticSetup) both have value 1.
+    """
+    values = read_config_values(config_template_path)
+    digits = []
+    for key, _short in CONFIG_NAMING_ORDER:
+        raw_value = values.get(key)
+        if raw_value is None:
+            continue
+        digits.append(sanitize_path_component(raw_value))
+    if not digits:
+        return "cfg_default"
+    # Underscore only, never hyphen: FactorBase's Java side builds companion
+    # schema names like "{dbname}_CT"/"{dbname}_setup" with UNQUOTED SQL
+    # identifiers internally, and unquoted MySQL identifiers can't contain
+    # hyphens -- a "cfg-..." db name breaks FactorBase's own setup step.
+    return "cfg" + "".join(digits)
+
+
+def compute_best_script_db_name(base_name: str, edge_mode_label: str, feature_mode: str | None) -> str:
+    """
+    Mirrors best_grid.py/best_lobster.py/best_triangular_grid.py's own
+    build_db_name(): those scripts append the edge-mode (and, for
+    without-features runs, "_no_feature") suffix to whatever base name
+    they're given. The wrapper needs to predict that final name to write the
+    FactorBase config, verify the database, and launch the JAR against it.
+    """
+    name = f"{base_name}_{BEST_SCRIPT_EDGE_MODE_ALIAS[edge_mode_label]}"
+    if feature_mode == "without-features":
+        name += "_no_feature"
+    return name
 
 
 def resolve_pipeline_edge_mode(
@@ -833,6 +991,7 @@ def build_auto_db_name(
     edge_mode_label: str,
     feature_mode: str | None,
     jar_choice: str | None,
+    config_template_path: Path,
     material: dict,
 ) -> str:
     digest = hashlib.sha256(canonical_json(material).encode("utf-8")).hexdigest()
@@ -842,6 +1001,9 @@ def build_auto_db_name(
         feature_mode_alias(feature_mode),
         jar_choice_alias(jar_choice),
         digest[:AUTO_DB_NAME_HASH_LENGTH],
+        # FactorBase config settings go last, per request: the db name should
+        # visibly end with which config produced the learned BN.
+        config_settings_alias(config_template_path),
     ]
     return sanitize_path_component("_".join(name_parts))
 
@@ -851,25 +1013,62 @@ def resolve_db_name(
     args: argparse.Namespace,
     dataset_name: str,
     edge_mode_label: str,
-) -> tuple[str, str, dict]:
+) -> tuple[str, str, dict, str | None, str | None]:
+    """
+    Returns (final_db_name, db_name_source, auto_db_name_material,
+    script_base_name, script_produced_name).
+
+    For BEST_SCRIPT_DATASETS, those import scripts append their own
+    edge-mode/feature-mode suffix to whatever base name they're given
+    (script_base_name -> script_produced_name). The FactorBase config
+    settings then get appended as a further suffix, at the true end of the
+    name, by renaming the database after import (see rename_mysql_database
+    in main()) since the script itself has no notion of FactorBase config.
+    final_db_name is always the actual database name everything else in the
+    pipeline (config writing, verification, JAR launch) should use.
+    """
     material = build_auto_db_name_material(
         args=args,
         dataset_name=dataset_name,
         edge_mode_label=edge_mode_label,
     )
+    feature_mode = dataset_feature_mode(dataset_name, args)
+
+    if args.use_existing_db:
+        # No import script runs in this mode, so no suffixing/renaming
+        # happens either -- the database already exists under exactly the
+        # name given.
+        if not args.db_name:
+            raise ValueError("--use-existing-db requires an explicit db_name argument.")
+        return args.db_name, "provided", material, None, None
+
+    if dataset_name in BEST_SCRIPT_DATASETS:
+        if args.db_name:
+            base_name = args.db_name
+            source = "provided"
+        else:
+            base_name = BEST_SCRIPT_DEFAULT_BASE_NAME[dataset_name]
+            source = "auto"
+        script_produced_name = compute_best_script_db_name(base_name, edge_mode_label, feature_mode)
+        final_db_name = f"{script_produced_name}_{config_settings_alias(args.config_template)}"
+        return final_db_name, source, material, base_name, script_produced_name
+
     if args.db_name:
-        return args.db_name, "provided", material
+        return args.db_name, "provided", material, None, None
 
     return (
         build_auto_db_name(
             dataset_name=dataset_name,
             edge_mode_label=edge_mode_label,
-            feature_mode=dataset_feature_mode(dataset_name, args),
+            feature_mode=feature_mode,
             jar_choice=args.jar,
+            config_template_path=args.config_template,
             material=material,
         ),
         "auto",
         material,
+        None,
+        None,
     )
 
 
@@ -958,12 +1157,13 @@ def build_rule_manifest(
 def main() -> None:
     args = parse_args()
     dataset_name = normalize_dataset_name(args.dataset)
-    if dataset_name != "GRID" and args.grid_feature_mode != DEFAULT_GRID_FEATURE_MODE:
+    dataset_family = DATASET_FAMILY.get(dataset_name)
+    if dataset_family != "GRID" and args.grid_feature_mode != DEFAULT_GRID_FEATURE_MODE:
         raise ValueError("--grid-feature-mode can only be used with the GRID dataset.")
-    if dataset_name != "LOBSTER" and args.lobster_feature_mode != DEFAULT_LOBSTER_FEATURE_MODE:
+    if dataset_family != "LOBSTER" and args.lobster_feature_mode != DEFAULT_LOBSTER_FEATURE_MODE:
         raise ValueError("--lobster-feature-mode can only be used with the LOBSTER dataset.")
     if (
-        dataset_name != "TRIANGULAR_GRID"
+        dataset_family != "TRIANGULAR_GRID"
         and args.triangular_grid_feature_mode != DEFAULT_TRIANGULAR_GRID_FEATURE_MODE
     ):
         raise ValueError(
@@ -975,12 +1175,18 @@ def main() -> None:
     ensure_generated_output_dirs()
     template_text = load_template_config(args.config_template)
     edge_mode, edge_mode_label = resolve_pipeline_edge_mode(dataset_name, args)
-    db_name, db_name_source, auto_db_name_material = resolve_db_name(
-        args=args,
-        dataset_name=dataset_name,
-        edge_mode_label=edge_mode_label,
+    db_name, db_name_source, auto_db_name_material, script_base_name, script_produced_name = (
+        resolve_db_name(
+            args=args,
+            dataset_name=dataset_name,
+            edge_mode_label=edge_mode_label,
+        )
     )
     args.db_name = db_name
+    if script_base_name is not None:
+        print(f"Database base name passed to import script: {script_base_name}")
+        print(f"Script will append its own edge-mode/feature-mode suffix -> {script_produced_name}")
+        print(f"Wrapper then appends the FactorBase config suffix -> final name: {db_name}")
     run_dir = build_run_dir(db_name)
     run_dir.mkdir(parents=True, exist_ok=True)
     run_config_path = build_run_config_path(run_dir)
@@ -1021,7 +1227,7 @@ def main() -> None:
         print_section("RUNNING DATASET IMPORT")
         import_command = build_import_command(
             dataset_name,
-            db_name,
+            script_base_name if script_base_name is not None else db_name,
             edge_mode,
         )
         import_command = append_dataset_specific_args(
@@ -1033,6 +1239,14 @@ def main() -> None:
         )
         import_command = append_synthetic_debug_args(import_command, dataset_name, args)
         run_subprocess_step("Dataset import", import_command, SCRIPT_DIR, log_path=run_log_path)
+
+        if script_produced_name is not None and script_produced_name != db_name:
+            print_section("APPENDING FACTORBASE CONFIG SUFFIX TO DB NAME")
+            message = f"Renaming '{script_produced_name}' -> '{db_name}'"
+            print(message)
+            rename_mysql_database(script_produced_name, db_name)
+            append_log_message(run_log_path, message)
+            append_log_message(run_log_path, "")
 
     print_section("WRITING FACTORBASE CONFIG")
     write_generated_config(run_config_path, template_text, db_name)

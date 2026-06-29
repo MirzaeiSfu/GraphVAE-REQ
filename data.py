@@ -19,10 +19,12 @@ import warnings
 
 import dgl as dgl
 from dataset_feature_utils.grid_features import (
-    EDGE_ORBIT_TO_ID,
-    compute_distance_to_boundary,
-    compute_edge_orbit,
-    compute_struct_type,
+    EDGE_AXIS_TO_ID,
+    EDGE_SQUARE_COUNT_LABELS,
+    compute_boundary_depth,
+    compute_edge_axis,
+    compute_edge_boundary_band,
+    compute_edge_square_count,
     get_grid_dimensions,
 )
 import dataset_feature_utils.lobster_features as lobster_features
@@ -456,32 +458,41 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       )
 
   def _build_grid_graph_features(graph):
+      """
+      Matches factorbase_motif_pipeline/best_grid.py's "optimal" feature
+      schema: node distance_to_boundary (computed per-axis via
+      compute_boundary_depth, not the old single-grid_size formula, which
+      over-estimated boundary distance on the shorter axis of a non-square
+      grid); edge edge_axis/edge_square_count/edge_boundary_band. struct_type
+      is intentionally dropped -- it's a pure relabeling of node degree,
+      already implicit in the adjacency reconstruction + degree-histogram
+      kernel loss.
+      """
       nodes = list(graph.nodes())
       node_to_idx = {node: idx for idx, node in enumerate(nodes)}
       adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
 
       width, height = get_grid_dimensions(graph)
-      grid_size = max(width, height)
 
       node_rows = []
       for node in nodes:
-          struct_type = compute_struct_type(graph, node)
-          distance_to_boundary = compute_distance_to_boundary(node, grid_size)
+          distance_to_boundary = compute_boundary_depth(node, width, height)
           node_rows.append([
-              struct_type,
               distance_to_boundary,
           ])
 
       edge_rows = []
       for node_u, node_v in graph.edges():
-          edge_orbit = compute_edge_orbit(node_u, node_v, grid_size)
+          edge_axis = compute_edge_axis(node_u, node_v)
+          edge_square_count = compute_edge_square_count(node_u, node_v, width, height)
+          edge_boundary_band = compute_edge_boundary_band(node_u, node_v, width, height)
           src = node_to_idx[node_u]
           dst = node_to_idx[node_v]
 
           # Store both directions so edge features align with the symmetric
           # adjacency used locally, matching the existing counting pipeline.
-          edge_rows.append([src, dst, edge_orbit])
-          edge_rows.append([dst, src, edge_orbit])
+          edge_rows.append([src, dst, edge_axis, edge_square_count, edge_boundary_band])
+          edge_rows.append([dst, src, edge_axis, edge_square_count, edge_boundary_band])
 
       edge_feature = None
       if edge_rows:
@@ -494,38 +505,56 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       )
 
   def _build_triangular_grid_graph_features(graph):
+      """
+      Matches factorbase_motif_pipeline/best_triangular_grid.py's "optimal"
+      feature schema: node distance_to_boundary/num_3cycles/num_hexagons;
+      edge edge_direction/edge_hexagons/edge_triangle_count. struct_type and
+      the old num_6cycles are dropped -- verified via direct SQL on a learned
+      FactorBase BN that struct_type/num_3cycles/num_6cycles in the old
+      schema are a 100% deterministic relabeling of node degree, and the old
+      num_6cycles was a degree>=4 proxy, not a real hexagon count.
+      num_hexagons here is a REAL induced-6-cycle participation count.
+      """
       nodes = list(graph.nodes())
       node_to_idx = {node: idx for idx, node in enumerate(nodes)}
       adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
 
       bounds = triangular_grid_features.get_lattice_bounds(graph)
+      # Compute ONCE per graph -- O(graph) cycle search, then indexed per
+      # node/edge below.
+      node_hexagons_raw, edge_hexagons_raw = (
+          triangular_grid_features.compute_induced_hexagon_participation(graph)
+      )
 
       node_rows = []
       for node in nodes:
-          struct_type = triangular_grid_features.compute_struct_type(graph, node)
           distance_to_boundary = triangular_grid_features.compute_distance_to_boundary(
               node, bounds
           )
           num_3cycles = triangular_grid_features.compute_num_3cycles(graph, node)
-          num_6cycles = triangular_grid_features.compute_num_6cycles(graph, node)
+          num_hexagons = node_hexagons_raw[node] + 1
           node_rows.append([
-              struct_type,
               distance_to_boundary,
               num_3cycles,
-              num_6cycles,
+              num_hexagons,
           ])
 
       edge_rows = []
       for node_u, node_v in graph.edges():
-          edge_orbit = triangular_grid_features.compute_edge_orbit(
-              node_u, node_v, bounds
+          edge_direction = triangular_grid_features.compute_edge_direction(
+              graph, node_u, node_v
+          )
+          edge_key = tuple(sorted((node_u, node_v)))
+          edge_hexagons = edge_hexagons_raw[edge_key] + 1
+          edge_triangle_count = triangular_grid_features.compute_edge_triangle_count(
+              graph, node_u, node_v
           )
           src = node_to_idx[node_u]
           dst = node_to_idx[node_v]
 
           # Keep local edge-feature rows symmetric with the adjacency relation.
-          edge_rows.append([src, dst, edge_orbit])
-          edge_rows.append([dst, src, edge_orbit])
+          edge_rows.append([src, dst, edge_direction, edge_hexagons, edge_triangle_count])
+          edge_rows.append([dst, src, edge_direction, edge_hexagons, edge_triangle_count])
 
       edge_feature = None
       if edge_rows:
@@ -538,17 +567,29 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       )
 
   def _build_lobster_graph_features(graph):
+      """
+      Matches factorbase_motif_pipeline/best_lobster.py's "optimal" feature
+      schema: node node_degree/spine_role/subtree_size/eccentricity; edge
+      edge_type/depth_pair/terminal_edge. spine_role replaces the old
+      distance_to_spine -- that scheme's "Far-Spine" bucket is empirically
+      EMPTY at this dataset's p1=p2=0.7 generation scale (a dead category),
+      and the freed slot is used to distinguish the two structurally-special
+      spine endpoints instead. subtree_size/eccentricity are merged to 3
+      buckets each (their old 4th bucket was a persistently thin tail).
+      depth_pair/terminal_edge are new relational edge features replacing
+      the old single edge_type-only scheme.
+      """
       nodes = list(graph.nodes())
       node_to_idx = {node: idx for idx, node in enumerate(nodes)}
       adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
 
       spine_path = lobster_features.find_spine_path(graph)
       spine_nodes = set(spine_path)
-      distance_to_spine = lobster_features.compute_distance_to_spine_labels(
+      distance_to_spine = lobster_features.compute_distance_to_spine_raw(
           graph,
           spine_path,
       )
-      subtree_sizes = lobster_features.compute_branch_component_sizes(
+      subtree_sizes = lobster_features.compute_branch_component_sizes_v2(
           graph,
           spine_path,
       )
@@ -556,12 +597,14 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       node_rows = []
       for node in nodes:
           node_degree = lobster_features.compute_node_degree(graph, node)
-          spine_distance = distance_to_spine[node]
-          subtree_size = subtree_sizes[node]
-          eccentricity = lobster_features.compute_eccentricity(graph, node)
+          spine_role = lobster_features.compute_spine_role(
+              node, spine_path, spine_nodes, distance_to_spine
+          )
+          subtree_size = subtree_sizes.get(node, 1)
+          eccentricity = lobster_features.compute_eccentricity_v2(graph, node)
           node_rows.append([
               node_degree,
-              spine_distance,
+              spine_role,
               subtree_size,
               eccentricity,
           ])
@@ -573,12 +616,18 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
               target_node,
               spine_nodes,
           )
+          depth_pair = lobster_features.compute_depth_pair(
+              source_node, target_node, distance_to_spine
+          )
+          terminal_edge = lobster_features.compute_terminal_edge(
+              graph, source_node, target_node
+          )
           src = node_to_idx[source_node]
           dst = node_to_idx[target_node]
 
           # Keep local edge-feature rows symmetric with the adjacency relation.
-          edge_rows.append([src, dst, edge_type])
-          edge_rows.append([dst, src, edge_type])
+          edge_rows.append([src, dst, edge_type, depth_pair, terminal_edge])
+          edge_rows.append([dst, src, edge_type, depth_pair, terminal_edge])
 
       edge_feature = None
       if edge_rows:
@@ -790,14 +839,21 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       #       list_x.append(None)
 #==================================end kirash code
       node_feature_info = {
-          0: {'feature_name': 'struct_type'},
-          1: {'feature_name': 'distance_to_boundary'},
+          0: {'feature_name': 'distance_to_boundary'},
       }
       edge_feature_info = {
           0: {
-              'feature_name': 'edge_orbit',
-              'unique_values': sorted(EDGE_ORBIT_TO_ID.values()),
-          }
+              'feature_name': 'edge_axis',
+              'unique_values': sorted(EDGE_AXIS_TO_ID.values()),
+          },
+          1: {
+              'feature_name': 'edge_square_count',
+              'unique_values': sorted(EDGE_SQUARE_COUNT_LABELS.keys()),
+          },
+          2: {
+              'feature_name': 'edge_boundary_band',
+              'unique_values': [1, 2, 3, 4, 5],
+          },
       }
 
       for i in range(10, 20):
@@ -819,16 +875,23 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       # # np.save('triangular_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
 #==================================end kirash code
       node_feature_info = {
-          0: {'feature_name': 'struct_type'},
-          1: {'feature_name': 'distance_to_boundary'},
-          2: {'feature_name': 'num_3cycles'},
-          3: {'feature_name': 'num_6cycles'},
+          0: {'feature_name': 'distance_to_boundary'},
+          1: {'feature_name': 'num_3cycles'},
+          2: {'feature_name': 'num_hexagons'},
       }
       edge_feature_info = {
           0: {
-              'feature_name': 'edge_orbit',
-              'unique_values': sorted(triangular_grid_features.EDGE_ORBIT_TO_ID.values()),
-          }
+              'feature_name': 'edge_direction',
+              'unique_values': sorted(triangular_grid_features.EDGE_DIRECTION_TO_ID.values()),
+          },
+          1: {
+              'feature_name': 'edge_hexagons',
+              'unique_values': [1, 2, 3],
+          },
+          2: {
+              'feature_name': 'edge_triangle_count',
+              'unique_values': [0, 1, 2],
+          },
       }
 
       for i in range(10, 20):
@@ -996,7 +1059,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 #==================================end kirash code
       node_feature_info = {
           0: {'feature_name': 'node_degree'},
-          1: {'feature_name': 'distance_to_spine'},
+          1: {'feature_name': 'spine_role'},
           2: {'feature_name': 'subtree_size'},
           3: {'feature_name': 'eccentricity'},
       }
@@ -1004,7 +1067,15 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           0: {
               'feature_name': 'edge_type',
               'unique_values': sorted(lobster_features.EDGE_TYPE_TO_ID.values()),
-          }
+          },
+          1: {
+              'feature_name': 'depth_pair',
+              'unique_values': sorted(lobster_features.DEPTH_PAIR_LABELS.keys()),
+          },
+          2: {
+              'feature_name': 'terminal_edge',
+              'unique_values': sorted(lobster_features.TERMINAL_EDGE_LABELS.keys()),
+          },
       }
 
       graphs = []
