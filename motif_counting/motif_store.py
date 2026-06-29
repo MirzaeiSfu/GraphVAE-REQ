@@ -35,12 +35,10 @@ def syntactic_literal_rule_mode(args=None) -> str:
 
 
 def get_motif_pickle_path(database_name: str, args=None) -> Path:
-    marker = {
-        "original": "originalRules",
-        "literals": "literalRules",
-        "both": "allRules",
-    }[syntactic_literal_rule_mode(args)]
-    return get_motif_cache_dir(args) / f"{database_name}_{marker}.pkl"
+    # Cache files are intentionally flag-neutral. Runtime flags such as
+    # --rule_prune and --syntactic_literal_rule_mode are applied only by
+    # RelationalMotifCounter after loading this complete rule/value superset.
+    return get_motif_cache_dir(args) / f"{database_name}.pkl"
 
 
 class RuleBasedMotifStore:
@@ -70,8 +68,11 @@ class RuleBasedMotifStore:
         self.host = host
         self.user = user
         self.password = password
-        self.syntactic_literal_rule_mode = syntactic_literal_rule_mode(args)
-        self.use_syntactic_literal_rules = self.syntactic_literal_rule_mode != "original"
+        # Cache creation is deliberately independent of runtime rule-selection
+        # flags. Always collect literal metadata and build the full rule
+        # superset; the counter filters it after loading.
+        self.syntactic_literal_rule_mode = "both"
+        self.use_syntactic_literal_rules = True
 
         # Initialize data structures
         self._initialize_structures()
@@ -96,6 +97,7 @@ class RuleBasedMotifStore:
         self.multiples: List = []
         self.states: List = []
         self.values: List = []          # points at full or pruned depending on context
+        self.rule_sources: List[str] = []
 
         # Both value sets stored in pickle so rule_prune can be toggled without
         # deleting the cache.
@@ -170,6 +172,7 @@ class RuleBasedMotifStore:
             # Both value sets — motif_counter selects at load time based on --rule_prune
             "values_full":   self.values_full,
             "values_pruned": self.values_pruned,
+            "rule_sources": self.rule_sources,
             "functors": self.functors,
             "variables": self.variables,
             "nodes": self.nodes,
@@ -185,6 +188,8 @@ class RuleBasedMotifStore:
             "feature_info_mapping": self.feature_info_mapping,
             "num_nodes_graph": self.num_nodes_graph,
             "total_relation_occurrences": self.total_relation_occurrences,
+            "cache_is_flag_neutral": True,
+            "cache_schema_version": 2,
             "use_syntactic_literal_rules": self.use_syntactic_literal_rules,
             "syntactic_literal_rule_mode": self.syntactic_literal_rule_mode,
         }
@@ -421,13 +426,10 @@ class RuleBasedMotifStore:
 
             cursor_bn.execute(f"SELECT * FROM `{childs[i][0]}_CP`")
             value = cursor_bn.fetchall()
-            self._add_processed_rule(rule, value, relation_names)
+            self._add_processed_rule(rule, value, relation_names, rule_source="factorbase")
 
-        if self.use_syntactic_literal_rules:
-            self._ensure_entity_unary_literal_rules(relation_names)
-            self._ensure_relation_literal_rules(relation_names)
-
-        self._filter_rules_for_mode(relation_names)
+        self._ensure_entity_unary_literal_rules(relation_names)
+        self._ensure_relation_literal_rules(relation_names)
 
         self._adjust_matrices()
 
@@ -542,6 +544,7 @@ class RuleBasedMotifStore:
             "values",
             "values_full",
             "values_pruned",
+            "rule_sources",
             "base_indices",
             "mask_indices",
             "sort_indices",
@@ -561,10 +564,18 @@ class RuleBasedMotifStore:
                 {new_idx: old_values[old_idx] for new_idx, old_idx in enumerate(keep_indices)}
             )
 
-    def _add_processed_rule(self, rule, value_rows, relation_names, keep_all_values=False):
+    def _add_processed_rule(
+        self,
+        rule,
+        value_rows,
+        relation_names,
+        keep_all_values=False,
+        rule_source="factorbase",
+    ):
         """Add one rule and populate all aligned rule metadata structures."""
         rule_idx = len(self.rules)
         self.rules.append(rule)
+        self.rule_sources.append(rule_source)
         self.multiples.append(1 if len(rule) > 1 else 0)
 
         relation_check = any(',' in atom for atom in rule)
@@ -681,6 +692,7 @@ class RuleBasedMotifStore:
                     synthetic_value_rows,
                     relation_names,
                     keep_all_values=True,
+                    rule_source="synthetic_literal",
                 )
                 unary_functors.add(feature_name)
 
@@ -708,6 +720,7 @@ class RuleBasedMotifStore:
                         synthetic_value_rows,
                         relation_names,
                         keep_all_values=True,
+                        rule_source="synthetic_literal",
                     )
                     existing_rules.add(feature_rule)
 
@@ -721,6 +734,7 @@ class RuleBasedMotifStore:
                     synthetic_value_rows,
                     relation_names,
                     keep_all_values=True,
+                    rule_source="synthetic_literal",
                 )
                 existing_rules.add(standalone_rule)
 

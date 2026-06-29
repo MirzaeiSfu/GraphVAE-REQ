@@ -31,12 +31,9 @@ def syntactic_literal_rule_mode(args=None) -> str:
 
 
 def get_motif_pickle_path(database_name: str, args=None) -> Path:
-    marker = {
-        "original": "originalRules",
-        "literals": "literalRules",
-        "both": "allRules",
-    }[syntactic_literal_rule_mode(args)]
-    return get_motif_cache_dir(args) / f"{database_name}_{marker}.pkl"
+    # Cache files are flag-neutral: the pickle stores the complete rule/value
+    # superset, and runtime flags filter that data after loading.
+    return get_motif_cache_dir(args) / f"{database_name}.pkl"
 
 
 class RelationalMotifCounter:
@@ -121,12 +118,17 @@ class RelationalMotifCounter:
         self.relation_entity_tables   = data.get("relation_entity_tables", {})
         self.relation_literal_values  = data.get("relation_literal_values", {})
         self.relation_occurrence_counts = data.get("relation_occurrence_counts", {})
+        self.rule_sources          = data.get("rule_sources")
+        if self.rule_sources is None:
+            self.rule_sources = self._infer_rule_sources_for_legacy_pickle(data)
+        if len(self.rule_sources) != len(self.rules):
+            raise RuntimeError(
+                "Motif cache rule_sources length does not match rules length. "
+                "Delete the motif pickle and regenerate the cache."
+            )
         self.feature_info_mapping  = data.get("feature_info_mapping", {})
         self.num_nodes_graph       = data.get("num_nodes_graph", 0)
-        self.syntactic_literal_rule_mode = data.get(
-            "syntactic_literal_rule_mode",
-            syntactic_literal_rule_mode(self.args),
-        )
+        self.syntactic_literal_rule_mode = syntactic_literal_rule_mode(self.args)
         self.use_syntactic_literal_rules = self.syntactic_literal_rule_mode != "original"
         loaded_total_relation_occurrences = data.get("total_relation_occurrences", {})
         if isinstance(loaded_total_relation_occurrences, dict):
@@ -164,6 +166,7 @@ class RelationalMotifCounter:
             print(f"  Warning: old-format pickle — delete {pickle_path} "
                   f"to regenerate with both value sets cached.")
 
+        self._filter_rules_for_runtime_mode()
         self._build_syntactic_literal_masks()
 
         self.device = getattr(self.args, 'device', 'cuda')
@@ -638,6 +641,21 @@ class RelationalMotifCounter:
         arguments = rest[:-1].split(",")
         return functor, arguments
 
+    def _infer_rule_sources_for_legacy_pickle(self, data: Dict) -> List[str]:
+        """
+        Old pickles did not mark which rules were injected by the cache builder.
+        Treat all rules as FactorBase-derived unless the pickle explicitly says
+        it was built in a literal-only mode, in which case the only defensible
+        fallback is to treat syntactic-shaped rules as synthetic literals.
+        """
+        stored_mode = data.get("syntactic_literal_rule_mode")
+        if stored_mode == "literals":
+            return [
+                "synthetic_literal" if self._is_syntactic_literal_rule(rule) else "factorbase"
+                for rule in self.rules
+            ]
+        return ["factorbase"] * len(self.rules)
+
     def _is_entity_syntactic_literal_rule(self, rule: List[str]) -> bool:
         if len(rule) != 1:
             return False
@@ -692,6 +710,57 @@ class RelationalMotifCounter:
             self._is_entity_syntactic_literal_rule(rule)
             or self._is_relation_syntactic_literal_rule(rule)
         )
+
+    def _filter_rules_for_runtime_mode(self) -> None:
+        mode = self.syntactic_literal_rule_mode
+        if mode == "both":
+            print(f"  syntactic_literal_rule_mode=both: using all {len(self.rules)} rules")
+            return
+
+        if mode == "original":
+            keep_indices = [
+                rule_idx for rule_idx, source in enumerate(self.rule_sources)
+                if source != "synthetic_literal"
+            ]
+        elif mode == "literals":
+            keep_indices = [
+                rule_idx for rule_idx, rule in enumerate(self.rules)
+                if self._is_syntactic_literal_rule(rule)
+            ]
+        else:
+            raise ValueError(f"Unknown syntactic_literal_rule_mode: {mode}")
+
+        print(
+            f"  syntactic_literal_rule_mode={mode}: "
+            f"{len(keep_indices)} / {len(self.rules)} rules kept after loading cache"
+        )
+        self._keep_rule_indices(keep_indices)
+
+    def _keep_rule_indices(self, keep_indices: List[int]) -> None:
+        list_attrs = (
+            "rules",
+            "multiples",
+            "states",
+            "values",
+            "rule_sources",
+            "base_indices",
+            "mask_indices",
+            "sort_indices",
+            "stack_indices",
+        )
+        dict_attrs = ("functors", "variables", "nodes", "masks")
+
+        for attr in list_attrs:
+            old_values = getattr(self, attr)
+            setattr(self, attr, [old_values[old_idx] for old_idx in keep_indices])
+
+        for attr in dict_attrs:
+            old_values = getattr(self, attr)
+            setattr(
+                self,
+                attr,
+                {new_idx: old_values[old_idx] for new_idx, old_idx in enumerate(keep_indices)}
+            )
 
     def _build_syntactic_literal_masks(self):
         rule_mask: List[bool] = []
