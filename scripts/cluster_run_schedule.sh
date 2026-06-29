@@ -175,6 +175,7 @@ fi
 
 launched=0
 failures=0
+SSH_OPTS=(-o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" -o StrictHostKeyChecking=accept-new)
 
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   line="${raw_line%%#*}"
@@ -291,7 +292,7 @@ EOF
   echo "[run] python: $job_python_bin"
   echo "[run] output: $run_dir"
 
-  ssh_cmd=(ssh -n -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_script")")
+  ssh_cmd=(ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_script")")
   if run_cmd "${ssh_cmd[@]}"; then
     launched=$((launched + 1))
     echo "[logs] ssh $host -t $(quote_one "tail -f $run_dir/stdout.log")"

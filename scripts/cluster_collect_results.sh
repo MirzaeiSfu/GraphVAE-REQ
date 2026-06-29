@@ -93,6 +93,7 @@ if [[ ! -f "$REPO_PATHS_FILE" ]]; then
 fi
 
 failures=0
+RSYNC_SSH_CMD="ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT -o StrictHostKeyChecking=accept-new"
 
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   line="${raw_line%%#*}"
@@ -114,7 +115,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     mkdir -p "$local_dest"
   fi
 
-  if ! run_cmd rsync -az -e "ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$remote_source" "$local_dest/"; then
+  if ! run_cmd rsync -az -e "$RSYNC_SSH_CMD" "$remote_source" "$local_dest/"; then
     echo "[collect] failed on $host; continuing" >&2
     failures=$((failures + 1))
   fi

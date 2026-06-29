@@ -167,6 +167,10 @@ Notes:
   Dry-run prints dirty-worktree warnings, but real distribute exits with an
   error until the controller changes are committed, stashed, or removed.
 
+  SSH uses StrictHostKeyChecking=accept-new, so a first-time short hostname
+  alias such as cs-cl-16 can be added automatically while changed known host
+  keys are still rejected.
+
 
 3. Launch scheduled training
 ----------------------------

@@ -160,6 +160,8 @@ if [[ "$SYNC_INPUTS" == true ]]; then
 fi
 
 failures=0
+SSH_OPTS=(-o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" -o StrictHostKeyChecking=accept-new)
+RSYNC_SSH_CMD="ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT -o StrictHostKeyChecking=accept-new"
 CODE_RSYNC_EXCLUDES=(
   --exclude .git/
   --exclude __pycache__/
@@ -197,7 +199,7 @@ mkdir -p $repo_q
 EOF
 )
 
-  ssh_cmd=(ssh -n -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_script")")
+  ssh_cmd=(ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_script")")
   if ! run_cmd "${ssh_cmd[@]}"; then
     echo "[code] failed to create repo directory on $host; continuing" >&2
     failures=$((failures + 1))
@@ -205,7 +207,7 @@ EOF
   fi
 
   code_rsync_args=(-az --delete "${CODE_RSYNC_EXCLUDES[@]}")
-  if ! run_cmd rsync "${code_rsync_args[@]}" -e "ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$CODE_SOURCE_DIR_ABS/" "$host:$repo_path/"; then
+  if ! run_cmd rsync "${code_rsync_args[@]}" -e "$RSYNC_SSH_CMD" "$CODE_SOURCE_DIR_ABS/" "$host:$repo_path/"; then
     echo "[code] failed on $host; continuing" >&2
     failures=$((failures + 1))
     continue
@@ -228,7 +230,7 @@ mkdir -p $remote_cache_q
 EOF
 )
         echo "[sync] clear remote cache: $host:$remote_cache_path"
-        clean_cmd=(ssh -n -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_clean_script")")
+        clean_cmd=(ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_clean_script")")
         if ! run_cmd "${clean_cmd[@]}"; then
           echo "[sync] failed to clear remote cache on $host; continuing" >&2
           failures=$((failures + 1))
@@ -237,7 +239,7 @@ EOF
       fi
 
       echo "[sync] $sync_path -> $host:$repo_path/"
-      if ! run_cmd rsync "${rsync_args[@]}" -e "ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$sync_path" "$host:$repo_path/"; then
+      if ! run_cmd rsync "${rsync_args[@]}" -e "$RSYNC_SSH_CMD" "$sync_path" "$host:$repo_path/"; then
         echo "[sync] failed on $host for $sync_path; continuing" >&2
         failures=$((failures + 1))
       fi
