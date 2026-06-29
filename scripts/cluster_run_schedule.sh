@@ -295,7 +295,8 @@ EOF
   ssh_cmd=(ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_script")")
   if run_cmd "${ssh_cmd[@]}"; then
     launched=$((launched + 1))
-    echo "[logs] ssh $host -t $(quote_one "tail -f $run_dir/stdout.log")"
+    remote_log_path="${repo_path%/}/$run_dir/stdout.log"
+    echo "[logs] ssh $host -t $(quote_one "tail -f $remote_log_path")"
   else
     status=$?
     failures=$((failures + 1))
