@@ -299,6 +299,11 @@ MMD_RESULT_LABELS = {
     "spectral": "Spec",
     "diameter": "diameter",
 }
+THIRD_PARTY_EVAL_GENERATED_FILENAME = "Single_comp_generatedGraphs_adj_final_eval.npy"
+THIRD_PARTY_EVAL_REFERENCE_FILENAME = "testGraphs_adj_.npy"
+THIRD_PARTY_EVAL_JSON_FILENAME = "graph_realism_random_gin.json"
+THIRD_PARTY_EVAL_SUMMARY_FILENAME = "graph_realism_batch_summary.csv"
+THIRD_PARTY_EVAL_LOG_FILENAME = "third_party_eval.log"
 
 
 def parse_table2_mmd_result(mmd_result):
@@ -466,6 +471,109 @@ def write_run_reproducibility_files(run_dir, args, run_label):
         "to recover the exact config and git state recorded when the run started.",
     ]
     (run_dir / "REPRODUCE.md").write_text("\n".join(reproduce_lines) + "\n", encoding="utf-8")
+
+
+def resolve_third_party_eval_device(device_arg, training_device):
+    if device_arg != "same":
+        return device_arg
+    return "cuda" if str(training_device).startswith("cuda") else "cpu"
+
+
+def build_third_party_eval_env(device_arg, training_device):
+    env = os.environ.copy()
+    device_text = str(training_device)
+    if device_arg == "same" and "CUDA_VISIBLE_DEVICES" not in env:
+        match = re.fullmatch(r"cuda:(\d+)", device_text)
+        if match:
+            env["CUDA_VISIBLE_DEVICES"] = match.group(1)
+    return env
+
+
+def run_third_party_graph_realism_eval(run_dir, args, training_device):
+    run_dir = Path(run_dir)
+    generated_path = run_dir / THIRD_PARTY_EVAL_GENERATED_FILENAME
+    reference_path = run_dir / THIRD_PARTY_EVAL_REFERENCE_FILENAME
+    if not generated_path.is_file() or not reference_path.is_file():
+        missing = [
+            str(path)
+            for path in (generated_path, reference_path)
+            if not path.is_file()
+        ]
+        raise FileNotFoundError(
+            "Third-party graph realism evaluation requires generated and "
+            f"reference graph files. Missing: {missing}"
+        )
+
+    repo_root = Path(__file__).resolve().parent
+    evaluator_script = repo_root / "scripts" / "evaluate_graph_realism_batch.py"
+    eval_device = resolve_third_party_eval_device(
+        args.third_party_eval_device,
+        training_device,
+    )
+    summary_csv_path = run_dir / THIRD_PARTY_EVAL_SUMMARY_FILENAME
+    log_path = run_dir / THIRD_PARTY_EVAL_LOG_FILENAME
+    command = [
+        sys.executable,
+        str(evaluator_script),
+        "--run-dir",
+        str(run_dir),
+        "--generated-filename",
+        THIRD_PARTY_EVAL_GENERATED_FILENAME,
+        "--reference-filename",
+        THIRD_PARTY_EVAL_REFERENCE_FILENAME,
+        "--json-filename",
+        args.third_party_eval_json_filename,
+        "--summary-csv",
+        str(summary_csv_path),
+        "--repeats",
+        str(args.third_party_eval_repeats),
+        "--max-graphs",
+        str(args.third_party_eval_max_graphs),
+        "--seed",
+        str(args.third_party_eval_seed),
+        "--device",
+        eval_device,
+    ]
+    if not args.third_party_eval_structural_features:
+        command.append("--no-structural-features")
+
+    message = "Running third-party graph realism evaluation: " + " ".join(command)
+    print(message)
+    logging.info(message)
+
+    result = subprocess.run(
+        command,
+        cwd=str(repo_root),
+        env=build_third_party_eval_env(args.third_party_eval_device, training_device),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    log_path.write_text(result.stdout or "", encoding="utf-8")
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+        logging.info(result.stdout)
+
+    if result.returncode != 0:
+        failure_message = (
+            "Third-party graph realism evaluation failed with exit code "
+            f"{result.returncode}. See {log_path}"
+        )
+        if args.third_party_eval_strict:
+            raise RuntimeError(failure_message)
+        print("Warning: " + failure_message)
+        logging.warning(failure_message)
+        return None
+
+    success_message = (
+        "Third-party graph realism evaluation completed. "
+        f"JSON={run_dir / args.third_party_eval_json_filename}, "
+        f"summary_csv={summary_csv_path}, log={log_path}"
+    )
+    print(success_message)
+    logging.info(success_message)
+    return run_dir / args.third_party_eval_json_filename
 
 
 parser = argparse.ArgumentParser(description='Kernel VGAE')
@@ -890,6 +998,53 @@ parser.add_argument(
     type=str2bool,
     help='Save a model state_dict at each validation step for post-training resampling.'
 )
+parser.add_argument(
+    '--third_party_eval',
+    default=True,
+    type=str2bool,
+    help='Run vendored Random-GIN third-party evaluation after final graph generation.'
+)
+parser.add_argument(
+    '--third_party_eval_repeats',
+    type=int,
+    default=10,
+    help='Number of Random-GIN evaluator repeats for automatic third-party evaluation.'
+)
+parser.add_argument(
+    '--third_party_eval_max_graphs',
+    type=int,
+    default=1000,
+    help='Maximum generated/reference graphs used by automatic third-party evaluation.'
+)
+parser.add_argument(
+    '--third_party_eval_seed',
+    type=int,
+    default=0,
+    help='Random seed used by automatic third-party evaluation.'
+)
+parser.add_argument(
+    '--third_party_eval_device',
+    choices=['same', 'auto', 'cpu', 'cuda'],
+    default='same',
+    help='Device for automatic third-party evaluation. same maps the training device to cpu/cuda.'
+)
+parser.add_argument(
+    '--third_party_eval_structural_features',
+    default=True,
+    type=str2bool,
+    help='Use Kia-style structural node features in automatic third-party evaluation.'
+)
+parser.add_argument(
+    '--third_party_eval_json_filename',
+    default=THIRD_PARTY_EVAL_JSON_FILENAME,
+    help='Per-run JSON filename written by automatic third-party evaluation.'
+)
+parser.add_argument(
+    '--third_party_eval_strict',
+    default=True,
+    type=str2bool,
+    help='Fail the run if automatic third-party evaluation fails.'
+)
 parser.set_defaults(tiny_overfit=False)
 parser.add_argument(
     '--tiny_overfit',
@@ -1031,6 +1186,7 @@ ideal_Evalaution = args.ideal_Evalaution
 keep_best_validation_mmd = args.keep_best_validation_mmd
 best_validation_mmd_metric = args.best_validation_mmd_metric
 save_validation_checkpoints = args.save_validation_checkpoints
+third_party_eval = args.third_party_eval
 interactive = args.interactive
 sanity_check = args.sanity_check
 sanity_check_only = args.sanity_check_only
@@ -2634,6 +2790,8 @@ if task == "graphGeneration":
         print(best_eval_message)
         logging.info(best_eval_message)
     EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_name="final_eval")
+    if third_party_eval:
+        run_third_party_graph_realism_eval(graph_save_dir, args, device)
 # endregion
 #==========================================================================================
 

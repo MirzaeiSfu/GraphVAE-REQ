@@ -77,6 +77,14 @@ runtime:
   keep_best_validation_mmd: false
   best_validation_mmd_metric: normalized_table2
   save_validation_checkpoints: false
+  third_party_eval: true
+  third_party_eval_repeats: 10
+  third_party_eval_max_graphs: 1000
+  third_party_eval_seed: 0
+  third_party_eval_device: same
+  third_party_eval_structural_features: true
+  third_party_eval_json_filename: graph_realism_random_gin.json
+  third_party_eval_strict: true
   tiny_overfit: false
   tiny_overfit_size: 32
   interactive: false
