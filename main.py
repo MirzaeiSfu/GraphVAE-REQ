@@ -33,7 +33,7 @@ import time
 import timeit
 import dgl
 from util import *
-from motif_counting.motif_store import RuleBasedMotifStore
+from motif_counting.motif_store import RuleBasedMotifStore, get_motif_pickle_path
 from motif_counting.motif_counter import RelationalMotifCounter
 from motif_counting.motif_loss_utils import (
     compute_hard_motif_metrics,
@@ -680,6 +680,15 @@ parser.add_argument(
     default=50000,
     help='motif-counting batch size. Only used for multi-graph datasets (QM9). Tune to your VRAM: 8 GB -> 2000 | 16 GB -> 5000 | 24 GB+ -> 30000.'
 )
+parser.add_argument(
+    '--prepare_motif_cache_only',
+    type=str2bool,
+    default=False,
+    help=(
+        'Initialize/cache motif rules from the configured FactorBase/MySQL '
+        'database and exit before dataset loading, model creation, or training.'
+    )
+)
 
 #===============================
 # Loss arguments
@@ -929,6 +938,7 @@ motif_temperature_anneal_start_frac = min(
 )
 rule_prune = args.rule_prune
 motif_batch_size = args.motif_batch_size
+prepare_motif_cache_only = args.prepare_motif_cache_only
 syntactic_literal_rule_mode = (
     args.syntactic_literal_rule_mode
     if args.use_syntactic_literal_rules
@@ -983,6 +993,16 @@ if dataset_cache_dir is not None:
     os.environ["DATASET_CACHE_DIR"] = str(Path(dataset_cache_dir).expanduser())
 if motif_cache_dir is not None:
     os.environ["MOTIF_CACHE_DIR"] = str(Path(motif_cache_dir).expanduser())
+
+if prepare_motif_cache_only:
+    motif_pickle_path = get_motif_pickle_path(database_name, args)
+    print("[PrepareMotifCache] Preparing motif cache only.")
+    print(f"[PrepareMotifCache] database_name={database_name}")
+    print(f"[PrepareMotifCache] syntactic_literal_rule_mode={syntactic_literal_rule_mode}")
+    print(f"[PrepareMotifCache] motif_cache_path={motif_pickle_path}")
+    RuleBasedMotifStore(database_name=database_name, args=args)
+    print(f"[PrepareMotifCache] Done: {motif_pickle_path}")
+    sys.exit(0)
 
 
 #====================================================================================

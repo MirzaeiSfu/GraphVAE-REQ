@@ -76,6 +76,20 @@ regenerating graphs.
 
 ## Motif Variant
 
+Before distributing motif-loss training jobs to GPU workers, prepare the motif
+rule cache once on the machine that has the FactorBase/MySQL databases:
+
+```bash
+python main.py \
+  --config configs/reproduce_table2/grid_table2_graphvae_motif.yaml \
+  --prepare_motif_cache_only true
+```
+
+This initializes `cache_motifs/<database_name>_allRules.pkl` from the configured
+FactorBase database and exits before dataset loading, model creation, or
+training. Afterward, copy `cache_motifs/*.pkl` to the worker machines. Workers
+do not need MySQL for training as long as the required motif pickle exists.
+
 To train the same Grid / GraphVAE Table 2 setup with motif-count loss added:
 
 ```bash
