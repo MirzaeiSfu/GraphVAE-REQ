@@ -6,6 +6,7 @@ import networkx as nx
 import os
 import pickle as pkl
 import subprocess
+import tempfile
 import time
 import sys
 import mmd_rnn as mmd
@@ -164,27 +165,35 @@ def edge_list_reindexed(G):
 
 
 def orca(graph):
-    tmp_fname = 'eval/orca/tmp.txt'
-    f = open(tmp_fname, 'w')
-    f.write(str(graph.number_of_nodes()) + ' ' + str(graph.number_of_edges()) + '\n')
-    for (u, v) in edge_list_reindexed(graph):
-        f.write(str(u) + ' ' + str(v) + '\n')
-    f.close()
+    graph = nx.convert_node_labels_to_integers(nx.Graph(graph))
+    graph.remove_edges_from(nx.selfloop_edges(graph))
 
-    output = subprocess.check_output(['./eval/orca/orca', 'node', '4', 'eval/orca/tmp.txt', 'std'])
-    output = output.decode('utf8').strip()
-
-    idx = output.find(COUNT_START_STR) + len(COUNT_START_STR)
-    output = output[idx:]
-    node_orbit_counts = np.array([list(map(int, node_cnts.strip().split(' ')))
-                                  for node_cnts in output.strip('\n').split('\n')])
-
+    fd, tmp_fname = tempfile.mkstemp(
+        prefix=f"orca_{os.getpid()}_",
+        suffix=".txt",
+        dir="eval/orca",
+        text=True,
+    )
     try:
-        os.remove(tmp_fname)
-    except OSError:
-        pass
+        with os.fdopen(fd, 'w') as f:
+            f.write(str(graph.number_of_nodes()) + ' ' + str(graph.number_of_edges()) + '\n')
+            for (u, v) in edge_list_reindexed(graph):
+                f.write(str(u) + ' ' + str(v) + '\n')
 
-    return node_orbit_counts
+        output = subprocess.check_output(['./eval/orca/orca', 'node', '4', tmp_fname, 'std'])
+        output = output.decode('utf8').strip()
+
+        idx = output.find(COUNT_START_STR) + len(COUNT_START_STR)
+        output = output[idx:]
+        node_orbit_counts = np.array([list(map(int, node_cnts.strip().split(' ')))
+                                      for node_cnts in output.strip('\n').split('\n')])
+
+        return node_orbit_counts
+    finally:
+        try:
+            os.remove(tmp_fname)
+        except OSError:
+            pass
 
 
 def motif_stats(graph_ref_list, graph_pred_list, motif_type='4cycle', ground_truth_match=None, bins=100):
