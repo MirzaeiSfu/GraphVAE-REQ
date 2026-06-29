@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_PATHS="${REPO_PATHS:-CLUSTER_REPO_PATHS.txt}"
+SCHEDULE="${SCHEDULE:-CLUSTER_GPU_CONFIGS_MOTIF_SAMPLE.txt}"
+MICRO_PYTHON_PATHS="${MICRO_PYTHON_PATHS:-CLUSTER_MICRO_PYTHON_PATHS.txt}"
+DATE_PREFIX="${DATE_PREFIX:-$(date +%Y%m%d)}"
+RUN_ROOT="${RUN_ROOT:-runs/cluster_smoke_grid_motif}"
+COLLECT_ROOT="${COLLECT_ROOT:-collected_runs}"
+PYTHON_BIN="${PYTHON_BIN:-}"
+MODE="${1:-dry-run}"
+
+SCRIPT_FILES=(
+  scripts/cluster_prepare_motif_caches.sh
+  scripts/cluster_distribute_code.sh
+  scripts/cluster_run_schedule.sh
+  scripts/cluster_collect_results.sh
+)
+
+usage() {
+  cat <<EOF
+GRID two-epoch cluster smoke-test pipeline.
+
+This active pipeline assumes at least one scheduled job has motif_loss: true.
+Run prepare before distribute so cache_motifs/*.pkl exists.
+
+Usage:
+  ./cluster_pipeline dry-run
+  ./cluster_pipeline prepare
+  ./cluster_pipeline distribute
+  ./cluster_pipeline run
+  ./cluster_pipeline collect
+  ./cluster_pipeline status
+
+Environment overrides:
+  REPO_PATHS=$REPO_PATHS
+  SCHEDULE=$SCHEDULE
+  MICRO_PYTHON_PATHS=$MICRO_PYTHON_PATHS
+  DATE_PREFIX=$DATE_PREFIX
+  RUN_ROOT=$RUN_ROOT
+  COLLECT_ROOT=$COLLECT_ROOT
+  PYTHON_BIN=${PYTHON_BIN:-auto from MICRO_PYTHON_PATHS, fallback python}
+EOF
+}
+
+python_for_host() {
+  local target_host="$1"
+  local host python_path extra line raw_line
+
+  if [[ -f "$MICRO_PYTHON_PATHS" ]]; then
+    while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+      line="${raw_line%%#*}"
+      [[ -z "${line//[[:space:]]/}" ]] && continue
+
+      read -r host python_path extra <<<"$line"
+      if [[ "$host" == "$target_host" && -n "${python_path:-}" && "$python_path" != "NOT_FOUND" ]]; then
+        printf '%s\n' "$python_path"
+        return 0
+      fi
+    done < "$MICRO_PYTHON_PATHS"
+  fi
+
+  printf '%s\n' "${PYTHON_BIN:-python}"
+}
+
+controller_python_bin() {
+  if [[ -n "$PYTHON_BIN" ]]; then
+    printf '%s\n' "$PYTHON_BIN"
+    return 0
+  fi
+
+  python_for_host "$(hostname -s)"
+}
+
+run_local_checks() {
+  bash -n "${SCRIPT_FILES[@]}"
+  "$(controller_python_bin)" -m py_compile main.py
+}
+
+prepare_motif_cache() {
+  local dry_run="${1:-false}"
+  local cmd=(
+    scripts/cluster_prepare_motif_caches.sh
+    --schedule "$SCHEDULE"
+    --python-bin "$(controller_python_bin)"
+  )
+
+  if [[ "$dry_run" == true ]]; then
+    cmd+=(--dry-run)
+  fi
+
+  "${cmd[@]}"
+}
+
+distribute_code_only() {
+  local dry_run="${1:-false}"
+  local cmd=(scripts/cluster_distribute_code.sh --repo-paths "$REPO_PATHS")
+
+  if [[ "$dry_run" == true ]]; then
+    cmd+=(--dry-run)
+  fi
+
+  "${cmd[@]}"
+}
+
+distribute_data_and_motifs() {
+  local dry_run="${1:-false}"
+  local cmd=(
+    scripts/cluster_distribute_code.sh
+    --repo-paths "$REPO_PATHS"
+    --sync-inputs
+  )
+
+  if [[ "$dry_run" == true ]]; then
+    cmd+=(--dry-run)
+  fi
+
+  "${cmd[@]}"
+}
+
+motif_pickles_exist() {
+  find cache_motifs -maxdepth 1 -type f -name '*.pkl' -print -quit 2>/dev/null | grep -q .
+}
+
+dry_run_input_sync_when_ready() {
+  if motif_pickles_exist; then
+    distribute_data_and_motifs true
+  else
+    cat <<EOF
+
+[dry-run] Skipping input-sync preview because cache_motifs/*.pkl does not exist yet.
+[dry-run] Run ./cluster_pipeline prepare first; then ./cluster_pipeline distribute will sync:
+[dry-run]   data_raw
+[dry-run]   cache_motifs
+EOF
+  fi
+}
+
+launch_schedule() {
+  local dry_run="${1:-false}"
+  local cmd=(
+    scripts/cluster_run_schedule.sh
+    --repo-paths "$REPO_PATHS"
+    --schedule "$SCHEDULE"
+    --date-prefix "$DATE_PREFIX"
+    --run-root "$RUN_ROOT"
+    --python-bin "${PYTHON_BIN:-python}"
+  )
+
+  if [[ -f "$MICRO_PYTHON_PATHS" ]]; then
+    cmd+=(--python-paths "$MICRO_PYTHON_PATHS")
+  fi
+
+  if [[ "$dry_run" == true ]]; then
+    cmd+=(--dry-run)
+  fi
+
+  "${cmd[@]}"
+}
+
+collect_results() {
+  local dry_run="${1:-false}"
+  local cmd=(
+    scripts/cluster_collect_results.sh
+    --repo-paths "$REPO_PATHS"
+    --remote-run-root "$RUN_ROOT"
+    --collect-root "$COLLECT_ROOT"
+    --date-prefix "$DATE_PREFIX"
+  )
+
+  if [[ "$dry_run" == true ]]; then
+    cmd+=(--dry-run)
+  fi
+
+  "${cmd[@]}"
+}
+
+dry_run_pipeline() {
+  run_local_checks
+  prepare_motif_cache true
+  distribute_code_only true
+  dry_run_input_sync_when_ready
+  launch_schedule true
+  collect_results true
+
+  cat <<EOF
+
+Real motif pipeline order:
+  ./cluster_pipeline prepare
+  ./cluster_pipeline distribute
+  ./cluster_pipeline run
+  ./cluster_pipeline collect
+
+The distribute step syncs:
+  data_raw
+  cache_motifs
+EOF
+}
+
+# All-jobs-motif-false case: use this only when every scheduled YAML has
+# motif_loss: false. It syncs data_raw only and intentionally skips cache_motifs.
+#
+# Worker Python paths come from CLUSTER_MICRO_PYTHON_PATHS.txt, so machines may
+# use different absolute paths for the same micro environment name.
+#
+# SCHEDULE="CLUSTER_GPU_CONFIGS_SAMPLE.txt"
+# RUN_ROOT="runs/cluster_smoke_grid"
+#
+# dry_run_non_motif_only_pipeline() {
+#   run_local_checks
+#   prepare_motif_cache true
+#   distribute_code_only true
+#   scripts/cluster_distribute_code.sh \
+#     --repo-paths "$REPO_PATHS" \
+#     --sync-inputs \
+#     --sync-path data_raw \
+#     --dry-run
+#   launch_schedule true
+#   collect_results true
+# }
+#
+# distribute_non_motif_only() {
+#   scripts/cluster_distribute_code.sh \
+#     --repo-paths "$REPO_PATHS" \
+#     --sync-inputs \
+#     --sync-path data_raw
+# }
+
+case "$MODE" in
+  dry-run)
+    dry_run_pipeline
+    ;;
+
+  prepare)
+    prepare_motif_cache
+    ;;
+
+  distribute)
+    distribute_data_and_motifs
+    ;;
+
+  run)
+    launch_schedule
+    ;;
+
+  collect)
+    collect_results
+    ;;
+
+  status)
+    git status --short
+    ;;
+
+  --help|-h|help)
+    usage
+    ;;
+
+  *)
+    echo "Unknown mode: $MODE" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,20 @@
+# Mixed GRID smoke-test schedule.
+#
+# Only the two GPUs on cs-cl-17 run the motif-loss test config.
+# All other scheduled GPUs run the non-motif test config.
+# This forces the pipeline to prepare and sync cache_motifs while still testing
+# both motif and non-motif jobs in one schedule.
+
+cs-cl-09 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-09 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-13 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-16 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-17 0 configs/cluster_tests/grid_2epoch_graphvae_motif.yaml
+cs-cl-17 1 configs/cluster_tests/grid_2epoch_graphvae_motif.yaml
+cs-cl-18 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-18 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-19 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-19 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-26 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-26 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-36 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml

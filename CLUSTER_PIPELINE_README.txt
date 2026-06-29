@@ -36,6 +36,15 @@ CLUSTER_GPU_CONFIGS_SAMPLE.txt
   Example:
     cs-cl-17 0 configs/reproduce_table2/grid_table2_graphvae_motif.yaml
 
+CLUSTER_MICRO_PYTHON_PATHS.txt
+  Format:
+    HOST PYTHON_BIN
+
+  Example:
+    cs-cl-17 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+
+  This lets the runner use different absolute micro paths on different hosts.
+
 Lines may contain comments after #. Blank lines are ignored.
 
 Recommended order
@@ -184,7 +193,11 @@ Useful options:
     Output root inside each worker repo. Default: runs/distributed.
 
   --python-bin BIN
-    Python executable on workers.
+    Fallback Python executable on workers.
+
+  --python-paths FILE
+    Optional host-specific Python file with rows: HOST PYTHON_BIN.
+    Matching rows override --python-bin.
 
   --env-activate CMD
     Optional environment activation command on workers.
@@ -262,6 +275,60 @@ Notes:
   collects the whole remote runs/distributed tree from each worker.
 
 
+Smoke-test helper
+-----------------
+
+The repository also includes a small wrapper:
+
+  ./cluster_pipeline
+
+Mixed motif GRID smoke test:
+
+  ./cluster_pipeline dry-run
+  ./cluster_pipeline prepare
+  ./cluster_pipeline distribute
+  ./cluster_pipeline run
+  ./cluster_pipeline collect
+
+This uses:
+
+  CLUSTER_GPU_CONFIGS_MOTIF_SAMPLE.txt
+  CLUSTER_MICRO_PYTHON_PATHS.txt
+  configs/cluster_tests/grid_2epoch_graphvae_motif.yaml
+  configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+
+The active wrapper assumes at least one scheduled job has motif_loss: true.
+Run prepare before distribute, because distribute syncs both data_raw and
+cache_motifs and requires real cache_motifs/*.pkl files.
+
+The wrapper reads CLUSTER_MICRO_PYTHON_PATHS.txt by default:
+
+  MICRO_PYTHON_PATHS=CLUSTER_MICRO_PYTHON_PATHS.txt ./cluster_pipeline dry-run
+
+It uses the controller host's row for motif cache preparation, and passes the
+same file to the worker runner so each host uses its own recorded micro path.
+PYTHON_BIN is still accepted as a controller override and worker fallback:
+
+  PYTHON_BIN=/path/to/python ./cluster_pipeline dry-run
+
+Current paths include /localhome/mirzaei/miniconda3/envs/micro/bin/python on
+most hosts, and /local-scratch2/mirzaei/miniconda3/envs/micro/bin/python on
+cs-cl-18 and cs-cl-19.
+
+The current motif sample runs motif_loss: true only on:
+
+  cs-cl-17 GPU 0
+  cs-cl-17 GPU 1
+
+All other scheduled GPUs run the non-motif baseline test.
+
+All-non-motif variant:
+
+  If every scheduled YAML has motif_loss: false, use CLUSTER_GPU_CONFIGS_SAMPLE.txt
+  and sync data_raw only. The code for that case is kept as a commented block
+  in ./cluster_pipeline.
+
+
 Quick full dry-run checklist
 ----------------------------
 
@@ -277,4 +344,3 @@ Run these from the controller repo:
 After real motif cache preparation, this should also pass:
 
   scripts/cluster_distribute_code.sh --dry-run --sync-inputs
-

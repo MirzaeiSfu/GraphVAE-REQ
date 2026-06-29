@@ -1,0 +1,11 @@
+# Result of checking for a conda environment named "micro" on 2026-06-29.
+# Format: HOST PYTHON_PATH_OR_NOT_FOUND
+
+cs-cl-09 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-13 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-16 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-17 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-18 /local-scratch2/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-19 /local-scratch2/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-26 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-36 /localhome/mirzaei/miniconda3/envs/micro/bin/python

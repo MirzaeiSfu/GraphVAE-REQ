@@ -6,6 +6,7 @@ SCHEDULE_FILE="CLUSTER_GPU_CONFIGS_SAMPLE.txt"
 DATE_PREFIX="$(date +%Y%m%d)"
 RUN_ROOT="runs/distributed"
 PYTHON_BIN="python"
+PYTHON_PATHS_FILE=""
 ENV_ACTIVATE=""
 SSH_CONNECT_TIMEOUT=10
 DRY_RUN=false
@@ -27,7 +28,8 @@ Options:
   --schedule FILE            Input file with rows: HOST GPU CONFIG_YAML
   --date-prefix YYYYMMDD     Prefix for run names; default is today
   --run-root PATH            Output root inside each repo
-  --python-bin BIN           Python executable on workers
+  --python-bin BIN           Fallback Python executable on workers
+  --python-paths FILE        Optional file with rows: HOST PYTHON_BIN
   --env-activate CMD         Worker environment activation command
   --ssh-connect-timeout SEC  SSH connection timeout
   --dry-run                  Print commands without running them
@@ -88,6 +90,10 @@ while (($#)); do
       PYTHON_BIN="$2"
       shift 2
       ;;
+    --python-paths)
+      PYTHON_PATHS_FILE="$2"
+      shift 2
+      ;;
     --env-activate)
       ENV_ACTIVATE="$2"
       shift 2
@@ -133,6 +139,7 @@ if [[ ! -f "$SCHEDULE_FILE" ]]; then
 fi
 
 declare -A REPO_PATH_BY_HOST
+declare -A PYTHON_BY_HOST
 declare -A HOST_IS_DOWN
 
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
@@ -146,6 +153,25 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   fi
   REPO_PATH_BY_HOST["$host"]="$repo_path"
 done < "$REPO_PATHS_FILE"
+
+if [[ -n "$PYTHON_PATHS_FILE" ]]; then
+  if [[ ! -f "$PYTHON_PATHS_FILE" ]]; then
+    echo "Missing python paths file: $PYTHON_PATHS_FILE" >&2
+    exit 2
+  fi
+
+  while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+    line="${raw_line%%#*}"
+    line_is_blank "$line" && continue
+
+    read -r host python_path extra <<<"$line"
+    if [[ -n "${extra:-}" || -z "${host:-}" || -z "${python_path:-}" ]]; then
+      echo "[python-paths] bad row: $raw_line" >&2
+      continue
+    fi
+    PYTHON_BY_HOST["$host"]="$python_path"
+  done < "$PYTHON_PATHS_FILE"
+fi
 
 launched=0
 failures=0
@@ -174,6 +200,17 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     continue
   fi
 
+  job_python_bin="$PYTHON_BIN"
+  if [[ -n "${PYTHON_BY_HOST[$host]:-}" ]]; then
+    job_python_bin="${PYTHON_BY_HOST[$host]}"
+  fi
+
+  if [[ "$job_python_bin" == "NOT_FOUND" ]]; then
+    echo "[run] no micro Python path for host $host" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+
   if [[ ! -f "$config_path" ]]; then
     echo "[run] local config missing: $config_path" >&2
     failures=$((failures + 1))
@@ -196,7 +233,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     env
     MPLBACKEND=Agg
     PYTHONUNBUFFERED=1
-    "$PYTHON_BIN"
+    "$job_python_bin"
     -u
     main.py
     --config "$config_path"
@@ -210,6 +247,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   fi
 
   repo_q="$(quote_one "$repo_path")"
+  python_q="$(quote_one "$job_python_bin")"
   run_dir_q="$(quote_one "$run_dir")"
   stdout_q="$(quote_one "$run_dir/stdout.log")"
   session_cmd=$(cat <<EOF
@@ -227,6 +265,17 @@ if ! command -v tmux >/dev/null 2>&1; then
   echo 'tmux is not installed on this host.' >&2
   exit 20
 fi
+if [[ $python_q == */* ]]; then
+  if [[ ! -x $python_q ]]; then
+    echo 'Python executable is missing or not executable: $job_python_bin' >&2
+    exit 22
+  fi
+else
+  if ! command -v $python_q >/dev/null 2>&1; then
+    echo 'Python command was not found: $job_python_bin' >&2
+    exit 22
+  fi
+fi
 cd $repo_q
 if tmux has-session -t $(quote_one "$session_name") 2>/dev/null; then
   echo 'tmux session already exists: $session_name' >&2
@@ -239,6 +288,7 @@ EOF
 
   echo
   echo "[run] $host $device $config_path"
+  echo "[run] python: $job_python_bin"
   echo "[run] output: $run_dir"
 
   ssh_cmd=(ssh -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_script")")
