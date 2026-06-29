@@ -93,6 +93,7 @@ BEST_SCRIPT_DATASETS = {
     "GRID_BEST", "LOBSTER_BEST", "TRIANGULAR_GRID_BEST",
 }
 BEST_SCRIPT_EDGE_MODE_ALIAS = {"directed": "dir", "undirected": "undir"}
+BEST_SCRIPT_NAME_VERSION = "v2"
 
 # Edge-mode semantics:
 # QM9/PROTEINS --directed:
@@ -983,19 +984,33 @@ def build_auto_db_name(
     jar_choice: str | None,
     config_template_path: Path,
     material: dict,
+    name_version: str | None = None,
 ) -> str:
     digest = hashlib.sha256(canonical_json(material).encode("utf-8")).hexdigest()
     name_parts = [
         sanitize_path_component(dataset_name.lower()),
-        edge_mode_alias(edge_mode_label),
-        feature_mode_alias(feature_mode),
-        jar_choice_alias(jar_choice),
-        digest[:AUTO_DB_NAME_HASH_LENGTH],
-        # FactorBase config settings go last, per request: the db name should
-        # visibly end with which config produced the learned BN.
-        config_settings_alias(config_template_path),
     ]
+    if name_version is not None:
+        name_parts.append(sanitize_path_component(name_version))
+    name_parts.extend(
+        [
+            edge_mode_alias(edge_mode_label),
+            feature_mode_alias(feature_mode),
+            jar_choice_alias(jar_choice),
+            digest[:AUTO_DB_NAME_HASH_LENGTH],
+            # FactorBase config settings go last, per request: the db name should
+            # visibly end with which config produced the learned BN.
+            config_settings_alias(config_template_path),
+        ]
+    )
     return sanitize_path_component("_".join(name_parts))
+
+
+def append_best_script_name_version(base_name: str) -> str:
+    version = sanitize_path_component(BEST_SCRIPT_NAME_VERSION)
+    if base_name.endswith(f"_{version}") or f"_{version}_" in base_name:
+        return base_name
+    return f"{base_name}_{version}"
 
 
 def resolve_db_name(
@@ -1010,12 +1025,14 @@ def resolve_db_name(
 
     For BEST_SCRIPT_DATASETS, those import scripts append their own
     edge-mode/feature-mode suffix to whatever base name they're given
-    (script_base_name -> script_produced_name). For automatic names, keep
-    the legacy reproducible identity from build_auto_db_name: dataset, edge
-    mode, feature mode, jar choice, and the material hash. The script may
-    create a temporary suffixed name, which main() then renames to
-    final_db_name so the rest of the pipeline (config writing, verification,
-    JAR launch) uses the same hashed name format as older commits.
+    (script_base_name -> script_produced_name), and their database names get
+    a v2 marker so they are distinct from the legacy to_db_* importers. For
+    automatic names, keep the legacy reproducible identity from
+    build_auto_db_name: dataset, edge mode, feature mode, jar choice, and the
+    material hash. The script may create a temporary suffixed name, which
+    main() then renames to final_db_name so the rest of the pipeline (config
+    writing, verification, JAR launch) uses the same hashed name format as
+    older commits.
     """
     material = build_auto_db_name_material(
         args=args,
@@ -1034,7 +1051,7 @@ def resolve_db_name(
 
     if dataset_name in BEST_SCRIPT_DATASETS:
         if args.db_name:
-            base_name = args.db_name
+            base_name = append_best_script_name_version(args.db_name)
             script_produced_name = compute_best_script_db_name(
                 base_name,
                 edge_mode_label,
@@ -1050,6 +1067,7 @@ def resolve_db_name(
                 jar_choice=args.jar,
                 config_template_path=args.config_template,
                 material=material,
+                name_version=BEST_SCRIPT_NAME_VERSION,
             )
             base_name = final_db_name
             script_produced_name = compute_best_script_db_name(
