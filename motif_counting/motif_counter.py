@@ -508,14 +508,14 @@ class RelationalMotifCounter:
         table_functor_value,
     ) -> torch.Tensor:
         """
-        Edge feature predicate (QM9 bond types).
+        Edge feature predicate.
         Returns (B, N_max, N_max).
         """
         feature_idx = next(
             idx for idx, info in self.feature_info_mapping.items()
             if info['feature_name'] == functor
         )
-        target = edge_b[feature_idx]                                  # (B, C, N_max, N_max)
+        target = self._select_edge_feature_tensor(edge_b, feature_idx)
 
         if table_functor_value == 'N/A':
             return torch.sum(target, dim=1)                           # (B, N_max, N_max)
@@ -524,6 +524,50 @@ class RelationalMotifCounter:
         reverse_mapping = {v: k for k, v in value_mapping.items()}
         val_idx         = reverse_mapping[int(table_functor_value)]
         return target[:, val_idx, :, :]                               # (B, N_max, N_max)
+
+    def _select_edge_feature_tensor(
+        self,
+        edge_b: Optional[List[torch.Tensor]],
+        feature_idx: int,
+    ) -> torch.Tensor:
+        """
+        Return the channel group for one edge feature.
+
+        Older counting code expected edge_b to be a list with one tensor per
+        feature. DataWrapper/ReconstructedDataWrapper currently provide one
+        packed tensor whose channel dimension concatenates all edge feature
+        values. Support both layouts so multi-feature synthetic schemas do not
+        index past the end of the list.
+        """
+        if edge_b is None:
+            raise RuntimeError(
+                "Motif rule requires edge features, but the current data wrapper "
+                "did not provide edge-feature tensors."
+            )
+
+        if len(edge_b) == 1:
+            start = 0
+            for idx in sorted(self.feature_info_mapping):
+                value_count = len(self.feature_info_mapping[idx]['value_index_mapping'])
+                if idx == feature_idx:
+                    end = start + value_count
+                    packed = edge_b[0]
+                    if end > packed.shape[1]:
+                        raise IndexError(
+                            f"Packed edge-feature tensor has {packed.shape[1]} channels, "
+                            f"but feature index {feature_idx} requires channels "
+                            f"{start}:{end}."
+                        )
+                    return packed[:, start:end, :, :]
+                start += value_count
+
+        if feature_idx < len(edge_b):
+            return edge_b[feature_idx]
+
+        raise IndexError(
+            f"Edge feature index {feature_idx} is out of range for "
+            f"{len(edge_b)} edge-feature tensor groups."
+        )
 
     # ------------------------------------------------------------------
     # Batched matrix algebra
