@@ -2,7 +2,7 @@
 set -u
 
 REPO_PATHS_FILE="CLUSTER_REPO_PATHS.txt"
-REMOTE_URL="git@github.com:MirzaeiSfu/GraphVAE-REQ.git"
+CODE_SOURCE_DIR="."
 SSH_CONNECT_TIMEOUT=10
 DRY_RUN=false
 SYNC_INPUTS=false
@@ -11,14 +11,14 @@ CUSTOM_SYNC_PATHS=false
 
 usage() {
   cat <<'EOF'
-Clone/pull the repo on each worker, optionally sync inputs.
+Rsync controller code to each worker, optionally sync inputs.
 
 Usage:
   scripts/cluster_distribute_code.sh [options]
 
 Options:
   --repo-paths FILE          Input file with rows: HOST REPO_PATH
-  --remote-url URL           Git remote for missing worker repos
+  --code-source DIR          Controller repo directory to sync; default: .
   --sync-inputs              Rsync data_raw and cache_motifs to workers.
                               When syncing cache_motifs, the remote cache_motifs
                               directory is removed first.
@@ -56,14 +56,45 @@ line_is_blank() {
   [[ -z "${1//[[:space:]]/}" ]]
 }
 
+check_clean_code_source() {
+  local status_output
+  local commit_id
+
+  if ! git -C "$CODE_SOURCE_DIR_ABS" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Code source is not a git worktree: $CODE_SOURCE_DIR_ABS" >&2
+    exit 2
+  fi
+
+  status_output="$(git -C "$CODE_SOURCE_DIR_ABS" status --short)"
+  if [[ -n "$status_output" ]]; then
+    if [[ "$DRY_RUN" == true ]]; then
+      echo "[code] dirty git worktree; real distribute would fail:"
+      printf '%s\n' "$status_output" | sed 's/^/[code]   /'
+      return 0
+    fi
+
+    echo "Refusing to distribute uncommitted code from: $CODE_SOURCE_DIR_ABS" >&2
+    printf '%s\n' "$status_output" | sed 's/^/  /' >&2
+    echo "Commit, stash, or remove these changes before running distribute." >&2
+    exit 2
+  fi
+
+  commit_id="$(git -C "$CODE_SOURCE_DIR_ABS" rev-parse --short HEAD)"
+  echo "[code] clean git worktree: $commit_id"
+}
+
 while (($#)); do
   case "$1" in
     --repo-paths)
       REPO_PATHS_FILE="$2"
       shift 2
       ;;
+    --code-source)
+      CODE_SOURCE_DIR="$2"
+      shift 2
+      ;;
     --remote-url)
-      REMOTE_URL="$2"
+      echo "--remote-url is ignored; code is synced from the controller with rsync." >&2
       shift 2
       ;;
     --sync-inputs)
@@ -103,6 +134,13 @@ if [[ ! -f "$REPO_PATHS_FILE" ]]; then
   exit 2
 fi
 
+if ! CODE_SOURCE_DIR_ABS="$(cd "$CODE_SOURCE_DIR" && pwd)"; then
+  echo "Missing code source directory: $CODE_SOURCE_DIR" >&2
+  exit 2
+fi
+
+check_clean_code_source
+
 if [[ "$SYNC_INPUTS" == true ]]; then
   for sync_path in "${SYNC_PATHS[@]}"; do
     if [[ ! -e "$sync_path" ]]; then
@@ -122,6 +160,17 @@ if [[ "$SYNC_INPUTS" == true ]]; then
 fi
 
 failures=0
+CODE_RSYNC_EXCLUDES=(
+  --exclude .git/
+  --exclude __pycache__/
+  --exclude .pytest_cache/
+  --exclude cache_datasets/
+  --exclude cache_motifs/
+  --exclude cache_motifs_archive/
+  --exclude collected_runs/
+  --exclude data_raw/
+  --exclude runs/
+)
 
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   line="${raw_line%%#*}"
@@ -135,29 +184,29 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   fi
 
   echo
-  echo "[repo] $host -> $repo_path"
+  echo "[code] $CODE_SOURCE_DIR_ABS -> $host:$repo_path"
 
   parent_dir="$(dirname "$repo_path")"
   repo_q="$(quote_one "$repo_path")"
-  repo_git_q="$(quote_one "$repo_path/.git")"
   parent_q="$(quote_one "$parent_dir")"
-  remote_url_q="$(quote_one "$REMOTE_URL")"
 
   remote_script=$(cat <<EOF
 set -euo pipefail
-if [[ -d $repo_git_q ]]; then
-  cd $repo_q
-  git pull --ff-only
-else
-  mkdir -p $parent_q
-  git clone $remote_url_q $repo_q
-fi
+mkdir -p $parent_q
+mkdir -p $repo_q
 EOF
 )
 
-  ssh_cmd=(ssh -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_script")")
+  ssh_cmd=(ssh -n -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_script")")
   if ! run_cmd "${ssh_cmd[@]}"; then
-    echo "[repo] failed on $host; continuing" >&2
+    echo "[code] failed to create repo directory on $host; continuing" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+
+  code_rsync_args=(-az --delete "${CODE_RSYNC_EXCLUDES[@]}")
+  if ! run_cmd rsync "${code_rsync_args[@]}" -e "ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$CODE_SOURCE_DIR_ABS/" "$host:$repo_path/"; then
+    echo "[code] failed on $host; continuing" >&2
     failures=$((failures + 1))
     continue
   fi
@@ -179,7 +228,7 @@ mkdir -p $remote_cache_q
 EOF
 )
         echo "[sync] clear remote cache: $host:$remote_cache_path"
-        clean_cmd=(ssh -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_clean_script")")
+        clean_cmd=(ssh -n -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_clean_script")")
         if ! run_cmd "${clean_cmd[@]}"; then
           echo "[sync] failed to clear remote cache on $host; continuing" >&2
           failures=$((failures + 1))
@@ -188,7 +237,7 @@ EOF
       fi
 
       echo "[sync] $sync_path -> $host:$repo_path/"
-      if ! run_cmd rsync "${rsync_args[@]}" "$sync_path" "$host:$repo_path/"; then
+      if ! run_cmd rsync "${rsync_args[@]}" -e "ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$sync_path" "$host:$repo_path/"; then
         echo "[sync] failed on $host for $sync_path; continuing" >&2
         failures=$((failures + 1))
       fi

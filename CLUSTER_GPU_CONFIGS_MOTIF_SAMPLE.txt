@@ -11,8 +11,6 @@ cs-cl-13 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
 cs-cl-16 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
 cs-cl-17 0 configs/cluster_tests/grid_2epoch_graphvae_motif.yaml
 cs-cl-17 1 configs/cluster_tests/grid_2epoch_graphvae_motif.yaml
-cs-cl-18 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-18 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
 cs-cl-19 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
 cs-cl-19 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
 cs-cl-26 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml

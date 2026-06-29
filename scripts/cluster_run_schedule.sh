@@ -291,7 +291,7 @@ EOF
   echo "[run] python: $job_python_bin"
   echo "[run] output: $run_dir"
 
-  ssh_cmd=(ssh -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_script")")
+  ssh_cmd=(ssh -n -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" "$host" "bash -lc $(quote_one "$remote_script")")
   if run_cmd "${ssh_cmd[@]}"; then
     launched=$((launched + 1))
     echo "[logs] ssh $host -t $(quote_one "tail -f $run_dir/stdout.log")"

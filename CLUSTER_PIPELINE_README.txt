@@ -8,16 +8,17 @@ Workers do not need MySQL or FactorBase for training.
 Important before a real worker run
 ----------------------------------
 
-The distribution script updates workers with git clone/pull from GitHub.
-Commit and push the current controller code before running on workers:
+The distribution script rsyncs the controller worktree to workers. Workers do
+not need GitHub SSH keys. Commit and push the current controller code before
+real runs for reproducibility:
 
   git status --short
-  git add main.py CLUSTER_REPO_PATHS.txt CLUSTER_GPU_CONFIGS_SAMPLE.txt scripts/cluster_*.sh CLUSTER_PIPELINE_README.txt
-  git commit -m "Add cluster training pipeline"
+  git add main.py CLUSTER_REPO_PATHS.txt CLUSTER_GPU_CONFIGS_SAMPLE.txt CLUSTER_GPU_CONFIGS_MOTIF_SAMPLE.txt CLUSTER_MICRO_PYTHON_PATHS.txt cluster_pipeline configs/cluster_tests scripts/cluster_*.sh CLUSTER_PIPELINE_README.txt
+  git commit -m "Update cluster training pipeline"
   git push
 
-If the workers do not receive the current code, they may fail on newer flags
-such as --disable_dataset_cache.
+The workers receive the current local files from the controller during
+distribution, but a git commit makes the exact code version easier to recover.
 
 Input files
 -----------
@@ -116,8 +117,8 @@ Script:
   scripts/cluster_distribute_code.sh
 
 Purpose:
-  Clone or pull the GitHub repo on each worker, then optionally sync raw data
-  and motif caches.
+  Rsync the controller code to each worker, then optionally sync raw data and
+  motif caches.
 
 Dry run, code only:
   scripts/cluster_distribute_code.sh --dry-run
@@ -134,9 +135,8 @@ Useful options:
   --repo-paths FILE
     Repo path file with rows: HOST REPO_PATH.
 
-  --remote-url URL
-    Git remote used when a worker repo does not exist.
-    Default: git@github.com:MirzaeiSfu/GraphVAE-REQ.git
+  --code-source DIR
+    Controller repo directory to sync. Default: current directory.
 
   --sync-inputs
     Sync the default input folders:
@@ -150,7 +150,11 @@ Useful options:
     SSH connection timeout. Default: 10.
 
 What it does:
-  - For each host, git pulls if the repo exists or git clones if missing.
+  - Refuses real distribution if the controller git worktree is dirty.
+  - For each host, creates the worker repo directory if missing.
+  - Rsyncs controller code into the worker repo.
+  - Excludes .git, data_raw, cache_motifs, cache/archive folders, runs, and
+    collected outputs from the code sync.
   - With --sync-inputs, rsyncs data_raw and cache_motifs.
   - Before syncing cache_motifs, deletes the worker's old cache_motifs folder.
   - Uses checksum rsync for cache_motifs.
@@ -159,6 +163,9 @@ What it does:
 Notes:
   Dataset caches are not synced. Real worker training disables dataset caches
   and reads/processes the raw data directly.
+
+  Dry-run prints dirty-worktree warnings, but real distribute exits with an
+  error until the controller changes are committed, stashed, or removed.
 
 
 3. Launch scheduled training
@@ -314,6 +321,10 @@ PYTHON_BIN is still accepted as a controller override and worker fallback:
 Current paths include /localhome/mirzaei/miniconda3/envs/micro/bin/python on
 most hosts, and /local-scratch2/mirzaei/miniconda3/envs/micro/bin/python on
 cs-cl-18 and cs-cl-19.
+
+cs-cl-18 is kept as the controller and is intentionally removed from worker
+schedules for now because CUDA/GPU visibility was not working during the
+2026-06-29 check.
 
 The current motif sample runs motif_loss: true only on:
 
