@@ -202,6 +202,8 @@ Useful options:
 
   --run-root PATH
     Output root inside each worker repo. Default: runs/distributed.
+    The ./cluster_pipeline wrapper uses:
+      runs/<YYYYMMDD>/cluster_smoke_grid_motif
 
   --python-bin BIN
     Fallback Python executable on workers.
@@ -225,10 +227,12 @@ What it does:
   - Reads the repo path file.
   - Reads the schedule file.
   - Builds one run folder per row:
-      runs/distributed/<config-name>/<YYYYMMDD>_<host>_gpu<gpu>
+      <run-root>/<config-name>__<host>_gpu<gpu>
   - Starts a detached tmux session on the worker.
   - Writes stdout/stderr to:
       <run-folder>/stdout.log
+  - Writes run metadata to:
+      <run-folder>/RUN_INFO.txt
   - Passes --disable_dataset_cache true by default.
   - If SSH fails for a host, later rows for that host are skipped.
 
@@ -266,6 +270,8 @@ Useful options:
 
   --remote-run-root PATH
     Remote run root inside each worker repo. Default: runs/distributed.
+    The ./cluster_pipeline wrapper passes:
+      runs/<YYYYMMDD>/cluster_smoke_grid_motif
 
   --collect-root PATH
     Local collection root. Default: collected_runs.
@@ -277,13 +283,18 @@ Useful options:
     SSH connection timeout. Default: 10.
 
 What it does:
-  - Rsyncs each worker's runs/distributed folder to:
-      collected_runs/<YYYYMMDD>/<host>/
+  - Rsyncs each worker's remote run root to:
+      collected_runs/<YYYYMMDD>/<experiment-name>/
   - Continues with other hosts if one host fails.
 
 Notes:
-  The date prefix controls the local collection folder. The current script
-  collects the whole remote runs/distributed tree from each worker.
+  The date prefix controls the local collection folder. With ./cluster_pipeline,
+  the worker-side date is also part of the remote run root, so collect targets
+  only the current day's experiment folder:
+      runs/<YYYYMMDD>/cluster_smoke_grid_motif
+
+  For the smoke wrapper, the collected layout is:
+      collected_runs/<YYYYMMDD>/cluster_smoke_grid_motif/
 
 
 Smoke-test helper
@@ -321,6 +332,21 @@ same file to the worker runner so each host uses its own recorded micro path.
 PYTHON_BIN is still accepted as a controller override and worker fallback:
 
   PYTHON_BIN=/path/to/python ./cluster_pipeline dry-run
+
+The wrapper writes worker outputs under:
+
+  runs/<YYYYMMDD>/cluster_smoke_grid_motif/
+
+Each job folder uses the YAML name plus host/GPU:
+
+  grid_2epoch_graphvae_motif__cs-cl-17_gpu0/
+
+Each job folder contains RUN_INFO.txt with fields such as date_prefix,
+run_root, config_name, config_path, host, gpu, device, and python_bin.
+
+and collects them back under:
+
+  collected_runs/<YYYYMMDD>/cluster_smoke_grid_motif/
 
 Current paths include /localhome/mirzaei/miniconda3/envs/micro/bin/python on
 most hosts, and /local-scratch2/mirzaei/miniconda3/envs/micro/bin/python on

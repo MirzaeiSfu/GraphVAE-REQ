@@ -5,7 +5,7 @@ REPO_PATHS="${REPO_PATHS:-CLUSTER_REPO_PATHS.txt}"
 SCHEDULE="${SCHEDULE:-CLUSTER_GPU_CONFIGS_MOTIF_SAMPLE.txt}"
 MICRO_PYTHON_PATHS="${MICRO_PYTHON_PATHS:-CLUSTER_MICRO_PYTHON_PATHS.txt}"
 DATE_PREFIX="${DATE_PREFIX:-$(date +%Y%m%d)}"
-RUN_ROOT="${RUN_ROOT:-runs/cluster_smoke_grid_motif}"
+RUN_ROOT="${RUN_ROOT:-runs/${DATE_PREFIX}/cluster_smoke_grid_motif}"
 COLLECT_ROOT="${COLLECT_ROOT:-collected_runs}"
 PYTHON_BIN="${PYTHON_BIN:-}"
 MODE="${1:-dry-run}"
@@ -24,6 +24,15 @@ GRID two-epoch cluster smoke-test pipeline.
 
 This active pipeline assumes at least one scheduled job has motif_loss: true.
 Run prepare before distribute so cache_motifs/*.pkl exists.
+
+Worker outputs are grouped by date and experiment:
+  runs/$DATE_PREFIX/cluster_smoke_grid_motif/
+
+Each job folder is named:
+  <yaml-name>__<host>_gpu<gpu>
+
+Collected outputs are grouped by date and experiment:
+  collected_runs/$DATE_PREFIX/cluster_smoke_grid_motif/
 
 Usage:
   ./cluster_pipeline dry-run
@@ -214,7 +223,7 @@ EOF
 # use different absolute paths for the same micro environment name.
 #
 # SCHEDULE="CLUSTER_GPU_CONFIGS_SAMPLE.txt"
-# RUN_ROOT="runs/cluster_smoke_grid"
+# RUN_ROOT="runs/${DATE_PREFIX}/cluster_smoke_grid"
 #
 # dry_run_non_motif_only_pipeline() {
 #   run_local_checks

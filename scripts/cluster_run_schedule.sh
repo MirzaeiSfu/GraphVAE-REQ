@@ -226,8 +226,9 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     device="$gpu"
   fi
 
-  run_dir="${RUN_ROOT%/}/${experiment_name}/${DATE_PREFIX}_${host_token}_gpu${gpu_token}"
-  run_label="${experiment_name}_${DATE_PREFIX}_${host_token}_gpu${gpu_token}"
+  job_dir="${experiment_name}__${host_token}_gpu${gpu_token}"
+  run_dir="${RUN_ROOT%/}/${job_dir}"
+  run_label="${DATE_PREFIX}_${job_dir}"
   session_name="$(sanitize "$run_label")"
 
   main_cmd=(
@@ -250,12 +251,28 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   repo_q="$(quote_one "$repo_path")"
   python_q="$(quote_one "$job_python_bin")"
   run_dir_q="$(quote_one "$run_dir")"
+  run_info_q="$(quote_one "$run_dir/RUN_INFO.txt")"
   stdout_q="$(quote_one "$run_dir/stdout.log")"
+  run_info_cmd=(
+    printf '%s\n'
+    "date_prefix=$DATE_PREFIX"
+    "run_root=$RUN_ROOT"
+    "job_dir=$job_dir"
+    "run_dir=$run_dir"
+    "run_label=$run_label"
+    "config_name=$experiment_name"
+    "config_path=$config_path"
+    "host=$host"
+    "gpu=$gpu"
+    "device=$device"
+    "python_bin=$job_python_bin"
+  )
   session_cmd=$(cat <<EOF
 set -euo pipefail
 ${ENV_ACTIVATE}
 cd $repo_q
 mkdir -p $run_dir_q
+$(quote_words "${run_info_cmd[@]}") > $run_info_q
 $(quote_words "${main_cmd[@]}") 2>&1 | tee $stdout_q
 EOF
 )

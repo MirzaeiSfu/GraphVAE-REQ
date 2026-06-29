@@ -12,6 +12,9 @@ usage() {
   cat <<'EOF'
 Collect distributed run outputs back to this machine.
 
+Destination layout:
+  COLLECT_ROOT/DATE_PREFIX/REMOTE_RUN_ROOT_BASENAME/
+
 Usage:
   scripts/cluster_collect_results.sh [options]
 
@@ -92,6 +95,13 @@ if [[ ! -f "$REPO_PATHS_FILE" ]]; then
   exit 2
 fi
 
+REMOTE_RUN_ROOT_CLEAN="${REMOTE_RUN_ROOT%/}"
+RUN_ROOT_NAME="$(basename "$REMOTE_RUN_ROOT_CLEAN")"
+if [[ -z "$RUN_ROOT_NAME" || "$RUN_ROOT_NAME" == "." ]]; then
+  echo "Bad remote run root: $REMOTE_RUN_ROOT" >&2
+  exit 2
+fi
+
 failures=0
 RSYNC_SSH_CMD="ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT -o StrictHostKeyChecking=accept-new"
 
@@ -106,8 +116,8 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     continue
   fi
 
-  local_dest="$COLLECT_ROOT/$DATE_PREFIX/$host"
-  remote_source="$host:${repo_path%/}/${REMOTE_RUN_ROOT%/}/"
+  local_dest="$COLLECT_ROOT/$DATE_PREFIX/$RUN_ROOT_NAME"
+  remote_source="$host:${repo_path%/}/$REMOTE_RUN_ROOT_CLEAN/"
 
   echo
   echo "[collect] $remote_source -> $local_dest/"
