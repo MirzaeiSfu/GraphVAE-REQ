@@ -15,6 +15,7 @@ SCRIPT_FILES=(
   scripts/cluster_distribute_code.sh
   scripts/cluster_run_schedule.sh
   scripts/cluster_collect_results.sh
+  scripts/cluster_kill_tmux_sessions.sh
 )
 
 usage() {
@@ -31,6 +32,9 @@ Usage:
   ./cluster_pipeline run
   ./cluster_pipeline collect
   ./cluster_pipeline status
+  # kill-tmux lists matching sessions by default; add --yes to kill them.
+  ./cluster_pipeline kill-tmux
+  ./cluster_pipeline kill-tmux --yes
 
 Environment overrides:
   REPO_PATHS=$REPO_PATHS
@@ -175,6 +179,12 @@ collect_results() {
   "${cmd[@]}"
 }
 
+kill_tmux_sessions() {
+  scripts/cluster_kill_tmux_sessions.sh \
+    --repo-paths "$REPO_PATHS" \
+    "$@"
+}
+
 dry_run_pipeline() {
   run_local_checks
   prepare_motif_cache true
@@ -249,6 +259,11 @@ case "$MODE" in
 
   status)
     git status --short
+    ;;
+
+  kill-tmux)
+    shift
+    kill_tmux_sessions "$@"
     ;;
 
   --help|-h|help)
