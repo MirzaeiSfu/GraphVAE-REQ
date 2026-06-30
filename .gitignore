@@ -12,6 +12,7 @@ data_raw/ogb/
 cache_motifs/
 cache_motifs_archive/
 cache_datasets/
+collected_runs/
 graph_cache/
 saved_state/
 factorbase_motif_pipeline/*_experiment/
