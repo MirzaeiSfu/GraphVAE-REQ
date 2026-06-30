@@ -1,0 +1,88 @@
+# LOBSTER Table 2 run 10: GraphVAE-MM + calibrated Gaussian motif loss.
+# GraphVAE-MM keeps Kia's graph-statistics alpha vector
+# [1,1,1,1,1,1,1,1,40,2000]. Motifs use only syntactic literal-derived rules
+# with constant temperature 1. Node/edge feature heads are supervised because
+# literal rules depend on them.
+
+data:
+  dataset: LOBSTER
+  use_feature: true
+  bfsOrdering: true
+  bfs_strategy: legacy_first_component
+  directed: true
+  database_name: lobster_undir_feat_snap_85093d_cfg410000000
+  graph_type: homogeneous
+  graph_index_start: null
+  graph_index_end: null
+  data_dir: null
+  split_mode: paper_70_10_20
+  split_seed: 123
+  train_fraction: 0.7
+  val_fraction: 0.1
+
+model:
+  model: GraphVAE-MM
+  encoder_type: AvePool
+  decoder: FC
+  graphEmDim: 1024
+  beta: null
+
+experiment:
+  epoch_number: 10000
+  Vis_step: 1000
+  redraw: false
+  lr: 0.0003
+  train_batch_size: 200
+  task: graphGeneration
+
+motif:
+  motif_loss: true
+  use_syntactic_literal_rules: true
+  syntactic_literal_rule_mode: literals
+  motif_loss_mode: calibrated_gaussian
+  motif_temperature_start: 1.0
+  motif_temperature_end: 1.0
+  motif_temperature_anneal_start_frac: 1.0
+  rule_prune: false
+  motif_batch_size: 50000
+  prepare_motif_cache_only: false
+
+loss:
+  alpha_kernel_cost: 1.0
+  alpha_node_feat: 1.0
+  alpha_edge_feat: 1.0
+  alpha_motif_loss: 1.0
+  use_graphvae_mm_bce_kl_weights: true
+  alpha_syntactic_literal_motif_loss: 1.0
+  edge_count_loss: false
+  edge_count_loss_mode: abs_log_ratio
+  alpha_edge_count: 0.0
+  alpha_adj_recon: 0.0
+
+runtime:
+  run_label: lobster-table2-10-graphvae-mm-motif-literals-no-temp
+  graph_save_path: runs/cluster_tests/lobster_table2/10_graphvae_mm_motif_literals_no_temp
+  dataset_cache_dir: runs/cluster_tests/lobster_table2/dataset_cache
+  disable_dataset_cache: false
+  motif_cache_dir: null
+  PATH: model
+  UseGPU: true
+  device: cuda:0
+  plot_testGraphs: true
+  ideal_Evalaution: false
+  keep_best_validation_mmd: false
+  best_validation_mmd_metric: normalized_table2
+  save_validation_checkpoints: false
+  third_party_eval: false
+  third_party_eval_repeats: 10
+  third_party_eval_max_graphs: 1000
+  third_party_eval_seed: 0
+  third_party_eval_device: same
+  third_party_eval_structural_features: true
+  third_party_eval_json_filename: graph_realism_random_gin.json
+  third_party_eval_strict: true
+  tiny_overfit: false
+  tiny_overfit_size: 32
+  interactive: false
+  sanity_check: false
+  sanity_check_only: false
