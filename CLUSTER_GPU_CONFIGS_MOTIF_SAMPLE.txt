@@ -1,18 +1,21 @@
-# Mixed GRID smoke-test schedule.
+# LOBSTER Table 2 cluster schedule.
 #
-# Only the two GPUs on cs-cl-17 run the motif-loss test config.
-# All other scheduled GPUs run the non-motif test config.
-# This forces the pipeline to prepare and sync cache_motifs while still testing
-# both motif and non-motif jobs in one schedule.
+# One LOBSTER config is assigned to each available host/GPU slot. This schedule
+# includes motif-loss jobs, so run the motif pipeline prepare step before
+# distribute/run:
+#
+#   ./cluster_pipeline prepare
+#   ./cluster_pipeline distribute
+#   ./cluster_pipeline run
 
-cs-cl-09 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-09 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-13 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-16 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-17 0 configs/cluster_tests/grid_2epoch_graphvae_motif.yaml
-cs-cl-17 1 configs/cluster_tests/grid_2epoch_graphvae_motif.yaml
-cs-cl-19 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-19 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-26 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-26 1 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
-cs-cl-36 0 configs/cluster_tests/grid_2epoch_graphvae_baseline.yaml
+cs-cl-09 0 configs/cluster_tests/lobster_table2_01_graphvae.yaml
+cs-cl-09 1 configs/cluster_tests/lobster_table2_02_graphvae_mm.yaml
+cs-cl-13 0 configs/cluster_tests/lobster_table2_03_graphvae_motif_original_no_temp.yaml
+cs-cl-16 0 configs/cluster_tests/lobster_table2_04_graphvae_motif_literals_no_temp.yaml
+cs-cl-17 0 configs/cluster_tests/lobster_table2_05_graphvae_motif_both_no_temp.yaml
+cs-cl-17 1 configs/cluster_tests/lobster_table2_06_graphvae_motif_original_temp.yaml
+cs-cl-19 0 configs/cluster_tests/lobster_table2_07_graphvae_motif_literals_temp.yaml
+cs-cl-19 1 configs/cluster_tests/lobster_table2_08_graphvae_motif_both_temp.yaml
+cs-cl-26 0 configs/cluster_tests/lobster_table2_09_graphvae_mm_motif_original_no_temp.yaml
+cs-cl-26 1 configs/cluster_tests/lobster_table2_10_graphvae_mm_motif_literals_no_temp.yaml
+cs-cl-36 0 configs/cluster_tests/lobster_table2_11_graphvae_mm_motif_both_no_temp.yaml
