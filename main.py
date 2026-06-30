@@ -2346,6 +2346,14 @@ for epoch in range(epoch_number):
         # Keep an immutable copy of real node counts for masked node-feature loss.
         # `node_num` may be overwritten below for decoder-specific behavior.
         true_node_num = list(node_num)
+        target_node_onehots, target_edge_onehots, batch_end = (
+            list_graphs.get_feature_targets(from_, from_ + len(true_node_num))
+        )
+        if batch_end - from_ != len(true_node_num):
+            raise RuntimeError(
+                "Feature target batch does not match the graph batch: "
+                f"graphs={len(true_node_num)}, targets={batch_end - from_}."
+            )
 
         if (type(decoder)) in [GraphTransformerDecoder_FC]:  #
             node_num = len(node_num) * [list_graphs.max_num_nodes]
@@ -2391,9 +2399,14 @@ for epoch in range(epoch_number):
         edge_feat_loss = reconstructed_adj_logit.new_tensor(0.0)
         edge_count_loss = reconstructed_adj_logit.new_tensor(0.0)
 
-        if node_feat_logits is not None:
+        if alpha_node_feat > 0 and node_feat_logits is not None:
+            if target_node_onehots is None or any(t is None for t in target_node_onehots):
+                raise RuntimeError(
+                    "Node feature decoder is enabled, but this batch has no "
+                    "padded node one-hot targets."
+                )
             target_node_oh = torch.stack(
-                [torch.tensor(list_graphs.node_onehot_s[i]) for i in range(from_, to_)]
+                [torch.as_tensor(t) for t in target_node_onehots]
             ).to(device)
             node_feat_loss = compute_true_node_feat_loss(
                 node_feat_logits=node_feat_logits,
@@ -2401,9 +2414,14 @@ for epoch in range(epoch_number):
                 true_node_num=true_node_num
             )
 
-        if edge_feat_logits is not None:
+        if alpha_edge_feat > 0 and edge_feat_logits is not None:
+            if target_edge_onehots is None or any(t is None for t in target_edge_onehots):
+                raise RuntimeError(
+                    "Edge feature decoder is enabled, but this batch has no "
+                    "padded edge one-hot targets."
+                )
             target_edge_oh = torch.stack(
-                [torch.tensor(list_graphs.edge_onehot_s[i]) for i in range(from_, to_)]
+                [torch.as_tensor(t) for t in target_edge_onehots]
             ).to(device)
             # Edge-feature supervision now treats channels as one-hot classes and
             # ignores padded/non-edge positions; only real existing edges contribute.
@@ -2439,7 +2457,7 @@ for epoch in range(epoch_number):
             anneal_start_frac=motif_temperature_anneal_start_frac,
         )
         if use_motif_loss:
-            observed_motif_counts = list_graphs.motif_counts[from_:to_].to(device)
+            observed_motif_counts = list_graphs.motif_counts[from_:batch_end].to(device)
             recon_wrapper = ReconstructedDataWrapper(
                 reconstructed_adj=reconstructed_adj_logit,
                 node_feat_logits=node_feat_logits,

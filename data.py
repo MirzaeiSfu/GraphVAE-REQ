@@ -278,6 +278,24 @@ class Datasets():
 
         return adj_s, x_s, num_nodes, subgraph_indexes
 
+    def get_feature_targets(self, from_, to_):
+        """
+        Return the padded node/edge one-hot targets for the same graph slice
+        used by get__(). These targets are the structure expected by the
+        feature decoders: node (B, N_max, D), edge (B, C, N_max, N_max).
+        """
+        actual_to = min(to_, len(self.list_adjs))
+
+        node_targets = None
+        if self.node_onehot_s:
+            node_targets = self.node_onehot_s[from_:actual_to]
+
+        edge_targets = None
+        if self.edge_onehot_s:
+            edge_targets = self.edge_onehot_s[from_:actual_to]
+
+        return node_targets, edge_targets, actual_to
+
     def get_max_degree(self):
         return np.max([adj.sum(-1) for adj in self.processed_adjs])
 
