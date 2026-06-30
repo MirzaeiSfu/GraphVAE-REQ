@@ -10,6 +10,7 @@ data_raw/QM9/
 data_raw/dgl/
 data_raw/ogb/
 cache_motifs/
+cache_motifs_archive/
 cache_datasets/
 graph_cache/
 saved_state/
