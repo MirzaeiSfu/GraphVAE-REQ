@@ -1,0 +1,16 @@
+# Lobster Table 2 full 11-setting schedule.
+#
+# One job is assigned to each GPU listed in CLUSTER_REPO_PATHS.txt workers.
+# The controller host cs-cl-18 is intentionally not used here.
+
+cs-cl-36 0 configs/cluster_tests/lobster_table2_01_graphvae.yaml
+cs-cl-16 0 configs/cluster_tests/lobster_table2_02_graphvae_mm.yaml
+cs-cl-19 0 configs/cluster_tests/lobster_table2_03_graphvae_motif_original_no_temp.yaml
+cs-cl-26 0 configs/cluster_tests/lobster_table2_04_graphvae_motif_literals_no_temp.yaml
+cs-cl-09 0 configs/cluster_tests/lobster_table2_05_graphvae_motif_both_no_temp.yaml
+cs-cl-19 1 configs/cluster_tests/lobster_table2_06_graphvae_motif_original_temp.yaml
+cs-cl-26 1 configs/cluster_tests/lobster_table2_07_graphvae_motif_literals_temp.yaml
+cs-cl-09 1 configs/cluster_tests/lobster_table2_08_graphvae_motif_both_temp.yaml
+cs-cl-13 0 configs/cluster_tests/lobster_table2_09_graphvae_mm_motif_original_no_temp.yaml
+cs-cl-17 0 configs/cluster_tests/lobster_table2_10_graphvae_mm_motif_literals_no_temp.yaml
+cs-cl-17 1 configs/cluster_tests/lobster_table2_11_graphvae_mm_motif_both_no_temp.yaml

@@ -8,7 +8,7 @@ data:
   bfsOrdering: true
   bfs_strategy: legacy_first_component
   directed: true
-  database_name: lobster_experiment
+  database_name: lobster_undir_feat_snap_85093d_cfg410000000
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
@@ -38,7 +38,7 @@ motif:
   motif_temperature_start: 1.0
   motif_temperature_end: 0.5
   motif_temperature_anneal_start_frac: 0.5
-  rule_prune: false
+  rule_prune: true
   motif_batch_size: 50000
 
 loss:
