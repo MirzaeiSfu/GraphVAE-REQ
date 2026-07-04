@@ -54,12 +54,9 @@ motif:
 #===============================
 loss:
   alpha_kernel_cost: 1.0
-  alpha_node_feat: 0.0
-  alpha_edge_feat: 0.0
+  alpha_node_feat: 1.0
+  alpha_edge_feat: 1.0
   alpha_motif_loss: 0.0
-  edge_count_loss: false
-  edge_count_loss_mode: abs_log_ratio
-  alpha_edge_count: 0.0
   alpha_adj_recon: 0.0
 
 #===============================

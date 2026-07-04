@@ -263,19 +263,28 @@ MODEL_NAME_ALIASES = {
     "kernelaugmentedwithtotalnumberoftriangles": "GraphVAE-MM",
 }
 
-GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET = {
-    "GRID": (50, 2000),
-    "TRIANGULAR_GRID": (50, 2000),
-    "LOBSTER": (40, 2000),
-}
-
-
 def normalize_model_name(model_name):
     if model_name is None:
         return model_name
 
     normalized = str(model_name).strip()
     return MODEL_NAME_ALIASES.get(normalized.lower(), normalized)
+
+
+def default_feature_loss_weight(model_name):
+    """Default feature-decoder supervision: stronger for GraphVAE-MM."""
+    return 40.0 if normalize_model_name(model_name) == "GraphVAE-MM" else 1.0
+
+
+def default_motif_loss_weight(model_name, use_motif_loss):
+    """Use a graph-statistic-like motif weight for GraphVAE-MM and a smaller one for kipf."""
+    if not use_motif_loss:
+        return 0.0
+    return 1.0 if normalize_model_name(model_name) == "GraphVAE-MM" else 0.1
+
+
+def resolve_loss_weight(value, default_value):
+    return float(default_value if value is None else value)
 
 
 MMD_FLOAT_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
@@ -853,30 +862,20 @@ parser.add_argument(
 parser.add_argument(
     '--alpha_node_feat',
     type=float,
-    default=0.0,
-    help='Weight for node feature reconstruction loss.'
+    default=None,
+    help='Weight for node feature reconstruction loss. Defaults: GraphVAE-MM=40, kipf/GraphVAE=1.'
 )
 parser.add_argument(
     '--alpha_edge_feat',
     type=float,
-    default=0.0,
-    help='Weight for edge feature reconstruction loss.'
+    default=None,
+    help='Weight for edge feature reconstruction loss. Defaults: GraphVAE-MM=40, kipf/GraphVAE=1.'
 )
 parser.add_argument(
     '--alpha_motif_loss',
     type=float,
-    default=0.0,
-    help='Weight for motif loss.'
-)
-parser.add_argument(
-    '--use_graphvae_mm_bce_kl_weights',
-    type=str2bool,
-    default=False,
-    help=(
-        'Use Kia GraphVAE-MM dataset-specific BCE/KL alpha weights without '
-        'enabling graph-statistics kernels. Intended for motif-only replacements '
-        'of the GraphVAE-MM stats loss.'
-    )
+    default=None,
+    help='Weight for motif loss. Defaults when motif_loss=true: GraphVAE-MM=1, kipf/GraphVAE=0.1; otherwise 0.'
 )
 parser.add_argument(
     '--alpha_syntactic_literal_motif_loss',
@@ -889,24 +888,6 @@ parser.add_argument(
     type=float,
     default=0.0,
     help='Deprecated. Reference-compatible training already includes adjacency reconstruction inside kernel_cost.'
-)
-parser.add_argument(
-    '--edge_count_loss',
-    type=str2bool,
-    default=False,
-    help='Add an expected undirected edge-count log-ratio loss on reconstructed adjacency.'
-)
-parser.add_argument(
-    '--edge_count_loss_mode',
-    choices=['abs_log_ratio', 'squared_log_ratio'],
-    default='abs_log_ratio',
-    help='Edge-count loss variant.'
-)
-parser.add_argument(
-    '--alpha_edge_count',
-    type=float,
-    default=0.0,
-    help='Weight for edge_count_loss in the total loss.'
 )
 
 #===============================
@@ -1156,19 +1137,28 @@ args.use_syntactic_literal_rules = use_syntactic_literal_rules
 # Loss settings
 #===============================
 alpha_kernel_cost = args.alpha_kernel_cost
-alpha_node_feat = args.alpha_node_feat
-alpha_edge_feat = args.alpha_edge_feat
-alpha_motif_loss = args.alpha_motif_loss
-use_graphvae_mm_bce_kl_weights = args.use_graphvae_mm_bce_kl_weights
+alpha_node_feat = resolve_loss_weight(
+    args.alpha_node_feat,
+    default_feature_loss_weight(model_name),
+)
+alpha_edge_feat = resolve_loss_weight(
+    args.alpha_edge_feat,
+    default_feature_loss_weight(model_name),
+)
+alpha_motif_loss = resolve_loss_weight(
+    args.alpha_motif_loss,
+    default_motif_loss_weight(model_name, use_motif_loss),
+)
 alpha_syntactic_literal_motif_loss = (
     alpha_motif_loss
     if args.alpha_syntactic_literal_motif_loss is None
-    else args.alpha_syntactic_literal_motif_loss
+    else float(args.alpha_syntactic_literal_motif_loss)
 )
 alpha_adj_recon = args.alpha_adj_recon
-use_edge_count_loss = args.edge_count_loss
-edge_count_loss_mode = args.edge_count_loss_mode
-alpha_edge_count = args.alpha_edge_count
+args.alpha_node_feat = alpha_node_feat
+args.alpha_edge_feat = alpha_edge_feat
+args.alpha_motif_loss = alpha_motif_loss
+args.alpha_syntactic_literal_motif_loss = alpha_syntactic_literal_motif_loss
 
 #===============================
 # Runtime, output, and evaluation settings
@@ -1347,15 +1337,6 @@ elif model_name == "kipf" or model_name == "graphVAE":
     alpha = [1, 1]
     step_num = 0
 
-if use_graphvae_mm_bce_kl_weights:
-    if dataset not in GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET:
-        supported_datasets = ", ".join(sorted(GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET))
-        raise ValueError(
-            "use_graphvae_mm_bce_kl_weights is only defined for "
-            f"{supported_datasets}; received dataset={dataset!r}."
-        )
-    alpha[-2], alpha[-1] = GRAPHVAE_MM_BCE_KL_ALPHA_BY_DATASET[dataset]
-
 AutoEncoder = False
 
 # Make sure if we are using tiny overfit debug mode, we are actually training an autoencoder (no kernel loss).
@@ -1378,14 +1359,10 @@ print(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
-      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
-      f" edge_count={alpha_edge_count},"
-      f" graphvae_mm_bce_kl={use_graphvae_mm_bce_kl_weights}"
+      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss}"
 )
 print("motif_loss_mode:" + str(motif_loss_mode))
 print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
-print("edge_count_loss:" + str(use_edge_count_loss))
-print("edge_count_loss_mode:" + str(edge_count_loss_mode))
 print(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -1401,14 +1378,10 @@ logging.info(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
-      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
-      f" edge_count={alpha_edge_count},"
-      f" graphvae_mm_bce_kl={use_graphvae_mm_bce_kl_weights}"
+      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss}"
 )
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
 logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
-logging.info("edge_count_loss:" + str(use_edge_count_loss))
-logging.info("edge_count_loss_mode:" + str(edge_count_loss_mode))
 logging.info(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -1729,57 +1702,6 @@ def compute_true_edge_feat_loss(edge_feat_logits, target_edge_onehot, true_node_
     return masked_loss_sum / supervised_count
 
 
-def compute_edge_count_loss(reconstructed_adj_logit, target_adj, true_node_num,
-                            loss_mode='abs_log_ratio', eps=1e-6):
-    """Match expected undirected edge counts on real nodes only.
-
-    The generated graphs are evaluated as undirected NetworkX graphs. For each
-    unordered pair (i, j), use P(edge exists) = 1 - (1-p_ij)(1-p_ji), then
-    compare the expected edge count with the target count using a log-ratio.
-    """
-    if reconstructed_adj_logit.ndim != 3 or target_adj.ndim != 3:
-        raise ValueError("edge-count loss expects BxNxN reconstructed and target adjacency tensors.")
-    if reconstructed_adj_logit.shape != target_adj.shape:
-        raise ValueError(
-            f"Shape mismatch: logits {tuple(reconstructed_adj_logit.shape)} vs target {tuple(target_adj.shape)}."
-        )
-
-    batch_size, max_nodes, _ = reconstructed_adj_logit.shape
-    true_node_num = torch.as_tensor(true_node_num, device=reconstructed_adj_logit.device)
-    if true_node_num.ndim != 1 or true_node_num.numel() != batch_size:
-        raise ValueError(
-            f"true_node_num must be 1D with length {batch_size}; got shape {tuple(true_node_num.shape)}."
-        )
-    true_node_num = true_node_num.long().clamp(min=0, max=max_nodes)
-
-    node_positions = torch.arange(max_nodes, device=reconstructed_adj_logit.device).unsqueeze(0)
-    valid_node_mask = node_positions < true_node_num.unsqueeze(1)
-    valid_pair_mask = valid_node_mask.unsqueeze(1) & valid_node_mask.unsqueeze(2)
-    upper_pair_mask = torch.triu(
-        torch.ones(max_nodes, max_nodes, dtype=torch.bool, device=reconstructed_adj_logit.device),
-        diagonal=1,
-    ).unsqueeze(0)
-    pair_mask = valid_pair_mask & upper_pair_mask
-
-    adj_probs = torch.sigmoid(reconstructed_adj_logit)
-    undirected_edge_probs = 1.0 - (
-        (1.0 - adj_probs) * (1.0 - adj_probs.transpose(1, 2))
-    )
-    target_adj = target_adj.to(device=reconstructed_adj_logit.device, dtype=reconstructed_adj_logit.dtype)
-    undirected_target_edges = ((target_adj > 0) | (target_adj.transpose(1, 2) > 0)).to(
-        reconstructed_adj_logit.dtype
-    )
-
-    pair_mask_f = pair_mask.to(reconstructed_adj_logit.dtype)
-    predicted_edge_counts = (undirected_edge_probs * pair_mask_f).sum(dim=(1, 2))
-    target_edge_counts = (undirected_target_edges * pair_mask_f).sum(dim=(1, 2))
-
-    log_ratio = torch.log((predicted_edge_counts + eps) / (target_edge_counts + eps))
-    if loss_mode == 'squared_log_ratio':
-        return torch.mean(log_ratio.pow(2))
-    if loss_mode == 'abs_log_ratio':
-        return torch.mean(torch.abs(log_ratio))
-    raise ValueError(f"Unknown edge_count_loss_mode: {loss_mode}")
 #endregion
 #
 def OptimizerVAE(reconstructed_adj, reconstructed_kernel_val, targert_adj, target_kernel_val, log_std, mean, alpha,
@@ -2397,7 +2319,6 @@ for epoch in range(epoch_number):
         #=============================================================================
         node_feat_loss = reconstructed_adj_logit.new_tensor(0.0)
         edge_feat_loss = reconstructed_adj_logit.new_tensor(0.0)
-        edge_count_loss = reconstructed_adj_logit.new_tensor(0.0)
 
         if alpha_node_feat > 0 and node_feat_logits is not None:
             if target_node_onehots is None or any(t is None for t in target_node_onehots):
@@ -2429,13 +2350,6 @@ for epoch in range(epoch_number):
                 edge_feat_logits=edge_feat_logits,
                 target_edge_onehot=target_edge_oh,
                 true_node_num=true_node_num
-            )
-        if use_edge_count_loss:
-            edge_count_loss = compute_edge_count_loss(
-                reconstructed_adj_logit=reconstructed_adj_logit,
-                target_adj=subgraphs.to(device),
-                true_node_num=true_node_num,
-                loss_mode=edge_count_loss_mode,
             )
         # These hard metrics are evaluation-only diagnostics. They answer a
         # stricter question than the soft training loss: after discretizing the
@@ -2577,8 +2491,7 @@ for epoch in range(epoch_number):
         loss = kernel_cost + \
             alpha_node_feat * node_feat_loss +\
             alpha_edge_feat * edge_feat_loss+\
-            weighted_motif_loss_term + \
-            edge_count_loss * alpha_edge_count
+            weighted_motif_loss_term
 
         hard_exact_match_count = int(hard_motif_exact_zero_per_graph.sum().item())
         hard_exact_match_total = int(hard_motif_exact_zero_per_graph.numel())
@@ -2603,7 +2516,6 @@ for epoch in range(epoch_number):
                   f"hard_exact_all={bool(hard_motif_exact_zero.item())} "
                   f"hard_exact_graphs={hard_exact_match_count}/{hard_exact_match_total} "
                   f"recon={reconstruction_loss.item():.6f} "
-                  f"edge_count={edge_count_loss.item():.6f} "
                   f"node={node_feat_loss.item():.6f} edge={edge_feat_loss.item():.6f}")
     #    
     #   loss = kernel_cost  # Graph generation loss without feature decoding
@@ -2739,7 +2651,6 @@ for epoch in range(epoch_number):
             f"| motif_temp: {motif_temperature:.3f} "
             f"| node_feat_loss: {node_feat_loss.item():05f} "
             f"| edge_feat_loss: {edge_feat_loss.item():05f} "
-            f"| edge_count_loss: {edge_count_loss.item():05f} "
             f"| hard_motif_loss: {hard_motif_loss.item():05f} "
             f"| hard_exact_all: {int(bool(hard_motif_exact_zero.item()))} "
             f"| hard_exact_graphs: {hard_exact_match_count}/{hard_exact_match_total} "
@@ -2747,8 +2658,7 @@ for epoch in range(epoch_number):
             f"| weighted_components: kernel={float(kernel_cost.detach().cpu().item()):05f},"
             f" node={float((alpha_node_feat * node_feat_loss).detach().cpu().item()):05f},"
             f" edge={float((alpha_edge_feat * edge_feat_loss).detach().cpu().item()):05f},"
-            f" motif={float(weighted_motif_loss_term.detach().cpu().item()):05f},"
-            f" edge_count={float((alpha_edge_count * edge_count_loss).detach().cpu().item()):05f} "
+            f" motif={float(weighted_motif_loss_term.detach().cpu().item()):05f} "
             f"| z_kl_loss: {kl_loss.item():05f} | accu: {(acc.item() if torch.is_tensor(acc) else float(acc)):03f}"
         )
         print(epoch_status, k_loss_str)

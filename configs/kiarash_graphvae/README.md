@@ -9,8 +9,8 @@ paper's Grid Table 3 setting while staying on the current `GRID` dataset path:
 - split: `legacy_80_20`
 - BFS: `legacy_first_component`
 - model: base `GraphVAE`
-- losses: kernel/BCE/KL only
-- extra node, edge, motif, edge-count, and adjacency losses disabled
+- losses: kernel/BCE/KL plus node/edge feature decoder supervision
+- motif and adjacency add-on losses disabled
 - runtime: `micro` environment with CUDA-enabled DGL
 
 Run it with:

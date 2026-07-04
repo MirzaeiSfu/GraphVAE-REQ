@@ -81,11 +81,10 @@ The total loss is assembled in [`main.py`](main.py) from:
 - optional graph-statistics kernel terms
 - optional node feature reconstruction loss
 - optional edge feature reconstruction loss
-- optional edge-count loss
 - optional motif/rule-count loss
 
-The default config currently trains a QM9 GraphVAE baseline with motif loss and
-feature losses disabled:
+The default config currently trains a QM9 GraphVAE baseline with motif loss
+disabled and node/edge feature decoder supervision enabled:
 
 ```bash
 python main.py --config configs/default.yaml
@@ -139,11 +138,10 @@ Grid GraphVAE with motif-count loss:
 python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif.yaml
 ```
 
-Grid GraphVAE with motif loss, edge-count loss, and best-validation-MMD
-checkpointing:
+Grid GraphVAE with motif loss and best-validation-MMD checkpointing:
 
 ```bash
-python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_edge_count_best_mmd.yaml
+python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_best_mmd.yaml
 ```
 
 For a short CPU smoke run, override the expensive settings:
@@ -169,7 +167,7 @@ Important groups are:
 - `experiment`: epochs, learning rate, batch size, task.
 - `motif`: motif loss, literal-rule mode, motif loss mode, temperature schedule,
   rule pruning, motif batch size.
-- `loss`: weights for node features, edge features, motifs, edge counts, and
+- `loss`: weights for node features, edge features, motifs, and
   adjacency-related terms.
 - `runtime`: output directory, cache directories, device, reproducibility flags,
   validation checkpointing.

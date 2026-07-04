@@ -1,6 +1,6 @@
 # LOBSTER Table 2 run 06: GraphVAE + calibrated Gaussian motif loss.
 # Uses only original FactorBase rules with motif temperature annealing
-# 1.0 -> 0.5 after the first half of training. BCE/KL use [40,2000].
+# 1.0 -> 0.5 after the first half of training. BCE/KL keep the plain GraphVAE weights [1,1].
 # Node/edge feature heads are supervised because LOBSTER motif rules are feature-aware.
 
 data:
@@ -50,12 +50,8 @@ loss:
   alpha_kernel_cost: 1.0
   alpha_node_feat: 1.0
   alpha_edge_feat: 1.0
-  alpha_motif_loss: 1.0
-  use_graphvae_mm_bce_kl_weights: true
-  alpha_syntactic_literal_motif_loss: 1.0
-  edge_count_loss: false
-  edge_count_loss_mode: abs_log_ratio
-  alpha_edge_count: 0.0
+  alpha_motif_loss: 0.1
+  alpha_syntactic_literal_motif_loss: 0.1
   alpha_adj_recon: 0.0
 
 runtime:

@@ -1,5 +1,5 @@
 # Paper-style GraphVAE baseline for QM9:
-# GraphVAE without MM loss, motif loss, or node/edge feature losses.
+# GraphVAE without MM loss or motif loss; node/edge feature decoder losses are enabled.
 
 data:
   dataset: QM9
@@ -38,8 +38,8 @@ motif:
 
 loss:
   alpha_kernel_cost: 1.0
-  alpha_node_feat: 0.0
-  alpha_edge_feat: 0.0
+  alpha_node_feat: 1.0
+  alpha_edge_feat: 1.0
   alpha_motif_loss: 0.0
   alpha_adj_recon: 0.0
 
