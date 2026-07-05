@@ -71,8 +71,8 @@ runtime:
   device: cuda
   plot_testGraphs: true
   ideal_Evalaution: false
-  keep_best_validation_mmd: false
-  best_validation_mmd_metric: normalized_table2
+  keep_best_validation_mmd: true
+  best_validation_mmd_metric: normalized_table2_table3
   save_validation_checkpoints: false
   third_party_eval: true
   third_party_eval_repeats: 10

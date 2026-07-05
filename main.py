@@ -289,6 +289,7 @@ def resolve_loss_weight(value, default_value):
 
 MMD_FLOAT_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 TABLE2_VALIDATION_MMD_KEYS = ("degree", "clustering", "orbit", "spectral", "diameter")
+TABLE3_VALIDATION_METRIC_KEYS = ("mmd_rbf", "f1_pr")
 GRID_GRAPHVAE_TABLE2_PAPER_MMD = {
     "degree": 0.062,
     "clustering": 0.055,
@@ -296,26 +297,51 @@ GRID_GRAPHVAE_TABLE2_PAPER_MMD = {
     "spectral": 0.018,
     "diameter": 0.143,
 }
+VALIDATION_SCORE_TABLE3_DENOMINATORS = {
+    "mmd_rbf": 1.0,
+    "f1_pr_error": 1.0,
+}
 BEST_VALIDATION_MMD_SCORE_MODES = (
     "normalized_table2",
+    "normalized_table2_table3",
     "raw_mean",
+    "raw_mean_table2_table3",
+    "table3",
     *TABLE2_VALIDATION_MMD_KEYS,
+    *TABLE3_VALIDATION_METRIC_KEYS,
 )
 MMD_RESULT_LABELS = {
     "degree": "degree",
     "clustering": "clustering",
     "orbit": "orbits",
     "spectral": "Spec",
+    "triangle": "Tri",
+    "sparsity": "sparsity",
     "diameter": "diameter",
+    "mmd_rbf": "mmd_rbf",
+    "mmd_rbf_std": "mmd_rbf_std",
+    "precision": "precision",
+    "precision_std": "precision_std",
+    "recall": "recall",
+    "recall_std": "recall_std",
+    "f1_pr": "f1_pr",
+    "f1_pr_std": "f1_pr_std",
+}
+MMD_EDGE_COUNT_LABELS = {
+    "reference_edge_count": "average edge # in test set",
+    "generated_edge_count": "average edge # in grnrated set",
 }
 THIRD_PARTY_EVAL_GENERATED_FILENAME = "Single_comp_generatedGraphs_adj_final_eval.npy"
 THIRD_PARTY_EVAL_REFERENCE_FILENAME = "testGraphs_adj_.npy"
 THIRD_PARTY_EVAL_JSON_FILENAME = "graph_realism_random_gin.json"
 THIRD_PARTY_EVAL_SUMMARY_FILENAME = "graph_realism_batch_summary.csv"
 THIRD_PARTY_EVAL_LOG_FILENAME = "third_party_eval.log"
+FINAL_TABLE2_METRICS_FILENAME = "final_table2_metrics.json"
+FINAL_TABLE3_METRICS_FILENAME = "final_table3_metrics.json"
+FINAL_METRICS_SUMMARY_FILENAME = "final_metrics_summary.json"
 
 
-def parse_table2_mmd_result(mmd_result):
+def parse_graph_quality_result(mmd_result):
     metrics = {}
     for metric_name, result_label in MMD_RESULT_LABELS.items():
         match = re.search(
@@ -323,7 +349,21 @@ def parse_table2_mmd_result(mmd_result):
             str(mmd_result),
         )
         metrics[metric_name] = float(match.group(1)) if match else None
+    for metric_name, result_label in MMD_EDGE_COUNT_LABELS.items():
+        match = re.search(
+            rf"{re.escape(result_label)}\s*:\s*({MMD_FLOAT_PATTERN})",
+            str(mmd_result),
+        )
+        metrics[metric_name] = float(match.group(1)) if match else None
     return metrics
+
+
+def parse_table2_mmd_result(mmd_result):
+    metrics = parse_graph_quality_result(mmd_result)
+    return {
+        metric_name: metrics.get(metric_name)
+        for metric_name in TABLE2_VALIDATION_MMD_KEYS
+    }
 
 
 def _valid_mmd_value(metrics, metric_name):
@@ -333,38 +373,191 @@ def _valid_mmd_value(metrics, metric_name):
     return value
 
 
-def compute_validation_mmd_score(metrics, score_mode):
-    if score_mode in TABLE2_VALIDATION_MMD_KEYS:
-        return _valid_mmd_value(metrics, score_mode)
+def _valid_probability_metric(metrics, metric_name):
+    value = metrics.get(metric_name)
+    if value is None or not math.isfinite(value):
+        return None
+    return min(max(float(value), 0.0), 1.0)
 
-    raw_values = []
+
+def _validation_score_components(metrics, score_mode):
+    if score_mode in TABLE2_VALIDATION_MMD_KEYS:
+        value = _valid_mmd_value(metrics, score_mode)
+        return None if value is None else {score_mode: value}
+
+    if score_mode == "mmd_rbf":
+        value = _valid_mmd_value(metrics, "mmd_rbf")
+        return None if value is None else {"mmd_rbf": value}
+
+    if score_mode == "f1_pr":
+        value = _valid_probability_metric(metrics, "f1_pr")
+        return None if value is None else {"f1_pr_error": 1.0 - value}
+
+    raw_table2_values = {}
     for metric_name in TABLE2_VALIDATION_MMD_KEYS:
         value = _valid_mmd_value(metrics, metric_name)
         if value is None:
             return None
-        raw_values.append(value)
+        raw_table2_values[metric_name] = value
 
     if score_mode == "raw_mean":
-        return sum(raw_values) / len(raw_values)
+        return raw_table2_values
+
     if score_mode == "normalized_table2":
-        normalized_values = [
-            metrics[metric_name] / GRID_GRAPHVAE_TABLE2_PAPER_MMD[metric_name]
+        return {
+            metric_name: metrics[metric_name] / GRID_GRAPHVAE_TABLE2_PAPER_MMD[metric_name]
             for metric_name in TABLE2_VALIDATION_MMD_KEYS
-        ]
-        return sum(normalized_values) / len(normalized_values)
+        }
+
+    table3_values = {}
+    mmd_rbf = _valid_mmd_value(metrics, "mmd_rbf")
+    f1_pr = _valid_probability_metric(metrics, "f1_pr")
+    if mmd_rbf is None or f1_pr is None:
+        return None
+    table3_values["mmd_rbf"] = mmd_rbf
+    table3_values["f1_pr_error"] = 1.0 - f1_pr
+
+    if score_mode == "table3":
+        return table3_values
+
+    if score_mode == "raw_mean_table2_table3":
+        return {**raw_table2_values, **table3_values}
+
+    if score_mode == "normalized_table2_table3":
+        normalized_table2_values = {
+            metric_name: metrics[metric_name] / GRID_GRAPHVAE_TABLE2_PAPER_MMD[metric_name]
+            for metric_name in TABLE2_VALIDATION_MMD_KEYS
+        }
+        return {**normalized_table2_values, **table3_values}
 
     raise ValueError(f"Unknown best validation MMD score mode: {score_mode}")
 
 
+def compute_validation_mmd_score(metrics, score_mode):
+    components = _validation_score_components(metrics, score_mode)
+    if components is None:
+        return None
+    return sum(components.values()) / len(components)
+
+
+def score_components_for_mode(metrics, score_mode):
+    components = _validation_score_components(metrics, score_mode)
+    return components or {}
+
+
+def score_denominators_for_mode(score_mode):
+    if score_mode == "normalized_table2":
+        return dict(GRID_GRAPHVAE_TABLE2_PAPER_MMD)
+    if score_mode == "normalized_table2_table3":
+        return {
+            **GRID_GRAPHVAE_TABLE2_PAPER_MMD,
+            **VALIDATION_SCORE_TABLE3_DENOMINATORS,
+        }
+    return None
+
+
 def score_metrics_for_mode(score_mode):
-    if score_mode in TABLE2_VALIDATION_MMD_KEYS:
+    if score_mode in (*TABLE2_VALIDATION_MMD_KEYS, *TABLE3_VALIDATION_METRIC_KEYS):
         return [score_mode]
+    if score_mode == "table3":
+        return list(TABLE3_VALIDATION_METRIC_KEYS)
+    if score_mode in ("raw_mean_table2_table3", "normalized_table2_table3"):
+        return list(TABLE2_VALIDATION_MMD_KEYS) + list(TABLE3_VALIDATION_METRIC_KEYS)
     return list(TABLE2_VALIDATION_MMD_KEYS)
 
 
+def write_json_file(path, payload):
+    with Path(path).open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+
+
 def write_best_validation_mmd_metadata(metadata_path, metadata):
-    with Path(metadata_path).open("w", encoding="utf-8") as handle:
-        json.dump(metadata, handle, indent=2, sort_keys=True)
+    write_json_file(metadata_path, metadata)
+
+
+def table2_metrics_from_parsed(metrics):
+    return {
+        metric_name: metrics.get(metric_name)
+        for metric_name in TABLE2_VALIDATION_MMD_KEYS
+    }
+
+
+def table3_metrics_from_parsed(metrics):
+    return {
+        metric_name: metrics.get(metric_name)
+        for metric_name in (
+            "mmd_rbf",
+            "mmd_rbf_std",
+            "precision",
+            "precision_std",
+            "recall",
+            "recall_std",
+            "f1_pr",
+            "f1_pr_std",
+        )
+    }
+
+
+def load_third_party_metrics(third_party_json_path):
+    if third_party_json_path is None:
+        return None
+    third_party_json_path = Path(third_party_json_path)
+    if not third_party_json_path.is_file():
+        return None
+    with third_party_json_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def write_final_metric_summaries(
+    run_dir,
+    final_mmd_result,
+    third_party_json_path=None,
+    model_source="final_epoch",
+):
+    run_dir = Path(run_dir)
+    parsed_metrics = parse_graph_quality_result(final_mmd_result)
+    common_payload = {
+        "split": "test",
+        "model_source": model_source,
+        "generated_graphs": str(run_dir / THIRD_PARTY_EVAL_GENERATED_FILENAME),
+        "reference_graphs": str(run_dir / THIRD_PARTY_EVAL_REFERENCE_FILENAME),
+        "raw_eval_result": str(final_mmd_result),
+    }
+    table2_payload = {
+        **common_payload,
+        "metric_family": "table2_structural_mmd",
+        "metrics": table2_metrics_from_parsed(parsed_metrics),
+        "extra_metrics": {
+            "triangle": parsed_metrics.get("triangle"),
+            "sparsity": parsed_metrics.get("sparsity"),
+            "reference_edge_count": parsed_metrics.get("reference_edge_count"),
+            "generated_edge_count": parsed_metrics.get("generated_edge_count"),
+        },
+    }
+    third_party_metrics = load_third_party_metrics(third_party_json_path)
+    table3_payload = {
+        **common_payload,
+        "metric_family": "table3_gnn",
+        "local_eval_metrics": table3_metrics_from_parsed(parsed_metrics),
+        "third_party_eval_json": (
+            str(Path(third_party_json_path))
+            if third_party_json_path is not None
+            else None
+        ),
+        "third_party_eval_metrics": third_party_metrics,
+    }
+    summary_payload = {
+        "split": "test",
+        "model_source": model_source,
+        "table2_metrics_file": str(run_dir / FINAL_TABLE2_METRICS_FILENAME),
+        "table3_metrics_file": str(run_dir / FINAL_TABLE3_METRICS_FILENAME),
+        "table2": table2_payload,
+        "table3": table3_payload,
+    }
+    write_json_file(run_dir / FINAL_TABLE2_METRICS_FILENAME, table2_payload)
+    write_json_file(run_dir / FINAL_TABLE3_METRICS_FILENAME, table3_payload)
+    write_json_file(run_dir / FINAL_METRICS_SUMMARY_FILENAME, summary_payload)
+    return summary_payload
 
 
 def _run_git_command(git_args):
@@ -959,18 +1152,20 @@ parser.add_argument(
 )
 parser.add_argument(
     '--keep_best_validation_mmd',
-    default=False,
+    default=True,
     type=str2bool,
     help='Save and use the checkpoint with the lowest validation MMD score.'
 )
 parser.add_argument(
     '--best_validation_mmd_metric',
-    default='normalized_table2',
+    default='normalized_table2_table3',
     choices=BEST_VALIDATION_MMD_SCORE_MODES,
     help=(
         'Validation checkpoint score. normalized_table2 averages each Table 2 '
-        'metric after dividing by the Grid GraphVAE paper value; raw_mean '
-        'averages raw MMDs; a metric name tracks only that metric.'
+        'metric after dividing by the Grid GraphVAE paper value; '
+        'normalized_table2_table3 also includes Table 3 mmd_rbf and '
+        '1 - f1_pr; raw_mean averages raw Table 2 MMDs; a metric name tracks '
+        'only that metric.'
     )
 )
 parser.add_argument(
@@ -2573,7 +2768,7 @@ for epoch in range(epoch_number):
                         f.write(str(step)+" @ loss @ , "+str(loss.item())+" , @ Reconstruction @ , "+reconstruc_MMD_loss+" , @ Val @ , " +mmd_res+"\n")
 
                 if keep_best_validation_mmd:
-                    validation_mmd_metrics = parse_table2_mmd_result(mmd_res)
+                    validation_mmd_metrics = parse_graph_quality_result(mmd_res)
                     validation_mmd_score = compute_validation_mmd_score(
                         validation_mmd_metrics,
                         best_validation_mmd_metric,
@@ -2595,12 +2790,20 @@ for epoch in range(epoch_number):
                             "score": float(validation_mmd_score),
                             "score_mode": best_validation_mmd_metric,
                             "score_metrics": score_metrics_for_mode(best_validation_mmd_metric),
-                            "score_denominators": (
-                                GRID_GRAPHVAE_TABLE2_PAPER_MMD
-                                if best_validation_mmd_metric == "normalized_table2"
-                                else None
+                            "score_components": score_components_for_mode(
+                                validation_mmd_metrics,
+                                best_validation_mmd_metric,
+                            ),
+                            "score_denominators": score_denominators_for_mode(
+                                best_validation_mmd_metric
                             ),
                             "metrics": validation_mmd_metrics,
+                            "table2_metrics": table2_metrics_from_parsed(
+                                validation_mmd_metrics
+                            ),
+                            "table3_metrics": table3_metrics_from_parsed(
+                                validation_mmd_metrics
+                            ),
                             "model_path": str(best_validation_mmd_model_path),
                             "validation_generated_graphs": (
                                 graph_save_path
@@ -2713,10 +2916,12 @@ if not tiny_overfit:
 #   %% Evaluation of the model on graph generation task
 # region graph generation task
 if task == "graphGeneration":
+    final_eval_model_source = "final_epoch"
     if keep_best_validation_mmd and best_validation_mmd_model_path.exists():
         model.load_state_dict(
             torch.load(str(best_validation_mmd_model_path), map_location=device)
         )
+        final_eval_model_source = "best_validation_mmd_model"
         best_eval_message = (
             "Loaded best validation MMD checkpoint for final evaluation: "
             f"{best_validation_mmd_model_path}"
@@ -2728,9 +2933,29 @@ if task == "graphGeneration":
             )
         print(best_eval_message)
         logging.info(best_eval_message)
-    EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_name="final_eval")
+    final_mmd_res = EvalTwoSet(
+        model,
+        test_list_adj,
+        graph_save_path,
+        Save_generated=True,
+        _f_name="final_eval",
+    )
+    third_party_json_path = None
     if third_party_eval:
-        run_third_party_graph_realism_eval(graph_save_dir, args, device)
+        third_party_json_path = run_third_party_graph_realism_eval(graph_save_dir, args, device)
+    final_metric_summary = write_final_metric_summaries(
+        graph_save_dir,
+        final_mmd_res,
+        third_party_json_path=third_party_json_path,
+        model_source=final_eval_model_source,
+    )
+    final_metric_message = (
+        "Saved final Table 2/Table 3 metric summaries: "
+        f"{final_metric_summary['table2_metrics_file']}, "
+        f"{final_metric_summary['table3_metrics_file']}"
+    )
+    print(final_metric_message)
+    logging.info(final_metric_message)
 # endregion
 #==========================================================================================
 

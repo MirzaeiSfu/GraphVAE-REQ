@@ -165,13 +165,15 @@ To save the checkpoint with the best validation MMD and use it for final test ge
 python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_best_mmd.yaml
 ```
 
-The default validation score is a normalized mean over the Table 2 MMD metrics: degree, clustering, orbit, spectral, and diameter. When enabled, the run folder contains `best_validation_mmd_model` and `best_validation_mmd.json`, and `Single_comp_generatedGraphs_adj_final_eval.npy` is generated from that best checkpoint.
+The default validation score can now include both paper metric families. Use `best_validation_mmd_metric: normalized_table2_table3` to average normalized Table 2 metrics (degree, clustering, orbit, spectral, diameter) together with Table 3 metrics (`mmd_rbf` and `1 - f1_pr`). When enabled, the run folder contains `best_validation_mmd_model` and `best_validation_mmd.json`, and `Single_comp_generatedGraphs_adj_final_eval.npy` is generated from that best checkpoint.
 
 Existing configs explicitly set `keep_best_validation_mmd: false`, so old runs still use the final epoch unless the flag is enabled from the command line or changed in the config.
 
 The dedicated best-MMD config writes to `runs/table2_reproduction/grid_graphvae_motif_best_mmd`, so it does not overwrite the previous motif run in `runs/table2_reproduction/grid_graphvae_motif`.
 
-By default, checkpoint selection uses `best_validation_mmd_metric: normalized_table2`: each metric is divided by the Grid GraphVAE paper value before averaging, so large-scale metrics such as orbit do not dominate just because of their numeric scale. Other supported modes are `raw_mean`, `degree`, `clustering`, `orbit`, `spectral`, and `diameter`.
+The supported checkpoint-selection modes are `normalized_table2`, `normalized_table2_table3`, `raw_mean`, `raw_mean_table2_table3`, `table3`, `degree`, `clustering`, `orbit`, `spectral`, `diameter`, `mmd_rbf`, and `f1_pr`. For `f1_pr`, the internal score is `1 - f1_pr` because lower validation scores are treated as better.
+
+After final test generation, the run folder also contains `final_table2_metrics.json`, `final_table3_metrics.json`, and `final_metrics_summary.json`. Table 2 is parsed from the final generated-vs-test structural evaluation. Table 3 includes the local generated-vs-test GNN metrics and, when `third_party_eval: true`, the third-party Random-GIN JSON payload.
 
 ## Resampling Selection
 
