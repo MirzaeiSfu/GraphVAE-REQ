@@ -181,6 +181,32 @@ Useful config folders:
 - [`configs/kiarash_graphvae/`](configs/kiarash_graphvae/): legacy baseline
   configs kept for comparison, not the main project description.
 
+## Loss-Weight Sweeps
+
+Generate a coarse log sweep over motif and node/edge feature weights:
+
+```bash
+/local-scratch2/mirzaei/miniconda3/envs/micro/bin/python scripts/generate_loss_weight_sweep.py \
+  --stage coarse \
+  --output-dir configs/loss_weight_sweeps/coarse_grid_lobster_both \
+  --schedule-file CLUSTER_GPU_CONFIGS_LOSS_SWEEP_COARSE.txt
+```
+
+The default coarse grid uses `alpha_motif_loss` values
+`0.01, 0.03, 0.1, 0.3, 1.0` and tied node/edge feature weights
+`0, 0.1, 1.0` for the GRID/LOBSTER GraphVAE+Motif-both and
+GraphVAE-MM+Motif-both templates. After evaluating the coarse runs, generate a
+fine sweep around the best config:
+
+```bash
+/local-scratch2/mirzaei/miniconda3/envs/micro/bin/python scripts/generate_loss_weight_sweep.py \
+  --stage fine \
+  --center-config configs/loss_weight_sweeps/coarse_grid_lobster_both/<best>.yaml \
+  --template configs/cluster_tests/grid_table2_05_graphvae_motif_both_no_temp.yaml \
+  --output-dir configs/loss_weight_sweeps/fine_grid_best \
+  --schedule-file CLUSTER_GPU_CONFIGS_LOSS_SWEEP_FINE.txt
+```
+
 ## Datasets
 
 The loader in [`data.py`](data.py) supports synthetic and benchmark graph
