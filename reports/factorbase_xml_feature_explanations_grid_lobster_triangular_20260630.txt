@@ -1,0 +1,930 @@
+FactorBase XML Feature Explanation Report
+Generated: 2026-06-30
+
+Scope
+-----
+This report reads the Bayesian-network XML/BIF files for two database-creation sets of GRID, LOBSTER, and TRIANGULAR GRID:
+1. old snapshot files on cs-cl-13
+2. cfg410000000 files on cs-cl-18
+
+How to read these XML files
+---------------------------
+- Each <VARIABLE> is a FactorBase random variable. Names like distance_to_boundary(nodes0) and distance_to_boundary(nodes1) are the same feature attached to the two node aliases in an edge tuple.
+- Each <OUTCOME> is an allowed categorical value. The XML stores integer-like category IDs, not long labels.
+- Each <DEFINITION> gives the conditional probability table (CPT) for one variable. <GIVEN> entries are the learned parent variables.
+- The first CPT example below is the probability vector for the child variable when every parent is in its first listed outcome. For variables with no parents, it is the marginal/prior distribution.
+- edges(nodes0,nodes1) has only outcome T in these files, so all CPTs are learned over observed/positive edge rows.
+
+Source-code references used for semantic labels
+-----------------------------------------------
+- dataset_feature_utils/grid_features.py
+- dataset_feature_utils/lobster_features.py
+- dataset_feature_utils/triangular_grid_features.py
+- data.py feature-builder comments
+- FEATURE_SCHEMA.md
+
+Remote XML file addresses
+-------------------------
+- GRID | old snapshot / cs-cl-13: cs-cl-13:/localhome/mirzaei/Desktop/Bif_grid_undir_feat_snap_7a58e6.xml
+- GRID | cfg410000000 / cs-cl-18: cs-cl-18:/local-scratch2/mirzaei/ali/db/GraphVAE-REQ/factorbase_motif_pipeline/runs/grid_undir_feat_snap_7a58e6_cfg410000000/Bif_grid_undir_feat_snap_7a58e6_cfg410000000.xml
+- LOBSTER | old snapshot / cs-cl-13: cs-cl-13:/localhome/mirzaei/Desktop/Bif_lobster_undir_feat_snap_85093d.xml
+- LOBSTER | cfg410000000 / cs-cl-18: cs-cl-18:/local-scratch2/mirzaei/ali/db/GraphVAE-REQ/factorbase_motif_pipeline/runs/lobster_undir_feat_snap_85093d_cfg410000000/Bif_lobster_undir_feat_snap_85093d_cfg410000000.xml
+- TRIANGULAR GRID | old snapshot / cs-cl-13: cs-cl-13:/localhome/mirzaei/Desktop/Bif_triangular_grid_undir_feat_snap_ce92ed.xml
+- TRIANGULAR GRID | cfg410000000 / cs-cl-18: cs-cl-18:/local-scratch2/mirzaei/ali/db/GraphVAE-REQ/factorbase_motif_pipeline/runs/triangular_grid_undir_feat_snap_ce92ed_cfg410000000/Bif_triangular_grid_undir_feat_snap_ce92ed_cfg410000000.xml
+
+====================================================================================================
+GRID -- old snapshot / cs-cl-13
+====================================================================================================
+Remote XML address: cs-cl-13:/localhome/mirzaei/Desktop/Bif_grid_undir_feat_snap_7a58e6.xml
+Network name: grid_undir_feat_snap_7a58e6
+File size: 5592 bytes
+Remote modified time: 2026-04-29 17:02:51.370222645 -0700
+Variables/features in this XML: 6
+
+Schema note:
+Old grid schema: node distance_to_boundary plus old struct_type/edge_orbit. struct_type is a coarse
+degree role: Corner/Edge/Interior.
+
+Feature details
+---------------
+Feature: distance_to_boundary(nodes0)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+    - 5: Deep-Center: distance > 5
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1)
+  CPT size: 25 numeric probabilities; expected from outcomes x parent configurations = 25.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T
+  First CPT-row probabilities: 1 (Boundary)=0.673732, 2 (Near-Boundary)=0.326016, 3 (Near-Center)=8.4e-05, 4 (Center)=8.4e-05, 5 (Deep-Center)=8.4e-05
+
+Feature: distance_to_boundary(nodes1)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+    - 5: Deep-Center: distance > 5
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 5 numeric probabilities; expected from outcomes x parent configurations = 5.
+  Marginal probabilities: 1 (Boundary)=0.195483, 2 (Near-Boundary)=0.183975, 3 (Near-Center)=0.311602, 4 (Center)=0.207228, 5 (Deep-Center)=0.101712
+
+Feature: edges(nodes0,nodes1)
+  Type: edge relation
+  Meaning: The relation saying nodes0 and nodes1 are connected. In these learned BNs the only
+           outcome is T, because the FactorBase export is over positive edge tuples.
+  Example: edges(nodes0,nodes1)=T means the tuple represents an observed directed edge row
+           from nodes0 to nodes1.
+  Outcomes / category labels:
+    - T: Observed edge relation is true
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 1 numeric probabilities; expected from outcomes x parent configurations = 1.
+  Marginal probabilities: T (Observed edge relation is true)=1
+
+Feature: edge_orbit(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Boundary/interior edge orbit category.
+  Example: an edge touching the outer boundary is edge_orbit=1; an edge fully inside the
+           grid is edge_orbit=2.
+  Outcomes / category labels:
+    - 1: Boundary edge orbit: edge touches the outer boundary
+    - 2: Interior edge orbit: edge does not touch the outer boundary
+  Learned BN parents: distance_to_boundary(nodes0), distance_to_boundary(nodes1), edges(nodes0,nodes1), struct_type(nodes0)
+  CPT size: 150 numeric probabilities; expected from outcomes x parent configurations = 150.
+  First CPT-row condition: distance_to_boundary(nodes0)=1, distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, struct_type(nodes0)=1
+  First CPT-row probabilities: 1 (Boundary edge orbit)=0.998392, 2 (Interior edge orbit)=0.001608
+
+Feature: struct_type(nodes0)
+  Type: node feature
+  Meaning: Coarse structural node category. In the older grid/triangular schemas this is mostly a
+           degree relabeling.
+  Example: in old grid, a corner node has struct_type=1, a side node has struct_type=2,
+           and an interior node has struct_type=3.
+  Outcomes / category labels:
+    - 1: Corner: grid node degree 2
+    - 2: Edge: non-corner boundary node, grid degree 3
+    - 3: Interior: grid node degree 4
+  Learned BN parents: distance_to_boundary(nodes0), distance_to_boundary(nodes1), edges(nodes0,nodes1), struct_type(nodes1)
+  CPT size: 225 numeric probabilities; expected from outcomes x parent configurations = 225.
+  First CPT-row condition: distance_to_boundary(nodes0)=1, distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, struct_type(nodes1)=1
+  First CPT-row probabilities: 1 (Corner)=0.001605, 2 (Edge)=0.99679, 3 (Interior)=0.001605
+
+Feature: struct_type(nodes1)
+  Type: node feature
+  Meaning: Coarse structural node category. In the older grid/triangular schemas this is mostly a
+           degree relabeling.
+  Example: in old grid, a corner node has struct_type=1, a side node has struct_type=2,
+           and an interior node has struct_type=3.
+  Outcomes / category labels:
+    - 1: Corner: grid node degree 2
+    - 2: Edge: non-corner boundary node, grid degree 3
+    - 3: Interior: grid node degree 4
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 3 numeric probabilities; expected from outcomes x parent configurations = 3.
+  Marginal probabilities: 1 (Corner)=0.01907, 2 (Edge)=0.237826, 3 (Interior)=0.743104
+
+====================================================================================================
+GRID -- cfg410000000 / cs-cl-18
+====================================================================================================
+Remote XML address: cs-cl-18:/local-scratch2/mirzaei/ali/db/GraphVAE-REQ/factorbase_motif_pipeline/runs/grid_undir_feat_snap_7a58e6_cfg410000000/Bif_grid_undir_feat_snap_7a58e6_cfg410000000.xml
+Network name: grid_undir_feat_snap_7a58e6_cfg410000000
+File size: 4437 bytes
+Remote modified time: 2026-06-29 15:11:12.559870887 -0700
+Variables/features in this XML: 6
+
+Schema note:
+New cfg schema: uses the corrected/optimal grid features: node distance_to_boundary; edge edge_axis,
+edge_square_count, edge_boundary_band. struct_type is intentionally dropped because it is a pure
+degree relabeling.
+
+Feature details
+---------------
+Feature: distance_to_boundary(nodes0)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+    - 5: Deep-Center: distance > 5
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1)
+  CPT size: 25 numeric probabilities; expected from outcomes x parent configurations = 25.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T
+  First CPT-row probabilities: 1 (Boundary)=0.683392, 2 (Near-Boundary)=0.316419, 3 (Near-Center)=6.3e-05, 4 (Center)=6.3e-05, 5 (Deep-Center)=6.3e-05
+
+Feature: distance_to_boundary(nodes1)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+    - 5: Deep-Center: distance > 5
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 5 numeric probabilities; expected from outcomes x parent configurations = 5.
+  Marginal probabilities: 1 (Boundary)=0.256823, 2 (Near-Boundary)=0.218783, 3 (Near-Center)=0.323395, 4 (Center)=0.163671, 5 (Deep-Center)=0.037328
+
+Feature: edges(nodes0,nodes1)
+  Type: edge relation
+  Meaning: The relation saying nodes0 and nodes1 are connected. In these learned BNs the only
+           outcome is T, because the FactorBase export is over positive edge tuples.
+  Example: edges(nodes0,nodes1)=T means the tuple represents an observed directed edge row
+           from nodes0 to nodes1.
+  Outcomes / category labels:
+    - T: Observed edge relation is true
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 1 numeric probabilities; expected from outcomes x parent configurations = 1.
+  Marginal probabilities: T (Observed edge relation is true)=1
+
+Feature: edge_axis(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Orientation axis of a rectangular-grid edge.
+  Example: edge (3,4)-(3,5) is horizontal so edge_axis=1; edge (3,4)-(4,4) is vertical so
+           edge_axis=2.
+  Outcomes / category labels:
+    - 1: Horizontal grid edge
+    - 2: Vertical grid edge
+  Learned BN parents: edges(nodes0,nodes1)
+  CPT size: 2 numeric probabilities; expected from outcomes x parent configurations = 2.
+  First CPT-row condition: edges(nodes0,nodes1)=T
+  First CPT-row probabilities: 1 (Horizontal grid edge)=0.5, 2 (Vertical grid edge)=0.5
+
+Feature: edge_boundary_band(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Boundary-depth band of an edge, computed from the minimum boundary depth of its
+           endpoints.
+  Example: if an edge has endpoint boundary-depth categories 1 and 2,
+           edge_boundary_band=min(1,2)=1.
+  Outcomes / category labels:
+    - 1: Boundary edge band: min endpoint boundary depth is Boundary
+    - 2: Near-Boundary edge band
+    - 3: Near-Center edge band
+    - 4: Center edge band
+    - 5: Deep-Center edge band
+  Learned BN parents: distance_to_boundary(nodes0), distance_to_boundary(nodes1), edges(nodes0,nodes1), edge_square_count(nodes0,nodes1)
+  CPT size: 250 numeric probabilities; expected from outcomes x parent configurations = 250.
+  First CPT-row condition: distance_to_boundary(nodes0)=1, distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, edge_square_count(nodes0,nodes1)=1
+  First CPT-row probabilities: 1 (Boundary edge band)=0.999628, 2 (Near-Boundary edge band)=9.3e-05, 3 (Near-Center edge band)=9.3e-05, 4 (Center edge band)=9.3e-05, 5 (Deep-Center edge band)=9.3e-05
+
+Feature: edge_square_count(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Number of unit square 4-cycles that contain the edge.
+  Example: a top-row grid edge belongs to one unit square so edge_square_count=1; an
+           interior grid edge belongs to two unit squares so edge_square_count=2.
+  Outcomes / category labels:
+    - 1: One-Square: boundary edge, side of one unit square
+    - 2: Two-Squares: interior edge, side of two unit squares
+  Learned BN parents: distance_to_boundary(nodes0), distance_to_boundary(nodes1), edges(nodes0,nodes1)
+  CPT size: 50 numeric probabilities; expected from outcomes x parent configurations = 50.
+  First CPT-row condition: distance_to_boundary(nodes0)=1, distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T
+  First CPT-row probabilities: 1 (One-Square)=0.999907, 2 (Two-Squares)=9.3e-05
+
+====================================================================================================
+LOBSTER -- old snapshot / cs-cl-13
+====================================================================================================
+Remote XML address: cs-cl-13:/localhome/mirzaei/Desktop/Bif_lobster_undir_feat_snap_85093d.xml
+Network name: lobster_undir_feat_snap_85093d
+File size: 13010 bytes
+Remote modified time: 2026-04-29 17:02:58.164143946 -0700
+Variables/features in this XML: 10
+
+Schema note:
+Old lobster schema: distance_to_spine, 4-bucket subtree_size/eccentricity, node_degree, and
+edge_type. The Far-Spine label exists in code but is not an outcome in this XML.
+
+Feature details
+---------------
+Feature: distance_to_spine(nodes0)
+  Type: node feature
+  Meaning: Old lobster node distance category to the approximate spine/diameter path.
+  Example: a node on the lobster diameter path has distance_to_spine=1; one hop off that
+           path has distance_to_spine=2.
+  Outcomes / category labels:
+    - 1: On-Spine: node is on the lobster diameter/spine
+    - 2: Near-Spine: one hop from spine
+    - 3: Mid-Spine: 2-3 hops from spine
+  Learned BN parents: distance_to_spine(nodes1), edges(nodes0,nodes1), edge_type(nodes0,nodes1)
+  CPT size: 27 numeric probabilities; expected from outcomes x parent configurations = 27.
+  First CPT-row condition: distance_to_spine(nodes1)=1, edges(nodes0,nodes1)=T, edge_type(nodes0,nodes1)=1
+  First CPT-row probabilities: 1 (On-Spine)=0.998932, 2 (Near-Spine)=0.000534, 3 (Mid-Spine)=0.000534
+
+Feature: distance_to_spine(nodes1)
+  Type: node feature
+  Meaning: Old lobster node distance category to the approximate spine/diameter path.
+  Example: a node on the lobster diameter path has distance_to_spine=1; one hop off that
+           path has distance_to_spine=2.
+  Outcomes / category labels:
+    - 1: On-Spine: node is on the lobster diameter/spine
+    - 2: Near-Spine: one hop from spine
+    - 3: Mid-Spine: 2-3 hops from spine
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 3 numeric probabilities; expected from outcomes x parent configurations = 3.
+  Marginal probabilities: 1 (On-Spine)=0.192917, 2 (Near-Spine)=0.311463, 3 (Mid-Spine)=0.49562
+
+Feature: eccentricity(nodes0)
+  Type: node feature
+  Meaning: Binned node eccentricity: max shortest-path distance from this node to any node in the
+           graph.
+  Example: if the farthest node from this node is 8 hops away, eccentricity is bucket 2
+           (6-10) in both old and cfg schemas.
+  Outcomes / category labels:
+    - 1: Max graph distance/eccentricity 1-5
+    - 2: Eccentricity 6-10
+    - 3: Eccentricity 11-15
+    - 4: Eccentricity 16+
+  Learned BN parents: distance_to_spine(nodes0), eccentricity(nodes1), edges(nodes0,nodes1), edge_type(nodes0,nodes1)
+  CPT size: 144 numeric probabilities; expected from outcomes x parent configurations = 144.
+  First CPT-row condition: distance_to_spine(nodes0)=1, eccentricity(nodes1)=1, edges(nodes0,nodes1)=T, edge_type(nodes0,nodes1)=1
+  First CPT-row probabilities: 1 (Max graph distance/eccentricity 1-5)=0.762019, 2 (Eccentricity 6-10)=0.233173, 3 (Eccentricity 11-15)=0.002404, 4 (Eccentricity 16+)=0.002404
+
+Feature: eccentricity(nodes1)
+  Type: node feature
+  Meaning: Binned node eccentricity: max shortest-path distance from this node to any node in the
+           graph.
+  Example: if the farthest node from this node is 8 hops away, eccentricity is bucket 2
+           (6-10) in both old and cfg schemas.
+  Outcomes / category labels:
+    - 1: Max graph distance/eccentricity 1-5
+    - 2: Eccentricity 6-10
+    - 3: Eccentricity 11-15
+    - 4: Eccentricity 16+
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 4 numeric probabilities; expected from outcomes x parent configurations = 4.
+  Marginal probabilities: 1 (Max graph distance/eccentricity 1-5)=0.120202, 2 (Eccentricity 6-10)=0.621133, 3 (Eccentricity 11-15)=0.232948, 4 (Eccentricity 16+)=0.025717
+
+Feature: edges(nodes0,nodes1)
+  Type: edge relation
+  Meaning: The relation saying nodes0 and nodes1 are connected. In these learned BNs the only
+           outcome is T, because the FactorBase export is over positive edge tuples.
+  Example: edges(nodes0,nodes1)=T means the tuple represents an observed directed edge row
+           from nodes0 to nodes1.
+  Outcomes / category labels:
+    - T: Observed edge relation is true
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 1 numeric probabilities; expected from outcomes x parent configurations = 1.
+  Marginal probabilities: T (Observed edge relation is true)=1
+
+Feature: edge_type(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Lobster edge category based on whether endpoints lie on the spine.
+  Example: an edge connecting two spine nodes has edge_type=1; a spine-to-branch edge has
+           edge_type=2; an off-spine leaf edge has edge_type=3.
+  Outcomes / category labels:
+    - 1: Spine-Edge: both endpoints on spine
+    - 2: Branch-Edge: exactly one endpoint on spine
+    - 3: Leaf-Edge: neither endpoint on spine
+  Learned BN parents: distance_to_spine(nodes1), edges(nodes0,nodes1), node_degree(nodes1)
+  CPT size: 36 numeric probabilities; expected from outcomes x parent configurations = 36.
+  First CPT-row condition: distance_to_spine(nodes1)=1, edges(nodes0,nodes1)=T, node_degree(nodes1)=1
+  First CPT-row probabilities: 1 (Spine-Edge)=0.990148, 2 (Branch-Edge)=0.004926, 3 (Leaf-Edge)=0.004926
+
+Feature: node_degree(nodes0)
+  Type: node feature
+  Meaning: Binned node degree category for lobster graphs.
+  Example: a lobster leaf has node_degree=1; a node with degree 4 or 5 is node_degree=3
+           (Hub).
+  Outcomes / category labels:
+    - 1: Leaf: degree 1
+    - 2: Branch: degree 2 or 3
+    - 3: Hub: degree 4 or 5
+    - 4: SuperHub: degree >= 6
+  Learned BN parents: distance_to_spine(nodes0), edges(nodes0,nodes1), edge_type(nodes0,nodes1), node_degree(nodes1), subtree_size(nodes0)
+  CPT size: 576 numeric probabilities; expected from outcomes x parent configurations = 576.
+  First CPT-row condition: distance_to_spine(nodes0)=1, edges(nodes0,nodes1)=T, edge_type(nodes0,nodes1)=1, node_degree(nodes1)=1, subtree_size(nodes0)=1
+  First CPT-row probabilities: 1 (Leaf)=0.005682, 2 (Branch)=0.664773, 3 (Hub)=0.278409, 4 (SuperHub)=0.051136
+
+Feature: node_degree(nodes1)
+  Type: node feature
+  Meaning: Binned node degree category for lobster graphs.
+  Example: a lobster leaf has node_degree=1; a node with degree 4 or 5 is node_degree=3
+           (Hub).
+  Outcomes / category labels:
+    - 1: Leaf: degree 1
+    - 2: Branch: degree 2 or 3
+    - 3: Hub: degree 4 or 5
+    - 4: SuperHub: degree >= 6
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 4 numeric probabilities; expected from outcomes x parent configurations = 4.
+  Marginal probabilities: 1 (Leaf)=0.692321, 2 (Branch)=0.161573, 3 (Hub)=0.077712, 4 (SuperHub)=0.068394
+
+Feature: subtree_size(nodes0)
+  Type: node feature
+  Meaning: Binned size of the branch component attached to a spine segment after removing spine
+           edges.
+  Example: if removing spine edges leaves a branch component of 12 nodes, subtree_size=2
+           (6-20).
+  Outcomes / category labels:
+    - 1: Branch component size 1-5
+    - 2: Branch component size 6-20
+    - 3: Branch component size 21-40
+    - 4: Branch component size 41+
+  Learned BN parents: distance_to_spine(nodes0), eccentricity(nodes0), edges(nodes0,nodes1), edge_type(nodes0,nodes1), subtree_size(nodes1)
+  CPT size: 576 numeric probabilities; expected from outcomes x parent configurations = 576.
+  First CPT-row condition: distance_to_spine(nodes0)=1, eccentricity(nodes0)=1, edges(nodes0,nodes1)=T, edge_type(nodes0,nodes1)=1, subtree_size(nodes1)=1
+  First CPT-row probabilities: 1 (Branch component size 1-5)=0.545455, 2 (Branch component size 6-20)=0.391304, 3 (Branch component size 21-40)=0.051383, 4 (Branch component size 41+)=0.011858
+
+Feature: subtree_size(nodes1)
+  Type: node feature
+  Meaning: Binned size of the branch component attached to a spine segment after removing spine
+           edges.
+  Example: if removing spine edges leaves a branch component of 12 nodes, subtree_size=2
+           (6-20).
+  Outcomes / category labels:
+    - 1: Branch component size 1-5
+    - 2: Branch component size 6-20
+    - 3: Branch component size 21-40
+    - 4: Branch component size 41+
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 4 numeric probabilities; expected from outcomes x parent configurations = 4.
+  Marginal probabilities: 1 (Branch component size 1-5)=0.237793, 2 (Branch component size 6-20)=0.547894, 3 (Branch component size 21-40)=0.188036, 4 (Branch component size 41+)=0.026277
+
+====================================================================================================
+LOBSTER -- cfg410000000 / cs-cl-18
+====================================================================================================
+Remote XML address: cs-cl-18:/local-scratch2/mirzaei/ali/db/GraphVAE-REQ/factorbase_motif_pipeline/runs/lobster_undir_feat_snap_85093d_cfg410000000/Bif_lobster_undir_feat_snap_85093d_cfg410000000.xml
+Network name: lobster_undir_feat_snap_85093d_cfg410000000
+File size: 17586 bytes
+Remote modified time: 2026-06-29 15:15:27.886757254 -0700
+Variables/features in this XML: 12
+
+Schema note:
+New cfg schema: node_degree, spine_role, subtree_size, eccentricity; edge_type, depth_pair,
+terminal_edge. spine_role replaces distance_to_spine and subtree/eccentricity are merged to 3
+buckets.
+
+Feature details
+---------------
+Feature: depth_pair(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Pairwise capped spine-depth relation between the two endpoints of an edge.
+  Example: an edge between a spine node and a one-hop branch node has depth_pair=2 (Spine-
+           Branch).
+  Outcomes / category labels:
+    - 1: Spine-Spine: endpoint depths (0,0)
+    - 2: Spine-Branch: depths (0,1)
+    - 3: Branch-Leaf: depths (1,2)
+  Learned BN parents: edges(nodes0,nodes1), spine_role(nodes0), spine_role(nodes1)
+  CPT size: 48 numeric probabilities; expected from outcomes x parent configurations = 48.
+  First CPT-row condition: edges(nodes0,nodes1)=T, spine_role(nodes0)=1, spine_role(nodes1)=1
+  First CPT-row probabilities: 1 (Spine-Spine)=0.333334, 2 (Spine-Branch)=0.333333, 3 (Branch-Leaf)=0.333333
+
+Feature: eccentricity(nodes0)
+  Type: node feature
+  Meaning: Binned node eccentricity: max shortest-path distance from this node to any node in the
+           graph.
+  Example: if the farthest node from this node is 8 hops away, eccentricity is bucket 2
+           (6-10) in both old and cfg schemas.
+  Outcomes / category labels:
+    - 1: Max graph distance/eccentricity 1-5
+    - 2: Eccentricity 6-10
+    - 3: Eccentricity 11+
+  Learned BN parents: eccentricity(nodes1), edges(nodes0,nodes1), spine_role(nodes0), spine_role(nodes1)
+  CPT size: 144 numeric probabilities; expected from outcomes x parent configurations = 144.
+  First CPT-row condition: eccentricity(nodes1)=1, edges(nodes0,nodes1)=T, spine_role(nodes0)=1, spine_role(nodes1)=1
+  First CPT-row probabilities: 1 (Max graph distance/eccentricity 1-5)=0.333334, 2 (Eccentricity 6-10)=0.333333, 3 (Eccentricity 11+)=0.333333
+
+Feature: eccentricity(nodes1)
+  Type: node feature
+  Meaning: Binned node eccentricity: max shortest-path distance from this node to any node in the
+           graph.
+  Example: if the farthest node from this node is 8 hops away, eccentricity is bucket 2
+           (6-10) in both old and cfg schemas.
+  Outcomes / category labels:
+    - 1: Max graph distance/eccentricity 1-5
+    - 2: Eccentricity 6-10
+    - 3: Eccentricity 11+
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 3 numeric probabilities; expected from outcomes x parent configurations = 3.
+  Marginal probabilities: 1 (Max graph distance/eccentricity 1-5)=0.120224, 2 (Eccentricity 6-10)=0.621249, 3 (Eccentricity 11+)=0.258527
+
+Feature: edges(nodes0,nodes1)
+  Type: edge relation
+  Meaning: The relation saying nodes0 and nodes1 are connected. In these learned BNs the only
+           outcome is T, because the FactorBase export is over positive edge tuples.
+  Example: edges(nodes0,nodes1)=T means the tuple represents an observed directed edge row
+           from nodes0 to nodes1.
+  Outcomes / category labels:
+    - T: Observed edge relation is true
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 1 numeric probabilities; expected from outcomes x parent configurations = 1.
+  Marginal probabilities: T (Observed edge relation is true)=1
+
+Feature: edge_type(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Lobster edge category based on whether endpoints lie on the spine.
+  Example: an edge connecting two spine nodes has edge_type=1; a spine-to-branch edge has
+           edge_type=2; an off-spine leaf edge has edge_type=3.
+  Outcomes / category labels:
+    - 1: Spine-Edge: both endpoints on spine
+    - 2: Branch-Edge: exactly one endpoint on spine
+    - 3: Leaf-Edge: neither endpoint on spine
+  Learned BN parents: depth_pair(nodes0,nodes1), edges(nodes0,nodes1), spine_role(nodes0), spine_role(nodes1)
+  CPT size: 144 numeric probabilities; expected from outcomes x parent configurations = 144.
+  First CPT-row condition: depth_pair(nodes0,nodes1)=1, edges(nodes0,nodes1)=T, spine_role(nodes0)=1, spine_role(nodes1)=1
+  First CPT-row probabilities: 1 (Spine-Edge)=0.333334, 2 (Branch-Edge)=0.333333, 3 (Leaf-Edge)=0.333333
+
+Feature: node_degree(nodes0)
+  Type: node feature
+  Meaning: Binned node degree category for lobster graphs.
+  Example: a lobster leaf has node_degree=1; a node with degree 4 or 5 is node_degree=3
+           (Hub).
+  Outcomes / category labels:
+    - 1: Leaf: degree 1
+    - 2: Branch: degree 2 or 3
+    - 3: Hub: degree 4 or 5
+    - 4: SuperHub: degree >= 6
+  Learned BN parents: edges(nodes0,nodes1), node_degree(nodes1), spine_role(nodes1), subtree_size(nodes0), subtree_size(nodes1)
+  CPT size: 576 numeric probabilities; expected from outcomes x parent configurations = 576.
+  First CPT-row condition: edges(nodes0,nodes1)=T, node_degree(nodes1)=1, spine_role(nodes1)=1, subtree_size(nodes0)=1, subtree_size(nodes1)=1
+  First CPT-row probabilities: 1 (Leaf)=0.005682, 2 (Branch)=0.664773, 3 (Hub)=0.278409, 4 (SuperHub)=0.051136
+
+Feature: node_degree(nodes1)
+  Type: node feature
+  Meaning: Binned node degree category for lobster graphs.
+  Example: a lobster leaf has node_degree=1; a node with degree 4 or 5 is node_degree=3
+           (Hub).
+  Outcomes / category labels:
+    - 1: Leaf: degree 1
+    - 2: Branch: degree 2 or 3
+    - 3: Hub: degree 4 or 5
+    - 4: SuperHub: degree >= 6
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 4 numeric probabilities; expected from outcomes x parent configurations = 4.
+  Marginal probabilities: 1 (Leaf)=0.692321, 2 (Branch)=0.161573, 3 (Hub)=0.077712, 4 (SuperHub)=0.068394
+
+Feature: spine_role(nodes0)
+  Type: node feature
+  Meaning: Newer lobster node role that distinguishes spine endpoints, internal spine nodes, near-
+           spine nodes, and off-spine nodes.
+  Example: a node at either end of the diameter/spine path has spine_role=1; an internal
+           spine node has spine_role=2.
+  Outcomes / category labels:
+    - 1: Spine-Endpoint: endpoint of diameter/spine path
+    - 2: Spine-Internal: internal spine node
+    - 3: Near-Spine: one hop off spine
+    - 4: Off-Spine: two or more hops off spine
+  Learned BN parents: edges(nodes0,nodes1), node_degree(nodes0), spine_role(nodes1), subtree_size(nodes0), subtree_size(nodes1)
+  CPT size: 576 numeric probabilities; expected from outcomes x parent configurations = 576.
+  First CPT-row condition: edges(nodes0,nodes1)=T, node_degree(nodes0)=1, spine_role(nodes1)=1, subtree_size(nodes0)=1, subtree_size(nodes1)=1
+  First CPT-row probabilities: 1 (Spine-Endpoint)=0.25, 2 (Spine-Internal)=0.25, 3 (Near-Spine)=0.25, 4 (Off-Spine)=0.25
+
+Feature: spine_role(nodes1)
+  Type: node feature
+  Meaning: Newer lobster node role that distinguishes spine endpoints, internal spine nodes, near-
+           spine nodes, and off-spine nodes.
+  Example: a node at either end of the diameter/spine path has spine_role=1; an internal
+           spine node has spine_role=2.
+  Outcomes / category labels:
+    - 1: Spine-Endpoint: endpoint of diameter/spine path
+    - 2: Spine-Internal: internal spine node
+    - 3: Near-Spine: one hop off spine
+    - 4: Off-Spine: two or more hops off spine
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 4 numeric probabilities; expected from outcomes x parent configurations = 4.
+  Marginal probabilities: 1 (Spine-Endpoint)=0.037459, 2 (Spine-Internal)=0.155609, 3 (Near-Spine)=0.311405, 4 (Off-Spine)=0.495527
+
+Feature: subtree_size(nodes0)
+  Type: node feature
+  Meaning: Binned size of the branch component attached to a spine segment after removing spine
+           edges.
+  Example: if removing spine edges leaves a branch component of 12 nodes, subtree_size=2
+           (6-20).
+  Outcomes / category labels:
+    - 1: Branch component size 1-5
+    - 2: Branch component size 6-20
+    - 3: Branch component size 21+
+  Learned BN parents: edges(nodes0,nodes1), node_degree(nodes1), spine_role(nodes1), subtree_size(nodes1)
+  CPT size: 144 numeric probabilities; expected from outcomes x parent configurations = 144.
+  First CPT-row condition: edges(nodes0,nodes1)=T, node_degree(nodes1)=1, spine_role(nodes1)=1, subtree_size(nodes1)=1
+  First CPT-row probabilities: 1 (Branch component size 1-5)=0.852217, 2 (Branch component size 6-20)=0.142857, 3 (Branch component size 21+)=0.004926
+
+Feature: subtree_size(nodes1)
+  Type: node feature
+  Meaning: Binned size of the branch component attached to a spine segment after removing spine
+           edges.
+  Example: if removing spine edges leaves a branch component of 12 nodes, subtree_size=2
+           (6-20).
+  Outcomes / category labels:
+    - 1: Branch component size 1-5
+    - 2: Branch component size 6-20
+    - 3: Branch component size 21+
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 3 numeric probabilities; expected from outcomes x parent configurations = 3.
+  Marginal probabilities: 1 (Branch component size 1-5)=0.237838, 2 (Branch component size 6-20)=0.547996, 3 (Branch component size 21+)=0.214166
+
+Feature: terminal_edge(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Whether an edge touches a leaf node.
+  Example: if either endpoint of the edge has degree 1, terminal_edge=2; otherwise
+           terminal_edge=1.
+  Outcomes / category labels:
+    - 1: Non-Terminal: touches no degree-1 node
+    - 2: Terminal: touches a leaf/degree-1 node
+  Learned BN parents: depth_pair(nodes0,nodes1), edges(nodes0,nodes1), edge_type(nodes0,nodes1), node_degree(nodes0), node_degree(nodes1)
+  CPT size: 288 numeric probabilities; expected from outcomes x parent configurations = 288.
+  First CPT-row condition: depth_pair(nodes0,nodes1)=1, edges(nodes0,nodes1)=T, edge_type(nodes0,nodes1)=1, node_degree(nodes0)=1, node_degree(nodes1)=1
+  First CPT-row probabilities: 1 (Non-Terminal)=0.5, 2 (Terminal)=0.5
+
+====================================================================================================
+TRIANGULAR GRID -- old snapshot / cs-cl-13
+====================================================================================================
+Remote XML address: cs-cl-13:/localhome/mirzaei/Desktop/Bif_triangular_grid_undir_feat_snap_ce92ed.xml
+Network name: triangular_grid_undir_feat_snap_ce92ed
+File size: 18571 bytes
+Remote modified time: 2026-04-29 17:03:07.743032986 -0700
+Variables/features in this XML: 10
+
+Schema note:
+Old triangular schema: distance_to_boundary, struct_type, edge_orbit, num_3cycles, and num_6cycles.
+Repo notes say old struct_type/num_3cycles/num_6cycles were effectively degree relabelings; old
+num_6cycles was not a true hexagon count.
+
+Feature details
+---------------
+Feature: distance_to_boundary(nodes0)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1), num_6cycles(nodes0), struct_type(nodes0), struct_type(nodes1)
+  CPT size: 800 numeric probabilities; expected from outcomes x parent configurations = 800.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, num_6cycles(nodes0)=1, struct_type(nodes0)=1, struct_type(nodes1)=1
+  First CPT-row probabilities: 1 (Boundary)=0.25, 2 (Near-Boundary)=0.25, 3 (Near-Center)=0.25, 4 (Center)=0.25
+
+Feature: distance_to_boundary(nodes1)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 4 numeric probabilities; expected from outcomes x parent configurations = 4.
+  Marginal probabilities: 1 (Boundary)=0.314433, 2 (Near-Boundary)=0.28124, 3 (Near-Center)=0.351531, 4 (Center)=0.052796
+
+Feature: edges(nodes0,nodes1)
+  Type: edge relation
+  Meaning: The relation saying nodes0 and nodes1 are connected. In these learned BNs the only
+           outcome is T, because the FactorBase export is over positive edge tuples.
+  Example: edges(nodes0,nodes1)=T means the tuple represents an observed directed edge row
+           from nodes0 to nodes1.
+  Outcomes / category labels:
+    - T: Observed edge relation is true
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 1 numeric probabilities; expected from outcomes x parent configurations = 1.
+  Marginal probabilities: T (Observed edge relation is true)=1
+
+Feature: edge_orbit(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Boundary/interior edge orbit category.
+  Example: an edge touching the outer boundary is edge_orbit=1; an edge fully inside the
+           grid is edge_orbit=2.
+  Outcomes / category labels:
+    - 1: Boundary edge orbit: edge touches the outer boundary
+    - 2: Interior edge orbit: edge does not touch the outer boundary
+  Learned BN parents: distance_to_boundary(nodes0), distance_to_boundary(nodes1), edges(nodes0,nodes1), num_3cycles(nodes1), num_6cycles(nodes1), struct_type(nodes1)
+  CPT size: 1600 numeric probabilities; expected from outcomes x parent configurations = 1600.
+  First CPT-row condition: distance_to_boundary(nodes0)=1, distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, num_3cycles(nodes1)=2, num_6cycles(nodes1)=1, struct_type(nodes1)=1
+  First CPT-row probabilities: 1 (Boundary edge orbit)=0.997658, 2 (Interior edge orbit)=0.002342
+
+Feature: num_3cycles(nodes0)
+  Type: node feature
+  Meaning: Number of triangles incident to a node, stored as a categorical value. In this repo it
+           is raw triangle count plus 1.
+  Example: an interior triangular-grid node participating in 6 triangles is stored as
+           num_3cycles=7.
+  Outcomes / category labels:
+    - 2: Raw triangle count 1 (stored as count + 1)
+    - 3: Raw triangle count 2 (stored as count + 1)
+    - 4: Raw triangle count 3 (stored as count + 1)
+    - 5: Raw triangle count 4 (stored as count + 1)
+    - 7: Raw triangle count 6 (stored as count + 1)
+  Learned BN parents: distance_to_boundary(nodes0), edges(nodes0,nodes1), edge_orbit(nodes0,nodes1), num_6cycles(nodes0), struct_type(nodes0)
+  CPT size: 400 numeric probabilities; expected from outcomes x parent configurations = 400.
+  First CPT-row condition: distance_to_boundary(nodes0)=1, edges(nodes0,nodes1)=T, edge_orbit(nodes0,nodes1)=1, num_6cycles(nodes0)=1, struct_type(nodes0)=1
+  First CPT-row probabilities: 2 (Raw triangle count 1 (stored as count + 1))=0.99208, 3 (Raw triangle count 2 (stored as count + 1))=0.00198, 4 (Raw triangle count 3 (stored as count + 1))=0.00198, 5 (Raw triangle count 4 (stored as count + 1))=0.00198, 7 (Raw triangle count 6 (stored as count + 1))=0.00198
+
+Feature: num_3cycles(nodes1)
+  Type: node feature
+  Meaning: Number of triangles incident to a node, stored as a categorical value. In this repo it
+           is raw triangle count plus 1.
+  Example: an interior triangular-grid node participating in 6 triangles is stored as
+           num_3cycles=7.
+  Outcomes / category labels:
+    - 2: Raw triangle count 1 (stored as count + 1)
+    - 3: Raw triangle count 2 (stored as count + 1)
+    - 4: Raw triangle count 3 (stored as count + 1)
+    - 5: Raw triangle count 4 (stored as count + 1)
+    - 7: Raw triangle count 6 (stored as count + 1)
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 5 numeric probabilities; expected from outcomes x parent configurations = 5.
+  Marginal probabilities: 2 (Raw triangle count 1 (stored as count + 1))=0.019602, 3 (Raw triangle count 2 (stored as count + 1))=0.115267, 4 (Raw triangle count 3 (stored as count + 1))=0.099649, 5 (Raw triangle count 4 (stored as count + 1))=0.107458, 7 (Raw triangle count 6 (stored as count + 1))=0.658024
+
+Feature: num_6cycles(nodes0)
+  Type: node feature
+  Meaning: Old triangular-grid binary proxy for 6-cycle participation; the code notes it was really
+           degree>=4, not a true hexagon count.
+  Example: in the old triangular schema, a degree>=4 node maps to num_6cycles=2, but this
+           was a proxy rather than a true hexagon count.
+  Outcomes / category labels:
+    - 1: No hexagon under old proxy: degree < 4
+    - 2: Has hexagon under old proxy: degree >= 4
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1), num_3cycles(nodes1), num_6cycles(nodes1)
+  CPT size: 80 numeric probabilities; expected from outcomes x parent configurations = 80.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, num_3cycles(nodes1)=2, num_6cycles(nodes1)=1
+  First CPT-row probabilities: 1 (No hexagon under old proxy)=0.001992, 2 (Has hexagon under old proxy)=0.998008
+
+Feature: num_6cycles(nodes1)
+  Type: node feature
+  Meaning: Old triangular-grid binary proxy for 6-cycle participation; the code notes it was really
+           degree>=4, not a true hexagon count.
+  Example: in the old triangular schema, a degree>=4 node maps to num_6cycles=2, but this
+           was a proxy rather than a true hexagon count.
+  Outcomes / category labels:
+    - 1: No hexagon under old proxy: degree < 4
+    - 2: Has hexagon under old proxy: degree >= 4
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 2 numeric probabilities; expected from outcomes x parent configurations = 2.
+  Marginal probabilities: 1 (No hexagon under old proxy)=0.134823, 2 (Has hexagon under old proxy)=0.865177
+
+Feature: struct_type(nodes0)
+  Type: node feature
+  Meaning: Coarse structural node category. In the older grid/triangular schemas this is mostly a
+           degree relabeling.
+  Example: in old grid, a corner node has struct_type=1, a side node has struct_type=2,
+           and an interior node has struct_type=3.
+  Outcomes / category labels:
+    - 1: Vertex/corner-like triangular-grid node, degree 2
+    - 2: Boundary triangular-grid node, degree 3
+    - 3: Edge-Corner triangular-grid node, degree 4
+    - 4: Edge-Transition triangular-grid node, degree 5
+    - 5: Interior triangular-grid node, degree 6
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1), num_3cycles(nodes1), num_6cycles(nodes0)
+  CPT size: 200 numeric probabilities; expected from outcomes x parent configurations = 200.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, num_3cycles(nodes1)=2, num_6cycles(nodes0)=1
+  First CPT-row probabilities: 1 (Vertex/corner-like triangular-grid node, degree 2)=0.2, 2 (Boundary triangular-grid node, degree 3)=0.2, 3 (Edge-Corner triangular-grid node, degree 4)=0.2, 4 (Edge-Transition triangular-grid node, degree 5)=0.2, 5 (Interior triangular-grid node, degree 6)=0.2
+
+Feature: struct_type(nodes1)
+  Type: node feature
+  Meaning: Coarse structural node category. In the older grid/triangular schemas this is mostly a
+           degree relabeling.
+  Example: in old grid, a corner node has struct_type=1, a side node has struct_type=2,
+           and an interior node has struct_type=3.
+  Outcomes / category labels:
+    - 1: Vertex/corner-like triangular-grid node, degree 2
+    - 2: Boundary triangular-grid node, degree 3
+    - 3: Edge-Corner triangular-grid node, degree 4
+    - 4: Edge-Transition triangular-grid node, degree 5
+    - 5: Interior triangular-grid node, degree 6
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 5 numeric probabilities; expected from outcomes x parent configurations = 5.
+  Marginal probabilities: 1 (Vertex/corner-like triangular-grid node, degree 2)=0.019602, 2 (Boundary triangular-grid node, degree 3)=0.115267, 3 (Edge-Corner triangular-grid node, degree 4)=0.099649, 4 (Edge-Transition triangular-grid node, degree 5)=0.107458, 5 (Interior triangular-grid node, degree 6)=0.658024
+
+====================================================================================================
+TRIANGULAR GRID -- cfg410000000 / cs-cl-18
+====================================================================================================
+Remote XML address: cs-cl-18:/local-scratch2/mirzaei/ali/db/GraphVAE-REQ/factorbase_motif_pipeline/runs/triangular_grid_undir_feat_snap_ce92ed_cfg410000000/Bif_triangular_grid_undir_feat_snap_ce92ed_cfg410000000.xml
+Network name: triangular_grid_undir_feat_snap_ce92ed_cfg410000000
+File size: 241338 bytes
+Remote modified time: 2026-06-29 15:18:00.542469122 -0700
+Variables/features in this XML: 10
+
+Schema note:
+New cfg schema: distance_to_boundary, num_3cycles, true num_hexagons; edge_direction, edge_hexagons,
+edge_triangle_count. This is the real hexagon/triangle feature schema.
+
+Feature details
+---------------
+Feature: distance_to_boundary(nodes0)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1), edge_direction(nodes0,nodes1), num_3cycles(nodes0), num_hexagons(nodes0), num_hexagons(nodes1)
+  CPT size: 11760 numeric probabilities; expected from outcomes x parent configurations = 11760.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, edge_direction(nodes0,nodes1)=1, num_3cycles(nodes0)=2, num_hexagons(nodes0)=1, num_hexagons(nodes1)=1
+  First CPT-row probabilities: 1 (Boundary)=0.25, 2 (Near-Boundary)=0.25, 3 (Near-Center)=0.25, 4 (Center)=0.25
+
+Feature: distance_to_boundary(nodes1)
+  Type: node feature
+  Meaning: Categorical distance from a node to the nearest graph/lattice boundary.
+  Example: in a 14x14 grid, node (0,5) is on the outside row so distance_to_boundary=1
+           (Boundary); a deep middle node may be category 5.
+  Outcomes / category labels:
+    - 1: Boundary: distance 0 from the outer boundary
+    - 2: Near-Boundary: distance 1
+    - 3: Near-Center: distance 2-3
+    - 4: Center: distance 4-5
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 4 numeric probabilities; expected from outcomes x parent configurations = 4.
+  Marginal probabilities: 1 (Boundary)=0.314433, 2 (Near-Boundary)=0.28124, 3 (Near-Center)=0.351531, 4 (Center)=0.052796
+
+Feature: edges(nodes0,nodes1)
+  Type: edge relation
+  Meaning: The relation saying nodes0 and nodes1 are connected. In these learned BNs the only
+           outcome is T, because the FactorBase export is over positive edge tuples.
+  Example: edges(nodes0,nodes1)=T means the tuple represents an observed directed edge row
+           from nodes0 to nodes1.
+  Outcomes / category labels:
+    - T: Observed edge relation is true
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 1 numeric probabilities; expected from outcomes x parent configurations = 1.
+  Marginal probabilities: T (Observed edge relation is true)=1
+
+Feature: edge_direction(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Orientation axis of a triangular-lattice edge.
+  Example: triangular-lattice edges are folded into three undirected axes: horizontal, +60
+           degrees, and -60 degrees.
+  Outcomes / category labels:
+    - 1: Horizontal lattice edge
+    - 2: Positive-60-degree lattice edge
+    - 3: Negative-60-degree lattice edge
+  Learned BN parents: edges(nodes0,nodes1), num_3cycles(nodes1)
+  CPT size: 15 numeric probabilities; expected from outcomes x parent configurations = 15.
+  First CPT-row condition: edges(nodes0,nodes1)=T, num_3cycles(nodes1)=2
+  First CPT-row probabilities: 1 (Horizontal lattice edge)=0.499006, 2 (Positive-60-degree lattice edge)=0.300199, 3 (Negative-60-degree lattice edge)=0.200795
+
+Feature: edge_hexagons(nodes0,nodes1)
+  Type: edge feature
+  Meaning: True induced 6-cycle/hexagon participation count for an edge, stored as raw count plus
+           1.
+  Example: if an edge belongs to 1 induced hexagon, it is stored as edge_hexagons=2.
+  Outcomes / category labels:
+    - 1: Raw edge hexagon count 0 (stored as count + 1)
+    - 2: Raw edge hexagon count 1 (stored as count + 1)
+    - 3: Raw edge hexagon count 2 (stored as count + 1)
+  Learned BN parents: edges(nodes0,nodes1), edge_direction(nodes0,nodes1), edge_triangle_count(nodes0,nodes1), num_3cycles(nodes0), num_hexagons(nodes0), num_hexagons(nodes1)
+  CPT size: 4410 numeric probabilities; expected from outcomes x parent configurations = 4410.
+  First CPT-row condition: edges(nodes0,nodes1)=T, edge_direction(nodes0,nodes1)=1, edge_triangle_count(nodes0,nodes1)=1, num_3cycles(nodes0)=2, num_hexagons(nodes0)=1, num_hexagons(nodes1)=1
+  First CPT-row probabilities: 1 (Raw edge hexagon count 0 (stored as count + 1))=0.333333, 2 (Raw edge hexagon count 1 (stored as count + 1))=0.333333, 3 (Raw edge hexagon count 2 (stored as count + 1))=0.333334
+
+Feature: edge_triangle_count(nodes0,nodes1)
+  Type: edge feature
+  Meaning: Number of triangles containing the edge. In these triangular-grid XMLs observed states
+           are 1 and 2.
+  Example: a boundary triangular-grid edge may have edge_triangle_count=1; an interior
+           edge shared by two triangles has edge_triangle_count=2.
+  Outcomes / category labels:
+    - 1: Raw edge triangle count 1
+    - 2: Raw edge triangle count 2
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1), num_3cycles(nodes0), num_3cycles(nodes1)
+  CPT size: 200 numeric probabilities; expected from outcomes x parent configurations = 200.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, num_3cycles(nodes0)=2, num_3cycles(nodes1)=2
+  First CPT-row probabilities: 1 (Raw edge triangle count 1)=0.5, 2 (Raw edge triangle count 2)=0.5
+
+Feature: num_3cycles(nodes0)
+  Type: node feature
+  Meaning: Number of triangles incident to a node, stored as a categorical value. In this repo it
+           is raw triangle count plus 1.
+  Example: an interior triangular-grid node participating in 6 triangles is stored as
+           num_3cycles=7.
+  Outcomes / category labels:
+    - 2: Raw triangle count 1 (stored as count + 1)
+    - 3: Raw triangle count 2 (stored as count + 1)
+    - 4: Raw triangle count 3 (stored as count + 1)
+    - 5: Raw triangle count 4 (stored as count + 1)
+    - 7: Raw triangle count 6 (stored as count + 1)
+  Learned BN parents: edges(nodes0,nodes1), edge_direction(nodes0,nodes1), num_3cycles(nodes1), num_hexagons(nodes1)
+  CPT size: 525 numeric probabilities; expected from outcomes x parent configurations = 525.
+  First CPT-row condition: edges(nodes0,nodes1)=T, edge_direction(nodes0,nodes1)=1, num_3cycles(nodes1)=2, num_hexagons(nodes1)=1
+  First CPT-row probabilities: 2 (Raw triangle count 1 (stored as count + 1))=0.003922, 3 (Raw triangle count 2 (stored as count + 1))=0.003922, 4 (Raw triangle count 3 (stored as count + 1))=0.984312, 5 (Raw triangle count 4 (stored as count + 1))=0.003922, 7 (Raw triangle count 6 (stored as count + 1))=0.003922
+
+Feature: num_3cycles(nodes1)
+  Type: node feature
+  Meaning: Number of triangles incident to a node, stored as a categorical value. In this repo it
+           is raw triangle count plus 1.
+  Example: an interior triangular-grid node participating in 6 triangles is stored as
+           num_3cycles=7.
+  Outcomes / category labels:
+    - 2: Raw triangle count 1 (stored as count + 1)
+    - 3: Raw triangle count 2 (stored as count + 1)
+    - 4: Raw triangle count 3 (stored as count + 1)
+    - 5: Raw triangle count 4 (stored as count + 1)
+    - 7: Raw triangle count 6 (stored as count + 1)
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 5 numeric probabilities; expected from outcomes x parent configurations = 5.
+  Marginal probabilities: 2 (Raw triangle count 1 (stored as count + 1))=0.019602, 3 (Raw triangle count 2 (stored as count + 1))=0.115267, 4 (Raw triangle count 3 (stored as count + 1))=0.099649, 5 (Raw triangle count 4 (stored as count + 1))=0.107458, 7 (Raw triangle count 6 (stored as count + 1))=0.658024
+
+Feature: num_hexagons(nodes0)
+  Type: node feature
+  Meaning: True induced 6-cycle/hexagon participation count for a node, stored as raw count plus 1.
+  Example: if a triangular-grid node belongs to 3 induced hexagons, it is stored as
+           num_hexagons=4.
+  Outcomes / category labels:
+    - 1: Raw node hexagon count 0 (stored as count + 1)
+    - 2: Raw node hexagon count 1 (stored as count + 1)
+    - 3: Raw node hexagon count 2 (stored as count + 1)
+    - 4: Raw node hexagon count 3 (stored as count + 1)
+    - 5: Raw node hexagon count 4 (stored as count + 1)
+    - 6: Raw node hexagon count 5 (stored as count + 1)
+    - 7: Raw node hexagon count 6 (stored as count + 1)
+  Learned BN parents: distance_to_boundary(nodes1), edges(nodes0,nodes1), edge_direction(nodes0,nodes1), num_3cycles(nodes0), num_3cycles(nodes1), num_hexagons(nodes1)
+  CPT size: 14700 numeric probabilities; expected from outcomes x parent configurations = 14700.
+  First CPT-row condition: distance_to_boundary(nodes1)=1, edges(nodes0,nodes1)=T, edge_direction(nodes0,nodes1)=1, num_3cycles(nodes0)=2, num_3cycles(nodes1)=2, num_hexagons(nodes1)=1
+  First CPT-row probabilities: 1 (Raw node hexagon count 0 (stored as count + 1))=0.142858, 2 (Raw node hexagon count 1 (stored as count + 1))=0.142857, 3 (Raw node hexagon count 2 (stored as count + 1))=0.142857, 4 (Raw node hexagon count 3 (stored as count + 1))=0.142857, 5 (Raw node hexagon count 4 (stored as count + 1))=0.142857, 6 (Raw node hexagon count 5 (stored as count + 1))=0.142857, 7 (Raw node hexagon count 6 (stored as count + 1))=0.142857
+
+Feature: num_hexagons(nodes1)
+  Type: node feature
+  Meaning: True induced 6-cycle/hexagon participation count for a node, stored as raw count plus 1.
+  Example: if a triangular-grid node belongs to 3 induced hexagons, it is stored as
+           num_hexagons=4.
+  Outcomes / category labels:
+    - 1: Raw node hexagon count 0 (stored as count + 1)
+    - 2: Raw node hexagon count 1 (stored as count + 1)
+    - 3: Raw node hexagon count 2 (stored as count + 1)
+    - 4: Raw node hexagon count 3 (stored as count + 1)
+    - 5: Raw node hexagon count 4 (stored as count + 1)
+    - 6: Raw node hexagon count 5 (stored as count + 1)
+    - 7: Raw node hexagon count 6 (stored as count + 1)
+  Learned BN parents: none (root variable / marginal distribution)
+  CPT size: 7 numeric probabilities; expected from outcomes x parent configurations = 7.
+  Marginal probabilities: 1 (Raw node hexagon count 0 (stored as count + 1))=0.019599, 2 (Raw node hexagon count 1 (stored as count + 1))=0.13477, 3 (Raw node hexagon count 2 (stored as count + 1))=0.111345, 4 (Raw node hexagon count 3 (stored as count + 1))=0.199188, 5 (Raw node hexagon count 4 (stored as count + 1))=0.064496, 6 (Raw node hexagon count 5 (stored as count + 1))=0.087921, 7 (Raw node hexagon count 6 (stored as count + 1))=0.382681
+
+====================================================================================================
+Dataset-level comparison of old vs cfg410000000 schemas
+====================================================================================================
+GRID
+  Old set uses distance_to_boundary, old struct_type, and old edge_orbit.
+  cfg410000000 set keeps distance_to_boundary but replaces struct_type/edge_orbit with edge_axis, edge_square_count, and edge_boundary_band.
+  Practical interpretation: the cfg schema gives explicit edge geometry (orientation, square participation, boundary band) and avoids struct_type because it is mostly implied by degree.
+
+LOBSTER
+  Old set uses distance_to_spine, 4-bucket subtree_size/eccentricity, node_degree, and edge_type.
+  cfg410000000 set replaces distance_to_spine with spine_role, merges sparse tails of subtree_size/eccentricity to 3 buckets, and adds depth_pair plus terminal_edge.
+  Practical interpretation: the cfg schema makes endpoint spine roles and terminal/leaf edges explicit, which are more useful for a lobster tree than the old dead Far-Spine bucket.
+
+TRIANGULAR GRID
+  Old set uses struct_type, edge_orbit, num_3cycles, and old num_6cycles. Repo comments say old num_6cycles was a degree>=4 proxy, not a true hexagon count.
+  cfg410000000 set uses edge_direction, edge_triangle_count, and true node/edge hexagon participation counts.
+  Practical interpretation: the cfg schema expresses real triangular-lattice motif information: triangle counts, edge directions, and induced 6-cycle/hexagon counts.
+
+End of report.

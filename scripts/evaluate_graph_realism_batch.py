@@ -260,6 +260,7 @@ def evaluate_graph_collections(
 
     f1_values: list[float] = []
     mmd_rbf_values: list[float] = []
+    mmd_linear_values: list[float] = []
     precision_values: list[float] = []
     recall_values: list[float] = []
 
@@ -274,7 +275,7 @@ def evaluate_graph_collections(
 
         evaluator = Evaluator(input_dim=input_dim, device=device)
         result = evaluator.evaluate_all(generated_dgl, reference_dgl)
-        required_keys = ("f1_pr", "mmd_rbf", "precision", "recall")
+        required_keys = ("f1_pr", "mmd_rbf", "mmd_linear", "precision", "recall")
         missing_keys = [key for key in required_keys if key not in result]
         if missing_keys:
             present_keys = sorted(result.keys())
@@ -285,6 +286,7 @@ def evaluate_graph_collections(
             )
         f1_values.append(float(result["f1_pr"]))
         mmd_rbf_values.append(float(result["mmd_rbf"]))
+        mmd_linear_values.append(float(result["mmd_linear"]))
         precision_values.append(float(result["precision"]))
         recall_values.append(float(result["recall"]))
 
@@ -298,12 +300,14 @@ def evaluate_graph_collections(
         "metrics": {
             "f1_pr": summarize_metric(f1_values),
             "mmd_rbf": summarize_metric(mmd_rbf_values),
+            "mmd_linear": summarize_metric(mmd_linear_values),
             "precision": summarize_metric(precision_values),
             "recall": summarize_metric(recall_values),
         },
         "raw_metrics": {
             "f1_pr": f1_values,
             "mmd_rbf": mmd_rbf_values,
+            "mmd_linear": mmd_linear_values,
             "precision": precision_values,
             "recall": recall_values,
         },
@@ -364,6 +368,8 @@ def summary_row(result: dict) -> dict[str, object]:
         "f1_pr_std": result["metrics"]["f1_pr"]["std"],
         "mmd_rbf_mean": result["metrics"]["mmd_rbf"]["mean"],
         "mmd_rbf_std": result["metrics"]["mmd_rbf"]["std"],
+        "mmd_linear_mean": result["metrics"]["mmd_linear"]["mean"],
+        "mmd_linear_std": result["metrics"]["mmd_linear"]["std"],
         "precision_mean": result["metrics"]["precision"]["mean"],
         "precision_std": result["metrics"]["precision"]["std"],
         "recall_mean": result["metrics"]["recall"]["mean"],
@@ -386,6 +392,8 @@ def write_summary_csv(path: Path, rows: list[dict[str, object]]) -> None:
         "f1_pr_std",
         "mmd_rbf_mean",
         "mmd_rbf_std",
+        "mmd_linear_mean",
+        "mmd_linear_std",
         "precision_mean",
         "precision_std",
         "recall_mean",
@@ -442,6 +450,7 @@ def main() -> int:
             f"{run_dir}: "
             f"f1_pr={result['metrics']['f1_pr']['mean']:.6f}, "
             f"mmd_rbf={result['metrics']['mmd_rbf']['mean']:.6f}, "
+            f"mmd_linear={result['metrics']['mmd_linear']['mean']:.6f}, "
             f"precision={result['metrics']['precision']['mean']:.6f}, "
             f"recall={result['metrics']['recall']['mean']:.6f}"
         )
