@@ -10,7 +10,8 @@ from pymysql import connect
 from pymysql.err import OperationalError, MySQLError
 from pandas import DataFrame
 from itertools import permutations
-from math import log
+
+from motif_counting.rule_pruning import prune_value_rows_method1
 
 
 def get_motif_cache_dir(args=None) -> Path:
@@ -100,9 +101,11 @@ class RuleBasedMotifStore:
         self.rule_sources: List[str] = []
 
         # Both value sets stored in pickle so rule_prune can be toggled without
-        # deleting the cache.
+        # deleting the cache. values_full always holds every rule/value
+        # combination; values_pruned holds the method-1 pruned rows with
+        # literal rules kept complete (method 2 is applied at load time).
         self.values_full:   List = []   # all rows (rule_prune=False)
-        self.values_pruned: List = []   # statistically significant rows (rule_prune=True)
+        self.values_pruned: List = []   # method-1 pruned rows (rule_prune=True)
 
         # Structural metadata for rules
         self.functors: Dict = {}
@@ -189,7 +192,10 @@ class RuleBasedMotifStore:
             "num_nodes_graph": self.num_nodes_graph,
             "total_relation_occurrences": self.total_relation_occurrences,
             "cache_is_flag_neutral": True,
-            "cache_schema_version": 2,
+            # v3: values_pruned is exempt only for literal rules (the old
+            # feature-rule bypass that disabled pruning for feature-bearing
+            # datasets is gone).
+            "cache_schema_version": 3,
             "use_syntactic_literal_rules": self.use_syntactic_literal_rules,
             "syntactic_literal_rule_mode": self.syntactic_literal_rule_mode,
         }
@@ -645,27 +651,26 @@ class RuleBasedMotifStore:
         # Remove N/A rows regardless of pruning setting.
         value_rows = [row for row in value_rows if 'N/A' not in row]
 
-        # ── Always compute BOTH value sets so a single pickle works
-        # for either value of --rule_prune without deleting the cache.
+        # ── Always store the COMPLETE value set so a single pickle works
+        # for any --rule_prune / --rule_prune_method combination without
+        # deleting the cache. The counter re-selects at load time.
         self.values_full.append(value_rows)
 
-        # Unary and node/edge feature rules are never pruned; they keep all rows.
-        pruned_value = []
-        if keep_all_values or len(rule) == 1 or self._is_feature_rule(rule, relation_names):
+        # Only literal rules are exempt from pruning: unary rules, synthetic
+        # literal rules, and FactorBase rules shaped like literals. All other
+        # ("normal") rules get pruned. values_pruned stores the method-1
+        # result; method 2 is computed at load time from values_full because
+        # its thresholds are runtime arguments.
+        prune_exempt = (
+            keep_all_values
+            or len(rule) == 1
+            or rule_source == "synthetic_literal"
+            or self._is_syntactic_literal_rule(rule, relation_names)
+        )
+        if prune_exempt:
             pruned_value = list(value_rows)
         else:
-            for row in value_rows:
-                size = len(row)
-                try:
-                    if self.multiples[rule_idx]:
-                        if 2 * row[size-4] * (log(row[size-3]) - log(row[size-1])) - log(row[size-4]) > 0:
-                            pruned_value.append(row)
-                    else:
-                        if 2 * int(row[size-3]) * (log(row[size-5]) - log(row[size-1])) - log(int(row[size-3])) > 0:
-                            pruned_value.append(row)
-                except (ValueError, ZeroDivisionError):
-                    # log(0) or log(negative) — row has zero count/probability, skip it
-                    pass
+            pruned_value = prune_value_rows_method1(value_rows, self.multiples[rule_idx])
         self.values_pruned.append(pruned_value)
 
         # Keep self.values pointing at full for any in-memory use within

@@ -8,6 +8,13 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Tuple, Any, Optional
 
+from motif_counting.rule_pruning import (
+    DEFAULT_RULE_PRUNE_ALPHA,
+    DEFAULT_RULE_PRUNE_MIN_SUPPORT_FRAC,
+    DEFAULT_RULE_PRUNE_TAU,
+    prune_value_rows,
+)
+
 
 def get_motif_cache_dir(args=None) -> Path:
     configured_dir = getattr(args, 'motif_cache_dir', None) if args is not None else None
@@ -137,34 +144,70 @@ class RelationalMotifCounter:
             self.total_relation_occurrences = dict(self.relation_occurrence_counts)
 
         # ── Select value set based on --rule_prune ────────────────────
+        # Pruning is applied at load time from the complete values_full set,
+        # so a single flag-neutral pickle serves any --rule_prune /
+        # --rule_prune_method combination (and method-2 thresholds stay
+        # runtime-tunable without cache regeneration).
         rule_prune = getattr(self.args, 'rule_prune', False)
+        rule_prune_method = int(getattr(self.args, 'rule_prune_method', 1) or 1)
+        rule_prune_tau = float(getattr(
+            self.args, 'rule_prune_tau', DEFAULT_RULE_PRUNE_TAU))
+        rule_prune_min_support_frac = float(getattr(
+            self.args, 'rule_prune_min_support_frac',
+            DEFAULT_RULE_PRUNE_MIN_SUPPORT_FRAC))
+        rule_prune_alpha = float(getattr(
+            self.args, 'rule_prune_alpha', DEFAULT_RULE_PRUNE_ALPHA))
 
         if "values_full" in data:
-            # New-format pickle
-            if rule_prune:
-                self.values = [
-                    list(full_rows) if len(rule) == 1 else pruned_rows
-                    for rule, full_rows, pruned_rows in zip(
-                        self.rules,
-                        data["values_full"],
-                        data["values_pruned"],
-                    )
-                ]
-                n_full   = sum(len(v) for v in data["values_full"])
-                n_pruned = sum(len(v) for v in self.values)
-                print(
-                    "  rule_prune=True: "
-                    f"{n_pruned} / {n_full} value combinations kept "
-                    "(unary and feature rules kept unpruned)"
-                )
-            else:
-                self.values = data["values_full"]
-                print(f"  rule_prune=False: using all {sum(len(v) for v in data['values_full'])} value combinations")
+            values_full = data["values_full"]
         else:
-            # Old-format pickle — use whatever was stored
-            self.values = data["values"]
+            # Old-format pickle — treat whatever was stored as the full set.
+            values_full = data["values"]
             print(f"  Warning: old-format pickle — delete {pickle_path} "
-                  f"to regenerate with both value sets cached.")
+                  f"to regenerate with the complete value set cached.")
+
+        if not rule_prune:
+            self.values = [list(rows) for rows in values_full]
+            print(f"  rule_prune=False: using all "
+                  f"{sum(len(v) for v in self.values)} value combinations")
+        else:
+            self.values = []
+            for rule_idx, (rule, full_rows) in enumerate(zip(self.rules, values_full)):
+                # Literal rules are never pruned: unary rules, synthetic
+                # literal rules, and FactorBase rules shaped like literals.
+                prune_exempt = (
+                    len(rule) == 1
+                    or self.rule_sources[rule_idx] == "synthetic_literal"
+                    or self._is_syntactic_literal_rule(rule)
+                )
+                if prune_exempt:
+                    self.values.append(list(full_rows))
+                else:
+                    self.values.append(
+                        prune_value_rows(
+                            full_rows,
+                            self.multiples[rule_idx],
+                            method=rule_prune_method,
+                            tau=rule_prune_tau,
+                            min_support_frac=rule_prune_min_support_frac,
+                            alpha=rule_prune_alpha,
+                        )
+                    )
+            n_full = sum(len(v) for v in values_full)
+            n_kept = sum(len(v) for v in self.values)
+            if rule_prune_method == 1:
+                method_desc = "method 1: one-sided BIC-style LR test"
+            else:
+                method_desc = (
+                    f"method 2: group G2 (alpha={rule_prune_alpha}) + "
+                    f"|ln lift|>={rule_prune_tau} + "
+                    f"support>={rule_prune_min_support_frac:.4f}"
+                )
+            print(
+                f"  rule_prune=True [{method_desc}]: "
+                f"{n_kept} / {n_full} value combinations kept "
+                "(literal rules never pruned)"
+            )
 
         self._filter_rules_for_runtime_mode()
         self._build_syntactic_literal_masks()

@@ -47,6 +47,10 @@ motif:
   motif_temperature_end: 0.5
   motif_temperature_anneal_start_frac: 0.5
   rule_prune: false
+  rule_prune_method: 1
+  rule_prune_tau: 0.15
+  rule_prune_min_support_frac: 0.0025
+  rule_prune_alpha: 0.05
   motif_batch_size: 50000
 
 #===============================

@@ -602,6 +602,13 @@ def build_motif_cache_reproducibility_metadata(args):
             "syntactic_literal_rule_mode": getattr(
                 args, "syntactic_literal_rule_mode", None
             ),
+            "rule_prune": bool(getattr(args, "rule_prune", False)),
+            "rule_prune_method": getattr(args, "rule_prune_method", None),
+            "rule_prune_tau": getattr(args, "rule_prune_tau", None),
+            "rule_prune_min_support_frac": getattr(
+                args, "rule_prune_min_support_frac", None
+            ),
+            "rule_prune_alpha": getattr(args, "rule_prune_alpha", None),
             "motif_cache_dir": str(motif_pickle_path.parent),
             "motif_pickle_path": str(motif_pickle_path),
             "motif_pickle_exists_at_run_start": motif_pickle_path.exists(),
@@ -1026,6 +1033,42 @@ parser.add_argument(
     help='Fraction of training to keep the starting motif temperature before annealing.'
 )
 parser.add_argument('--rule_prune', type=str2bool, default=False)
+# Rule pruning selects which CP-table value rows become motif columns.
+# Literal rules (unary, synthetic literal, and literal-shaped DB rules) are
+# never pruned by either method. See motif_counting/RULE_PRUNING.md.
+parser.add_argument(
+    '--rule_prune_method',
+    type=int,
+    default=1,
+    choices=[1, 2],
+    help=(
+        'Pruning method used when rule_prune=true. 1: legacy per-row '
+        'one-sided BIC-style log-likelihood-ratio test. 2: two-stage prune — '
+        'per-parent-configuration G2 dependence test, then two-sided '
+        'effect-size and support filters on the surviving rows.'
+    )
+)
+parser.add_argument(
+    '--rule_prune_tau',
+    type=float,
+    default=0.15,
+    help='Method 2 only: minimum |ln(CP/prior)| effect size for keeping a value row.'
+)
+parser.add_argument(
+    '--rule_prune_min_support_frac',
+    type=float,
+    default=0.0025,
+    help=(
+        'Method 2 only: minimum row support (local_mult) as a fraction of the '
+        "rule's total groundings."
+    )
+)
+parser.add_argument(
+    '--rule_prune_alpha',
+    type=float,
+    default=0.05,
+    help='Method 2 only: significance level of the per-parent-configuration G2 test.'
+)
 parser.add_argument(
     '--motif_batch_size',
     type=int,
@@ -1317,6 +1360,10 @@ motif_temperature_anneal_start_frac = min(
     max(float(args.motif_temperature_anneal_start_frac), 0.0), 1.0
 )
 rule_prune = args.rule_prune
+rule_prune_method = args.rule_prune_method
+rule_prune_tau = args.rule_prune_tau
+rule_prune_min_support_frac = args.rule_prune_min_support_frac
+rule_prune_alpha = args.rule_prune_alpha
 motif_batch_size = args.motif_batch_size
 prepare_motif_cache_only = args.prepare_motif_cache_only
 syntactic_literal_rule_mode = (
@@ -1563,6 +1610,12 @@ print(
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
       f"start_frac={motif_temperature_anneal_start_frac}"
 )
+print(
+    "rule_prune:"
+    + f" enabled={rule_prune}, method={rule_prune_method},"
+      f" tau={rule_prune_tau}, min_support_frac={rule_prune_min_support_frac},"
+      f" alpha={rule_prune_alpha}"
+)
 
 logging.info("latent_mode:" + latent_mode)
 logging.info("kernl_type:" + str(kernl_type))
@@ -1581,6 +1634,12 @@ logging.info(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
       f"start_frac={motif_temperature_anneal_start_frac}"
+)
+logging.info(
+    "rule_prune:"
+    + f" enabled={rule_prune}, method={rule_prune_method},"
+      f" tau={rule_prune_tau}, min_support_frac={rule_prune_min_support_frac},"
+      f" alpha={rule_prune_alpha}"
 )
 
   # with is propertion to revese of this value;
