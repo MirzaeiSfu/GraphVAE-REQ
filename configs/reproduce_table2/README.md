@@ -165,7 +165,7 @@ To save the checkpoint with the best validation MMD and use it for final test ge
 python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_best_mmd.yaml
 ```
 
-The default validation score can now include both paper metric families. Use `best_validation_mmd_metric: normalized_table2_table3` to average normalized Table 2 metrics (degree, clustering, orbit, spectral, diameter) together with Table 3 metrics (`mmd_rbf` and `1 - f1_pr`). When enabled, the run folder contains `best_validation_mmd_model` and `best_validation_mmd.json`, and `Single_comp_generatedGraphs_adj_final_eval.npy` is generated from that best checkpoint.
+The default validation score can now include both paper metric families. Use `best_validation_mmd_metric: normalized_table2_table3` to average Table 2 metrics normalized by the dataset's GraphVAE paper row (degree, clustering, orbit, spectral, diameter) together with Table 3 terms (`mmd_rbf` normalized by the dataset's GraphVAE-MM paper row and `(1 - f1_pr) / 0.05`). When enabled, the run folder contains `best_validation_mmd_model` and `best_validation_mmd.json`, and `Single_comp_generatedGraphs_adj_final_eval.npy` is generated from that best checkpoint.
 
 Existing configs explicitly set `keep_best_validation_mmd: false`, so old runs still use the final epoch unless the flag is enabled from the command line or changed in the config.
 

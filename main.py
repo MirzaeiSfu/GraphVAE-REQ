@@ -48,6 +48,14 @@ from motif_counting.motif_loss_utils import (
 from motif_counting.sanity_check_compare import (
     compare_aggregated_counts_to_factorbase_detailed,
 )
+from ranking_score import (
+    BEST_VALIDATION_MMD_SCORE_MODES,
+    TABLE2_VALIDATION_MMD_KEYS,
+    compute_validation_mmd_score,
+    score_components_for_mode,
+    score_denominators_for_mode,
+    score_metrics_for_mode,
+)
 #endregion
 #====================================================================================
 
@@ -288,28 +296,6 @@ def resolve_loss_weight(value, default_value):
 
 
 MMD_FLOAT_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
-TABLE2_VALIDATION_MMD_KEYS = ("degree", "clustering", "orbit", "spectral", "diameter")
-TABLE3_VALIDATION_METRIC_KEYS = ("mmd_rbf", "f1_pr")
-GRID_GRAPHVAE_TABLE2_PAPER_MMD = {
-    "degree": 0.062,
-    "clustering": 0.055,
-    "orbit": 0.515,
-    "spectral": 0.018,
-    "diameter": 0.143,
-}
-VALIDATION_SCORE_TABLE3_DENOMINATORS = {
-    "mmd_rbf": 1.0,
-    "f1_pr_error": 1.0,
-}
-BEST_VALIDATION_MMD_SCORE_MODES = (
-    "normalized_table2",
-    "normalized_table2_table3",
-    "raw_mean",
-    "raw_mean_table2_table3",
-    "table3",
-    *TABLE2_VALIDATION_MMD_KEYS,
-    *TABLE3_VALIDATION_METRIC_KEYS,
-)
 MMD_RESULT_LABELS = {
     "degree": "degree",
     "clustering": "clustering",
@@ -364,106 +350,6 @@ def parse_table2_mmd_result(mmd_result):
         metric_name: metrics.get(metric_name)
         for metric_name in TABLE2_VALIDATION_MMD_KEYS
     }
-
-
-def _valid_mmd_value(metrics, metric_name):
-    value = metrics.get(metric_name)
-    if value is None or not math.isfinite(value) or value < 0:
-        return None
-    return value
-
-
-def _valid_probability_metric(metrics, metric_name):
-    value = metrics.get(metric_name)
-    if value is None or not math.isfinite(value):
-        return None
-    return min(max(float(value), 0.0), 1.0)
-
-
-def _validation_score_components(metrics, score_mode):
-    if score_mode in TABLE2_VALIDATION_MMD_KEYS:
-        value = _valid_mmd_value(metrics, score_mode)
-        return None if value is None else {score_mode: value}
-
-    if score_mode == "mmd_rbf":
-        value = _valid_mmd_value(metrics, "mmd_rbf")
-        return None if value is None else {"mmd_rbf": value}
-
-    if score_mode == "f1_pr":
-        value = _valid_probability_metric(metrics, "f1_pr")
-        return None if value is None else {"f1_pr_error": 1.0 - value}
-
-    raw_table2_values = {}
-    for metric_name in TABLE2_VALIDATION_MMD_KEYS:
-        value = _valid_mmd_value(metrics, metric_name)
-        if value is None:
-            return None
-        raw_table2_values[metric_name] = value
-
-    if score_mode == "raw_mean":
-        return raw_table2_values
-
-    if score_mode == "normalized_table2":
-        return {
-            metric_name: metrics[metric_name] / GRID_GRAPHVAE_TABLE2_PAPER_MMD[metric_name]
-            for metric_name in TABLE2_VALIDATION_MMD_KEYS
-        }
-
-    table3_values = {}
-    mmd_rbf = _valid_mmd_value(metrics, "mmd_rbf")
-    f1_pr = _valid_probability_metric(metrics, "f1_pr")
-    if mmd_rbf is None or f1_pr is None:
-        return None
-    table3_values["mmd_rbf"] = mmd_rbf
-    table3_values["f1_pr_error"] = 1.0 - f1_pr
-
-    if score_mode == "table3":
-        return table3_values
-
-    if score_mode == "raw_mean_table2_table3":
-        return {**raw_table2_values, **table3_values}
-
-    if score_mode == "normalized_table2_table3":
-        normalized_table2_values = {
-            metric_name: metrics[metric_name] / GRID_GRAPHVAE_TABLE2_PAPER_MMD[metric_name]
-            for metric_name in TABLE2_VALIDATION_MMD_KEYS
-        }
-        return {**normalized_table2_values, **table3_values}
-
-    raise ValueError(f"Unknown best validation MMD score mode: {score_mode}")
-
-
-def compute_validation_mmd_score(metrics, score_mode):
-    components = _validation_score_components(metrics, score_mode)
-    if components is None:
-        return None
-    return sum(components.values()) / len(components)
-
-
-def score_components_for_mode(metrics, score_mode):
-    components = _validation_score_components(metrics, score_mode)
-    return components or {}
-
-
-def score_denominators_for_mode(score_mode):
-    if score_mode == "normalized_table2":
-        return dict(GRID_GRAPHVAE_TABLE2_PAPER_MMD)
-    if score_mode == "normalized_table2_table3":
-        return {
-            **GRID_GRAPHVAE_TABLE2_PAPER_MMD,
-            **VALIDATION_SCORE_TABLE3_DENOMINATORS,
-        }
-    return None
-
-
-def score_metrics_for_mode(score_mode):
-    if score_mode in (*TABLE2_VALIDATION_MMD_KEYS, *TABLE3_VALIDATION_METRIC_KEYS):
-        return [score_mode]
-    if score_mode == "table3":
-        return list(TABLE3_VALIDATION_METRIC_KEYS)
-    if score_mode in ("raw_mean_table2_table3", "normalized_table2_table3"):
-        return list(TABLE2_VALIDATION_MMD_KEYS) + list(TABLE3_VALIDATION_METRIC_KEYS)
-    return list(TABLE2_VALIDATION_MMD_KEYS)
 
 
 def write_json_file(path, payload):
@@ -1162,10 +1048,11 @@ parser.add_argument(
     choices=BEST_VALIDATION_MMD_SCORE_MODES,
     help=(
         'Validation checkpoint score. normalized_table2 averages each Table 2 '
-        'metric after dividing by the Grid GraphVAE paper value; '
-        'normalized_table2_table3 also includes Table 3 mmd_rbf and '
-        '1 - f1_pr; raw_mean averages raw Table 2 MMDs; a metric name tracks '
-        'only that metric.'
+        'metric after dividing by the dataset GraphVAE paper value; '
+        'normalized_table2_table3 also includes mmd_rbf divided by the '
+        'dataset paper GraphVAE-MM mmd_rbf and (1 - f1_pr) / 0.05; '
+        'raw_mean averages raw Table 2 MMDs; a metric name tracks only that '
+        'metric.'
     )
 )
 parser.add_argument(
@@ -1503,6 +1390,9 @@ if model_name == "KernelAugmentedWithTotalNumberOfTriangles" or model_name == "G
         step_num = 5
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 1000]
     elif dataset == "GRID":
+        #first 8 values, all 1: weights for the GraphVAE-MM graph-statistic/kernel losses
+        #50: weight for adjacency reconstruction BCE
+        #2000: weight for KL divergence
         step_num = 5
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 2000]
     elif dataset == "PROTEINS":
@@ -2772,6 +2662,7 @@ for epoch in range(epoch_number):
                     validation_mmd_score = compute_validation_mmd_score(
                         validation_mmd_metrics,
                         best_validation_mmd_metric,
+                        dataset,
                     )
                     if validation_mmd_score is None:
                         logging.warning(
@@ -2793,9 +2684,11 @@ for epoch in range(epoch_number):
                             "score_components": score_components_for_mode(
                                 validation_mmd_metrics,
                                 best_validation_mmd_metric,
+                                dataset,
                             ),
                             "score_denominators": score_denominators_for_mode(
-                                best_validation_mmd_metric
+                                best_validation_mmd_metric,
+                                dataset,
                             ),
                             "metrics": validation_mmd_metrics,
                             "table2_metrics": table2_metrics_from_parsed(
