@@ -1,22 +1,18 @@
-# Triangular Grid Table 2 full 11-setting schedule, run with rule pruning on.
+# Triangular Grid Table 2 full 11-setting schedule, run with rule pruning on
+# (moderate method-2 thresholds: tau=0.3, min_support_frac=0.01), batch 200.
 #
-# One job is assigned to each GPU listed below. Hosts: cs-cl-09, cs-cl-13,
-# cs-cl-16, cs-cl-17, cs-cl-18, cs-cl-19, cs-cl-26 (12 GPU slots total across
-# these 7 hosts; cs-cl-18 GPU 1 intentionally left idle). Mirrors the
-# VRAM-aware placement used in CLUSTER_GPU_CONFIGS_LOBSTER_TABLE2.txt: the
-# GraphVAE-MM + motif configs (09-11) go to the 24 GiB TITAN RTX hosts
-# (cs-cl-13, cs-cl-17).
+# Under moderate pruning, 6 of the 11 configs need a 24 GiB GPU
+# (03, 05, 06, 08, 09, 11 -- everything using motif "original" or "both").
+# Only 3 such GPUs exist (cs-cl-13 GPU 0, cs-cl-17 GPU 0/1), so 3 heavy jobs
+# run now and 3 are queued to backfill the same slots as each finishes.
+# See TRIANGULAR_GRID_QUEUE_STATE.md for the live queue state.
 #
-# Launch with extra args: -- --rule_prune true --rule_prune_method 2
-
+# ACTIVE layout (this file reflects what should be running RIGHT NOW):
 cs-cl-18 0 configs/cluster_tests/triangular_grid_table2_01_graphvae.yaml
 cs-cl-16 0 configs/cluster_tests/triangular_grid_table2_02_graphvae_mm.yaml
-cs-cl-19 0 configs/cluster_tests/triangular_grid_table2_03_graphvae_motif_original_no_temp.yaml
+cs-cl-19 0 configs/cluster_tests/triangular_grid_table2_10_graphvae_mm_motif_literals_no_temp.yaml
 cs-cl-26 0 configs/cluster_tests/triangular_grid_table2_04_graphvae_motif_literals_no_temp.yaml
-cs-cl-09 0 configs/cluster_tests/triangular_grid_table2_05_graphvae_motif_both_no_temp.yaml
-cs-cl-19 1 configs/cluster_tests/triangular_grid_table2_06_graphvae_motif_original_temp.yaml
 cs-cl-26 1 configs/cluster_tests/triangular_grid_table2_07_graphvae_motif_literals_temp.yaml
-cs-cl-09 1 configs/cluster_tests/triangular_grid_table2_08_graphvae_motif_both_temp.yaml
 cs-cl-13 0 configs/cluster_tests/triangular_grid_table2_09_graphvae_mm_motif_original_no_temp.yaml
-cs-cl-17 0 configs/cluster_tests/triangular_grid_table2_10_graphvae_mm_motif_literals_no_temp.yaml
+cs-cl-17 0 configs/cluster_tests/triangular_grid_table2_08_graphvae_motif_both_temp.yaml
 cs-cl-17 1 configs/cluster_tests/triangular_grid_table2_11_graphvae_mm_motif_both_no_temp.yaml
