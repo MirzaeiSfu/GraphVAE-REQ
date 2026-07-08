@@ -11,8 +11,15 @@ a time per slot, queued in this order:
 | Slot | Now running | Queued next | Status |
 |---|---|---|---|
 | cs-cl-13 GPU 0 | 09 (graphvae_mm_motif_original_no_temp) | 03 (graphvae_motif_original_no_temp) | 09 running |
-| cs-cl-17 GPU 0 | 05 (graphvae_motif_both_no_temp) | 08 (graphvae_motif_both_temp) | 05 running |
+| cs-cl-17 GPU 0 | 08 (graphvae_motif_both_temp) | (none) | 05 OOM'd at epoch 8590; 08 backfilled and running |
 | cs-cl-17 GPU 1 | 11 (graphvae_mm_motif_both_no_temp) | 06 (graphvae_motif_original_temp) | 11 running |
+
+Note (2026-07-08 00:xx): main.py on cs-cl-09/13/16/17/19/26 was found reverted to
+a pre-rule_prune_method version (0 matches vs controller's 5) -- something
+external re-synced older code onto those shared paths after the original
+distribution. Re-distributed the correct code to all hosts; if a future
+backfill hits "unrecognized arguments: --rule_prune_method ...", re-run
+`cluster_distribute_code.sh` before relaunching.
 
 Light jobs (01, 02, 04, 07, 10) run concurrently on other hosts and need no
 queueing: cs-cl-18:0=01, cs-cl-16:0=02, cs-cl-26:0=04, cs-cl-26:1=07,
