@@ -911,6 +911,34 @@ parser.add_argument(
     default=0.5,
     help='Fraction of training to keep the starting motif temperature before annealing.'
 )
+parser.add_argument(
+    '--motif_temperature_guard_ratio',
+    type=float,
+    default=0.0,
+    help=(
+        'If > 0, accept an annealed motif temperature only when the weighted motif '
+        'term is no more than this ratio times the other weighted loss terms; '
+        'otherwise adaptively relax the effective temperature for that batch.'
+    )
+)
+parser.add_argument(
+    '--motif_temperature_guard_relax_factor',
+    type=float,
+    default=1.05,
+    help=(
+        'When the motif-temperature guard fires, multiply the adaptive effective '
+        'temperature by this factor, capped at motif_temperature_start.'
+    )
+)
+parser.add_argument(
+    '--motif_temperature_guard_sharpen_factor',
+    type=float,
+    default=0.995,
+    help=(
+        'When the motif-temperature guard does not fire, multiply the adaptive '
+        'effective temperature by this factor, floored at the scheduled temperature.'
+    )
+)
 parser.add_argument('--rule_prune', type=str2bool, default=False)
 parser.add_argument(
     '--motif_batch_size',
@@ -1204,6 +1232,18 @@ motif_temperature_end = max(float(args.motif_temperature_end), 1e-3)
 motif_temperature_anneal_start_frac = min(
     max(float(args.motif_temperature_anneal_start_frac), 0.0), 1.0
 )
+motif_temperature_guard_ratio = max(float(args.motif_temperature_guard_ratio), 0.0)
+args.motif_temperature_guard_ratio = motif_temperature_guard_ratio
+motif_temperature_guard_relax_factor = max(
+    float(args.motif_temperature_guard_relax_factor),
+    1.0,
+)
+motif_temperature_guard_sharpen_factor = min(
+    max(float(args.motif_temperature_guard_sharpen_factor), 1e-6),
+    1.0,
+)
+args.motif_temperature_guard_relax_factor = motif_temperature_guard_relax_factor
+args.motif_temperature_guard_sharpen_factor = motif_temperature_guard_sharpen_factor
 rule_prune = args.rule_prune
 motif_batch_size = args.motif_batch_size
 prepare_motif_cache_only = args.prepare_motif_cache_only
@@ -1452,7 +1492,10 @@ print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
 print(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
-      f"start_frac={motif_temperature_anneal_start_frac}"
+      f"start_frac={motif_temperature_anneal_start_frac}, "
+      f"guard_ratio={motif_temperature_guard_ratio}, "
+      f"guard_relax_factor={motif_temperature_guard_relax_factor}, "
+      f"guard_sharpen_factor={motif_temperature_guard_sharpen_factor}"
 )
 
 logging.info("latent_mode:" + latent_mode)
@@ -1471,7 +1514,10 @@ logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
 logging.info(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
-      f"start_frac={motif_temperature_anneal_start_frac}"
+      f"start_frac={motif_temperature_anneal_start_frac}, "
+      f"guard_ratio={motif_temperature_guard_ratio}, "
+      f"guard_relax_factor={motif_temperature_guard_relax_factor}, "
+      f"guard_sharpen_factor={motif_temperature_guard_sharpen_factor}"
 )
 
   # with is propertion to revese of this value;
@@ -2309,6 +2355,7 @@ swith = False
 print(model)
 logging.info(model.__str__())
 min_loss = float('inf')
+adaptive_motif_temperature = motif_temperature_start
 
 
 # 50%50 Evaluation
@@ -2456,77 +2503,151 @@ for epoch in range(epoch_number):
             end_temp=motif_temperature_end,
             anneal_start_frac=motif_temperature_anneal_start_frac,
         )
+        motif_temperature_scheduled = motif_temperature
+        motif_temperature_guard_triggered = False
+        motif_temperature_guard_base = None
+        motif_temperature_guard_limit = None
+        motif_temperature_guard_proposed = motif_temperature
         if use_motif_loss:
             observed_motif_counts = list_graphs.motif_counts[from_:batch_end].to(device)
-            recon_wrapper = ReconstructedDataWrapper(
-                reconstructed_adj=reconstructed_adj_logit,
-                node_feat_logits=node_feat_logits,
-                edge_feat_logits=edge_feat_logits,
-                relation_keys=motif_counter.relation_keys,
-                node_onehot_info=node_onehot_info,
-                feature_onehot_mapping=wrapper.feature_onehot_mapping,
-                edge_onehot_info=edge_onehot_info,
-                edge_feature_info_mapping=motif_counter.feature_info_mapping,
-                use_soft_adj=True,
-                prob_temperature=motif_temperature,
-                device=device,
-            )
 
-            recon_counts = motif_counter.count_batch(recon_wrapper, batch_size=motif_batch_size)
-            motif_loss = compute_motif_loss(
-                observed_counts=observed_motif_counts,
-                predicted_counts=recon_counts,
-                loss_mode=motif_loss_mode,
-            )
-            non_literal_motif_loss = motif_loss
-            weighted_motif_loss_term = motif_loss * alpha_motif_loss
-
-            if syntactic_literal_rule_mode == 'literals':
-                syntactic_literal_motif_loss = motif_loss
-                non_literal_motif_loss = torch.tensor(0.0, device=device)
-
-            if (
-                syntactic_literal_rule_mode == 'both'
-                and motif_counter.num_syntactic_literal_motifs > 0
-            ):
-                syntactic_literal_mask = motif_counter.get_syntactic_literal_motif_mask(
-                    device=observed_motif_counts.device
+            def motif_losses_at_temperature(current_motif_temperature):
+                current_recon_wrapper = ReconstructedDataWrapper(
+                    reconstructed_adj=reconstructed_adj_logit,
+                    node_feat_logits=node_feat_logits,
+                    edge_feat_logits=edge_feat_logits,
+                    relation_keys=motif_counter.relation_keys,
+                    node_onehot_info=node_onehot_info,
+                    feature_onehot_mapping=wrapper.feature_onehot_mapping,
+                    edge_onehot_info=edge_onehot_info,
+                    edge_feature_info_mapping=motif_counter.feature_info_mapping,
+                    use_soft_adj=True,
+                    prob_temperature=current_motif_temperature,
+                    device=device,
                 )
-                non_literal_mask = ~syntactic_literal_mask
 
-                syntactic_literal_motif_loss = compute_masked_motif_loss(
+                current_recon_counts = motif_counter.count_batch(
+                    current_recon_wrapper,
+                    batch_size=motif_batch_size,
+                )
+                current_motif_loss = compute_motif_loss(
                     observed_counts=observed_motif_counts,
-                    predicted_counts=recon_counts,
-                    motif_mask=syntactic_literal_mask,
+                    predicted_counts=current_recon_counts,
                     loss_mode=motif_loss_mode,
                 )
+                current_non_literal_motif_loss = current_motif_loss
+                current_syntactic_literal_motif_loss = torch.tensor(0.0, device=device)
+                current_weighted_motif_loss_term = current_motif_loss * alpha_motif_loss
 
-                if non_literal_mask.any():
-                    non_literal_motif_loss = compute_masked_motif_loss(
+                if syntactic_literal_rule_mode == 'literals':
+                    current_syntactic_literal_motif_loss = current_motif_loss
+                    current_non_literal_motif_loss = torch.tensor(0.0, device=device)
+
+                if (
+                    syntactic_literal_rule_mode == 'both'
+                    and motif_counter.num_syntactic_literal_motifs > 0
+                ):
+                    syntactic_literal_mask = motif_counter.get_syntactic_literal_motif_mask(
+                        device=observed_motif_counts.device
+                    )
+                    non_literal_mask = ~syntactic_literal_mask
+
+                    current_syntactic_literal_motif_loss = compute_masked_motif_loss(
                         observed_counts=observed_motif_counts,
-                        predicted_counts=recon_counts,
-                        motif_mask=non_literal_mask,
+                        predicted_counts=current_recon_counts,
+                        motif_mask=syntactic_literal_mask,
                         loss_mode=motif_loss_mode,
                     )
-                else:
-                    non_literal_motif_loss = torch.tensor(0.0, device=device)
 
-                total_motif_entries = (
-                    motif_counter.num_syntactic_literal_motifs
-                    + motif_counter.num_non_syntactic_literal_motifs
+                    if non_literal_mask.any():
+                        current_non_literal_motif_loss = compute_masked_motif_loss(
+                            observed_counts=observed_motif_counts,
+                            predicted_counts=current_recon_counts,
+                            motif_mask=non_literal_mask,
+                            loss_mode=motif_loss_mode,
+                        )
+                    else:
+                        current_non_literal_motif_loss = torch.tensor(0.0, device=device)
+
+                    total_motif_entries = (
+                        motif_counter.num_syntactic_literal_motifs
+                        + motif_counter.num_non_syntactic_literal_motifs
+                    )
+                    literal_fraction = (
+                        motif_counter.num_syntactic_literal_motifs / total_motif_entries
+                    )
+                    non_literal_fraction = (
+                        motif_counter.num_non_syntactic_literal_motifs / total_motif_entries
+                    )
+                    current_weighted_motif_loss_term = (
+                        alpha_motif_loss
+                        * non_literal_fraction
+                        * current_non_literal_motif_loss
+                        + alpha_syntactic_literal_motif_loss
+                        * literal_fraction
+                        * current_syntactic_literal_motif_loss
+                    )
+
+                return (
+                    current_motif_loss,
+                    current_non_literal_motif_loss,
+                    current_syntactic_literal_motif_loss,
+                    current_weighted_motif_loss_term,
                 )
-                literal_fraction = (
-                    motif_counter.num_syntactic_literal_motifs / total_motif_entries
+
+            if (
+                motif_temperature_guard_ratio > 0.0
+                and motif_temperature_scheduled < motif_temperature_start - 1e-12
+            ):
+                motif_temperature = max(
+                    motif_temperature_scheduled,
+                    adaptive_motif_temperature * motif_temperature_guard_sharpen_factor,
                 )
-                non_literal_fraction = (
-                    motif_counter.num_non_syntactic_literal_motifs / total_motif_entries
+                motif_temperature = min(motif_temperature, motif_temperature_start)
+                motif_temperature_guard_proposed = motif_temperature
+            else:
+                motif_temperature = motif_temperature_scheduled
+                motif_temperature_guard_proposed = motif_temperature
+                adaptive_motif_temperature = motif_temperature
+
+            (
+                motif_loss,
+                non_literal_motif_loss,
+                syntactic_literal_motif_loss,
+                weighted_motif_loss_term,
+            ) = motif_losses_at_temperature(motif_temperature)
+
+            if (
+                motif_temperature_guard_ratio > 0.0
+                and motif_temperature_scheduled < motif_temperature_start - 1e-12
+            ):
+                non_motif_loss_term = (
+                    kernel_cost.detach()
+                    + (alpha_node_feat * node_feat_loss).detach()
+                    + (alpha_edge_feat * edge_feat_loss).detach()
                 )
-                weighted_motif_loss_term = (
-                    alpha_motif_loss * non_literal_fraction * non_literal_motif_loss
-                    + alpha_syntactic_literal_motif_loss
-                    * literal_fraction
-                    * syntactic_literal_motif_loss
-                )
+                non_motif_loss_term = torch.clamp(non_motif_loss_term, min=1e-12)
+                guard_limit = motif_temperature_guard_ratio * non_motif_loss_term
+                motif_term_for_guard = weighted_motif_loss_term.detach()
+                motif_temperature_guard_base = float(non_motif_loss_term.cpu().item())
+                motif_temperature_guard_limit = float(guard_limit.cpu().item())
+                if (
+                    bool(torch.isfinite(motif_term_for_guard).item())
+                    and bool(torch.isfinite(guard_limit).item())
+                    and bool((motif_term_for_guard > guard_limit).item())
+                ):
+                    motif_temperature_guard_triggered = True
+                    motif_temperature = min(
+                        motif_temperature_start,
+                        adaptive_motif_temperature * motif_temperature_guard_relax_factor,
+                    )
+                    (
+                        motif_loss,
+                        non_literal_motif_loss,
+                        syntactic_literal_motif_loss,
+                        weighted_motif_loss_term,
+                    ) = motif_losses_at_temperature(motif_temperature)
+                adaptive_motif_temperature = motif_temperature
 
             # The hard wrapper thresholds adjacency and converts categorical
             # predictions to one-hot assignments, so these metrics reflect the
@@ -2593,12 +2714,26 @@ for epoch in range(epoch_number):
                 hard_predicted_counts=hard_recon_counts,
             )
 
+        motif_temperature_guard_status = ""
+        if motif_temperature_guard_ratio > 0.0:
+            motif_temperature_guard_status = (
+                f"| motif_temp_scheduled: {motif_temperature_scheduled:.3f} "
+                f"| motif_temp_proposed: {motif_temperature_guard_proposed:.3f} "
+                f"| motif_temp_guard: {int(motif_temperature_guard_triggered)} "
+            )
+            if motif_temperature_guard_base is not None:
+                motif_temperature_guard_status += (
+                    f"| motif_guard_base: {motif_temperature_guard_base:05f} "
+                    f"| motif_guard_limit: {motif_temperature_guard_limit:05f} "
+                )
+
         if tiny_overfit and (step % 10 == 0):
             print(f"[TinyOverfit] step={step} total={loss.item():.6f} "
                   f"motif={motif_loss.item():.6f} hard_motif={hard_motif_loss.item():.6f} "
                   f"regular_motif={non_literal_motif_loss.item():.6f} "
                   f"syntactic_literal_motif={syntactic_literal_motif_loss.item():.6f} "
                   f"motif_temp={motif_temperature:.3f} "
+                  f"{motif_temperature_guard_status}"
                   f"hard_exact_all={bool(hard_motif_exact_zero.item())} "
                   f"hard_exact_graphs={hard_exact_match_count}/{hard_exact_match_total} "
                   f"recon={reconstruction_loss.item():.6f} "
@@ -2746,6 +2881,7 @@ for epoch in range(epoch_number):
             f"| regular_motif_loss: {non_literal_motif_loss.item():05f} "
             f"| syntactic_literal_motif_loss: {syntactic_literal_motif_loss.item():05f} "
             f"| motif_temp: {motif_temperature:.3f} "
+            f"{motif_temperature_guard_status}"
             f"| node_feat_loss: {node_feat_loss.item():05f} "
             f"| edge_feat_loss: {edge_feat_loss.item():05f} "
             f"| hard_motif_loss: {hard_motif_loss.item():05f} "
