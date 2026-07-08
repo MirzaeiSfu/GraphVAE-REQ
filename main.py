@@ -1040,7 +1040,7 @@ parser.add_argument(
     '--keep_best_validation_mmd',
     default=True,
     type=str2bool,
-    help='Save and use the checkpoint with the lowest validation MMD score.'
+    help='Save and use the checkpoint with the lowest validation ranking score.'
 )
 parser.add_argument(
     '--best_validation_mmd_metric',

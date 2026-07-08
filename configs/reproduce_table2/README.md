@@ -157,9 +157,9 @@ For motif outputs, use `--paper-row GraphVAE-MM` when the question is
 "does motif loss replace the stats loss?", or `--paper-row GraphVAE` when the
 question is "how much does the motif run improve over the plain baseline?".
 
-## Best Validation MMD Checkpoint
+## Best Validation Checkpoint
 
-To save the checkpoint with the best validation MMD and use it for final test generation, add:
+To save the checkpoint with the best validation ranking score and use it for final test generation, run:
 
 ```bash
 python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_best_mmd.yaml
@@ -167,7 +167,7 @@ python main.py --config configs/reproduce_table2/grid_graphvae_table2_motif_best
 
 The default validation score can now include both paper metric families. Use `best_validation_mmd_metric: normalized_table2_table3` to average Table 2 metrics normalized by the dataset's GraphVAE paper row (degree, clustering, orbit, spectral, diameter) together with Table 3 terms (`mmd_rbf` normalized by the dataset's GraphVAE-MM paper row and `(1 - f1_pr) / 0.05`). Normalized MMD-style denominators are floored at `1e-3`, and normalized score components are capped at `10.0`, so a tiny paper value cannot dominate checkpoint selection. When enabled, the run folder contains `best_validation_mmd_model` and `best_validation_mmd.json`, and `Single_comp_generatedGraphs_adj_final_eval.npy` is generated from that best checkpoint.
 
-Existing configs explicitly set `keep_best_validation_mmd: false`, so old runs still use the final epoch unless the flag is enabled from the command line or changed in the config.
+Existing configs now set `keep_best_validation_mmd: true`, `best_validation_mmd_metric: normalized_table2_table3`, and `third_party_eval: true` by default. For quick smoke tests, override these values from the command line or in a temporary config.
 
 The dedicated best-MMD config writes to `runs/table2_reproduction/grid_graphvae_motif_best_mmd`, so it does not overwrite the previous motif run in `runs/table2_reproduction/grid_graphvae_motif`.
 
