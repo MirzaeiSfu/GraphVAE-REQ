@@ -239,6 +239,30 @@ def summarize_metric(values: list[float]) -> dict[str, float]:
     return {"mean": float(array.mean()), "std": float(array.std())}
 
 
+def summarize_mmd_linear(values: list[float], trim_fraction: float = 0.1) -> dict[str, float]:
+    array = np.asarray(values, dtype=np.float64)
+    sorted_array = np.sort(array)
+    trim_count = int(np.floor(len(sorted_array) * trim_fraction))
+    if trim_count > 0 and 2 * trim_count < len(sorted_array):
+        trimmed_array = sorted_array[trim_count:-trim_count]
+    else:
+        trimmed_array = sorted_array
+    median = float(np.median(sorted_array))
+    trimmed_mean = float(trimmed_array.mean())
+    mean = float(array.mean())
+    return {
+        "mean": mean,
+        "std": float(array.std()),
+        "median": median,
+        "trimmed_mean": trimmed_mean,
+        "trim_fraction": float(trim_fraction),
+        "min": float(sorted_array[0]),
+        "max": float(sorted_array[-1]),
+        "max_to_median_ratio": float(sorted_array[-1] / max(median, 1e-12)),
+        "mean_to_median_ratio": float(mean / max(median, 1e-12)),
+    }
+
+
 def evaluate_graph_collections(
     generated_graphs: list[nx.Graph],
     reference_graphs: list[nx.Graph],
@@ -300,7 +324,7 @@ def evaluate_graph_collections(
         "metrics": {
             "f1_pr": summarize_metric(f1_values),
             "mmd_rbf": summarize_metric(mmd_rbf_values),
-            "mmd_linear": summarize_metric(mmd_linear_values),
+            "mmd_linear": summarize_mmd_linear(mmd_linear_values),
             "precision": summarize_metric(precision_values),
             "recall": summarize_metric(recall_values),
         },
@@ -370,6 +394,12 @@ def summary_row(result: dict) -> dict[str, object]:
         "mmd_rbf_std": result["metrics"]["mmd_rbf"]["std"],
         "mmd_linear_mean": result["metrics"]["mmd_linear"]["mean"],
         "mmd_linear_std": result["metrics"]["mmd_linear"]["std"],
+        "mmd_linear_median": result["metrics"]["mmd_linear"]["median"],
+        "mmd_linear_trimmed_mean": result["metrics"]["mmd_linear"]["trimmed_mean"],
+        "mmd_linear_min": result["metrics"]["mmd_linear"]["min"],
+        "mmd_linear_max": result["metrics"]["mmd_linear"]["max"],
+        "mmd_linear_max_to_median_ratio": result["metrics"]["mmd_linear"]["max_to_median_ratio"],
+        "mmd_linear_mean_to_median_ratio": result["metrics"]["mmd_linear"]["mean_to_median_ratio"],
         "precision_mean": result["metrics"]["precision"]["mean"],
         "precision_std": result["metrics"]["precision"]["std"],
         "recall_mean": result["metrics"]["recall"]["mean"],
@@ -394,6 +424,12 @@ def write_summary_csv(path: Path, rows: list[dict[str, object]]) -> None:
         "mmd_rbf_std",
         "mmd_linear_mean",
         "mmd_linear_std",
+        "mmd_linear_median",
+        "mmd_linear_trimmed_mean",
+        "mmd_linear_min",
+        "mmd_linear_max",
+        "mmd_linear_max_to_median_ratio",
+        "mmd_linear_mean_to_median_ratio",
         "precision_mean",
         "precision_std",
         "recall_mean",
@@ -451,6 +487,8 @@ def main() -> int:
             f"f1_pr={result['metrics']['f1_pr']['mean']:.6f}, "
             f"mmd_rbf={result['metrics']['mmd_rbf']['mean']:.6f}, "
             f"mmd_linear={result['metrics']['mmd_linear']['mean']:.6f}, "
+            f"mmd_linear_median={result['metrics']['mmd_linear']['median']:.6f}, "
+            f"mmd_linear_trimmed={result['metrics']['mmd_linear']['trimmed_mean']:.6f}, "
             f"precision={result['metrics']['precision']['mean']:.6f}, "
             f"recall={result['metrics']['recall']['mean']:.6f}"
         )
