@@ -1051,6 +1051,7 @@ parser.add_argument(
         'metric after dividing by the dataset GraphVAE paper value; '
         'normalized_table2_table3 also includes mmd_rbf divided by the '
         'dataset paper GraphVAE-MM mmd_rbf and (1 - f1_pr) / 0.05; '
+        'normalized components use a small denominator floor and cap; '
         'raw_mean averages raw Table 2 MMDs; a metric name tracks only that '
         'metric.'
     )

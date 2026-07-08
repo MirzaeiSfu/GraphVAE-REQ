@@ -138,6 +138,8 @@ TABLE3_GRAPHVAE_MM_PAPER_MMD_RBF_BY_DATASET = {
 }
 
 VALIDATION_SCORE_F1_PR_ERROR_DENOMINATOR = 0.05
+NORMALIZED_MMD_DENOMINATOR_FLOOR = 1e-3
+NORMALIZED_SCORE_COMPONENT_CAP = 10.0
 BEST_VALIDATION_MMD_SCORE_MODES = (
     "normalized_table2",
     "normalized_table2_table3",
@@ -215,7 +217,11 @@ def validation_score_components(metrics, score_mode, dataset_name=None):
     table2_paper = table2_denominators(dataset_name)
     if score_mode == "normalized_table2":
         return {
-            metric_name: metrics[metric_name] / table2_paper[metric_name]
+            metric_name: min(
+                metrics[metric_name]
+                / max(table2_paper[metric_name], NORMALIZED_MMD_DENOMINATOR_FLOOR),
+                NORMALIZED_SCORE_COMPONENT_CAP,
+            )
             for metric_name in TABLE2_VALIDATION_MMD_KEYS
         }
 
@@ -236,13 +242,27 @@ def validation_score_components(metrics, score_mode, dataset_name=None):
 
     if score_mode == "normalized_table2_table3":
         normalized_table2_values = {
-            metric_name: metrics[metric_name] / table2_paper[metric_name]
+            metric_name: min(
+                metrics[metric_name]
+                / max(table2_paper[metric_name], NORMALIZED_MMD_DENOMINATOR_FLOOR),
+                NORMALIZED_SCORE_COMPONENT_CAP,
+            )
             for metric_name in TABLE2_VALIDATION_MMD_KEYS
         }
         normalized_table3_values = {
-            "mmd_rbf": mmd_rbf / table3_mmd_rbf_denominator(dataset_name),
+            "mmd_rbf": min(
+                mmd_rbf
+                / max(
+                    table3_mmd_rbf_denominator(dataset_name),
+                    NORMALIZED_MMD_DENOMINATOR_FLOOR,
+                ),
+                NORMALIZED_SCORE_COMPONENT_CAP,
+            ),
             # A 5 percentage-point F1-PR error counts as one unit of badness.
-            "f1_pr_error": (1.0 - f1_pr) / VALIDATION_SCORE_F1_PR_ERROR_DENOMINATOR,
+            "f1_pr_error": min(
+                (1.0 - f1_pr) / VALIDATION_SCORE_F1_PR_ERROR_DENOMINATOR,
+                NORMALIZED_SCORE_COMPONENT_CAP,
+            ),
         }
         return {**normalized_table2_values, **normalized_table3_values}
 
@@ -263,11 +283,20 @@ def score_components_for_mode(metrics, score_mode, dataset_name=None):
 
 def score_denominators_for_mode(score_mode, dataset_name=None):
     if score_mode == "normalized_table2":
-        return dict(table2_denominators(dataset_name))
+        return {
+            metric_name: max(denominator, NORMALIZED_MMD_DENOMINATOR_FLOOR)
+            for metric_name, denominator in table2_denominators(dataset_name).items()
+        }
     if score_mode == "normalized_table2_table3":
         return {
-            **table2_denominators(dataset_name),
-            "mmd_rbf": table3_mmd_rbf_denominator(dataset_name),
+            **{
+                metric_name: max(denominator, NORMALIZED_MMD_DENOMINATOR_FLOOR)
+                for metric_name, denominator in table2_denominators(dataset_name).items()
+            },
+            "mmd_rbf": max(
+                table3_mmd_rbf_denominator(dataset_name),
+                NORMALIZED_MMD_DENOMINATOR_FLOOR,
+            ),
             "f1_pr_error": VALIDATION_SCORE_F1_PR_ERROR_DENOMINATOR,
         }
     return None
