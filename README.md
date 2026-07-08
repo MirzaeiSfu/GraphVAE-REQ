@@ -194,7 +194,7 @@ Generate a coarse log sweep over motif and node/edge feature weights:
 
 The default coarse grid uses `alpha_motif_loss` values
 `0.01, 0.03, 0.1, 0.3, 1.0` and tied node/edge feature weights
-`0, 0.1, 1.0` for the GRID/LOBSTER GraphVAE+Motif-both and
+`0.1, 1.0` for the GRID/LOBSTER GraphVAE+Motif-both and
 GraphVAE-MM+Motif-both templates. After evaluating the coarse runs, generate a
 fine sweep around the best config:
 
