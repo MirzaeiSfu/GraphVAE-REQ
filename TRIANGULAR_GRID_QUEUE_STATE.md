@@ -10,9 +10,9 @@ a time per slot, queued in this order:
 
 | Slot | Now running | Queued next | Status |
 |---|---|---|---|
-| cs-cl-13 GPU 0 | 09 (graphvae_mm_motif_original_no_temp) | 03 (graphvae_motif_original_no_temp) | 09 running |
+| cs-cl-13 GPU 0 | 09 (graphvae_mm_motif_original_no_temp) | 03 (graphvae_motif_original_no_temp) | 09 at ~19850/20000, about to finish |
 | cs-cl-17 GPU 0 | 08 (graphvae_motif_both_temp) | (none) | 05 OOM'd at epoch 8590; 08 backfilled and running |
-| cs-cl-17 GPU 1 | 11 (graphvae_mm_motif_both_no_temp) | 06 (graphvae_motif_original_temp) | 11 running |
+| cs-cl-17 GPU 1 | 06 (graphvae_motif_original_temp) | (none) | 11 finished at 20000/20000; 06 backfilled and running |
 
 Note (2026-07-08 00:xx): main.py on cs-cl-09/13/16/17/19/26 was found reverted to
 a pre-rule_prune_method version (0 matches vs controller's 5) -- something
