@@ -40,4 +40,9 @@ the launch command above, then verify all three new sessions come up and
 don't immediately OOM (same VRAM risk as before -- 118 columns used ~15-16GB
 last time, should be safe, but check anyway).
 
-Status: NOT YET LAUNCHED. Waiting for the calibrated_gaussian batch.
+Status: LAUNCHED 2026-07-09. calibrated_gaussian batch finished (03, 05
+completed cleanly at 20000/20000; 06 hit the known matplotlib/networkx
+plotting StopIteration bug at epoch 18998/20000, best snapshot at 17998
+evaluated separately). abs_log_ratio batch now running in
+runs/triangular_grid_v2_undir_logratio_20260709/, confirmed alive on
+cs-cl-13 GPU 0 and cs-cl-17 GPU 0/1.
