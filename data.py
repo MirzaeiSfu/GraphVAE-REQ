@@ -524,20 +524,22 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 
   def _build_triangular_grid_graph_features(graph):
       """
-      Matches factorbase_motif_pipeline/best_triangular_grid.py's "optimal"
-      feature schema: node distance_to_boundary/num_3cycles/num_hexagons;
-      edge edge_direction/edge_hexagons/edge_triangle_count. struct_type and
-      the old num_6cycles are dropped -- verified via direct SQL on a learned
+      Matches the triangular_grid_V2_undir database schema: node
+      num_3cycles/num_hexagons; edge edge_direction/edge_hexagons/
+      edge_triangle_count. distance_to_boundary, struct_type, and the old
+      num_6cycles are dropped -- verified via direct SQL on a learned
       FactorBase BN that struct_type/num_3cycles/num_6cycles in the old
       schema are a 100% deterministic relabeling of node degree, and the old
       num_6cycles was a degree>=4 proxy, not a real hexagon count.
       num_hexagons here is a REAL induced-6-cycle participation count.
+      distance_to_boundary is omitted to match V2_undir's smaller,
+      non-degenerate rule set (no distance_to_boundary-derived FactorBase
+      rules to worry about).
       """
       nodes = list(graph.nodes())
       node_to_idx = {node: idx for idx, node in enumerate(nodes)}
       adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
 
-      bounds = triangular_grid_features.get_lattice_bounds(graph)
       # Compute ONCE per graph -- O(graph) cycle search, then indexed per
       # node/edge below.
       node_hexagons_raw, edge_hexagons_raw = (
@@ -546,13 +548,9 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 
       node_rows = []
       for node in nodes:
-          distance_to_boundary = triangular_grid_features.compute_distance_to_boundary(
-              node, bounds
-          )
           num_3cycles = triangular_grid_features.compute_num_3cycles(graph, node)
           num_hexagons = node_hexagons_raw[node] + 1
           node_rows.append([
-              distance_to_boundary,
               num_3cycles,
               num_hexagons,
           ])
@@ -893,9 +891,8 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       # # np.save('triangular_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
 #==================================end kirash code
       node_feature_info = {
-          0: {'feature_name': 'distance_to_boundary'},
-          1: {'feature_name': 'num_3cycles'},
-          2: {'feature_name': 'num_hexagons'},
+          0: {'feature_name': 'num_3cycles'},
+          1: {'feature_name': 'num_hexagons'},
       }
       edge_feature_info = {
           0: {
