@@ -142,20 +142,13 @@ class RelationalMotifCounter:
         if "values_full" in data:
             # New-format pickle
             if rule_prune:
-                self.values = [
-                    list(full_rows) if len(rule) == 1 else pruned_rows
-                    for rule, full_rows, pruned_rows in zip(
-                        self.rules,
-                        data["values_full"],
-                        data["values_pruned"],
-                    )
-                ]
+                self.values = data["values_pruned"]
                 n_full   = sum(len(v) for v in data["values_full"])
                 n_pruned = sum(len(v) for v in self.values)
                 print(
                     "  rule_prune=True: "
                     f"{n_pruned} / {n_full} value combinations kept "
-                    "(unary and feature rules kept unpruned)"
+                    "(formula-pruned; full rows remain cached for rule_prune=False)"
                 )
             else:
                 self.values = data["values_full"]

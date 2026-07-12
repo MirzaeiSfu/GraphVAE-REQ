@@ -33,6 +33,25 @@ import dataset_feature_utils.triangular_grid_features as triangular_grid_feature
 # import ogb
 
 
+OGB_MOL_NODE_FEATURE_NAMES = [
+    "atomic_num",
+    "chirality",
+    "degree",
+    "formal_charge",
+    "num_h",
+    "num_radical_e",
+    "hybridization",
+    "is_aromatic",
+    "is_in_ring",
+]
+
+OGB_MOL_EDGE_FEATURE_NAMES = [
+    "bond_type",
+    "bond_stereo",
+    "is_conjugated",
+]
+
+
 def get_data_dir() -> Path:
     return Path(os.environ.get("DATA_DIR", "data_raw")).expanduser()
 
@@ -50,6 +69,68 @@ def load_gin_dataset(name: str):
         )
     except TypeError:  # pragma: no cover - depends on installed DGL version
         return dgl.data.GINDataset(name=name, self_loop=False)
+
+
+def _candidate_ogb_roots() -> List[Path]:
+    """Return OGB roots, preferring explicit/local data before download paths."""
+
+    candidates: List[Path] = []
+    env_root = os.environ.get("OGB_DATA_ROOT")
+    if env_root:
+        candidates.append(Path(env_root).expanduser())
+
+    candidates.extend([
+        data_path("ogb"),
+        Path("dataset"),
+        # Helpful for this workspace: GraphVAE-MM already ships a local
+        # ogbg_molbbbp copy. This is only a fallback; a copied/explicit
+        # REQ data root remains preferred.
+        Path("../GraphVAE-MM/dataset"),
+    ])
+
+    seen = set()
+    unique = []
+    for candidate in candidates:
+        resolved_key = str(candidate)
+        if resolved_key in seen:
+            continue
+        seen.add(resolved_key)
+        unique.append(candidate)
+    return unique
+
+
+def load_ogbg_molbbbp_dataset():
+    from ogb.graphproppred import DglGraphPropPredDataset
+
+    last_error = None
+    for root in _candidate_ogb_roots():
+        dataset_dir = root / "ogbg_molbbbp"
+        try:
+            if dataset_dir.exists() or root == data_path("ogb"):
+                print(f"Loading ogbg-molbbbp from OGB root: {root}")
+                return DglGraphPropPredDataset(
+                    name="ogbg-molbbbp",
+                    root=str(root),
+                )
+        except Exception as exc:
+            last_error = exc
+            print(f"Warning: failed to load ogbg-molbbbp from {root}: {exc}")
+
+    message = (
+        "Could not load ogbg-molbbbp. Put the OGB dataset at one of these "
+        "roots, or set OGB_DATA_ROOT: "
+        + ", ".join(str(p) for p in _candidate_ogb_roots())
+    )
+    if last_error is not None:
+        message += f". Last error: {last_error}"
+    raise RuntimeError(message)
+
+
+def _dgl_graph_to_csr(graph):
+    try:
+        return csr_matrix(graph.adjacency_matrix().to_dense().cpu().numpy())
+    except Exception:
+        return csr_matrix(graph.adj().to_dense().cpu().numpy())
 
 
 def parse_index_file(filename):
@@ -584,6 +665,54 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           edge_feature,
       )
 
+  def _build_triangular_grid_legacy_graph_features(graph):
+      """
+      Matches factorbase_motif_pipeline/to_db_triangular_grid.py's legacy
+      feature schema used by triangular_grid_undir_feat_snap_ce92ed:
+      node struct_type/distance_to_boundary/num_3cycles/num_6cycles and
+      edge edge_orbit.
+      """
+      nodes = list(graph.nodes())
+      node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+      adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
+
+      bounds = triangular_grid_features.get_lattice_bounds(graph)
+
+      node_rows = []
+      for node in nodes:
+          struct_type = triangular_grid_features.compute_struct_type(graph, node)
+          distance_to_boundary = triangular_grid_features.compute_distance_to_boundary(
+              node, bounds
+          )
+          num_3cycles = triangular_grid_features.compute_num_3cycles(graph, node)
+          num_6cycles = triangular_grid_features.compute_num_6cycles(graph, node)
+          node_rows.append([
+              struct_type,
+              distance_to_boundary,
+              num_3cycles,
+              num_6cycles,
+          ])
+
+      edge_rows = []
+      for node_u, node_v in graph.edges():
+          edge_orbit = triangular_grid_features.compute_edge_orbit(
+              node_u, node_v, bounds
+          )
+          src = node_to_idx[node_u]
+          dst = node_to_idx[node_v]
+          edge_rows.append([src, dst, edge_orbit])
+          edge_rows.append([dst, src, edge_orbit])
+
+      edge_feature = None
+      if edge_rows:
+          edge_feature = np.asarray(edge_rows, dtype=np.int64)
+
+      return (
+          adj,
+          np.asarray(node_rows, dtype=np.int64),
+          edge_feature,
+      )
+
   def _build_lobster_graph_features(graph):
       """
       Matches factorbase_motif_pipeline/best_lobster.py's "optimal" feature
@@ -729,9 +858,10 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           0: {'feature_name': 'node_feature'}
       }
       edge_feature_info = None
+      include_large_proteins = os.environ.get("INCLUDE_LARGE_PROTEINS", "0") == "1"
 
       for i, graph in enumerate(graphs):
-          if graph.adjacency_matrix().shape[0] >= 100:
+          if (not include_large_proteins) and graph.adjacency_matrix().shape[0] >= 100:
               continue
 
           if i % 100 == 0:
@@ -826,25 +956,126 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
 
 
     #   print("done")
-#   elif graph_type=="ogbg-molbbbp":
-#       # https://ogb.stanford.edu/docs/graphprop/
-#       from ogb.graphproppred import DglGraphPropPredDataset, collate_dgl
-#       d_name = "ogbg-molbbbp"  # ogbg-molhiv   'ogbg-code2' ogbg-ppa
-#       dataset = DglGraphPropPredDataset(name=d_name, root=str(data_path("ogb")))
+  elif graph_type == "ogbg-molbbbp":
+      # OGB molecular graph property dataset used by GraphVAE-MM.
+      #
+      # Unlike the legacy GraphVAE-MM loader, keep OGB's categorical atom and
+      # bond features so the REQ node/edge feature decoders and motif counting
+      # can use them. Feature arrays follow the repo-wide convention:
+      #   list_node_feature[i] = (N, F_node) int array
+      #   list_edge_feature[i] = (E, 2 + F_edge) int array [src, dst, ...]
+      dataset = load_ogbg_molbbbp_dataset()
+      ogbg_molbbbp_max_nodes = 60
 
+      first_graph, _first_label = dataset[0]
+      if "feat" not in first_graph.ndata:
+          raise KeyError(
+              "ogbg-molbbbp DGL graphs do not expose node feature key 'feat'. "
+              f"Available node keys: {list(first_graph.ndata.keys())}"
+          )
 
-#       list_adj = []
-#       for graph, label in dataset:
-#           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
-#           # list_x.append(graph.ndata['feat'])
-#           list_x.append(None)
-#           list_labels.append(label.cpu().item())
+      node_feature_dim = int(first_graph.ndata["feat"].shape[1])
 
-#       # graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
-#       # np.save('ogbg-molbbbp.npy', graphs_to_writeOnDisk, allow_pickle=True)
+      # Pre-scan node/edge feature values globally so one-hot dimensions are
+      # stable across train/validation/test splits, subsets, and future motif
+      # caches.
+      all_node_vals: Dict[int, set] = {col: set() for col in range(node_feature_dim)}
+      edge_feature_dim = 0
+      all_edge_vals: Dict[int, set] = {}
+      for graph, _label in dataset:
+          if graph.num_nodes() > ogbg_molbbbp_max_nodes:
+              continue
 
+          node_feat = graph.ndata["feat"]
+          for col in range(node_feature_dim):
+              all_node_vals[col].update(
+                  int(v) for v in torch.unique(node_feat[:, col]).cpu().tolist()
+              )
 
-      # list_labels = [adj.sum() for adj in list_adj]
+          edge_feat = graph.edata["feat"] if "feat" in graph.edata else None
+          if edge_feat is None:
+              continue
+          if edge_feat.dim() == 1:
+              edge_feat = edge_feat.view(-1, 1)
+          edge_feature_dim = max(edge_feature_dim, int(edge_feat.shape[1]))
+          for col in range(int(edge_feat.shape[1])):
+              all_edge_vals.setdefault(col, set()).update(
+                  int(v) for v in torch.unique(edge_feat[:, col]).cpu().tolist()
+              )
+
+      node_feature_info = {
+          col: {
+              "feature_name": (
+                  OGB_MOL_NODE_FEATURE_NAMES[col]
+                  if col < len(OGB_MOL_NODE_FEATURE_NAMES)
+                  else f"atom_feature_{col}"
+              ),
+              "unique_values": sorted(all_node_vals.get(col, set())),
+          }
+          for col in range(node_feature_dim)
+      }
+
+      edge_feature_info = {
+          col: {
+              "feature_name": (
+                  OGB_MOL_EDGE_FEATURE_NAMES[col]
+                  if col < len(OGB_MOL_EDGE_FEATURE_NAMES)
+                  else f"bond_feature_{col}"
+              ),
+              "unique_values": sorted(all_edge_vals.get(col, set())),
+          }
+          for col in range(edge_feature_dim)
+      } if edge_feature_dim > 0 else None
+
+      kept_ogbg_molbbbp_graphs = 0
+      skipped_ogbg_molbbbp_graphs = 0
+      for i, (graph, label) in enumerate(dataset):
+          if i % 250 == 0:
+              print(f"ogbg-molbbbp loading: {i}/{len(dataset)}")
+
+          if graph.num_nodes() > ogbg_molbbbp_max_nodes:
+              skipped_ogbg_molbbbp_graphs += 1
+              continue
+
+          adj = _dgl_graph_to_csr(graph)
+          list_adj.append(adj)
+          list_x.append(None)
+          label_values = label.cpu().view(-1)
+          list_labels.append(
+              None if label_values.numel() == 0 else label_values[0].item()
+          )
+
+          node_feature = graph.ndata["feat"].cpu().numpy().astype(np.int64)
+          list_node_feature.append(node_feature)
+
+          edge_feat = graph.edata["feat"] if "feat" in graph.edata else None
+          if edge_feat is None or edge_feat.numel() == 0:
+              list_edge_feature.append(None)
+          else:
+              if edge_feat.dim() == 1:
+                  edge_feat = edge_feat.view(-1, 1)
+              src, dst = graph.edges()
+              edge_feature = torch.cat(
+                  [
+                      src.view(-1, 1).cpu(),
+                      dst.view(-1, 1).cpu(),
+                      edge_feat.cpu().long(),
+                  ],
+                  dim=1,
+              ).numpy().astype(np.int64)
+              list_edge_feature.append(edge_feature)
+
+          kept_ogbg_molbbbp_graphs += 1
+
+      print(
+          "ogbg-molbbbp max-node filter: "
+          f"kept {kept_ogbg_molbbbp_graphs}/{len(dataset)} graphs, "
+          f"skipped {skipped_ogbg_molbbbp_graphs} graphs with "
+          f"num_nodes > {ogbg_molbbbp_max_nodes}"
+      )
+
+      # list_labels are kept for completeness; graph generation does not use
+      # labels directly.
   elif graph_type=="large_grid":
       for i in range(10):
             list_adj.append(nx.adjacency_matrix(grid(30, 100)))
@@ -892,30 +1123,51 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       # # graphs_to_writeOnDisk = [gr.toarray() for  gr in list_adj]
       # # np.save('triangular_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
 #==================================end kirash code
-      node_feature_info = {
-          0: {'feature_name': 'distance_to_boundary'},
-          1: {'feature_name': 'num_3cycles'},
-          2: {'feature_name': 'num_hexagons'},
-      }
-      edge_feature_info = {
-          0: {
-              'feature_name': 'edge_direction',
-              'unique_values': sorted(triangular_grid_features.EDGE_DIRECTION_TO_ID.values()),
-          },
-          1: {
-              'feature_name': 'edge_hexagons',
-              'unique_values': [1, 2, 3],
-          },
-          2: {
-              'feature_name': 'edge_triangle_count',
-              'unique_values': [0, 1, 2],
-          },
-      }
+      triangular_feature_schema = os.environ.get(
+          "TRIANGULAR_GRID_FEATURE_SCHEMA",
+          "optimal",
+      ).strip().lower()
+      if triangular_feature_schema == "legacy":
+          node_feature_info = {
+              0: {'feature_name': 'struct_type'},
+              1: {'feature_name': 'distance_to_boundary'},
+              2: {'feature_name': 'num_3cycles'},
+              3: {'feature_name': 'num_6cycles'},
+          }
+          edge_feature_info = {
+              0: {
+                  'feature_name': 'edge_orbit',
+                  'unique_values': sorted(triangular_grid_features.EDGE_ORBIT_TO_ID.values()),
+              },
+          }
+      else:
+          node_feature_info = {
+              0: {'feature_name': 'distance_to_boundary'},
+              1: {'feature_name': 'num_3cycles'},
+              2: {'feature_name': 'num_hexagons'},
+          }
+          edge_feature_info = {
+              0: {
+                  'feature_name': 'edge_direction',
+                  'unique_values': sorted(triangular_grid_features.EDGE_DIRECTION_TO_ID.values()),
+              },
+              1: {
+                  'feature_name': 'edge_hexagons',
+                  'unique_values': [1, 2, 3],
+              },
+              2: {
+                  'feature_name': 'edge_triangle_count',
+                  'unique_values': [0, 1, 2],
+              },
+          }
 
       for i in range(10, 20):
         for j in range(10, 20):
             graph = nx.triangular_lattice_graph(i, j)
-            adj, node_feature, edge_feature = _build_triangular_grid_graph_features(graph)
+            if triangular_feature_schema == "legacy":
+                adj, node_feature, edge_feature = _build_triangular_grid_legacy_graph_features(graph)
+            else:
+                adj, node_feature, edge_feature = _build_triangular_grid_graph_features(graph)
             list_adj.append(adj)
             list_x.append(None)
             list_node_feature.append(node_feature)
@@ -1232,9 +1484,9 @@ def data_split(
         train_fraction=0.8,
         seed=123):
 
-    random.seed(seed)
+    rng = random.Random(seed)
     index = list(range(len(graph_lis)))
-    random.shuffle(index)
+    rng.shuffle(index)
 
     graph_lis = [graph_lis[i] for i in index]
 
@@ -1281,9 +1533,9 @@ def data_split_three_way(
 ):
     """Deterministic train/validation/test split for paper reproduction runs."""
 
-    random.seed(seed)
+    rng = random.Random(seed)
     index = list(range(len(graph_lis)))
-    random.shuffle(index)
+    rng.shuffle(index)
 
     graph_lis = [graph_lis[i] for i in index]
 
@@ -1335,10 +1587,17 @@ def _apply_bfs_order(list_adj, list_node_feature, list_edge_feature, graph_idx, 
 
     # edge features: remap src/dst node indices
     if list_edge_feature is not None and list_edge_feature[graph_idx] is not None:
-        inv_order = np.empty_like(order)
-        inv_order[order] = np.arange(len(order))
-
         ef = list_edge_feature[graph_idx].copy()
+        # Legacy BFS may keep only the component reachable from node 0. Drop
+        # edge-feature rows whose endpoints were dropped from the adjacency.
+        keep = np.isin(ef[:, 0], order) & np.isin(ef[:, 1], order)
+        ef = ef[keep]
+        original_num_nodes = int(max(
+            int(np.max(order)) + 1 if len(order) else 0,
+            int(np.max(ef[:, :2])) + 1 if ef.size else 0,
+        ))
+        inv_order = np.full(original_num_nodes, -1, dtype=np.int64)
+        inv_order[order] = np.arange(len(order))
         ef[:, 0] = inv_order[ef[:, 0]]   # remap src
         ef[:, 1] = inv_order[ef[:, 1]]   # remap dst
         list_edge_feature[graph_idx] = ef

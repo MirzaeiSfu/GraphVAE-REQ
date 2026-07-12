@@ -1,15 +1,15 @@
-# GRID Table 2 run 03: GraphVAE + calibrated Gaussian motif loss.
-# Uses only original FactorBase rules and keeps motif temperature constant at 1.
-# BCE/KL keep the plain GraphVAE weights [1,1]. Node/edge
-# feature heads are supervised because GRID motif rules are feature-aware.
+# OGBG-MOLBBBP GraphVAE baseline with OGB atom/bond feature decoding.
+# The REQ loader keeps node features (9 atom categorical columns) and edge
+# features (3 bond categorical columns), unlike the old GraphVAE-MM loader
+# which ignored them.
 
 data:
-  dataset: GRID
+  dataset: ogbg-molbbbp
   use_feature: true
   bfsOrdering: true
   bfs_strategy: legacy_first_component
   directed: true
-  database_name: grid_undir_feat_snap_7a58e6_cfg410000000
+  database_name: ogbg_molbbbp
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
@@ -34,33 +34,33 @@ experiment:
   Vis_step: 1000
   redraw: false
   lr: 0.0003
-  train_batch_size: 16
+  train_batch_size: 200
   task: graphGeneration
 
 motif:
-  motif_loss: true
+  motif_loss: false
   use_syntactic_literal_rules: false
   syntactic_literal_rule_mode: original
-  motif_loss_mode: calibrated_gaussian
+  motif_loss_mode: abs_log_ratio
   motif_temperature_start: 1.0
   motif_temperature_end: 1.0
   motif_temperature_anneal_start_frac: 1.0
-  rule_prune: true
-  motif_batch_size: 8
+  rule_prune: false
+  motif_batch_size: 50000
   prepare_motif_cache_only: false
 
 loss:
   alpha_kernel_cost: 1.0
   alpha_node_feat: 1.0
   alpha_edge_feat: 1.0
-  alpha_motif_loss: 0.1
-  alpha_syntactic_literal_motif_loss: 0.1
+  alpha_motif_loss: 0.0
+  alpha_syntactic_literal_motif_loss: 0.0
   alpha_adj_recon: 0.0
 
 runtime:
-  run_label: grid-table2-03-graphvae-motif-original-no-temp
-  graph_save_path: runs/cluster_tests/grid_table2/03_graphvae_motif_original_no_temp
-  dataset_cache_dir: runs/cluster_tests/grid_table2/dataset_cache
+  run_label: ogbg-molbbbp-graphvae
+  graph_save_path: runs/cluster_tests/ogbg_molbbbp/graphvae
+  dataset_cache_dir: runs/cluster_tests/ogbg_molbbbp/dataset_cache
   disable_dataset_cache: false
   motif_cache_dir: null
   PATH: model

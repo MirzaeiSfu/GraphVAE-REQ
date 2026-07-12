@@ -10,6 +10,7 @@
 # region imports
 import logging
 import os
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 import json
 import hashlib
 import math
@@ -55,21 +56,10 @@ from ranking_score import (
     score_components_for_mode,
     score_denominators_for_mode,
     score_metrics_for_mode,
+    score_weights_for_mode,
 )
 #endregion
 #====================================================================================
-
-# region seeding for reproducibility
-np.random.seed(0)
-random.seed(0)
-torch.manual_seed(0)
-torch.cuda.manual_seed(0)
-torch.cuda.manual_seed(0)
-torch.cuda.manual_seed_all(0)
-torch.backends.cudnn.enabled = False
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
-#endregion
 
 subgraphSize = None
 keepThebest = False
@@ -94,6 +84,68 @@ def str2bool(value):
     raise argparse.ArgumentTypeError(
         f"Expected a boolean value, received '{value}'."
     )
+
+
+def ensure_deterministic_python_hash_seed(seed, deterministic):
+    """Restart once with PYTHONHASHSEED set before Python creates hash state."""
+    if not deterministic:
+        return
+
+    seed_text = str(int(seed))
+    if os.environ.get("PYTHONHASHSEED") == seed_text:
+        return
+
+    reexec_marker = "GRAPHVAE_DETERMINISTIC_REEXEC"
+    if os.environ.get(reexec_marker) == seed_text:
+        raise RuntimeError(
+            "Deterministic mode requires PYTHONHASHSEED="
+            f"{seed_text}, but the restarted process still has "
+            f"PYTHONHASHSEED={os.environ.get('PYTHONHASHSEED')!r}."
+        )
+
+    env = os.environ.copy()
+    env["PYTHONHASHSEED"] = seed_text
+    env[reexec_marker] = seed_text
+    env.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    os.execvpe(sys.executable, [sys.executable] + sys.argv, env)
+
+
+def configure_reproducibility(seed, deterministic=True, deterministic_warn_only=False):
+    """Seed every RNG used by this script and ask PyTorch for deterministic ops."""
+    seed = int(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    if hasattr(dgl, "seed"):
+        dgl.seed(seed)
+    if hasattr(dgl, "random") and hasattr(dgl.random, "seed"):
+        dgl.random.seed(seed)
+
+    if deterministic:
+        torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+        if hasattr(torch, "use_deterministic_algorithms"):
+            try:
+                torch.use_deterministic_algorithms(
+                    True,
+                    warn_only=bool(deterministic_warn_only),
+                )
+            except TypeError:
+                torch.use_deterministic_algorithms(True)
+    else:
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = False
+        if hasattr(torch, "use_deterministic_algorithms"):
+            torch.use_deterministic_algorithms(False)
 
 
 def _flatten_config_sections(config_data):
@@ -757,6 +809,24 @@ parser.add_argument(
     help='Random seed used when shuffling graphs before train/validation/test splitting.'
 )
 parser.add_argument(
+    '--seed',
+    type=int,
+    default=0,
+    help='Global random seed for model initialization, training shuffles, VAE sampling, generation, and evaluation.'
+)
+parser.add_argument(
+    '--deterministic',
+    type=str2bool,
+    default=True,
+    help='Enable strict deterministic execution where PyTorch supports it.'
+)
+parser.add_argument(
+    '--deterministic_warn_only',
+    type=str2bool,
+    default=False,
+    help='If true, warn instead of failing when PyTorch detects a nondeterministic operation.'
+)
+parser.add_argument(
     '--train_fraction',
     type=float,
     default=None,
@@ -941,6 +1011,16 @@ parser.add_argument(
 )
 parser.add_argument('--rule_prune', type=str2bool, default=False)
 parser.add_argument(
+    '--motif_prune_max_values_per_rule',
+    type=int,
+    default=None,
+    help=(
+        'Optional extra cap for rule-pruned motif values. When set, each rule '
+        'keeps only the top N rows according to the pruning score. Full rows '
+        'are still cached for rule_prune=False.'
+    )
+)
+parser.add_argument(
     '--motif_batch_size',
     type=int,
     dest="motif_batch_size",
@@ -1072,13 +1152,15 @@ parser.add_argument(
 )
 parser.add_argument(
     '--best_validation_mmd_metric',
-    default='normalized_table2_table3',
+    default='table3_priority',
     choices=BEST_VALIDATION_MMD_SCORE_MODES,
     help=(
         'Validation checkpoint score. normalized_table2 averages each Table 2 '
         'metric after dividing by the dataset GraphVAE paper value; '
         'normalized_table2_table3 also includes mmd_rbf divided by the '
         'dataset paper GraphVAE-MM mmd_rbf and (1 - f1_pr) / 0.05; '
+        'table3_priority uses 40%% mmd_rbf, 40%% 1 - f1_pr, and '
+        '20%% normalized Table 2 metrics; '
         'normalized components use a small denominator floor and cap; '
         'raw_mean averages raw Table 2 MMDs; a metric name tracks only that '
         'metric.'
@@ -1089,6 +1171,12 @@ parser.add_argument(
     default=False,
     type=str2bool,
     help='Save a model state_dict at each validation step for post-training resampling.'
+)
+parser.add_argument(
+    '--checkpoint_interval_epochs',
+    default=1000,
+    type=int,
+    help='Save a model state_dict every N epochs; set to 0 to disable periodic epoch checkpoints.'
 )
 parser.add_argument(
     '--third_party_eval',
@@ -1177,6 +1265,12 @@ if config_args.config is not None:
     parser.set_defaults(**load_config_defaults(config_args.config, valid_config_keys))
 
 args = parser.parse_args()
+ensure_deterministic_python_hash_seed(args.seed, args.deterministic)
+configure_reproducibility(
+    args.seed,
+    deterministic=args.deterministic,
+    deterministic_warn_only=args.deterministic_warn_only,
+)
 args.model = normalize_model_name(args.model)
 
 #===============================
@@ -1299,6 +1393,7 @@ ideal_Evalaution = args.ideal_Evalaution
 keep_best_validation_mmd = args.keep_best_validation_mmd
 best_validation_mmd_metric = args.best_validation_mmd_metric
 save_validation_checkpoints = args.save_validation_checkpoints
+checkpoint_interval_epochs = max(0, int(args.checkpoint_interval_epochs))
 third_party_eval = args.third_party_eval
 interactive = args.interactive
 sanity_check = args.sanity_check
@@ -1312,6 +1407,8 @@ if dataset_cache_dir is not None:
     os.environ["DATASET_CACHE_DIR"] = str(Path(dataset_cache_dir).expanduser())
 if motif_cache_dir is not None:
     os.environ["MOTIF_CACHE_DIR"] = str(Path(motif_cache_dir).expanduser())
+if dataset == "TRIANGULAR_GRID" and database_name == "triangular_grid_undir_feat_snap_ce92ed":
+    os.environ["TRIANGULAR_GRID_FEATURE_SCHEMA"] = "legacy"
 
 if prepare_motif_cache_only:
     motif_pickle_path = get_motif_pickle_path(database_name, args)
@@ -1364,6 +1461,11 @@ if graph_save_path is None:
 else:
     graph_save_dir = Path(graph_save_path)
     run_name = graph_save_dir.name if graph_save_dir.name else "run_" + str(int(time.time()))
+
+seed_dir_name = f"seed_{args.seed}"
+if graph_save_dir.name != seed_dir_name:
+    graph_save_dir = graph_save_dir / seed_dir_name
+    run_name = f"{run_name}_{seed_dir_name}"
 
 graph_save_dir.mkdir(parents=True, exist_ok=True)
 graph_save_path = str(graph_save_dir) + "/"
@@ -2826,6 +2928,9 @@ for epoch in range(epoch_number):
                                 best_validation_mmd_metric,
                                 dataset,
                             ),
+                            "score_weights": score_weights_for_mode(
+                                best_validation_mmd_metric
+                            ),
                             "metrics": validation_mmd_metrics,
                             "table2_metrics": table2_metrics_from_parsed(
                                 validation_mmd_metrics
@@ -2913,6 +3018,18 @@ for epoch in range(epoch_number):
         batch += 1
         # scheduler.step()
         # scheduler.step()
+    if (
+        not tiny_overfit
+        and checkpoint_interval_epochs > 0
+        and (epoch + 1) % checkpoint_interval_epochs == 0
+    ):
+        periodic_checkpoint_path = graph_save_dir / f"periodic_epoch_{epoch + 1:05d}.pt"
+        torch.save(model.state_dict(), str(periodic_checkpoint_path))
+        periodic_checkpoint_message = (
+            f"Saved periodic epoch checkpoint: {periodic_checkpoint_path}"
+        )
+        print(periodic_checkpoint_message)
+        logging.info(periodic_checkpoint_message)
 model.eval()
 if not tiny_overfit:
     torch.save(model.state_dict(), graph_save_path + "model_" + str(epoch) + "_" + str(batch))

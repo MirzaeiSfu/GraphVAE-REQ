@@ -460,7 +460,8 @@ def build_onehot_features(list_node_feature, list_edge_feature, list_adj,
     list_edge_feature[i] : (E, 2+F) int numpy array — col0=src, col1=dst,
                            col2=feat0, col3=feat1, ...
                            None if the dataset has no edge features
-    node_feature_info    : { col_idx: { 'feature_name': str } }
+    node_feature_info    : { col_idx: { 'feature_name': str,
+                                         'unique_values': [int,...] optional } }
                            None if no node features
     edge_feature_info    : { feat_idx: { 'feature_name': str,
                                          'unique_values': [int,...] } }
@@ -517,8 +518,13 @@ def build_onehot_features(list_node_feature, list_edge_feature, list_adj,
     if has_node_features:
         num_cols = len(node_feature_info)
 
-        # Step 1a: discover unique values per column across ALL graphs
+        # Step 1a: discover unique values per column across ALL graphs.
+        # If metadata provides explicit values, seed the set with those values
+        # so one-hot dimensions stay stable when loading/counting subsets.
         col_unique = {col: set() for col in range(num_cols)}
+        for col in range(num_cols):
+            for value in node_feature_info[col].get('unique_values', []):
+                col_unique[col].add(int(value))
         for nf in list_node_feature:
             if nf is None:
                 continue

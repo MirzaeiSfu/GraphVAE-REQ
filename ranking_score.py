@@ -140,9 +140,19 @@ TABLE3_GRAPHVAE_MM_PAPER_MMD_RBF_BY_DATASET = {
 VALIDATION_SCORE_F1_PR_ERROR_DENOMINATOR = 0.05
 NORMALIZED_MMD_DENOMINATOR_FLOOR = 1e-3
 NORMALIZED_SCORE_COMPONENT_CAP = 10.0
+TABLE3_PRIORITY_SCORE_WEIGHTS = {
+    "mmd_rbf": 0.40,
+    "f1_pr_error": 0.40,
+    "degree": 0.04,
+    "clustering": 0.04,
+    "orbit": 0.04,
+    "spectral": 0.04,
+    "diameter": 0.04,
+}
 BEST_VALIDATION_MMD_SCORE_MODES = (
     "normalized_table2",
     "normalized_table2_table3",
+    "table3_priority",
     "raw_mean",
     "raw_mean_table2_table3",
     "table3",
@@ -266,6 +276,17 @@ def validation_score_components(metrics, score_mode, dataset_name=None):
         }
         return {**normalized_table2_values, **normalized_table3_values}
 
+    if score_mode == "table3_priority":
+        normalized_table2_values = {
+            metric_name: min(
+                metrics[metric_name]
+                / max(table2_paper[metric_name], NORMALIZED_MMD_DENOMINATOR_FLOOR),
+                NORMALIZED_SCORE_COMPONENT_CAP,
+            )
+            for metric_name in TABLE2_VALIDATION_MMD_KEYS
+        }
+        return {**table3_values, **normalized_table2_values}
+
     raise ValueError(f"Unknown best validation MMD score mode: {score_mode}")
 
 
@@ -273,6 +294,11 @@ def compute_validation_mmd_score(metrics, score_mode, dataset_name=None):
     components = validation_score_components(metrics, score_mode, dataset_name)
     if components is None:
         return None
+    if score_mode == "table3_priority":
+        return sum(
+            components[metric_name] * TABLE3_PRIORITY_SCORE_WEIGHTS[metric_name]
+            for metric_name in TABLE3_PRIORITY_SCORE_WEIGHTS
+        )
     return sum(components.values()) / len(components)
 
 
@@ -287,7 +313,7 @@ def score_denominators_for_mode(score_mode, dataset_name=None):
             metric_name: max(denominator, NORMALIZED_MMD_DENOMINATOR_FLOOR)
             for metric_name, denominator in table2_denominators(dataset_name).items()
         }
-    if score_mode == "normalized_table2_table3":
+    if score_mode in ("normalized_table2_table3", "table3_priority"):
         return {
             **{
                 metric_name: max(denominator, NORMALIZED_MMD_DENOMINATOR_FLOOR)
@@ -302,11 +328,17 @@ def score_denominators_for_mode(score_mode, dataset_name=None):
     return None
 
 
+def score_weights_for_mode(score_mode):
+    if score_mode == "table3_priority":
+        return dict(TABLE3_PRIORITY_SCORE_WEIGHTS)
+    return None
+
+
 def score_metrics_for_mode(score_mode):
     if score_mode in (*TABLE2_VALIDATION_MMD_KEYS, *TABLE3_VALIDATION_METRIC_KEYS):
         return [score_mode]
     if score_mode == "table3":
         return list(TABLE3_VALIDATION_METRIC_KEYS)
-    if score_mode in ("raw_mean_table2_table3", "normalized_table2_table3"):
+    if score_mode in ("raw_mean_table2_table3", "normalized_table2_table3", "table3_priority"):
         return list(TABLE2_VALIDATION_MMD_KEYS) + list(TABLE3_VALIDATION_METRIC_KEYS)
     return list(TABLE2_VALIDATION_MMD_KEYS)

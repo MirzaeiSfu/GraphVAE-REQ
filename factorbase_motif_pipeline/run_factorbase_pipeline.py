@@ -45,6 +45,8 @@ AUTO_DB_NAME_HASH_LENGTH = 6
 DATASET_SCRIPTS = {
     "PROTEINS": SCRIPT_DIR / "to_db_proteins.py",
     "QM9": SCRIPT_DIR / "to_db_qm9.py",
+    "OGBG-MOLBBBP": SCRIPT_DIR / "to_db_ogbg_molbbbp.py",
+    "OGBG_MOLBBBP": SCRIPT_DIR / "to_db_ogbg_molbbbp.py",
     # Synthetic dataset names use the evidence-grounded optimal feature
     # schema by default. Legacy aliases keep the previous importers available
     # for exact reproduction of older FactorBase runs.
@@ -71,6 +73,8 @@ SYNTHETIC_DATASETS = {
 DATASET_FAMILY = {
     "PROTEINS": "PROTEINS",
     "QM9": "QM9",
+    "OGBG-MOLBBBP": "OGBG-MOLBBBP",
+    "OGBG_MOLBBBP": "OGBG-MOLBBBP",
     "GRID": "GRID",
     "GRID_BEST": "GRID",
     "GRID_LEGACY": "GRID",
@@ -225,6 +229,10 @@ def parse_args() -> argparse.Namespace:
 
 def normalize_dataset_name(dataset_name: str) -> str:
     normalized = dataset_name.strip().upper()
+    if normalized == "OGBG-MOLBBBP":
+        return normalized
+    if normalized == "OGBG_MOLBBBP":
+        return normalized
     if normalized not in DATASET_SCRIPTS:
         supported = ", ".join(sorted(DATASET_SCRIPTS))
         raise ValueError(f"Unsupported dataset '{dataset_name}'. Supported datasets: {supported}")

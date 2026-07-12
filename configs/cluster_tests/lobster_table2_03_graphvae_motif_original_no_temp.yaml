@@ -18,6 +18,9 @@ data:
   split_seed: 123
   train_fraction: 0.7
   val_fraction: 0.1
+  seed: 0
+  deterministic: true
+  deterministic_warn_only: false
 
 model:
   model: GraphVAE
@@ -27,7 +30,7 @@ model:
   beta: null
 
 experiment:
-  epoch_number: 10000
+  epoch_number: 20000
   Vis_step: 1000
   redraw: false
   lr: 0.0003
@@ -66,8 +69,9 @@ runtime:
   plot_testGraphs: true
   ideal_Evalaution: false
   keep_best_validation_mmd: true
-  best_validation_mmd_metric: normalized_table2_table3
+  best_validation_mmd_metric: table3_priority
   save_validation_checkpoints: false
+  checkpoint_interval_epochs: 1000
   third_party_eval: true
   third_party_eval_repeats: 10
   third_party_eval_max_graphs: 1000

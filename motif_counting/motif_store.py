@@ -276,7 +276,7 @@ class RuleBasedMotifStore:
         cursor_main = main_conn['cursor']
         cursor_setup = setup_conn['cursor']
 
-        cursor_setup.execute("SELECT TABLE_NAME FROM EntityTables")
+        cursor_setup.execute("SELECT TABLE_NAME FROM EntityTables ORDER BY TABLE_NAME")
         entity_tables = cursor_setup.fetchall()
 
         for (table_name,) in entity_tables:
@@ -287,7 +287,23 @@ class RuleBasedMotifStore:
             columns = cursor_main.fetchall()
             columns_names = [column[0] for column in columns]
 
-            self.entities[table_name] = DataFrame(rows, columns=columns_names)
+            cursor_setup.execute("SELECT COLUMN_NAME FROM EntityTables WHERE TABLE_NAME = %s", (table_name,))
+            key = cursor_setup.fetchall()
+            self.keys[table_name] = key[0][0]
+
+            entity_df = DataFrame(rows, columns=columns_names)
+            if self.keys[table_name] in entity_df.columns:
+                entity_df = entity_df.sort_values(
+                    by=self.keys[table_name],
+                    kind="mergesort",
+                ).reset_index(drop=True)
+            else:
+                entity_df = entity_df.sort_values(
+                    by=list(entity_df.columns),
+                    kind="mergesort",
+                ).reset_index(drop=True)
+
+            self.entities[table_name] = entity_df
             self.entity_feature_columns[table_name] = columns_names[1:]
             if self.use_syntactic_literal_rules:
                 self.entity_literal_values[table_name] = {
@@ -295,16 +311,12 @@ class RuleBasedMotifStore:
                     for feature_name in self.entity_feature_columns[table_name]
                 }
 
-            cursor_setup.execute("SELECT COLUMN_NAME FROM EntityTables WHERE TABLE_NAME = %s", (table_name,))
-            key = cursor_setup.fetchall()
-            self.keys[table_name] = key[0][0]
-
     def _fetch_relations(self, main_conn, setup_conn):
         """Fetch relation tables and their foreign keys."""
         cursor_main = main_conn['cursor']
         cursor_setup = setup_conn['cursor']
 
-        cursor_setup.execute("SELECT TABLE_NAME FROM RelationTables")
+        cursor_setup.execute("SELECT TABLE_NAME FROM RelationTables ORDER BY TABLE_NAME")
         relation_tables = cursor_setup.fetchall()
 
         for (table_name,) in relation_tables:
@@ -315,7 +327,28 @@ class RuleBasedMotifStore:
             columns = cursor_main.fetchall()
             columns_names = [column[0] for column in columns]
 
-            self.relations[table_name] = DataFrame(rows, columns=columns_names)
+            cursor_setup.execute("SELECT COLUMN_NAME FROM ForeignKeyColumns WHERE TABLE_NAME = %s", (table_name,))
+            key = cursor_setup.fetchall()
+            self.keys[table_name] = (key[0][0], key[1][0])
+
+            relation_df = DataFrame(rows, columns=columns_names)
+            relation_sort_columns = [
+                column_name
+                for column_name in self.keys[table_name]
+                if column_name in relation_df.columns
+            ]
+            if relation_sort_columns:
+                relation_df = relation_df.sort_values(
+                    by=relation_sort_columns,
+                    kind="mergesort",
+                ).reset_index(drop=True)
+            elif len(relation_df.columns) > 0:
+                relation_df = relation_df.sort_values(
+                    by=list(relation_df.columns),
+                    kind="mergesort",
+                ).reset_index(drop=True)
+
+            self.relations[table_name] = relation_df
             self.relation_feature_columns[table_name] = columns_names[2:]
             if self.use_syntactic_literal_rules:
                 self.relation_literal_values[table_name] = {
@@ -325,10 +358,6 @@ class RuleBasedMotifStore:
                 self.relation_occurrence_counts[table_name] = len(self.relations[table_name])
                 self.total_relation_occurrences[table_name] = self.relation_occurrence_counts[table_name]
 
-            cursor_setup.execute("SELECT COLUMN_NAME FROM ForeignKeyColumns WHERE TABLE_NAME = %s", (table_name,))
-            key = cursor_setup.fetchall()
-            self.keys[table_name] = (key[0][0], key[1][0])
-
             if self.use_syntactic_literal_rules:
                 cursor_setup.execute("SELECT REFERENCED_TABLE_NAME FROM ForeignKeyColumns WHERE TABLE_NAME = %s", (table_name,))
                 references = cursor_setup.fetchall()
@@ -337,7 +366,7 @@ class RuleBasedMotifStore:
     def _fetch_attributes(self, setup_conn):
         """Fetch attribute columns."""
         cursor_setup = setup_conn['cursor']
-        cursor_setup.execute("SELECT COLUMN_NAME, TABLE_NAME FROM AttributeColumns")
+        cursor_setup.execute("SELECT COLUMN_NAME, TABLE_NAME FROM AttributeColumns ORDER BY TABLE_NAME, COLUMN_NAME")
         attribute_columns = cursor_setup.fetchall()
 
         for column_name, table_name in attribute_columns:
@@ -411,21 +440,24 @@ class RuleBasedMotifStore:
         cursor_bn = bn_conn['cursor']
         cursor_setup = setup_conn['cursor']
 
-        cursor_bn.execute("SELECT DISTINCT child FROM Final_Path_BayesNets_view")
+        cursor_bn.execute("SELECT DISTINCT child FROM Final_Path_BayesNets_view ORDER BY child")
         childs = cursor_bn.fetchall()
 
         relation_names = tuple(self.relations.keys())
 
         for i in range(len(childs)):
             rule = [childs[i][0]]
-            cursor_bn.execute("SELECT parent FROM Final_Path_BayesNets_view WHERE child = %s", (childs[i][0],))
+            cursor_bn.execute("SELECT parent FROM Final_Path_BayesNets_view WHERE child = %s ORDER BY parent", (childs[i][0],))
             parents = cursor_bn.fetchall()
             for (parent,) in parents:
                 if parent != '':
                     rule.append(parent)
 
             cursor_bn.execute(f"SELECT * FROM `{childs[i][0]}_CP`")
-            value = cursor_bn.fetchall()
+            value = sorted(
+                cursor_bn.fetchall(),
+                key=lambda row: tuple(str(item) for item in row),
+            )
             self._add_processed_rule(rule, value, relation_names, rule_source="factorbase")
 
         self._ensure_entity_unary_literal_rules(relation_names)
@@ -649,23 +681,31 @@ class RuleBasedMotifStore:
         # for either value of --rule_prune without deleting the cache.
         self.values_full.append(value_rows)
 
-        # Unary and node/edge feature rules are never pruned; they keep all rows.
+        pruned_scored_rows = []
         pruned_value = []
-        if keep_all_values or len(rule) == 1 or self._is_feature_rule(rule, relation_names):
+        if keep_all_values:
             pruned_value = list(value_rows)
         else:
             for row in value_rows:
                 size = len(row)
                 try:
                     if self.multiples[rule_idx]:
-                        if 2 * row[size-4] * (log(row[size-3]) - log(row[size-1])) - log(row[size-4]) > 0:
-                            pruned_value.append(row)
+                        score = 2 * row[size-4] * (log(row[size-3]) - log(row[size-1])) - log(row[size-4])
                     else:
-                        if 2 * int(row[size-3]) * (log(row[size-5]) - log(row[size-1])) - log(int(row[size-3])) > 0:
-                            pruned_value.append(row)
+                        score = 2 * int(row[size-3]) * (log(row[size-5]) - log(row[size-1])) - log(int(row[size-3]))
+                    if score > 0:
+                        pruned_scored_rows.append((score, row))
                 except (ValueError, ZeroDivisionError):
                     # log(0) or log(negative) — row has zero count/probability, skip it
                     pass
+            max_values = getattr(self.args, 'motif_prune_max_values_per_rule', None)
+            if max_values is not None and max_values > 0:
+                pruned_scored_rows = sorted(
+                    pruned_scored_rows,
+                    key=lambda item: item[0],
+                    reverse=True,
+                )[:max_values]
+            pruned_value = [row for _, row in pruned_scored_rows]
         self.values_pruned.append(pruned_value)
 
         # Keep self.values pointing at full for any in-memory use within
@@ -843,7 +883,7 @@ class RuleBasedMotifStore:
         """Adjust matrices to correct shape by transposing if necessary."""
         relation_functors = [item for sublist in self.rules for item in sublist
                            if ',' in item and item in self.relations.keys()]
-        unique_relation_functors = list(set(relation_functors))
+        unique_relation_functors = sorted(set(relation_functors))
 
         for relation_functor in unique_relation_functors:
             entities_involved = relation_functor.replace(')', '').split('(')[1].split(',')

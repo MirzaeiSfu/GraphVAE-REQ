@@ -13,6 +13,9 @@ data:
   graph_index_end: null
   data_dir: null
   split_mode: legacy_80_20
+  seed: 0
+  deterministic: true
+  deterministic_warn_only: false
 
 #===============================
 # Model arguments
@@ -77,8 +80,9 @@ runtime:
   plot_testGraphs: true
   ideal_Evalaution: false
   keep_best_validation_mmd: true
-  best_validation_mmd_metric: normalized_table2_table3
+  best_validation_mmd_metric: table3_priority
   save_validation_checkpoints: false
+  checkpoint_interval_epochs: 1000
   third_party_eval: true
   third_party_eval_repeats: 10
   third_party_eval_max_graphs: 1000

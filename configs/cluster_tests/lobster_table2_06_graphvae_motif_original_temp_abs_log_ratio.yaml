@@ -1,15 +1,14 @@
-# GRID Table 2 run 03: GraphVAE + calibrated Gaussian motif loss.
-# Uses only original FactorBase rules and keeps motif temperature constant at 1.
-# BCE/KL keep the plain GraphVAE weights [1,1]. Node/edge
-# feature heads are supervised because GRID motif rules are feature-aware.
+# LOBSTER Table 2 run 06, abs-log-ratio motif loss.
+# Uses only original FactorBase rules with motif temperature annealing
+# 1.0 -> 0.5 after the first half of training.
 
 data:
-  dataset: GRID
+  dataset: LOBSTER
   use_feature: true
   bfsOrdering: true
   bfs_strategy: legacy_first_component
   directed: true
-  database_name: grid_undir_feat_snap_7a58e6_cfg410000000
+  database_name: lobster_undir_feat_snap_85093d_cfg410000000
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
@@ -34,19 +33,19 @@ experiment:
   Vis_step: 1000
   redraw: false
   lr: 0.0003
-  train_batch_size: 16
+  train_batch_size: 200
   task: graphGeneration
 
 motif:
   motif_loss: true
   use_syntactic_literal_rules: false
   syntactic_literal_rule_mode: original
-  motif_loss_mode: calibrated_gaussian
+  motif_loss_mode: abs_log_ratio
   motif_temperature_start: 1.0
-  motif_temperature_end: 1.0
-  motif_temperature_anneal_start_frac: 1.0
+  motif_temperature_end: 0.5
+  motif_temperature_anneal_start_frac: 0.5
   rule_prune: true
-  motif_batch_size: 8
+  motif_batch_size: 50000
   prepare_motif_cache_only: false
 
 loss:
@@ -58,11 +57,11 @@ loss:
   alpha_adj_recon: 0.0
 
 runtime:
-  run_label: grid-table2-03-graphvae-motif-original-no-temp
-  graph_save_path: runs/cluster_tests/grid_table2/03_graphvae_motif_original_no_temp
-  dataset_cache_dir: runs/cluster_tests/grid_table2/dataset_cache
+  run_label: lobster-table2-06-graphvae-motif-original-temp-abs-log-ratio
+  graph_save_path: runs/cluster_tests/lobster_table2_log_ratio/06_graphvae_motif_original_temp_abs_log_ratio
+  dataset_cache_dir: runs/cluster_tests/lobster_table2/dataset_cache
   disable_dataset_cache: false
-  motif_cache_dir: null
+  motif_cache_dir: cache_motifs
   PATH: model
   UseGPU: true
   device: cuda:0
