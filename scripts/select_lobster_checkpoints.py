@@ -127,7 +127,10 @@ def report_markdown(payload):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runs-root", type=Path, required=True)
+    parser.add_argument(
+        "--runs-root", type=Path, action="append", required=True,
+        help="Collected run root; repeat for multiple training waves.",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--validation-rollouts", type=int, default=10)
     parser.add_argument("--test-rollouts", type=int, default=50)
@@ -141,8 +144,10 @@ def main():
     candidates = []
 
     with locked_orca_tmp():
-        validation_paths = sorted(args.runs_root.glob("*/seed_*/validationGraphs_adj_.npy"))
-        validation_paths += sorted(args.runs_root.glob("*/validationGraphs_adj_.npy"))
+        validation_paths = []
+        for runs_root in args.runs_root:
+            validation_paths += sorted(runs_root.glob("*/seed_*/validationGraphs_adj_.npy"))
+            validation_paths += sorted(runs_root.glob("*/validationGraphs_adj_.npy"))
         for val_path in validation_paths:
             run_dir = val_path.parent
             job_dir = run_dir.parent if run_dir.name.startswith("seed_") else run_dir
@@ -180,7 +185,7 @@ def main():
                                   float(test_edges.mean() + 3 * test_edges.std()))
 
     payload = {
-        "runs_root": str(args.runs_root), "device": str(device),
+        "runs_root": [str(path) for path in args.runs_root], "device": str(device),
         "validation_rollouts": args.validation_rollouts, "test_rollouts": args.test_rollouts,
         "selection_formula": "median_normalized_mmd + stability_weight*std + dense_penalty_weight*dense_rate",
         "stability_weight": args.stability_weight,
