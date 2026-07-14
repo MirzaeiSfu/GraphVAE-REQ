@@ -64,12 +64,31 @@ collect_wave() {
 
 launch_wave() {
   local wave="$1" schedule="$2" run_root="$3"
-  scripts/cluster_run_schedule.sh \
-    --repo-paths "$REPO_PATHS" \
-    --schedule "$schedule" \
-    --date-prefix "$DATE_PREFIX" \
-    --run-root "$run_root" \
-    --python-paths "$PYTHON_PATHS"
+  while read -r host gpu config extra; do
+    [[ -z "${host:-}" || "$host" == \#* ]] && continue
+    local repo name session run_dir state one_row
+    repo="$(repo_for_host "$host")"
+    name="$(basename "$config" .yaml)"
+    session="$(session_for_row "$host" "$gpu" "$config")"
+    run_dir="$repo/$run_root/${name}__${host}_gpu${gpu}"
+    state="$(ssh -n -o ConnectTimeout=10 "$host" \
+      "if tmux has-session -t '$session' 2>/dev/null; then echo active; \
+       elif grep -q 'trainning time:' '$run_dir/stdout.log' 2>/dev/null; then echo complete; \
+       else echo pending; fi")"
+    if [[ "$state" != pending ]]; then
+      echo "[$wave] skip $state row: $host gpu$gpu $config"
+      continue
+    fi
+    one_row="$(mktemp)"
+    printf '%s %s %s\n' "$host" "$gpu" "$config" > "$one_row"
+    scripts/cluster_run_schedule.sh \
+      --repo-paths "$REPO_PATHS" \
+      --schedule "$one_row" \
+      --date-prefix "$DATE_PREFIX" \
+      --run-root "$run_root" \
+      --python-paths "$PYTHON_PATHS"
+    rm -f "$one_row"
+  done < "$schedule"
   echo "[$wave] launch complete"
 }
 
