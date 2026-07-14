@@ -1,0 +1,15 @@
+config,bce_kl,rule_mode,node,edge,motif,temperature
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_baseline_original.yaml,1/1,original,1.0,1.0,0.0,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n1_e1_m0p1_original.yaml,1/1,original,1.0,1.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n1_e1_m0p1_both.yaml,1/1,both,1.0,1.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m0p1_original.yaml,1/1,original,3.0,8.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m0p1_both.yaml,1/1,both,3.0,8.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m1_original.yaml,1/1,original,3.0,8.0,1.0,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m1_both.yaml,1/1,both,3.0,8.0,1.0,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_baseline_original.yaml,40/2000,original,1.0,1.0,0.0,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m0p1_original.yaml,40/2000,original,1.0,1.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m0p1_both.yaml,40/2000,both,1.0,1.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m0p1_original.yaml,40/2000,original,3.0,8.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m0p1_both.yaml,40/2000,both,3.0,8.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_original.yaml,40/2000,original,3.0,8.0,1.0,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_both.yaml,40/2000,both,3.0,8.0,1.0,constant_1

@@ -1,0 +1,17 @@
+# Lobster post-training-selection sweep (14 configs).
+# Inventory only: launch the wave files to avoid GPU conflicts.
+
+cs-cl-09 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_baseline_original.yaml
+cs-cl-16 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n1_e1_m0p1_original.yaml
+cs-cl-19 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n1_e1_m0p1_both.yaml
+cs-cl-19 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m0p1_original.yaml
+cs-cl-26 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m0p1_both.yaml
+cs-cl-26 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m1_original.yaml
+cs-cl-09 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n3_e8_m1_both.yaml
+cs-cl-16 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_baseline_original.yaml
+cs-cl-19 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m0p1_original.yaml
+cs-cl-19 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m0p1_both.yaml
+cs-cl-26 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m0p1_original.yaml
+cs-cl-26 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m0p1_both.yaml
+cs-cl-09 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_original.yaml
+cs-cl-16 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_both.yaml

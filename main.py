@@ -2282,6 +2282,21 @@ else:
         print("[Cache] Disabled; processed dataset was not saved.")
         logging.info("[Cache] Disabled; processed dataset was not saved.")
 
+    # Keep fixed validation and test references distinct in the run folder.
+    # EvalTwoSet historically writes both under testGraphs_adj_.npy, so final
+    # test evaluation otherwise overwrites the validation data required for
+    # leakage-free post-training checkpoint selection.
+    np.save(
+        graph_save_path + "validationGraphs_adj_.npy",
+        np.array([graph.toarray() for graph in val_adj], dtype=object),
+        allow_pickle=True,
+    )
+    np.save(
+        graph_save_path + "heldoutTestGraphs_adj_.npy",
+        np.array([graph.toarray() for graph in test_list_adj], dtype=object),
+        allow_pickle=True,
+    )
+
 #endregion
 #====================================================================================
 
