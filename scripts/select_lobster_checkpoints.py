@@ -42,10 +42,10 @@ def summary(values):
 
 def checkpoints(run_dir: Path):
     paths = sorted(run_dir.glob("periodic_epoch_*.pt"))
+    if paths:
+        return paths
     final = sorted(run_dir.glob("model_*_*"))
-    if final:
-        paths.append(final[-1])
-    return paths
+    return final[-1:]  # Legacy/fallback runs without periodic checkpoints.
 
 
 def load_decoder(path: Path, device: torch.device, latent_dim: int):
