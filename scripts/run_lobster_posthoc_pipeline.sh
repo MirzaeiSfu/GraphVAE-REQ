@@ -36,9 +36,11 @@ wait_for_wave() {
       result="$(ssh -n -o ConnectTimeout=10 "$host" \
         "if tmux has-session -t '$session' 2>/dev/null; then echo active; \
          elif grep -q 'trainning time:' '$run_dir/seed_0/stdout.log' 2>/dev/null || grep -q 'trainning time:' '$run_dir/stdout.log' 2>/dev/null; then echo complete; \
-         else echo failed; fi")"
+         elif [[ -e '$run_dir/stdout.log' ]]; then echo failed; \
+         else echo pending; fi")"
       case "$result" in
         active) active=$((active + 1)) ;;
+        pending) active=$((active + 1)) ;;
         failed)
           echo "[$wave] missing active session or completion marker: $host gpu$gpu $config" >&2
           failures=$((failures + 1))
@@ -98,10 +100,8 @@ W3_ROOT="runs/$DATE_PREFIX/lobster_posthoc_sweep_wave3"
 
 wait_for_wave wave1 CLUSTER_GPU_CONFIGS_LOBSTER_POSTHOC_WAVE1.txt "$W1_ROOT"
 collect_wave wave1 "$W1_ROOT"
-launch_wave wave2 CLUSTER_GPU_CONFIGS_LOBSTER_POSTHOC_WAVE2.txt "$W2_ROOT"
 wait_for_wave wave2 CLUSTER_GPU_CONFIGS_LOBSTER_POSTHOC_WAVE2.txt "$W2_ROOT"
 collect_wave wave2 "$W2_ROOT"
-launch_wave wave3 CLUSTER_GPU_CONFIGS_LOBSTER_POSTHOC_WAVE3.txt "$W3_ROOT"
 wait_for_wave wave3 CLUSTER_GPU_CONFIGS_LOBSTER_POSTHOC_WAVE3.txt "$W3_ROOT"
 collect_wave wave3 "$W3_ROOT" CLUSTER_REPO_PATHS_LOBSTER_POSTHOC_WAVE3.txt
 
