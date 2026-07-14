@@ -196,6 +196,7 @@ DEFAULT_SPLIT_SEED = 123
 DEFAULT_LEGACY_TRAIN_FRACTION = 0.8
 DEFAULT_PAPER_TRAIN_FRACTION = 0.7
 DEFAULT_PAPER_VAL_FRACTION = 0.1
+DEFAULT_TEMP_ANNEAL_GUARD_RATIO = 2.0
 
 
 def _sanitize_cache_component(value):
@@ -1015,11 +1016,13 @@ parser.add_argument(
 parser.add_argument(
     '--motif_temperature_guard_ratio',
     type=float,
-    default=0.0,
+    default=None,
     help=(
-        'If > 0, accept an annealed motif temperature only when the weighted motif '
-        'term is no more than this ratio times the other weighted loss terms; '
-        'otherwise adaptively relax the effective temperature for that batch.'
+        'If > 0, accept an annealed motif temperature only when the weighted '
+        'motif term is no more than this ratio times the other weighted loss '
+        'terms; otherwise adaptively relax the effective temperature for that '
+        f'batch. Default: {DEFAULT_TEMP_ANNEAL_GUARD_RATIO} when motif '
+        'temperature annealing sharpens logits, otherwise 0. Set 0 to disable.'
     )
 )
 parser.add_argument(
@@ -1374,7 +1377,17 @@ motif_temperature_end = max(float(args.motif_temperature_end), 1e-3)
 motif_temperature_anneal_start_frac = min(
     max(float(args.motif_temperature_anneal_start_frac), 0.0), 1.0
 )
-motif_temperature_guard_ratio = max(float(args.motif_temperature_guard_ratio), 0.0)
+motif_temperature_sharpens = (
+    use_motif_loss
+    and motif_temperature_end < motif_temperature_start - 1e-12
+    and motif_temperature_anneal_start_frac < 1.0
+)
+if args.motif_temperature_guard_ratio is None:
+    motif_temperature_guard_ratio = (
+        DEFAULT_TEMP_ANNEAL_GUARD_RATIO if motif_temperature_sharpens else 0.0
+    )
+else:
+    motif_temperature_guard_ratio = max(float(args.motif_temperature_guard_ratio), 0.0)
 args.motif_temperature_guard_ratio = motif_temperature_guard_ratio
 motif_temperature_guard_relax_factor = max(
     float(args.motif_temperature_guard_relax_factor),

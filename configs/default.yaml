@@ -52,9 +52,9 @@ motif:
   motif_temperature_start: 1.0
   motif_temperature_end: 0.5
   motif_temperature_anneal_start_frac: 0.5
-  # 0 disables the guard. Positive values adaptively relax sharpening when
-  # weighted_motif > ratio * (kernel + weighted node + weighted edge).
-  motif_temperature_guard_ratio: 0.0
+  # null uses the runtime default: 2.0 when temperature annealing sharpens
+  # motif logits, otherwise 0.0. Set 0.0 explicitly to disable the guard.
+  motif_temperature_guard_ratio: null
   motif_temperature_guard_relax_factor: 1.05
   motif_temperature_guard_sharpen_factor: 0.995
   rule_prune: false
