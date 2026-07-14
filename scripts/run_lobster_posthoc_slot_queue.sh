@@ -34,7 +34,7 @@ for wave in 1 2 3; do
   session="$(sanitize "${DATE_PREFIX}_${name}__${host}_gpu${gpu}")"
 
   while true; do
-    state="$(ssh -n -o ConnectTimeout=10 "$HOST" \
+    state="$(ssh -n -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$HOST" \
       "if tmux has-session -t '$session' 2>/dev/null; then echo active; \
        elif grep -q 'trainning time:' '$run_dir/stdout.log' 2>/dev/null; then echo complete; \
        elif [[ -e '$run_dir/stdout.log' ]]; then echo failed; \

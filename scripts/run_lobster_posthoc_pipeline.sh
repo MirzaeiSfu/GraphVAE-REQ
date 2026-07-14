@@ -33,7 +33,7 @@ wait_for_wave() {
       name="$(basename "$config" .yaml)"
       session="$(session_for_row "$host" "$gpu" "$config")"
       run_dir="$repo/$run_root/${name}__${host}_gpu${gpu}"
-      result="$(ssh -n -o ConnectTimeout=10 "$host" \
+      result="$(ssh -n -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$host" \
         "if tmux has-session -t '$session' 2>/dev/null; then echo active; \
          elif grep -q 'trainning time:' '$run_dir/seed_0/stdout.log' 2>/dev/null || grep -q 'trainning time:' '$run_dir/stdout.log' 2>/dev/null; then echo complete; \
          elif [[ -e '$run_dir/stdout.log' ]]; then echo failed; \
@@ -73,7 +73,7 @@ launch_wave() {
     name="$(basename "$config" .yaml)"
     session="$(session_for_row "$host" "$gpu" "$config")"
     run_dir="$repo/$run_root/${name}__${host}_gpu${gpu}"
-    state="$(ssh -n -o ConnectTimeout=10 "$host" \
+    state="$(ssh -n -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$host" \
       "if tmux has-session -t '$session' 2>/dev/null; then echo active; \
        elif grep -q 'trainning time:' '$run_dir/stdout.log' 2>/dev/null; then echo complete; \
        else echo pending; fi")"
