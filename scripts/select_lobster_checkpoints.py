@@ -51,7 +51,7 @@ def checkpoints(run_dir: Path):
 def load_decoder(path: Path, device: torch.device, latent_dim: int):
     state = torch.load(path, map_location="cpu")
     decoder_state = {
-        key.removeprefix("decode."): value
+        key[len("decode."):]: value
         for key, value in state.items() if key.startswith("decode.")
     }
     bias_keys = [key for key in decoder_state if key.endswith("bias")]
