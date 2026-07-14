@@ -134,6 +134,10 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--validation-rollouts", type=int, default=10)
     parser.add_argument("--test-rollouts", type=int, default=50)
+    parser.add_argument(
+        "--skip-test", action="store_true",
+        help="Select using validation only and do not load or evaluate held-out test graphs.",
+    )
     parser.add_argument("--seed", type=int, default=20260714)
     parser.add_argument("--latent-dim", type=int, default=1024)
     parser.add_argument("--stability-weight", type=float, default=0.25)
@@ -175,18 +179,20 @@ def main():
         if not candidates:
             raise SystemExit(f"No completed Lobster runs/checkpoints found under {args.runs_root}")
         winner = min(candidates, key=lambda row: row["selection_score"])
-        winner_run = Path(winner["artifact_dir"])
-        test_path = winner_run / "heldoutTestGraphs_adj_.npy"
-        test_refs = to_graphs(np.load(test_path, allow_pickle=True), keep_largest_component=False)
-        test_edges = np.asarray([graph.number_of_edges() for graph in test_refs], dtype=float)
-        decoder = load_decoder(Path(winner["checkpoint_path"]), device, args.latent_dim)
-        winner["test"] = evaluate(decoder, test_refs, args.test_rollouts, args.seed + 1_000_000,
-                                  args.latent_dim, device,
-                                  float(test_edges.mean() + 3 * test_edges.std()))
+        if not args.skip_test:
+            winner_run = Path(winner["artifact_dir"])
+            test_path = winner_run / "heldoutTestGraphs_adj_.npy"
+            test_refs = to_graphs(np.load(test_path, allow_pickle=True), keep_largest_component=False)
+            test_edges = np.asarray([graph.number_of_edges() for graph in test_refs], dtype=float)
+            decoder = load_decoder(Path(winner["checkpoint_path"]), device, args.latent_dim)
+            winner["test"] = evaluate(decoder, test_refs, args.test_rollouts, args.seed + 1_000_000,
+                                      args.latent_dim, device,
+                                      float(test_edges.mean() + 3 * test_edges.std()))
 
     payload = {
         "runs_root": [str(path) for path in args.runs_root], "device": str(device),
         "validation_rollouts": args.validation_rollouts, "test_rollouts": args.test_rollouts,
+        "heldout_test_evaluated": not args.skip_test,
         "selection_formula": "median_normalized_mmd + stability_weight*std + dense_penalty_weight*dense_rate",
         "stability_weight": args.stability_weight,
         "dense_penalty_weight": args.dense_penalty_weight,
