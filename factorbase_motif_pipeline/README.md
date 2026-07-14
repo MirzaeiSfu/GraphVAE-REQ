@@ -7,6 +7,9 @@ This folder contains the scripts used to load graph datasets into MySQL for Fact
 - `run_factorbase_pipeline.py`: wrapper script that runs the dataset import, creates a database-specific config file, and launches FactorBase with the selected JAR.
 - `run_qm9_config_compare.py`: helper script that builds QM9 once, clones the prepared database per config, and runs FactorBase for each config.
 - `to_db_proteins.py`: loads the PROTEINS dataset into MySQL.
+- `to_db_aids.py`: loads the TU Dortmund AIDS dataset into MySQL.
+- `to_db_enzymes.py`: loads the TU Dortmund ENZYMES dataset into MySQL.
+- `tu_dataset_to_db.py`: shared, dependency-light TU-format parser and MySQL importer used by AIDS and ENZYMES.
 - `to_db_qm9.py`: loads the QM9 dataset into MySQL.
 - `to_db_grid.py`: loads the GRID dataset into MySQL.
 - `to_db_lobster.py`: loads the LOBSTER dataset into MySQL.
@@ -85,6 +88,8 @@ If you want to choose the database name yourself, pass it after the dataset:
 
 ```bash
 python run_factorbase_pipeline.py PROTEINS proteins_experiment
+python run_factorbase_pipeline.py AIDS aids_experiment --undirected
+python run_factorbase_pipeline.py ENZYMES enzymes_experiment --undirected
 python run_factorbase_pipeline.py QM9 qm9_trial --directed --jar patched
 python run_factorbase_pipeline.py QM9 qm9_trial --undirected --jar patched
 ```
@@ -151,6 +156,10 @@ FactorBase setup.
 - `--directed` preserves the source edge rows; it does not invent directed graph semantics.
 - `--undirected` inserts both directions for each source edge pair.
 - `--directed` is the default edge mode for `QM9` and `PROTEINS`.
+- AIDS and ENZYMES use their TU node labels and continuous node attributes. Continuous attributes are quantile-binned into at most eight values per dimension by default, which keeps the FactorBase state space tractable.
+- AIDS also imports its TU edge labels. ENZYMES has no edge-label file, so its `edges` table contains only the two endpoint columns.
+- The AIDS/ENZYMES importers can download the official TU archive automatically when the raw dataset is absent. Pass `--no-download` to require an existing local copy.
+- The shared TU importer accepts `--node-attribute-mode quantile`, `raw`, or `omit`, plus `--attribute-bins`, `--max-nodes`, and `--max-graphs`.
 - `--undirected` is the default for synthetic NetworkX datasets: `GRID`, `LOBSTER`, and `TRIANGULAR_GRID`.
 - Synthetic datasets reject `--directed` because the DB would store one row per undirected edge while `main.py` uses symmetric adjacency.
 - Every dataset import script prints a source-edge bidirectionality analysis before import.

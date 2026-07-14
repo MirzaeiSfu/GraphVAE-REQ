@@ -190,7 +190,7 @@ def load_config_defaults(config_path, valid_keys):
     return flat_config
 
 
-DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v2"
+DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v3"
 DEFAULT_SPLIT_SEED = 123
 DEFAULT_LEGACY_TRAIN_FRACTION = 0.8
 DEFAULT_PAPER_TRAIN_FRACTION = 0.7
@@ -255,10 +255,17 @@ def resolve_split_plan(split_mode, train_fraction_arg, val_fraction_arg, split_s
     }
 
 
-def build_dataset_cache_metadata(dataset, split_mode, bfs_strategy, split_plan):
+def build_dataset_cache_metadata(
+    dataset,
+    split_mode,
+    bfs_strategy,
+    split_plan,
+    feature_schema="default",
+):
     return {
         "cache_schema_version": DATASET_CACHE_SCHEMA_VERSION,
         "dataset": dataset,
+        "feature_schema": feature_schema,
         "split_mode": split_mode,
         "bfs_strategy": bfs_strategy,
         "split_kind": split_plan["split_kind"],
@@ -277,7 +284,8 @@ def build_dataset_cache_name(cache_metadata):
         f"_val{_format_cache_float(cache_metadata['val_fraction'])}"
         f"_test{_format_cache_float(cache_metadata['test_fraction'])}"
         f"_seed{cache_metadata['split_seed']}"
-        f"_bfs-{_sanitize_cache_component(cache_metadata['bfs_strategy'])}.pkl"
+        f"_bfs-{_sanitize_cache_component(cache_metadata['bfs_strategy'])}"
+        f"_features-{_sanitize_cache_component(cache_metadata['feature_schema'])}.pkl"
     )
 
 
@@ -735,7 +743,7 @@ parser.add_argument(
     '--dataset',
     dest="dataset",
     default="TRIANGULAR_GRID",
-    help="possible choices are: wheel_graph, PTC, FIRSTMM_DB, star, TRIANGULAR_GRID, multi_community, NCI1, ogbg-molbbbp, IMDbMulti, GRID, community, citeseer, LOBSTER, DD"
+    help="possible choices include AIDS, ENZYMES, PROTEINS, QM9, ogbg-molbbbp, GRID, TRIANGULAR_GRID, and LOBSTER"
 )
 parser.add_argument(
     '-f',
@@ -794,6 +802,28 @@ parser.add_argument(
     type=str,
     default=None,
     help='Optional raw dataset root. If set, main.py exports DATA_DIR for data.py; otherwise data.py uses DATA_DIR or local data_raw/.'
+)
+parser.add_argument(
+    '--lobster_feature_schema',
+    choices=['old_v1', 'optimal_v2'],
+    default='optimal_v2',
+    help=(
+        "LOBSTER feature definition. old_v1 reproduces the "
+        "lobster_undir_feat_snap_85093d experiments; optimal_v2 uses the "
+        "newer best_lobster.py schema."
+    ),
+)
+parser.add_argument(
+    '--tu_attribute_bins',
+    type=int,
+    default=8,
+    help='Quantile bins per continuous AIDS/ENZYMES node attribute.',
+)
+parser.add_argument(
+    '--tu_max_nodes',
+    type=int,
+    default=None,
+    help='Optionally exclude AIDS/ENZYMES graphs above this node count.',
 )
 parser.add_argument(
     '--split_mode',
@@ -1286,6 +1316,13 @@ graph_type = args.graph_type
 graph_index_start = args.graph_index_start
 graph_index_end = args.graph_index_end
 data_dir = args.data_dir
+lobster_feature_schema = args.lobster_feature_schema
+tu_attribute_bins = int(args.tu_attribute_bins)
+tu_max_nodes = args.tu_max_nodes
+if tu_attribute_bins < 2:
+    raise ValueError("tu_attribute_bins must be at least 2.")
+if tu_max_nodes is not None and tu_max_nodes < 1:
+    raise ValueError("tu_max_nodes must be positive when provided.")
 split_mode = args.split_mode
 split_plan = resolve_split_plan(
     split_mode=split_mode,
@@ -1538,7 +1575,7 @@ if model_name == "KernelAugmentedWithTotalNumberOfTriangles" or model_name == "G
         #2000: weight for KL divergence
         step_num = 5
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 2000]
-    elif dataset == "PROTEINS":
+    elif dataset in {"PROTEINS", "AIDS", "ENZYMES", "ENZYMEZ"}:
         step_num = 5
         alpha = [1, 1, 1, 1, 1, 1, 1, 1, 50, 2000]
 
@@ -1995,6 +2032,15 @@ dataset_cache_metadata = build_dataset_cache_metadata(
     split_mode=split_mode,
     bfs_strategy=bfs_strategy,
     split_plan=split_plan,
+    feature_schema=(
+        f"lobster-{lobster_feature_schema}"
+        if dataset == "LOBSTER"
+        else (
+            f"tu-quantile{tu_attribute_bins}-max{tu_max_nodes or 'all'}"
+            if dataset.upper() in {"AIDS", "ENZYMES", "ENZYMEZ"}
+            else "default"
+        )
+    ),
 )
 use_cache = not disable_dataset_cache
 cache_path = None
@@ -2055,7 +2101,13 @@ else:
 
     (list_adj, list_x, list_label,
      list_node_feature, list_edge_feature,
-     node_feature_info, edge_feature_info) = list_graph_loader(dataset, return_labels=True)
+     node_feature_info, edge_feature_info) = list_graph_loader(
+         dataset,
+         return_labels=True,
+         lobster_feature_schema=lobster_feature_schema,
+         tu_attribute_bins=tu_attribute_bins,
+         tu_max_nodes=tu_max_nodes,
+     )
 
     # list_adj   = list_adj[:400]
     # list_x     = list_x[:400]

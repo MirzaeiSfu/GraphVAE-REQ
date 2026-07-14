@@ -29,6 +29,13 @@ from dataset_feature_utils.grid_features import (
 )
 import dataset_feature_utils.lobster_features as lobster_features
 import dataset_feature_utils.triangular_grid_features as triangular_grid_features
+from factorbase_motif_pipeline.tu_dataset_to_db import (
+    TU_DATASET_SPECS,
+    deduplicated_edges,
+    find_dataset_dir,
+    load_tu_graphs,
+    prepare_attributes,
+)
 
 # import ogb
 
@@ -525,7 +532,14 @@ class Datasets():
 
 
 # generate a list of graph
-def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, limited_to=None):
+def list_graph_loader(
+        graph_type,
+        _max_list_size=None,
+        return_labels=False,
+        limited_to=None,
+        lobster_feature_schema="optimal_v2",
+        tu_attribute_bins=8,
+        tu_max_nodes=None):
   list_adj = []
   list_x =[]
   list_labels = []
@@ -713,7 +727,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           edge_feature,
       )
 
-  def _build_lobster_graph_features(graph):
+  def _build_lobster_optimal_graph_features(graph):
       """
       Matches factorbase_motif_pipeline/best_lobster.py's "optimal" feature
       schema: node node_degree/spine_role/subtree_size/eccentricity; edge
@@ -775,6 +789,61 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           # Keep local edge-feature rows symmetric with the adjacency relation.
           edge_rows.append([src, dst, edge_type, depth_pair, terminal_edge])
           edge_rows.append([dst, src, edge_type, depth_pair, terminal_edge])
+
+      edge_feature = None
+      if edge_rows:
+          edge_feature = np.asarray(edge_rows, dtype=np.int64)
+
+      return (
+          adj,
+          np.asarray(node_rows, dtype=np.int64),
+          edge_feature,
+      )
+
+  def _build_lobster_old_graph_features(graph):
+      """Build the v1.2 features used by the old-feature Lobster results.
+
+      This schema matches ``factorbase_motif_pipeline/to_db_lobster.py`` and
+      the ``lobster_undir_feat_snap_85093d`` FactorBase database:
+
+      * nodes: node_degree, distance_to_spine, subtree_size, eccentricity
+      * edges: edge_type
+      """
+      nodes = list(graph.nodes())
+      node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+      adj = csr_matrix(nx.adjacency_matrix(graph, nodelist=nodes))
+
+      spine_path = lobster_features.find_spine_path(graph)
+      spine_nodes = set(spine_path)
+      distance_to_spine = lobster_features.compute_distance_to_spine_labels(
+          graph,
+          spine_path,
+      )
+      subtree_sizes = lobster_features.compute_branch_component_sizes(
+          graph,
+          spine_path,
+      )
+
+      node_rows = []
+      for node in nodes:
+          node_rows.append([
+              lobster_features.compute_node_degree(graph, node),
+              distance_to_spine[node],
+              subtree_sizes.get(node, 1),
+              lobster_features.compute_eccentricity(graph, node),
+          ])
+
+      edge_rows = []
+      for source_node, target_node in graph.edges():
+          edge_type = lobster_features.compute_edge_type(
+              source_node,
+              target_node,
+              spine_nodes,
+          )
+          src = node_to_idx[source_node]
+          dst = node_to_idx[target_node]
+          edge_rows.append([src, dst, edge_type])
+          edge_rows.append([dst, src, edge_type])
 
       edge_feature = None
       if edge_rows:
@@ -877,6 +946,104 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
               node_feature.view(-1, 1).cpu().numpy().astype(np.int64)
           )
           list_edge_feature.append(None)
+
+
+  elif graph_type.upper() in {"AIDS", "ENZYMES", "ENZYMEZ"}:
+      dataset_name = "ENZYMES" if graph_type.upper() == "ENZYMEZ" else graph_type.upper()
+      spec = TU_DATASET_SPECS[dataset_name]
+      dataset_dir = find_dataset_dir(
+          spec,
+          requested=data_path("Kernel_dataset"),
+          allow_download=True,
+      )
+      graphs, load_stats = load_tu_graphs(
+          spec,
+          dataset_dir,
+          max_nodes=tu_max_nodes,
+          max_graphs=_max_list_size,
+      )
+      prepared_attributes, _attribute_sql_type, quantile_thresholds = prepare_attributes(
+          graphs,
+          mode="quantile",
+          bins=int(tu_attribute_bins),
+          width=spec.node_attribute_count,
+      )
+
+      node_label_values = sorted({
+          int(label)
+          for graph in graphs
+          for label in graph.node_labels
+      })
+      node_feature_info = {
+          0: {
+              "feature_name": "node_label",
+              "unique_values": node_label_values,
+          }
+      }
+      for attribute_index, _thresholds in enumerate(quantile_thresholds):
+          observed_values = sorted({
+              int(row[attribute_index])
+              for graph_rows in prepared_attributes
+              for row in graph_rows
+          })
+          node_feature_info[attribute_index + 1] = {
+              "feature_name": f"node_attr_{attribute_index:02d}",
+              # FactorBase learns only states actually present in the SQL
+              # table. Do not seed empty quantile bins into the decoder.
+              "unique_values": observed_values,
+          }
+
+      edge_feature_info = None
+      if spec.has_edge_labels:
+          edge_label_values = sorted({
+              int(label)
+              for graph in graphs
+              for _src, _dst, label in graph.edges
+              if label is not None
+          })
+          edge_feature_info = {
+              0: {
+                  "feature_name": "edge_label",
+                  "unique_values": edge_label_values,
+              }
+          }
+
+      for graph, graph_attributes in zip(graphs, prepared_attributes):
+          edge_rows = deduplicated_edges(graph, edge_mode="undirected")
+          num_nodes = len(graph.node_labels)
+          if edge_rows:
+              sources = np.asarray([row[0] for row in edge_rows], dtype=np.int64)
+              targets = np.asarray([row[1] for row in edge_rows], dtype=np.int64)
+              adjacency = csr_matrix(
+                  (np.ones(len(edge_rows), dtype=np.int8), (sources, targets)),
+                  shape=(num_nodes, num_nodes),
+              )
+          else:
+              adjacency = csr_matrix((num_nodes, num_nodes), dtype=np.int8)
+
+          attribute_array = np.asarray(graph_attributes, dtype=np.int64)
+          label_array = np.asarray(graph.node_labels, dtype=np.int64).reshape(-1, 1)
+          node_features = np.concatenate([label_array, attribute_array], axis=1)
+
+          list_adj.append(adjacency)
+          list_x.append(None)
+          list_labels.append(graph.graph_label)
+          list_node_feature.append(node_features)
+
+          if spec.has_edge_labels and edge_rows:
+              list_edge_feature.append(np.asarray([
+                  [src, dst, int(edge_label)]
+                  for src, dst, edge_label in edge_rows
+              ], dtype=np.int64))
+          else:
+              list_edge_feature.append(None)
+
+      print(
+          f"{dataset_name} loading: kept {load_stats['loaded_graphs']}/"
+          f"{load_stats['source_graphs']} graphs, "
+          f"skipped {load_stats['skipped_max_nodes']} above tu_max_nodes, "
+          f"quantile_bins={tu_attribute_bins}"
+      )
 
 
   elif graph_type == "QM9":
@@ -1327,26 +1494,47 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
       # # graphs_to_writeOnDisk = [gr.toarray() for  gr in list_adj]
       # # np.save('Lobster_adj.npy', graphs_to_writeOnDisk, allow_pickle=True)
 #==================================end kirash code
-      node_feature_info = {
-          0: {'feature_name': 'node_degree'},
-          1: {'feature_name': 'spine_role'},
-          2: {'feature_name': 'subtree_size'},
-          3: {'feature_name': 'eccentricity'},
-      }
-      edge_feature_info = {
-          0: {
-              'feature_name': 'edge_type',
-              'unique_values': sorted(lobster_features.EDGE_TYPE_TO_ID.values()),
-          },
-          1: {
-              'feature_name': 'depth_pair',
-              'unique_values': sorted(lobster_features.DEPTH_PAIR_LABELS.keys()),
-          },
-          2: {
-              'feature_name': 'terminal_edge',
-              'unique_values': sorted(lobster_features.TERMINAL_EDGE_LABELS.keys()),
-          },
-      }
+      if lobster_feature_schema == "old_v1":
+          node_feature_info = {
+              0: {'feature_name': 'node_degree'},
+              1: {'feature_name': 'distance_to_spine'},
+              2: {'feature_name': 'subtree_size'},
+              3: {'feature_name': 'eccentricity'},
+          }
+          edge_feature_info = {
+              0: {
+                  'feature_name': 'edge_type',
+                  'unique_values': sorted(lobster_features.EDGE_TYPE_TO_ID.values()),
+              },
+          }
+          lobster_feature_builder = _build_lobster_old_graph_features
+      elif lobster_feature_schema == "optimal_v2":
+          node_feature_info = {
+              0: {'feature_name': 'node_degree'},
+              1: {'feature_name': 'spine_role'},
+              2: {'feature_name': 'subtree_size'},
+              3: {'feature_name': 'eccentricity'},
+          }
+          edge_feature_info = {
+              0: {
+                  'feature_name': 'edge_type',
+                  'unique_values': sorted(lobster_features.EDGE_TYPE_TO_ID.values()),
+              },
+              1: {
+                  'feature_name': 'depth_pair',
+                  'unique_values': sorted(lobster_features.DEPTH_PAIR_LABELS.keys()),
+              },
+              2: {
+                  'feature_name': 'terminal_edge',
+                  'unique_values': sorted(lobster_features.TERMINAL_EDGE_LABELS.keys()),
+              },
+          }
+          lobster_feature_builder = _build_lobster_optimal_graph_features
+      else:
+          raise ValueError(
+              "lobster_feature_schema must be 'old_v1' or 'optimal_v2'; "
+              f"received {lobster_feature_schema!r}"
+          )
 
       graphs = []
       p1 = 0.7
@@ -1363,7 +1551,7 @@ def list_graph_loader( graph_type, _max_list_size=None, return_labels=False, lim
           G = nx.random_lobster(mean_node, p1, p2, seed=seed_tmp)
           if len(G.nodes()) >= min_node and len(G.nodes()) <= max_node:
               graphs.append(G)
-              adj, node_feature, edge_feature = _build_lobster_graph_features(G)
+              adj, node_feature, edge_feature = lobster_feature_builder(G)
               list_adj.append(adj)
               list_x.append(None)
               list_node_feature.append(node_feature)

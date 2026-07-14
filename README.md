@@ -217,6 +217,8 @@ datasets used by this project, including:
 - `TRIANGULAR_GRID`
 - `LOBSTER`
 - `PROTEINS`
+- `AIDS`
+- `ENZYMES` (the common `ENZYMEZ` spelling is accepted as an alias)
 - `DD`
 - `IMDbMulti`
 - OGB-style molecular data paths when available locally
@@ -224,6 +226,18 @@ datasets used by this project, including:
 Raw data lives under `data_raw/` by default. Processed dataset caches are written
 under `cache_datasets/` unless `DATASET_CACHE_DIR` or `--dataset_cache_dir` is
 set.
+
+AIDS and ENZYMES retain their TU node labels and quantile-bin their continuous
+node attributes into eight categories by default. AIDS also retains edge
+labels; ENZYMES has no source edge-label feature. Use the same
+`--tu_attribute_bins` and `--tu_max_nodes` values when creating the FactorBase
+database and training, because the learned motif states must match the decoder
+categories.
+
+LOBSTER supports both `--lobster_feature_schema old_v1` for the original
+`lobster_undir_feat_snap_85093d` feature database and `optimal_v2` for the
+newer `best_lobster.py` schema. The old-feature reproduction configs are in
+`configs/cluster_tests/lobster_old_features_*.yaml`.
 
 ## Outputs
 
