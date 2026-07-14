@@ -141,15 +141,17 @@ def main():
     candidates = []
 
     with locked_orca_tmp():
-        for run_dir in sorted(path for path in args.runs_root.iterdir() if path.is_dir()):
-            val_path = run_dir / "validationGraphs_adj_.npy"
-            if not val_path.exists():
-                continue
+        validation_paths = sorted(args.runs_root.glob("*/seed_*/validationGraphs_adj_.npy"))
+        validation_paths += sorted(args.runs_root.glob("*/validationGraphs_adj_.npy"))
+        for val_path in validation_paths:
+            run_dir = val_path.parent
+            job_dir = run_dir.parent if run_dir.name.startswith("seed_") else run_dir
             refs = to_graphs(np.load(val_path, allow_pickle=True), keep_largest_component=False)
             reference_edges = np.asarray([graph.number_of_edges() for graph in refs], dtype=float)
             dense_threshold = float(reference_edges.mean() + 3 * reference_edges.std())
             for checkpoint in checkpoints(run_dir):
-                print(f"[validation] {run_dir.name}/{checkpoint.name}", flush=True)
+                run_name = f"{job_dir.name}/{run_dir.name}" if run_dir != job_dir else job_dir.name
+                print(f"[validation] {run_name}/{checkpoint.name}", flush=True)
                 decoder = load_decoder(checkpoint, device, args.latent_dim)
                 validation = evaluate(decoder, refs, args.validation_rollouts, args.seed,
                                       args.latent_dim, device, dense_threshold)
@@ -157,7 +159,7 @@ def main():
                                    + args.stability_weight * validation["score"]["std"]
                                    + args.dense_penalty_weight * validation["dense_rate"])
                 candidates.append({
-                    "run": run_dir.name, "checkpoint": checkpoint.name,
+                    "run": run_name, "artifact_dir": str(run_dir), "checkpoint": checkpoint.name,
                     "checkpoint_path": str(checkpoint), "dense_threshold": dense_threshold,
                     "selection_score": float(selection_score), "validation": validation,
                 })
@@ -168,7 +170,7 @@ def main():
         if not candidates:
             raise SystemExit(f"No completed Lobster runs/checkpoints found under {args.runs_root}")
         winner = min(candidates, key=lambda row: row["selection_score"])
-        winner_run = args.runs_root / winner["run"]
+        winner_run = Path(winner["artifact_dir"])
         test_path = winner_run / "heldoutTestGraphs_adj_.npy"
         test_refs = to_graphs(np.load(test_path, allow_pickle=True), keep_largest_component=False)
         test_edges = np.asarray([graph.number_of_edges() for graph in test_refs], dtype=float)
