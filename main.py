@@ -58,6 +58,7 @@ from ranking_score import (
     score_metrics_for_mode,
     score_weights_for_mode,
 )
+from loss_weight_utils import apply_kia_bce_kl_weights
 #endregion
 #====================================================================================
 
@@ -1095,6 +1096,16 @@ parser.add_argument(
     help='Weight for motif loss. Defaults when motif_loss=true: GraphVAE-MM=1, kipf/GraphVAE=0.1; otherwise 0.'
 )
 parser.add_argument(
+    '--use_graphvae_mm_bce_kl_weights',
+    type=str2bool,
+    default=False,
+    help=(
+        "Use Kia's GraphVAE-MM dataset-specific adjacency-BCE and KL weights "
+        "without enabling GraphVAE-MM graph-statistics kernels. This supports "
+        "plain GraphVAE experiments that replace statistics with motif losses."
+    )
+)
+parser.add_argument(
     '--alpha_syntactic_literal_motif_loss',
     type=float,
     default=None,
@@ -1409,6 +1420,7 @@ alpha_syntactic_literal_motif_loss = (
     else float(args.alpha_syntactic_literal_motif_loss)
 )
 alpha_adj_recon = args.alpha_adj_recon
+use_graphvae_mm_bce_kl_weights = args.use_graphvae_mm_bce_kl_weights
 args.alpha_node_feat = alpha_node_feat
 args.alpha_edge_feat = alpha_edge_feat
 args.alpha_motif_loss = alpha_motif_loss
@@ -1602,6 +1614,15 @@ elif model_name == "kipf" or model_name == "graphVAE":
     alpha = [1, 1]
     step_num = 0
 
+# Preserve Kia's dataset-specific base-VAE regularization while allowing the
+# GraphVAE-MM statistics above to be replaced by motif/feature objectives.
+# This modifies only adjacency BCE and KL; kernl_type remains empty for kipf.
+alpha = apply_kia_bce_kl_weights(
+    alpha,
+    dataset,
+    use_graphvae_mm_bce_kl_weights,
+)
+
 AutoEncoder = False
 
 # Make sure if we are using tiny overfit debug mode, we are actually training an autoencoder (no kernel loss).
@@ -1624,7 +1645,10 @@ print(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
-      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss}"
+      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
+      f" kia_bce_kl={use_graphvae_mm_bce_kl_weights},"
+      f" adjacency_bce={alpha[-2]},"
+      f" kl={alpha[-1]}"
 )
 print("motif_loss_mode:" + str(motif_loss_mode))
 print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
@@ -1646,7 +1670,10 @@ logging.info(
       f" node_feat={alpha_node_feat},"
       f" edge_feat={alpha_edge_feat},"
       f" motif={alpha_motif_loss},"
-      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss}"
+      f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
+      f" kia_bce_kl={use_graphvae_mm_bce_kl_weights},"
+      f" adjacency_bce={alpha[-2]},"
+      f" kl={alpha[-1]}"
 )
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
 logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))

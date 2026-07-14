@@ -68,6 +68,7 @@ loss:
   alpha_node_feat: 1.0
   alpha_edge_feat: 1.0
   alpha_motif_loss: 0.0
+  use_graphvae_mm_bce_kl_weights: false
   alpha_adj_recon: 0.0
 
 #===============================
