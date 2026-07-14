@@ -107,8 +107,8 @@ def report_markdown(payload):
     lines = [
         "# Lobster post-training checkpoint selection", "",
         "Lower is better. All candidates use validation only; held-out test is evaluated only for the winner.", "",
-        "| Rank | Run | Checkpoint | Validation median | Std | Dense rate | Selection score |",
-        "|---:|---|---|---:|---:|---:|---:|",
+        "| Rank | Run | Checkpoint | Validation median | Std | Dense rate | Mean edges / ref | Selection score |",
+        "|---:|---|---|---:|---:|---:|---:|---:|",
     ]
     ranked = sorted(payload["candidates"], key=lambda row: row["selection_score"])
     for rank, row in enumerate(ranked, 1):
@@ -116,7 +116,8 @@ def report_markdown(payload):
         lines.append(
             f"| {rank} | {row['run']} | {row['checkpoint']} | "
             f"{val['score']['median']:.6f} | {val['score']['std']:.6f} | "
-            f"{val['dense_rate']:.2%} | {row['selection_score']:.6f} |"
+            f"{val['dense_rate']:.2%} | {val['mean_raw_edges']['mean']:.1f} / "
+            f"{row['reference_mean_edges']:.1f} | {row['selection_score']:.6f} |"
         )
     winner = payload["winner"]
     lines += ["", "## Winner", "", f"`{winner['run']}/{winner['checkpoint']}`"]
@@ -142,6 +143,10 @@ def main():
     parser.add_argument("--latent-dim", type=int, default=1024)
     parser.add_argument("--stability-weight", type=float, default=0.25)
     parser.add_argument("--dense-penalty-weight", type=float, default=1.0)
+    parser.add_argument(
+        "--edge-mean-penalty-weight", type=float, default=0.25,
+        help="Penalty weight for abs(log(generated mean edges / validation mean edges)).",
+    )
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
@@ -157,6 +162,7 @@ def main():
             job_dir = run_dir.parent if run_dir.name.startswith("seed_") else run_dir
             refs = to_graphs(np.load(val_path, allow_pickle=True), keep_largest_component=False)
             reference_edges = np.asarray([graph.number_of_edges() for graph in refs], dtype=float)
+            reference_mean_edges = float(reference_edges.mean())
             dense_threshold = float(reference_edges.mean() + 3 * reference_edges.std())
             for checkpoint in checkpoints(run_dir):
                 run_name = f"{job_dir.name}/{run_dir.name}" if run_dir != job_dir else job_dir.name
@@ -164,12 +170,19 @@ def main():
                 decoder = load_decoder(checkpoint, device, args.latent_dim)
                 validation = evaluate(decoder, refs, args.validation_rollouts, args.seed,
                                       args.latent_dim, device, dense_threshold)
+                generated_mean_edges = validation["mean_raw_edges"]["mean"]
+                edge_mean_log_error = abs(np.log(
+                    max(generated_mean_edges, 1e-12) / max(reference_mean_edges, 1e-12)
+                ))
                 selection_score = (validation["score"]["median"]
                                    + args.stability_weight * validation["score"]["std"]
-                                   + args.dense_penalty_weight * validation["dense_rate"])
+                                   + args.dense_penalty_weight * validation["dense_rate"]
+                                   + args.edge_mean_penalty_weight * edge_mean_log_error)
                 candidates.append({
                     "run": run_name, "artifact_dir": str(run_dir), "checkpoint": checkpoint.name,
                     "checkpoint_path": str(checkpoint), "dense_threshold": dense_threshold,
+                    "reference_mean_edges": reference_mean_edges,
+                    "edge_mean_log_error": float(edge_mean_log_error),
                     "selection_score": float(selection_score), "validation": validation,
                 })
                 del decoder
@@ -193,9 +206,14 @@ def main():
         "runs_root": [str(path) for path in args.runs_root], "device": str(device),
         "validation_rollouts": args.validation_rollouts, "test_rollouts": args.test_rollouts,
         "heldout_test_evaluated": not args.skip_test,
-        "selection_formula": "median_normalized_mmd + stability_weight*std + dense_penalty_weight*dense_rate",
+        "selection_formula": (
+            "median_normalized_mmd + stability_weight*std + "
+            "dense_penalty_weight*dense_rate + "
+            "edge_mean_penalty_weight*abs(log(generated_mean_edges/reference_mean_edges))"
+        ),
         "stability_weight": args.stability_weight,
         "dense_penalty_weight": args.dense_penalty_weight,
+        "edge_mean_penalty_weight": args.edge_mean_penalty_weight,
         "candidates": candidates, "winner": winner,
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
