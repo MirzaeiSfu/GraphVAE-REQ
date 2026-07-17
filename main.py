@@ -960,6 +960,17 @@ parser.add_argument(
 #===============================
 parser.add_argument('--motif_loss', type=str2bool, default=False)
 parser.add_argument(
+    '--motif_output_mode',
+    type=str,
+    default='count',
+    choices=['count', 'matrix'],
+    help=(
+        'Representation returned by the final motif matrix chain. count sums '
+        'all matrix entries into one scalar per motif (existing behavior); '
+        'matrix retains padded N_max x N_max results for a custom matrix loss.'
+    ),
+)
+parser.add_argument(
     '--use_syntactic_literal_rules',
     type=str2bool,
     default=True,
@@ -1371,6 +1382,7 @@ train_batch_size = args.train_batch_size
 # Motif settings
 #===============================
 use_motif_loss = args.motif_loss
+motif_output_mode = args.motif_output_mode
 motif_loss_mode = args.motif_loss_mode
 motif_temperature_start = max(float(args.motif_temperature_start), 1e-3)
 motif_temperature_end = max(float(args.motif_temperature_end), 1e-3)
@@ -2368,22 +2380,50 @@ if use_motif_loss:
         device='cuda',
     )
 
-    # Computes motif counts in batches.
-    counts  = motif_counter.count_batch(wrapper, batch_size=motif_batch_size)
-    list_graphs.motif_counts = counts
-
-    # In sanity mode, sums counts across all samples and prints them for inspection.
-    if sanity_check or sanity_check_only:
-        # Previous sanity-check output:
-        # aggregated = counts.sum(0)
-        # print(aggregated)
-        aggregated = motif_counter.aggregate_motif_counts(counts)
-        print("\n" + "=" * 80)
-        print("SANITY CHECK: AGGREGATED MOTIF COUNTS")
-        print("=" * 80)
-        print(aggregated)
-
+    if motif_output_mode == 'matrix':
         if sanity_check or sanity_check_only:
+            raise ValueError(
+                "FactorBase sanity comparison requires motif_output_mode=count. "
+                "Matrix mode intentionally retains unsummed chain results."
+            )
+
+        motif_matrices, motif_matrix_mask = motif_counter.count_batch(
+            wrapper,
+            batch_size=motif_batch_size,
+            output_mode='matrix',
+            detach_to_cpu=True,
+        )
+        # Real-graph targets never need gradients. Keep the potentially large
+        # matrix tensor on CPU and transfer only the current training batch.
+        list_graphs.motif_matrices = motif_matrices
+        list_graphs.motif_matrix_mask = motif_matrix_mask
+        del motif_matrices, motif_matrix_mask
+        print(
+            "MOTIF MATRIX TARGETS:"
+            f" values={tuple(list_graphs.motif_matrices.shape)},"
+            f" mask={tuple(list_graphs.motif_matrix_mask.shape)}"
+        )
+        logging.info(
+            "MOTIF MATRIX TARGETS:"
+            f" values={tuple(list_graphs.motif_matrices.shape)},"
+            f" mask={tuple(list_graphs.motif_matrix_mask.shape)}"
+        )
+    else:
+        # Existing scalar-count representation.
+        counts = motif_counter.count_batch(wrapper, batch_size=motif_batch_size)
+        list_graphs.motif_counts = counts
+
+        # In sanity mode, sums counts across all samples and prints them for inspection.
+        if sanity_check or sanity_check_only:
+            # Previous sanity-check output:
+            # aggregated = counts.sum(0)
+            # print(aggregated)
+            aggregated = motif_counter.aggregate_motif_counts(counts)
+            print("\n" + "=" * 80)
+            print("SANITY CHECK: AGGREGATED MOTIF COUNTS")
+            print("=" * 80)
+            print(aggregated)
+
             motif_counter.display_rules_and_motifs(aggregated)
 
             try:
@@ -2715,7 +2755,14 @@ for epoch in range(epoch_number):
         motif_temperature_guard_limit = None
         motif_temperature_guard_proposed = motif_temperature
         if use_motif_loss:
-            observed_motif_counts = list_graphs.motif_counts[from_:batch_end].to(device)
+            observed_motif_counts = None
+            observed_motif_matrices = None
+            observed_motif_matrix_mask = None
+            if motif_output_mode == 'matrix':
+                observed_motif_matrices = list_graphs.motif_matrices[from_:batch_end].to(device)
+                observed_motif_matrix_mask = list_graphs.motif_matrix_mask.to(device)
+            else:
+                observed_motif_counts = list_graphs.motif_counts[from_:batch_end].to(device)
 
             def motif_losses_at_temperature(current_motif_temperature):
                 current_recon_wrapper = ReconstructedDataWrapper(
@@ -2731,6 +2778,46 @@ for epoch in range(epoch_number):
                     prob_temperature=current_motif_temperature,
                     device=device,
                 )
+
+                if motif_output_mode == 'matrix':
+                    current_recon_matrices, current_recon_matrix_mask = motif_counter.count_batch(
+                        current_recon_wrapper,
+                        batch_size=motif_batch_size,
+                        output_mode='matrix',
+                    )
+                    if not torch.equal(
+                        observed_motif_matrix_mask,
+                        current_recon_matrix_mask,
+                    ):
+                        raise RuntimeError(
+                            "Observed and reconstructed motif matrix masks do not match."
+                        )
+
+                    # TODO(matrix-motif-loss): Define the new loss over every
+                    # valid element of the final matrix-chain results. Both
+                    # tensors are (B, num_motifs, N_max, N_max), and the shared
+                    # mask is (num_motifs, N_max, N_max). The reconstructed
+                    # tensor remains attached to the autograd graph.
+                    #
+                    # current_motif_loss = compute_motif_matrix_loss(
+                    #     observed_matrices=observed_motif_matrices,
+                    #     predicted_matrices=current_recon_matrices,
+                    #     valid_mask=current_recon_matrix_mask,
+                    # )
+                    #
+                    # Intentionally zero until the matrix-valued objective is
+                    # designed. This keeps the experimental config runnable
+                    # without silently falling back to summed motif counts.
+                    current_motif_loss = reconstructed_adj_logit.new_zeros(())
+                    current_non_literal_motif_loss = current_motif_loss
+                    current_syntactic_literal_motif_loss = current_motif_loss
+                    current_weighted_motif_loss_term = current_motif_loss
+                    return (
+                        current_motif_loss,
+                        current_non_literal_motif_loss,
+                        current_syntactic_literal_motif_loss,
+                        current_weighted_motif_loss_term,
+                    )
 
                 current_recon_counts = motif_counter.count_batch(
                     current_recon_wrapper,
@@ -2855,44 +2942,50 @@ for epoch in range(epoch_number):
                     ) = motif_losses_at_temperature(motif_temperature)
                 adaptive_motif_temperature = motif_temperature
 
-            # The hard wrapper thresholds adjacency and converts categorical
-            # predictions to one-hot assignments, so these metrics reflect the
-            # discrete graph you would inspect after training.
-            with torch.no_grad():
-                hard_recon_wrapper = ReconstructedDataWrapper(
-                    reconstructed_adj=reconstructed_adj_logit.detach(),
-                    node_feat_logits=node_feat_logits.detach(),
-                    edge_feat_logits=edge_feat_logits.detach() if edge_feat_logits is not None else None,
-                    relation_keys=motif_counter.relation_keys,
-                    node_onehot_info=node_onehot_info,
-                    feature_onehot_mapping=wrapper.feature_onehot_mapping,
-                    edge_onehot_info=edge_onehot_info,
-                    edge_feature_info_mapping=motif_counter.feature_info_mapping,
-                    use_soft_adj=False,
-                    prob_temperature=motif_temperature,
-                    device=device,
-                )
-                hard_recon_counts = motif_counter.count_batch(hard_recon_wrapper, batch_size=motif_batch_size)
-                (hard_motif_loss,
-                 hard_motif_exact_zero,
-                 hard_motif_exact_zero_per_graph) = compute_hard_motif_metrics(
-                    observed_counts=observed_motif_counts,
-                    hard_predicted_counts=hard_recon_counts,
-                )
-
-                should_report_hard_sweep = (tiny_overfit and (step % 10 == 0)) or \
-                    ((step + 1) % visulizer_step == 0) or (epoch_number == epoch + 1)
-                if should_report_hard_sweep:
-                    hard_threshold_sweep_summary = summarize_hard_motif_threshold_sweep(
-                        observed_counts=observed_motif_counts,
-                        adj_probs=get_reconstructed_adj_probs(
-                            reconstructed_adj_logit,
-                            prob_temperature=motif_temperature,
-                        ),
-                        hard_recon_wrapper=hard_recon_wrapper,
-                        motif_counter=motif_counter,
+            if motif_output_mode == 'count':
+                # The hard wrapper thresholds adjacency and converts categorical
+                # predictions to one-hot assignments, so these metrics reflect
+                # the discrete graph you would inspect after training. Matrix
+                # mode skips them because its custom hard-matrix metric has not
+                # been defined yet.
+                with torch.no_grad():
+                    hard_recon_wrapper = ReconstructedDataWrapper(
+                        reconstructed_adj=reconstructed_adj_logit.detach(),
+                        node_feat_logits=node_feat_logits.detach(),
+                        edge_feat_logits=edge_feat_logits.detach() if edge_feat_logits is not None else None,
+                        relation_keys=motif_counter.relation_keys,
+                        node_onehot_info=node_onehot_info,
+                        feature_onehot_mapping=wrapper.feature_onehot_mapping,
+                        edge_onehot_info=edge_onehot_info,
+                        edge_feature_info_mapping=motif_counter.feature_info_mapping,
+                        use_soft_adj=False,
+                        prob_temperature=motif_temperature,
+                        device=device,
+                    )
+                    hard_recon_counts = motif_counter.count_batch(
+                        hard_recon_wrapper,
                         batch_size=motif_batch_size,
                     )
+                    (hard_motif_loss,
+                     hard_motif_exact_zero,
+                     hard_motif_exact_zero_per_graph) = compute_hard_motif_metrics(
+                        observed_counts=observed_motif_counts,
+                        hard_predicted_counts=hard_recon_counts,
+                    )
+
+                    should_report_hard_sweep = (tiny_overfit and (step % 10 == 0)) or \
+                        ((step + 1) % visulizer_step == 0) or (epoch_number == epoch + 1)
+                    if should_report_hard_sweep:
+                        hard_threshold_sweep_summary = summarize_hard_motif_threshold_sweep(
+                            observed_counts=observed_motif_counts,
+                            adj_probs=get_reconstructed_adj_probs(
+                                reconstructed_adj_logit,
+                                prob_temperature=motif_temperature,
+                            ),
+                            hard_recon_wrapper=hard_recon_wrapper,
+                            motif_counter=motif_counter,
+                            batch_size=motif_batch_size,
+                        )
             #m_loss = motif_loss * alpha_motif_loss
 
 
@@ -2911,6 +3004,7 @@ for epoch in range(epoch_number):
         detailed_hard_motif_counts = None
         should_report_detailed_hard_counts = (
             tiny_overfit
+            and motif_output_mode == 'count'
             and hard_exact_match_total == 1
             and ((step + 1) % visulizer_step == 0 or (epoch_number == epoch + 1))
         )
