@@ -281,6 +281,8 @@ class Datasets():
         self.list_node_onehot      = list_node_onehot
         self.list_edge_onehot      = list_edge_onehot
         self.motif_counts          = None
+        self.motif_matrices        = None
+        self.motif_matrix_mask     = None
         self.toatl_num_of_edges    = 0
         self.max_num_nodes         = 0
 
@@ -517,8 +519,17 @@ class Datasets():
                 self.motif_counts = self.motif_counts[indx]
             else:
                 self.motif_counts = [self.motif_counts[i] for i in indx]
-        else:
+        elif self.motif_matrices is None:
             warnings.warn("Motif counts is an empty Set")
+
+        if self.motif_matrices is not None:
+            if torch.is_tensor(self.motif_matrices) or isinstance(self.motif_matrices, np.ndarray):
+                self.motif_matrices = self.motif_matrices[indx]
+            else:
+                self.motif_matrices = [self.motif_matrices[i] for i in indx]
+
+        # motif_matrix_mask is shared across graphs and therefore must not be
+        # shuffled. It has shape (num_motifs, N_max, N_max).
         if len(self.subgraph_indexes) > 0:
             self.adj_s            = [self.adj_s[i]            for i in indx]
             self.x_s              = [self.x_s[i]              for i in indx]

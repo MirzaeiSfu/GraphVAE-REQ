@@ -46,6 +46,9 @@ experiment:
 #===============================
 motif:
   motif_loss: false
+  # count: existing scalar motif counts; matrix: retain each final matrix-chain
+  # result as a padded [N_max, N_max] tensor for a custom matrix-valued loss.
+  motif_output_mode: count
   use_syntactic_literal_rules: true
   syntactic_literal_rule_mode: both
   motif_loss_mode: abs_log_ratio
