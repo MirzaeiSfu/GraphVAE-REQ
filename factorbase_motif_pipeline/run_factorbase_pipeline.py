@@ -46,6 +46,8 @@ DATASET_SCRIPTS = {
     "PROTEINS": SCRIPT_DIR / "to_db_proteins.py",
     "AIDS": SCRIPT_DIR / "to_db_aids.py",
     "ENZYMES": SCRIPT_DIR / "to_db_enzymes.py",
+    "MUTAG": SCRIPT_DIR / "to_db_mutag.py",
+    "PTC": SCRIPT_DIR / "to_db_ptc.py",
     # Common misspelling retained as a convenience alias.
     "ENZYMEZ": SCRIPT_DIR / "to_db_enzymes.py",
     "QM9": SCRIPT_DIR / "to_db_qm9.py",
@@ -79,6 +81,8 @@ DATASET_FAMILY = {
     "AIDS": "AIDS",
     "ENZYMES": "ENZYMES",
     "ENZYMEZ": "ENZYMES",
+    "MUTAG": "MUTAG",
+    "PTC": "PTC",
     "QM9": "QM9",
     "OGBG-MOLBBBP": "OGBG-MOLBBBP",
     "OGBG_MOLBBBP": "OGBG-MOLBBBP",
@@ -140,7 +144,7 @@ def parse_args() -> argparse.Namespace:
         nargs="?",
         default=DEFAULT_DATASET,
         help=(
-            f"Dataset name, for example PROTEINS, AIDS, ENZYMES, QM9, GRID, "
+            f"Dataset name, for example PROTEINS, AIDS, ENZYMES, MUTAG, PTC, QM9, GRID, "
             f"LOBSTER, or TRIANGULAR_GRID. Synthetic names use optimal schemas by default; "
             f"use *_LEGACY for the previous to_db_* importers. "
             f"(default: {DEFAULT_DATASET})"

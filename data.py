@@ -548,8 +548,11 @@ def list_graph_loader(
   node_feature_info = None
   edge_feature_info = None
 
-  def _extract_proteins_node_feature(graph):
-      for key in ("feat", "attr", "label"):
+  def _extract_gin_node_feature(
+          graph,
+          dataset_name,
+          feature_keys=("feat", "attr", "label")):
+      for key in feature_keys:
           if key not in graph.ndata:
               continue
 
@@ -561,14 +564,17 @@ def list_graph_loader(
           else:
               feat = torch.argmax(raw, dim=1).long()
 
-          # Match the existing proteins_experiment schema, which stores the
-          # categorical node feature as 1-based labels.
+          # Match the FactorBase GIN importers, which store categorical node
+          # labels as 1-based values.
           return feat + 1
 
       raise KeyError(
-          f"PROTEINS graph has no supported node feature key. "
+          f"{dataset_name} graph has no supported node feature key. "
           f"Available keys: {list(graph.ndata.keys())}"
       )
+
+  def _extract_proteins_node_feature(graph):
+      return _extract_gin_node_feature(graph, "PROTEINS")
 
   def _build_grid_graph_features(graph):
       """
@@ -879,13 +885,23 @@ def list_graph_loader(
   elif graph_type=="MUTAG":
       data = load_gin_dataset('MUTAG')
       graphs, labels = data.graphs, data.labels
+      node_feature_info = {
+          0: {'feature_name': 'node_feature'}
+      }
+      edge_feature_info = None
       for i, graph in enumerate(graphs):
           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
-          # list_x.append(graph.ndata['feat'])
           list_x.append(None)
           list_labels.append(labels[i].cpu().item())
-      graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
-      np.save('MUTAG_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
+          node_feature = _extract_gin_node_feature(
+              graph,
+              "MUTAG",
+              feature_keys=("label", "attr", "feat"),
+          )
+          list_node_feature.append(
+              node_feature.view(-1, 1).cpu().numpy().astype(np.int64)
+          )
+          list_edge_feature.append(None)
   elif graph_type=="COLLAB":
       data = load_gin_dataset('COLLAB')
       graphs, labels = data.graphs, data.labels
@@ -899,13 +915,23 @@ def list_graph_loader(
   elif graph_type=="PTC":
       data = load_gin_dataset('PTC')
       graphs, labels = data.graphs, data.labels
+      node_feature_info = {
+          0: {'feature_name': 'node_feature'}
+      }
+      edge_feature_info = None
       for i, graph in enumerate(graphs):
           list_adj.append(csr_matrix(graph.adjacency_matrix().to_dense().numpy()))
-          # list_x.append(graph.ndata['feat'])
           list_x.append(None)
           list_labels.append(labels[i].cpu().item())
-      graphs_to_writeOnDisk = [gr.toarray() for gr in list_adj]
-      np.save('PTC_lattice_graph.npy', graphs_to_writeOnDisk, allow_pickle=True)
+          node_feature = _extract_gin_node_feature(
+              graph,
+              "PTC",
+              feature_keys=("label", "attr", "feat"),
+          )
+          list_node_feature.append(
+              node_feature.view(-1, 1).cpu().numpy().astype(np.int64)
+          )
+          list_edge_feature.append(None)
   elif graph_type == "PROTEINS":
 #===================================start kiarash code
 

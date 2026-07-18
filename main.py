@@ -745,7 +745,7 @@ parser.add_argument(
     '--dataset',
     dest="dataset",
     default="TRIANGULAR_GRID",
-    help="possible choices include AIDS, ENZYMES, PROTEINS, QM9, ogbg-molbbbp, GRID, TRIANGULAR_GRID, and LOBSTER"
+    help="possible choices include AIDS, ENZYMES, MUTAG, PTC, PROTEINS, QM9, ogbg-molbbbp, GRID, TRIANGULAR_GRID, and LOBSTER"
 )
 parser.add_argument(
     '-f',
@@ -2078,7 +2078,11 @@ dataset_cache_metadata = build_dataset_cache_metadata(
         else (
             f"tu-quantile{tu_attribute_bins}-max{tu_max_nodes or 'all'}"
             if dataset.upper() in {"AIDS", "ENZYMES", "ENZYMEZ"}
-            else "default"
+            else (
+                "gin-node-label-v2"
+                if dataset.upper() in {"MUTAG", "PTC"}
+                else "default"
+            )
         )
     ),
 )
@@ -2180,7 +2184,15 @@ else:
                                     Max_num=list_graphs.max_num_nodes,
                                     set_diag_of_isol_Zer=False)
     else:
-        max_size = None
+        # MUTAG/PTC can place their single largest graph in the held-out split
+        # (PTC reaches 109 nodes while this seed's training maximum is 23).
+        # Use the full-dataset maximum only for these newly integrated datasets
+        # so held-out feature tensors always fit without changing legacy runs.
+        max_size = (
+            max(int(adjacency.shape[0]) for adjacency in list_adj)
+            if dataset.upper() in {"MUTAG", "PTC"}
+            else None
+        )
         # list_label = None
 
         if split_mode == "paper_70_10_20":

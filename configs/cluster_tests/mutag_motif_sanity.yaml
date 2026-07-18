@@ -1,0 +1,87 @@
+# MUTAG full-dataset motif-count sanity check against mutag_undir_feat.
+# legacy_80_20 is intentional: sanity mode merges train+test, covering all
+# database graphs without an omitted validation partition.
+
+data:
+  dataset: MUTAG
+  use_feature: true
+  bfsOrdering: true
+  bfs_strategy: legacy_first_component
+  directed: true
+  database_name: mutag_undir_feat
+  graph_type: homogeneous
+  graph_index_start: null
+  graph_index_end: null
+  data_dir: null
+  split_mode: legacy_80_20
+  split_seed: 123
+  train_fraction: 0.8
+  val_fraction: 0.0
+  seed: 0
+  deterministic: true
+  deterministic_warn_only: false
+
+model:
+  model: GraphVAE
+  encoder_type: AvePool
+  decoder: FC
+  graphEmDim: 128
+  beta: null
+
+experiment:
+  epoch_number: 1
+  Vis_step: 100
+  redraw: false
+  lr: 0.0003
+  train_batch_size: 64
+  task: debug
+
+motif:
+  motif_loss: true
+  use_syntactic_literal_rules: false
+  syntactic_literal_rule_mode: original
+  motif_loss_mode: calibrated_gaussian
+  motif_temperature_start: 1.0
+  motif_temperature_end: 1.0
+  motif_temperature_anneal_start_frac: 1.0
+  rule_prune: false
+  motif_prune_max_values_per_rule: null
+  motif_batch_size: 256
+  prepare_motif_cache_only: false
+
+loss:
+  alpha_kernel_cost: 1.0
+  alpha_node_feat: 1.0
+  alpha_edge_feat: 0.0
+  alpha_motif_loss: 0.1
+  alpha_syntactic_literal_motif_loss: 0.1
+  alpha_adj_recon: 0.0
+
+runtime:
+  run_label: mutag-motif-sanity
+  graph_save_path: runs/diagnostics/mutag_motif_sanity
+  dataset_cache_dir: runs/diagnostics/dataset_cache
+  disable_dataset_cache: false
+  motif_cache_dir: cache_motifs
+  PATH: model
+  UseGPU: true
+  device: cuda:0
+  plot_testGraphs: false
+  ideal_Evalaution: false
+  keep_best_validation_mmd: false
+  best_validation_mmd_metric: table3_priority
+  save_validation_checkpoints: false
+  checkpoint_interval_epochs: 0
+  third_party_eval: false
+  third_party_eval_repeats: 1
+  third_party_eval_max_graphs: 1000
+  third_party_eval_seed: 0
+  third_party_eval_device: same
+  third_party_eval_structural_features: true
+  third_party_eval_json_filename: graph_realism_random_gin.json
+  third_party_eval_strict: true
+  tiny_overfit: false
+  tiny_overfit_size: 1
+  interactive: false
+  sanity_check: true
+  sanity_check_only: true
