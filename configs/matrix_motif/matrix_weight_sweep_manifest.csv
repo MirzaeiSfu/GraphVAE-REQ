@@ -1,0 +1,9 @@
+config,bce_kl,node,edge,motif,temperature,motif_output_mode,rule_mode,motif_batch_size
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_constant.yaml,1/1,1.0,1.0,0.1,constant,matrix,original,200
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_annealed.yaml,1/1,1.0,1.0,0.1,annealed,matrix,original,200
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m1_original_constant.yaml,1/1,1.0,1.0,1.0,constant,matrix,original,200
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m1_original_annealed.yaml,1/1,1.0,1.0,1.0,annealed,matrix,original,200
+configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m0p1_original_constant.yaml,40/2000,1.0,1.0,0.1,constant,matrix,original,200
+configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m0p1_original_annealed.yaml,40/2000,1.0,1.0,0.1,annealed,matrix,original,200
+configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m1_original_constant.yaml,40/2000,1.0,1.0,1.0,constant,matrix,original,200
+configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m1_original_annealed.yaml,40/2000,1.0,1.0,1.0,annealed,matrix,original,200

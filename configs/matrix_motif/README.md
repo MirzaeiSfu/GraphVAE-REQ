@@ -34,3 +34,30 @@ python main.py --config configs/matrix_motif/lobster_graphvae_matrix_motifs.yaml
 
 Matrix output can require substantially more memory than scalar counts. The
 configuration therefore uses a smaller motif batch size.
+
+## Matrix-motif weight sweep
+
+The eight `lobster_matrix_*.yaml` files form a controlled Cartesian sweep over:
+
+- adjacency BCE / KL weights: plain GraphVAE `1/1` or Kia LOBSTER `40/2000`;
+- globally averaged matrix-motif weight: `0.1` or `1.0`;
+- motif temperature: constant `1.0`, or annealed `1.0 -> 0.5` after the first
+  half of training.
+
+Every sweep configuration uses matrix output, original FactorBase rules only,
+the calibrated Gaussian objective, node/edge weights `1/1`, and the old-v1
+LOBSTER data/cache setup used by the posthoc scalar-count sweep. Constant runs
+disable the temperature guard. Annealed runs use the standard guard ratio
+`2.0` with relax/sharpen factors `1.05/0.995`.
+
+`motif_batch_size: 200` matches the configured training batch cap. The current
+paper split has 70 training graphs, so all 70 are processed together. A full
+matrix forward/backward pass with targets shaped `(70, 174, 98, 98)` was
+verified on a 24 GiB TITAN RTX without an out-of-memory error.
+
+The generated inventory is `matrix_weight_sweep_manifest.csv`. Regenerate the
+configs and manifest with:
+
+```bash
+python scripts/generate_lobster_matrix_motif_sweep.py
+```
