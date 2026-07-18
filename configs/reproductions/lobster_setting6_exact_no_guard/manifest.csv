@@ -1,0 +1,4 @@
+config,setting,replicate,model,motif,rule_mode,temp,alpha_node_feat,alpha_edge_feat,alpha_motif_loss,alpha_syntactic_literal_motif_loss,alpha_kernel_cost,alpha_adj_recon,motif_temperature_guard_ratio,notes
+configs/reproductions/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep1.yaml,06,1,GraphVAE,true,original,1.0->0.5,1.0,1.0,0.1,0.1,1.0,0.0,0.0,Exact setting 6 reproduction; validation checkpoints saved for post-hoc sample/model inspection.
+configs/reproductions/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep2.yaml,06,2,GraphVAE,true,original,1.0->0.5,1.0,1.0,0.1,0.1,1.0,0.0,0.0,Exact setting 6 reproduction; validation checkpoints saved for post-hoc sample/model inspection.
+configs/reproductions/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep3.yaml,06,3,GraphVAE,true,original,1.0->0.5,1.0,1.0,0.1,0.1,1.0,0.0,0.0,Exact setting 6 reproduction; validation checkpoints saved for post-hoc sample/model inspection.

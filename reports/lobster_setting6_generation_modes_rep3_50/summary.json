@@ -1,0 +1,212 @@
+{
+  "checkpoint": "collected_runs/20260708/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep3__cs-cl-09_gpu1/best_validation_mmd_model",
+  "references": "collected_runs/20260708/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep3__cs-cl-09_gpu1/testGraphs_adj_.npy",
+  "rollouts": 50,
+  "graphs_per_rollout": 20,
+  "seed": 20260713,
+  "device": "cuda:0",
+  "max_decoder_nodes": 98,
+  "reference_node_sizes": {
+    "mean": 62.05,
+    "std": 22.650551869656507,
+    "median": 66.5,
+    "min": 23.0,
+    "q05": 24.9,
+    "q95": 95.05,
+    "max": 96.0,
+    "cv": 0.3650370970129977
+  },
+  "reference_edge_counts": {
+    "mean": 61.05,
+    "std": 22.650551869656507,
+    "median": 65.5,
+    "min": 22.0,
+    "q05": 23.9,
+    "q95": 94.05,
+    "max": 95.0,
+    "cv": 0.37101641064138424
+  },
+  "validation_mean_edges_used_for_calibration": 45.4,
+  "calibrated_threshold": 0.9999896287918091,
+  "fixed_edge_budget": 45,
+  "cropped_pair_probability_near_0p5_fraction": {
+    "mean": 0.0027175488018770988,
+    "std": 0.007163327652800461,
+    "median": 0.0008958566629339306,
+    "min": 0.0,
+    "q05": 0.0,
+    "q95": 0.01,
+    "max": 0.1111111111111111,
+    "cv": 2.635951798860988
+  },
+  "modes": {
+    "full_threshold_0p5": {
+      "raw_edges_all_graphs": {
+        "mean": 271.567,
+        "std": 979.0779557885062,
+        "median": 28.0,
+        "min": 5.0,
+        "q05": 11.950000000000003,
+        "q95": 1713.699999999954,
+        "max": 4748.0,
+        "cv": 3.60529061258734
+      },
+      "lcc_edges_all_graphs": {
+        "mean": 265.373,
+        "std": 980.5584081894358,
+        "median": 20.0,
+        "min": 3.0,
+        "q05": 9.0,
+        "q95": 1713.699999999954,
+        "max": 4748.0,
+        "cv": 3.6950194940308014
+      },
+      "raw_nodes_all_graphs": {
+        "mean": 40.554,
+        "std": 26.440254991206118,
+        "median": 31.0,
+        "min": 7.0,
+        "q05": 13.0,
+        "q95": 98.0,
+        "max": 98.0,
+        "cv": 0.6519765002516673
+      },
+      "mean_raw_edges_across_rollouts": {
+        "mean": 271.567,
+        "std": 211.66144042078142,
+        "median": 271.42499999999995,
+        "min": 27.3,
+        "q05": 30.9425,
+        "q95": 709.2399999999999,
+        "max": 741.1,
+        "cv": 0.7794078088309014
+      }
+    },
+    "cropped_threshold_0p5": {
+      "raw_edges_all_graphs": {
+        "mean": 133.074,
+        "std": 531.6964213947655,
+        "median": 24.0,
+        "min": 5.0,
+        "q05": 11.0,
+        "q95": 297.59999999999854,
+        "max": 4555.0,
+        "cv": 3.995494397063028
+      },
+      "lcc_edges_all_graphs": {
+        "mean": 129.19,
+        "std": 532.4488012006412,
+        "median": 19.0,
+        "min": 3.0,
+        "q05": 9.0,
+        "q95": 297.59999999999854,
+        "max": 4555.0,
+        "cv": 4.121439749211558
+      },
+      "raw_nodes_all_graphs": {
+        "mean": 31.466,
+        "std": 19.371908630798362,
+        "median": 25.0,
+        "min": 7.0,
+        "q05": 12.0,
+        "q95": 74.0,
+        "max": 96.0,
+        "cv": 0.6156457328798818
+      },
+      "mean_raw_edges_across_rollouts": {
+        "mean": 133.07399999999998,
+        "std": 109.2111291215323,
+        "median": 93.875,
+        "min": 21.4,
+        "q05": 27.017500000000002,
+        "q95": 339.4325,
+        "max": 382.95,
+        "cv": 0.8206796904093385
+      }
+    },
+    "cropped_calibrated": {
+      "raw_edges_all_graphs": {
+        "mean": 45.401,
+        "std": 337.4379442193779,
+        "median": 3.0,
+        "min": 0.0,
+        "q05": 1.0,
+        "q95": 22.0,
+        "max": 4477.0,
+        "cv": 7.432390128397566
+      },
+      "lcc_edges_all_graphs": {
+        "mean": 44.536,
+        "std": 337.5296501109199,
+        "median": 2.0,
+        "min": 0.0,
+        "q05": 1.0,
+        "q95": 13.099999999999909,
+        "max": 4477.0,
+        "cv": 7.578804789629061
+      },
+      "raw_nodes_all_graphs": {
+        "mean": 7.508,
+        "std": 12.726348101478287,
+        "median": 4.0,
+        "min": 0.0,
+        "q05": 2.0,
+        "q95": 25.049999999999955,
+        "max": 96.0,
+        "cv": 1.6950383725996652
+      },
+      "mean_raw_edges_across_rollouts": {
+        "mean": 45.401,
+        "std": 70.25838205509717,
+        "median": 7.8,
+        "min": 2.5,
+        "q05": 2.9175,
+        "q95": 216.62499999999997,
+        "max": 249.15,
+        "cv": 1.5475073688926932
+      }
+    },
+    "cropped_fixed_budget": {
+      "raw_edges_all_graphs": {
+        "mean": 45.0,
+        "std": 0.0,
+        "median": 45.0,
+        "min": 45.0,
+        "q05": 45.0,
+        "q95": 45.0,
+        "max": 45.0,
+        "cv": 0.0
+      },
+      "lcc_edges_all_graphs": {
+        "mean": 38.098,
+        "std": 8.07727652120441,
+        "median": 41.0,
+        "min": 10.0,
+        "q05": 20.0,
+        "q95": 45.0,
+        "max": 45.0,
+        "cv": 0.2120131377291304
+      },
+      "raw_nodes_all_graphs": {
+        "mean": 38.848,
+        "std": 7.973135894991381,
+        "median": 40.0,
+        "min": 22.0,
+        "q05": 23.0,
+        "q95": 51.0,
+        "max": 59.0,
+        "cv": 0.20523928889495935
+      },
+      "mean_raw_edges_across_rollouts": {
+        "mean": 45.0,
+        "std": 0.0,
+        "median": 45.0,
+        "min": 45.0,
+        "q05": 45.0,
+        "q95": 45.0,
+        "max": 45.0,
+        "cv": 0.0
+      }
+    }
+  }
+}

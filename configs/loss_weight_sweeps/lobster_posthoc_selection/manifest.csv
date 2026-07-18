@@ -13,3 +13,7 @@ configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m0
 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m0p1_both.yaml,40/2000,both,3.0,8.0,0.1,constant_1
 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_original.yaml,40/2000,original,3.0,8.0,1.0,constant_1
 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_both.yaml,40/2000,both,3.0,8.0,1.0,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m0p1_literals.yaml,40/2000,literals,1.0,1.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m10_literals.yaml,40/2000,literals,1.0,1.0,10.0,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n1_e1_m0p1_literals.yaml,1/1,literals,1.0,1.0,0.1,constant_1
+configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n1_e1_m10_literals.yaml,1/1,literals,1.0,1.0,10.0,constant_1

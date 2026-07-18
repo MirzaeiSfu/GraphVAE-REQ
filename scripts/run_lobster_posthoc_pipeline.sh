@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Complete the three Lobster sweep waves, collect them, and run leakage-free
-# post-training checkpoint selection. Wave 1 may already be active.
+# post-training checkpoint selection. Earlier waves may already be complete.
 
 DATE_PREFIX="${DATE_PREFIX:-20260714}"
 REPO_PATHS="${REPO_PATHS:-CLUSTER_REPO_PATHS_LOBSTER_POSTHOC.txt}"
@@ -103,7 +103,7 @@ collect_wave wave1 "$W1_ROOT"
 wait_for_wave wave2 CLUSTER_GPU_CONFIGS_LOBSTER_POSTHOC_WAVE2.txt "$W2_ROOT"
 collect_wave wave2 "$W2_ROOT"
 wait_for_wave wave3 CLUSTER_GPU_CONFIGS_LOBSTER_POSTHOC_WAVE3.txt "$W3_ROOT"
-collect_wave wave3 "$W3_ROOT" CLUSTER_REPO_PATHS_LOBSTER_POSTHOC_WAVE3.txt
+collect_wave wave3 "$W3_ROOT"
 
 "$SELECTOR_PYTHON" scripts/select_lobster_checkpoints.py \
   --runs-root "$COLLECT_ROOT/$DATE_PREFIX/lobster_posthoc_sweep_wave1" \

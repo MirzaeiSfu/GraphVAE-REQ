@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resample saved Grid GraphVAE checkpoints after training.
+"""Resample saved GraphVAE checkpoints after training.
 
 This script loads already-trained checkpoint state_dict files, generates
 multiple graph sets from each checkpoint, and reports Table 2 MMD statistics
@@ -36,8 +36,8 @@ except ImportError as exc:  # pragma: no cover - runtime environment guard
 
 from GlobalProperties import kernel  # noqa: E402
 from model import AveEncoder, GraphTransformerDecoder_FC, kernelGVAE  # noqa: E402
+from ranking_score import PAPER_TABLE2_BY_DATASET, table2_denominators  # noqa: E402
 from reproduce_table2_grid import (  # noqa: E402
-    PAPER_TABLE2_BY_DATASET,
     compute_table2_metrics,
     locked_orca_tmp,
     to_graphs,
@@ -385,7 +385,7 @@ def edge_stats(graphs: list[nx.Graph], threshold: float) -> dict:
 
 
 def normalized_table2_score(metrics: dict[str, float], dataset: str) -> float:
-    paper = PAPER_TABLE2_BY_DATASET[dataset]["GraphVAE"]
+    paper = table2_denominators(dataset, "GraphVAE")
     return float(np.mean([metrics[metric] / paper[metric] for metric in TABLE2_METRICS]))
 
 
@@ -437,7 +437,7 @@ def summarize_samples(samples: list[dict]) -> dict:
 
 def write_markdown_report(output_dir: Path, payload: dict):
     lines = [
-        "# Grid Checkpoint Resampling",
+        "# GraphVAE Checkpoint Resampling",
         "",
         "Lower is better for all MMD metrics and normalized scores.",
         "",
@@ -581,8 +581,26 @@ def main():
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--samples", type=int, default=10)
+    parser.add_argument(
+        "--validation-samples",
+        type=int,
+        default=None,
+        help="Validation rollout count; defaults to --samples.",
+    )
+    parser.add_argument(
+        "--test-samples",
+        type=int,
+        default=None,
+        help="Held-out test rollout count; defaults to --samples.",
+    )
     parser.add_argument("--seed", type=int, default=12345)
     parser.add_argument("--device", default=None)
+    parser.add_argument(
+        "--dataset-cache-dir",
+        type=Path,
+        default=None,
+        help="Optional dataset-cache directory override for archived/relocated runs.",
+    )
     parser.add_argument(
         "--dense-definition",
         choices=DENSE_DEFINITIONS,
@@ -616,8 +634,13 @@ def main():
 
     config = load_config(args.config)
     dataset = config["dataset"].upper()
-    if dataset != "GRID":
-        raise ValueError("This post-training script currently supports GRID only.")
+    if dataset not in PAPER_TABLE2_BY_DATASET:
+        supported = ", ".join(sorted(PAPER_TABLE2_BY_DATASET))
+        raise ValueError(
+            f"No Table 2 normalization constants for {dataset!r}; supported: {supported}."
+        )
+    if args.dataset_cache_dir is not None:
+        config["dataset_cache_dir"] = str(args.dataset_cache_dir)
 
     if args.output_dir is None:
         output_dir = args.run_dir / "resampling_eval"
@@ -628,6 +651,12 @@ def main():
     device_name = args.device or config.get("device", "cuda:0")
     device = torch.device(device_name if torch.cuda.is_available() else "cpu")
     cache = load_cached_dataset(config)
+    split_sample_counts = {
+        "validation": args.samples if args.validation_samples is None else args.validation_samples,
+        "test": args.samples if args.test_samples is None else args.test_samples,
+    }
+    if any(count <= 0 for count in split_sample_counts.values()):
+        raise ValueError(f"Rollout counts must be positive: {split_sample_counts}")
 
     if args.checkpoint:
         checkpoints = [parse_checkpoint_arg(checkpoint) for checkpoint in args.checkpoint]
@@ -654,11 +683,11 @@ def main():
     payload = {
         "config": str(args.config),
         "run_dir": str(args.run_dir),
-        "samples_per_split": args.samples,
+        "samples_per_split": split_sample_counts,
         "seed": args.seed,
         "device": str(device),
         "score_mode": "normalized_table2",
-        "score_denominators": PAPER_TABLE2_BY_DATASET[dataset]["GraphVAE"],
+        "score_denominators": table2_denominators(dataset, "GraphVAE"),
         "dense_definition": args.dense_definition,
         "dense_edge_threshold": dense_edge_thresholds,
         "reference_edge_mean": reference_edge_mean,
@@ -689,7 +718,8 @@ def main():
             }
             for split_index, (split_name, reference_graphs) in enumerate(splits.items()):
                 split_samples = []
-                for sample_index in range(args.samples):
+                sample_count = split_sample_counts[split_name]
+                for sample_index in range(sample_count):
                     sample_seed = args.seed + split_index * 100000 + sample_index
                     random.seed(sample_seed)
                     np.random.seed(sample_seed)
@@ -714,7 +744,7 @@ def main():
                         "raw_edge_stats": edge_stats(raw_graphs, dense_edge_thresholds[split_name]),
                     })
                     print(
-                        f"[Resample] {checkpoint_name}/{split_name} sample {sample_index + 1}/{args.samples}: "
+                        f"[Resample] {checkpoint_name}/{split_name} sample {sample_index + 1}/{sample_count}: "
                         f"score={score:.6f}"
                     )
 

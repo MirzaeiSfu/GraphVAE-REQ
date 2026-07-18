@@ -1,7 +1,5 @@
-# Lobster post-training sweep wave 3.
+# Lobster post-hoc literal-only additions.
 
-cs-cl-09 1 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_original.yaml
-cs-cl-16 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n3_e8_m1_both.yaml
 cs-cl-13 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m0p1_literals.yaml
 cs-cl-17 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_kia40_2000_n1_e1_m10_literals.yaml
 cs-cl-18 0 configs/loss_weight_sweeps/lobster_posthoc_selection/lobster_plain1_1_n1_e1_m0p1_literals.yaml

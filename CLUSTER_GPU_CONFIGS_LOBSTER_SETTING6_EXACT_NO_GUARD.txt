@@ -1,0 +1,5 @@
+# HOST GPU CONFIG_YAML
+# Rep 1 is placed on cs-cl-19 GPU 1 to mirror the old setting-6 source host/GPU.
+cs-cl-19 1 configs/reproductions/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep1.yaml
+cs-cl-26 0 configs/reproductions/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep2.yaml
+cs-cl-09 1 configs/reproductions/lobster_setting6_exact_no_guard/lobster_setting6_exact_no_guard_rep3.yaml
