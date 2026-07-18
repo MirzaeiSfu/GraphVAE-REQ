@@ -38,6 +38,7 @@ from util import *
 from motif_counting.motif_store import RuleBasedMotifStore, get_motif_pickle_path
 from motif_counting.motif_counter import RelationalMotifCounter
 from motif_counting.motif_loss_utils import (
+    compute_calibrated_gaussian_motif_matrix_loss,
     compute_hard_motif_metrics,
     compute_masked_motif_loss,
     compute_motif_loss,
@@ -967,7 +968,9 @@ parser.add_argument(
     help=(
         'Representation returned by the final motif matrix chain. count sums '
         'all matrix entries into one scalar per motif (existing behavior); '
-        'matrix retains padded N_max x N_max results for a custom matrix loss.'
+        'matrix retains padded N_max x N_max results and applies a Kia-MM-style '
+        'calibrated Gaussian loss independently to every motif matrix, then '
+        'globally averages those per-motif losses.'
     ),
 )
 parser.add_argument(
@@ -999,7 +1002,8 @@ parser.add_argument(
     help=(
         'Motif loss variant: symmetric abs(log-ratio), squared log-ratio, '
         'or calibrated_gaussian for Kia-MM style Gaussian NLL '
-        'with per-motif sigma estimated from minibatch RMSE.'
+        'with per-motif sigma estimated from minibatch RMSE. Matrix output '
+        'requires calibrated_gaussian.'
     )
 )
 # Motif-temperature annealing only affects motif counting, not the main
@@ -1384,6 +1388,16 @@ train_batch_size = args.train_batch_size
 use_motif_loss = args.motif_loss
 motif_output_mode = args.motif_output_mode
 motif_loss_mode = args.motif_loss_mode
+if (
+    use_motif_loss
+    and motif_output_mode == 'matrix'
+    and motif_loss_mode != 'calibrated_gaussian'
+):
+    raise ValueError(
+        "motif_output_mode=matrix currently implements the Kia-MM calibrated "
+        "Gaussian objective and therefore requires "
+        "motif_loss_mode=calibrated_gaussian."
+    )
 motif_temperature_start = max(float(args.motif_temperature_start), 1e-3)
 motif_temperature_end = max(float(args.motif_temperature_end), 1e-3)
 motif_temperature_anneal_start_frac = min(
@@ -2808,25 +2822,72 @@ for epoch in range(epoch_number):
                             "Observed and reconstructed motif matrix masks do not match."
                         )
 
-                    # TODO(matrix-motif-loss): Define the new loss over every
-                    # valid element of the final matrix-chain results. Both
-                    # tensors are (B, num_motifs, N_max, N_max), and the shared
-                    # mask is (num_motifs, N_max, N_max). The reconstructed
-                    # tensor remains attached to the autograd graph.
-                    #
-                    # current_motif_loss = compute_motif_matrix_loss(
-                    #     observed_matrices=observed_motif_matrices,
-                    #     predicted_matrices=current_recon_matrices,
-                    #     valid_mask=current_recon_matrix_mask,
-                    # )
-                    #
-                    # Intentionally zero until the matrix-valued objective is
-                    # designed. This keeps the experimental config runnable
-                    # without silently falling back to summed motif counts.
-                    current_motif_loss = reconstructed_adj_logit.new_zeros(())
+                    # Kia-MM treats every P^s matrix as its own statistic: it
+                    # calibrates one sigma from all entries in that statistic
+                    # and averages its Gaussian NLL over those entries. Do the
+                    # same independently for every motif matrix, excluding only
+                    # artificial stack padding. Unlike Kia's eight-statistic
+                    # outer sum, average over motifs because rule sets can
+                    # contain many more motif matrices.
+                    per_motif_matrix_loss = (
+                        compute_calibrated_gaussian_motif_matrix_loss(
+                            observed_matrices=observed_motif_matrices,
+                            predicted_matrices=current_recon_matrices,
+                            valid_mask=current_recon_matrix_mask,
+                            reduction='none',
+                        )
+                    )
+                    if per_motif_matrix_loss.numel() == 0:
+                        current_motif_loss = reconstructed_adj_logit.new_zeros(())
+                    else:
+                        current_motif_loss = per_motif_matrix_loss.mean()
                     current_non_literal_motif_loss = current_motif_loss
-                    current_syntactic_literal_motif_loss = current_motif_loss
-                    current_weighted_motif_loss_term = current_motif_loss
+                    current_syntactic_literal_motif_loss = reconstructed_adj_logit.new_zeros(())
+                    current_weighted_motif_loss_term = (
+                        alpha_motif_loss * current_motif_loss
+                    )
+
+                    if syntactic_literal_rule_mode == 'literals':
+                        current_syntactic_literal_motif_loss = current_motif_loss
+                        current_non_literal_motif_loss = reconstructed_adj_logit.new_zeros(())
+                        current_weighted_motif_loss_term = (
+                            alpha_syntactic_literal_motif_loss
+                            * current_syntactic_literal_motif_loss
+                        )
+
+                    if (
+                        syntactic_literal_rule_mode == 'both'
+                        and motif_counter.num_syntactic_literal_motifs > 0
+                    ):
+                        syntactic_literal_mask = motif_counter.get_syntactic_literal_motif_mask(
+                            device=per_motif_matrix_loss.device
+                        )
+                        if syntactic_literal_mask.numel() != per_motif_matrix_loss.numel():
+                            raise RuntimeError(
+                                "Syntactic literal motif mask length does not match "
+                                "the number of matrix-valued motifs."
+                            )
+                        non_literal_mask = ~syntactic_literal_mask
+                        current_syntactic_literal_motif_loss = (
+                            per_motif_matrix_loss[syntactic_literal_mask].mean()
+                        )
+                        if non_literal_mask.any():
+                            current_non_literal_motif_loss = (
+                                per_motif_matrix_loss[non_literal_mask].mean()
+                            )
+                        else:
+                            current_non_literal_motif_loss = (
+                                reconstructed_adj_logit.new_zeros(())
+                            )
+                        # Apply group-specific per-motif weights, then divide by
+                        # the total motif count. This is a global weighted mean,
+                        # so a small rule group is not overrepresented.
+                        current_weighted_motif_loss_term = (
+                            alpha_motif_loss
+                            * per_motif_matrix_loss[non_literal_mask].sum()
+                            + alpha_syntactic_literal_motif_loss
+                            * per_motif_matrix_loss[syntactic_literal_mask].sum()
+                        ) / per_motif_matrix_loss.numel()
                     return (
                         current_motif_loss,
                         current_non_literal_motif_loss,

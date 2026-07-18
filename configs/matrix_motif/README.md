@@ -12,9 +12,19 @@ The mask marks the original cells of results whose natural shape is `1x1`,
 are stored on CPU, while reconstructed matrices remain differentiable on the
 training device.
 
-The matrix loss is intentionally disabled in `main.py`. Search for
-`TODO(matrix-motif-loss)` to define it using `observed_motif_matrices`,
-`current_recon_matrices`, and `current_recon_matrix_mask`.
+Matrix mode applies Kia's GraphVAE-MM calibrated Gaussian objective. Each motif
+matrix is treated as one independent graph statistic, analogous to one of
+`P^1,...,P^5`:
+
+1. Compute one minibatch RMSE `sigma_u` over all valid entries of motif `u`.
+2. Average the Gaussian negative log-likelihood over those entries.
+3. Average the independently normalized losses over motifs.
+
+The validity mask excludes only artificial bottom/right padding. The global
+motif average keeps the objective scale stable when pruning changes the number
+of selected motifs. With separate regular/literal weights, the weighted losses
+are still divided by the total motif count rather than averaging each group
+independently.
 
 Run the configuration with:
 

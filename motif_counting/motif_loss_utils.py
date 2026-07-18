@@ -67,6 +67,120 @@ def compute_calibrated_gaussian_motif_loss(
     return per_entry_nll.mean()
 
 
+def compute_calibrated_gaussian_motif_matrix_loss(
+    observed_matrices,
+    predicted_matrices,
+    valid_mask,
+    min_log_sigma=-6.0,
+    eps=1e-12,
+    reduction="mean",
+):
+    """
+    Compute Kia-MM calibrated Gaussian NLLs for matrix-valued motifs.
+
+    Every motif matrix is treated as a separate graph statistic, just as Kia's
+    GraphVAE-MM treats each transition matrix P^1, ..., P^5 separately. For
+    motif ``u``, one sigma_u is calibrated from the minibatch RMSE over every
+    valid spatial entry. The Gaussian NLL is then averaged over those same
+    entries. The default ``mean`` reduction averages the per-motif losses so
+    the objective scale stays stable when a rule set contains many motifs.
+    ``sum`` remains available to reproduce GraphVAE-MM's outer reduction.
+
+    ``valid_mask`` excludes only the artificial bottom/right padding used to
+    stack naturally shaped 1x1, 1xN, Nx1, and NxN motif results.
+
+    Parameters
+    ----------
+    observed_matrices, predicted_matrices : torch.Tensor
+        Shape ``(B, M, N_max, N_max)``.
+    valid_mask : torch.Tensor
+        Boolean-compatible tensor with shape ``(M, N_max, N_max)``.
+    reduction : str
+        ``"mean"`` averages over motif statistics, ``"sum"`` reproduces
+        Kia's outer sum, and ``"none"`` returns the ``(M,)`` vector of
+        independently calibrated losses so callers can weight motif groups.
+    """
+    if observed_matrices.shape != predicted_matrices.shape:
+        raise ValueError(
+            f"Shape mismatch: observed {tuple(observed_matrices.shape)} vs "
+            f"predicted {tuple(predicted_matrices.shape)}"
+        )
+    if observed_matrices.ndim != 4:
+        raise ValueError(
+            "Expected motif matrices with shape (B, M, N_max, N_max), "
+            f"got {tuple(observed_matrices.shape)}."
+        )
+    if tuple(valid_mask.shape) != tuple(observed_matrices.shape[1:]):
+        raise ValueError(
+            "Motif matrix mask shape must match (M, N_max, N_max): "
+            f"mask={tuple(valid_mask.shape)}, "
+            f"matrices={tuple(observed_matrices.shape)}."
+        )
+    if reduction not in {"mean", "sum", "none"}:
+        raise ValueError(
+            f"Unknown motif matrix loss reduction: {reduction}. "
+            "Expected 'mean', 'sum', or 'none'."
+        )
+
+    batch_size, num_motifs = observed_matrices.shape[:2]
+    if batch_size == 0:
+        raise ValueError("Cannot calibrate motif matrix loss from an empty batch.")
+    if num_motifs == 0:
+        per_motif_loss = predicted_matrices.new_empty((0,))
+        if reduction == "none":
+            return per_motif_loss
+        return predicted_matrices.sum() * 0.0
+
+    valid_mask = valid_mask.to(
+        device=predicted_matrices.device,
+        dtype=torch.bool,
+    )
+    valid_spatial_count = valid_mask.sum(dim=(1, 2))
+    if (valid_spatial_count == 0).any():
+        invalid_indices = torch.nonzero(
+            valid_spatial_count == 0,
+            as_tuple=False,
+        ).flatten().detach().cpu().tolist()
+        raise ValueError(
+            "Every motif matrix must contain at least one valid entry; "
+            f"empty masks found for motif indices {invalid_indices}."
+        )
+
+    residual = observed_matrices - predicted_matrices
+    broadcast_mask = valid_mask.unsqueeze(0)
+    masked_residual = torch.where(
+        broadcast_mask,
+        residual,
+        torch.zeros((), dtype=residual.dtype, device=residual.device),
+    )
+
+    valid_entry_count = valid_spatial_count.to(residual.dtype) * batch_size
+    squared_error_sum = masked_residual.pow(2).sum(dim=(0, 2, 3))
+    mse_by_motif = squared_error_sum / valid_entry_count
+    # Clamp before sqrt so an exact match has a finite zero gradient. Clamping
+    # the RMSE after sqrt preserves the forward value but leaves sqrt'(0)=inf,
+    # which can produce NaN gradients through the calibrated sigma path.
+    rmse_by_motif = mse_by_motif.clamp_min(float(eps) ** 2).sqrt()
+    log_sigma = torch.log(rmse_by_motif)
+    log_sigma = _softclip_min(log_sigma, float(min_log_sigma))
+
+    # Reduce the Gaussian NLL algebraically instead of materializing another
+    # (B, M, N_max, N_max) tensor, which matters for matrix-mode memory use.
+    per_motif_loss = (
+        0.5
+        * squared_error_sum
+        / (torch.exp(2.0 * log_sigma) * valid_entry_count)
+        + log_sigma
+        + 0.5 * math.log(2.0 * math.pi)
+    )
+
+    if reduction == "none":
+        return per_motif_loss
+    if reduction == "mean":
+        return per_motif_loss.mean()
+    return per_motif_loss.sum()
+
+
 def compute_motif_loss_asymmetric(observed_counts, predicted_counts, loss_mode="abs_log_ratio"):
     """
     Legacy asymmetric motif loss.

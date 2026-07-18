@@ -2,9 +2,8 @@
 #
 # This starts from the existing LOBSTER Table 2 GraphVAE + motif setup, but
 # motif_output_mode=matrix replaces each scalar motif count with a padded
-# [N_max, N_max] matrix. The matrix-valued motif loss is intentionally disabled
-# in main.py until a new objective is designed; training currently uses only
-# the normal GraphVAE, node-feature, and edge-feature loss terms.
+# [N_max, N_max] matrix. Every motif matrix receives the same calibrated
+# Gaussian statistic loss that GraphVAE-MM applies independently to P^1,...,P^5.
 
 data:
   dataset: LOBSTER
@@ -45,7 +44,7 @@ motif:
   motif_output_mode: matrix
   use_syntactic_literal_rules: false
   syntactic_literal_rule_mode: original
-  # Kept for CLI compatibility. It is not used until the matrix loss exists.
+  # Matrix mode uses the Kia-MM calibrated Gaussian objective exclusively.
   motif_loss_mode: calibrated_gaussian
   motif_temperature_start: 1.0
   motif_temperature_end: 1.0
@@ -59,8 +58,8 @@ loss:
   alpha_kernel_cost: 1.0
   alpha_node_feat: 1.0
   alpha_edge_feat: 1.0
-  # The custom matrix-valued motif loss is intentionally not defined yet.
-  alpha_motif_loss: 0.0
+  # Shared weight applied after globally averaging the per-motif matrix losses.
+  alpha_motif_loss: 1.0
   alpha_syntactic_literal_motif_loss: 0.0
   alpha_adj_recon: 0.0
 
