@@ -46,12 +46,20 @@ experiment:
 #===============================
 motif:
   motif_loss: false
-  # count: existing scalar motif counts; matrix: retain each final matrix-chain
-  # result as a padded [N_max, N_max] tensor for a custom matrix-valued loss.
-  motif_output_mode: count
+  # full_matrix, row_column_marginals, marginal_histogram, or total_count.
+  # Legacy matrix/count names remain accepted as aliases.
+  motif_output_mode: total_count
+  # null inherits motif_output_mode / motif_loss_mode. Set these independently
+  # to use different statistics for original and syntactic-literal motifs.
+  non_literal_motif_output_mode: null
+  syntactic_literal_motif_output_mode: null
+  motif_histogram_num_bins: 16
+  motif_histogram_smoothing: 0.25
   use_syntactic_literal_rules: true
   syntactic_literal_rule_mode: both
   motif_loss_mode: abs_log_ratio
+  non_literal_motif_loss_mode: null
+  syntactic_literal_motif_loss_mode: null
   motif_temperature_start: 1.0
   motif_temperature_end: 0.5
   motif_temperature_anneal_start_frac: 0.5
@@ -71,6 +79,7 @@ loss:
   alpha_node_feat: 1.0
   alpha_edge_feat: 1.0
   alpha_motif_loss: 0.0
+  alpha_syntactic_literal_motif_loss: null
   use_graphvae_mm_bce_kl_weights: false
   alpha_adj_recon: 0.0
 

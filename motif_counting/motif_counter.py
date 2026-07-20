@@ -8,9 +8,19 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Tuple, Any, Optional, Union
 
+from motif_counting.motif_representations import (
+    MOTIF_OUTPUT_MODES,
+    canonicalize_motif_output_mode,
+    compute_total_motif_count,
+    pad_full_motif_matrix,
+    represent_full_motif_matrices,
+)
 
-MOTIF_OUTPUT_MODES = {"count", "matrix"}
-MotifBatchResult = Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]
+MotifBatchResult = Union[
+    torch.Tensor,
+    Tuple[torch.Tensor, torch.Tensor],
+    Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]],
+]
 
 
 def get_motif_cache_dir(args=None) -> Path:
@@ -225,23 +235,32 @@ class RelationalMotifCounter:
         preprocessor: 'DataPreprocessor',
         batch_size: int = 1000,
         selected_rules_values: Optional[Dict] = None,
-        output_mode: str = "count",
+        output_mode: str = "total_count",
         detach_to_cpu: bool = False,
+        histogram_num_bins: int = 16,
+        histogram_smoothing: float = 0.25,
+        histogram_spec: Optional[Dict[str, torch.Tensor]] = None,
     ) -> MotifBatchResult:
         """
         Evaluate motifs for all graphs via batched GPU tensor ops.
 
-        ``output_mode="count"`` preserves the original behavior and returns a
-        ``(num_graphs, num_motifs)`` tensor. Each entry is the sum of every
-        spatial element in that motif's final matrix-chain result.
+        The counting algorithm always materializes the canonical padded full
+        matrices first. ``output_mode`` is only a compatibility convenience
+        that derives another representation after counting. Training can call
+        ``full_matrix`` once and choose representations later in the loss.
 
-        ``output_mode="matrix"`` does not perform that final sum. It returns
-        ``(matrices, valid_mask)`` where ``matrices`` has shape
-        ``(num_graphs, num_motifs, N_max, N_max)`` and ``valid_mask`` has shape
-        ``(num_motifs, N_max, N_max)``. Final results such as ``(B, 1, 1)``,
-        ``(B, 1, N)`` and ``(B, N, 1)`` are zero-padded on the bottom/right so
-        all motifs can be stacked without discarding matrix entries. The mask
-        identifies the unpadded cells for a future matrix-valued loss.
+        Canonical ``output_mode`` values are:
+
+        * ``total_count``: one scalar per graph/motif, summed over all entries;
+        * ``full_matrix``: padded ``N_max x N_max`` results plus a valid mask;
+        * ``row_column_marginals``: shape-aware row/column sums with shape
+          ``(B, M, 2, N_max)`` plus a valid mask;
+        * ``marginal_histogram``: soft histograms of those marginals with shape
+          ``(B, M, 2, histogram_num_bins)``, their mask, and the fixed histogram
+          specification used for both observed and reconstructed graphs.
+
+        Legacy ``count`` and ``matrix`` names remain aliases for
+        ``total_count`` and ``full_matrix`` respectively.
 
         No .item() is called anywhere in either path — gradient flows intact
         through all bmm and padding operations back to the adjacency tensors.
@@ -254,22 +273,20 @@ class RelationalMotifCounter:
         preprocessor : DataPreprocessor
         batch_size   : graphs per GPU mini-batch
         selected_rules_values : dict, optional — subset of rules to count
-        output_mode  : ``count`` for scalar counts or ``matrix`` for full final
-                       matrix-chain results
+        output_mode  : motif statistic representation; see above
         detach_to_cpu: detach each completed graph batch and collect it on CPU;
                        intended for fixed real-data targets, never predictions
+        histogram_num_bins: number of soft bins for ``marginal_histogram``
+        histogram_smoothing: sigmoid-boundary temperature as a fraction of bin width
+        histogram_spec: observed-data bin edges/temperatures to reuse for predictions
 
         Returns
         -------
-        torch.Tensor  shape (num_graphs, num_motifs), or
-        tuple[torch.Tensor, torch.Tensor] for matrix mode
+        torch.Tensor for ``total_count``;
+        tuple[values, valid_mask] for matrix/marginal modes; or
+        tuple[histograms, valid_mask, histogram_spec] for histogram mode
         """
-        if output_mode not in MOTIF_OUTPUT_MODES:
-            raise ValueError(
-                f"Unknown motif output mode: {output_mode}. "
-                f"Expected one of {sorted(MOTIF_OUTPUT_MODES)}."
-            )
-
+        output_mode = canonicalize_motif_output_mode(output_mode)
         batch_tensors = []
         matrix_valid_mask = None
         total  = preprocessor.num_graphs
@@ -285,23 +302,19 @@ class RelationalMotifCounter:
 
             batch_result = self._iteration_function_batched(
                 feat_b, feat_onehot_b, edge_b, adj_b, fom, B, N_max,
-                selected_rules_values, output_mode=output_mode,
+                selected_rules_values,
             )
-
-            if output_mode == "matrix":
-                batch_result, batch_valid_mask = batch_result
-                if detach_to_cpu:
-                    batch_result = batch_result.detach().cpu()
-                    batch_valid_mask = batch_valid_mask.detach().cpu()
-                if matrix_valid_mask is None:
-                    matrix_valid_mask = batch_valid_mask
-                elif not torch.equal(matrix_valid_mask, batch_valid_mask):
-                    raise RuntimeError(
-                        "Motif matrix shapes changed between graph batches; "
-                        "cannot construct one consistent validity mask."
-                    )
-            elif detach_to_cpu:
+            batch_result, batch_valid_mask = batch_result
+            if detach_to_cpu:
                 batch_result = batch_result.detach().cpu()
+                batch_valid_mask = batch_valid_mask.detach().cpu()
+            if matrix_valid_mask is None:
+                matrix_valid_mask = batch_valid_mask
+            elif not torch.equal(matrix_valid_mask, batch_valid_mask):
+                raise RuntimeError(
+                    "Motif matrix shapes changed between graph batches; "
+                    "cannot construct one consistent validity mask."
+                )
 
             batch_tensors.append(batch_result)
 
@@ -320,10 +333,23 @@ class RelationalMotifCounter:
                 f"  ETA {self._fmt_time(eta_sec)}"
             )
 
-        values = torch.cat(batch_tensors, dim=0)
-        if output_mode == "matrix":
-            return values, matrix_valid_mask
-        return values                                                   # (num_graphs, num_motifs)
+        full_matrices = torch.cat(batch_tensors, dim=0)
+        if output_mode == "full_matrix":
+            return full_matrices, matrix_valid_mask
+
+        values, valid_mask, histogram_spec = represent_full_motif_matrices(
+            full_matrices=full_matrices,
+            matrix_mask=matrix_valid_mask,
+            output_mode=output_mode,
+            histogram_num_bins=histogram_num_bins,
+            histogram_smoothing=histogram_smoothing,
+            histogram_spec=histogram_spec,
+        )
+        if output_mode == "total_count":
+            return values
+        if output_mode == "marginal_histogram":
+            return values, valid_mask, histogram_spec
+        return values, valid_mask
 
     # ------------------------------------------------------------------
     # Batched iteration loop  (unified — fully differentiable)
@@ -339,15 +365,14 @@ class RelationalMotifCounter:
         B:                     int,
         N_max:                 int,
         selected_rules_values: Optional[Dict] = None,
-        output_mode:            str = "count",
     ) -> MotifBatchResult:
         """
-        Unified differentiable batched motif counting.
+        Return canonical padded full motif matrices and their validity masks.
 
-        Count mode returns ``(B, num_motifs)``. Matrix mode returns full padded
-        chain results ``(B, num_motifs, N_max, N_max)`` plus a shared validity
-        mask ``(num_motifs, N_max, N_max)``. Neither path calls ``.item()`` or
-        detaches, so gradients flow back to adjacency and feature tensors.
+        Representation reduction intentionally happens outside the counting
+        loop, allowing multiple group-specific losses to share this one result.
+        Neither path calls ``.item()`` or detaches, so gradients flow back to
+        adjacency and feature tensors.
 
         count_batch()               — call .detach() on result for display/inference
         training loss               — use result directly in F.mse_loss() etc.
@@ -364,12 +389,6 @@ class RelationalMotifCounter:
                 for table in range(len(self.rules))
                 for indexx, table_row in enumerate(self.values[table])
             ]
-
-        if output_mode not in MOTIF_OUTPUT_MODES:
-            raise ValueError(
-                f"Unknown motif output mode: {output_mode}. "
-                f"Expected one of {sorted(MOTIF_OUTPUT_MODES)}."
-            )
 
         motif_tensors: List[torch.Tensor] = []
         matrix_masks: List[torch.Tensor] = []
@@ -390,14 +409,12 @@ class RelationalMotifCounter:
             stacked = self._compute_stacked_matrices_batched(
                 sorted_, self.stack_indices[table], B
             )
-            if output_mode == "matrix":
-                result_matrix = self._compute_result_matrix_batched(stacked)
-                result, result_mask = self._pad_result_matrix_batched(
-                    result_matrix, N_max=N_max
-                )
-                matrix_masks.append(result_mask)
-            else:
-                result = self._compute_result_batched(stacked)          # (B,)
+            result_matrix = self._compute_result_matrix_batched(stacked)
+            result, result_mask = pad_full_motif_matrix(
+                result_matrix,
+                n_max=N_max,
+            )
+            matrix_masks.append(result_mask)
 
             motif_tensors.append(result)
 
@@ -405,18 +422,13 @@ class RelationalMotifCounter:
 
         if not motif_tensors:
             device = next(iter(adj_b.values())).device
-            if output_mode == "matrix":
-                return (
-                    torch.zeros(B, 0, N_max, N_max, dtype=torch.float32, device=device),
-                    torch.zeros(0, N_max, N_max, dtype=torch.bool, device=device),
-                )
-            # No rules matched — return zero tensor of shape (B, 0)
-            return torch.zeros(B, 0, dtype=torch.float32, device=device)
+            return (
+                torch.zeros(B, 0, N_max, N_max, dtype=torch.float32, device=device),
+                torch.zeros(0, N_max, N_max, dtype=torch.bool, device=device),
+            )
 
         values = torch.stack(motif_tensors, dim=1)
-        if output_mode == "matrix":
-            return values, torch.stack(matrix_masks, dim=0)
-        return values                                                   # (B, num_motifs)
+        return values, torch.stack(matrix_masks, dim=0)
 
     # ------------------------------------------------------------------
     # Batched state handlers
@@ -676,8 +688,7 @@ class RelationalMotifCounter:
         This is correct for all rule types.
         """
         result = self._compute_result_matrix_batched(stacked)
-        # Sum over all spatial dimensions, keep only the batch dimension
-        return result.reshape(result.shape[0], -1).sum(dim=1)         # (B,)
+        return compute_total_motif_count(result)
 
     def _compute_result_matrix_batched(
         self,
@@ -702,28 +713,7 @@ class RelationalMotifCounter:
         boolean mask is graph-independent because the chain shape is fixed by
         the rule rather than by a particular graph.
         """
-        if result.ndim != 3:
-            raise ValueError(
-                "Expected a batched motif matrix with shape (B, H, W), "
-                f"got {tuple(result.shape)}."
-            )
-
-        height, width = result.shape[1:]
-        if height > N_max or width > N_max:
-            raise ValueError(
-                "Motif matrix is larger than N_max: "
-                f"matrix={height}x{width}, N_max={N_max}."
-            )
-
-        padded = torch.nn.functional.pad(
-            result,
-            (0, N_max - width, 0, N_max - height),
-        )
-        valid_mask = torch.zeros(
-            N_max, N_max, dtype=torch.bool, device=result.device
-        )
-        valid_mask[:height, :width] = True
-        return padded, valid_mask
+        return pad_full_motif_matrix(result, n_max=N_max)
     # ------------------------------------------------------------------
     # Utility
     # ------------------------------------------------------------------

@@ -38,14 +38,24 @@ from util import *
 from motif_counting.motif_store import RuleBasedMotifStore, get_motif_pickle_path
 from motif_counting.motif_counter import RelationalMotifCounter
 from motif_counting.motif_loss_utils import (
-    compute_calibrated_gaussian_motif_matrix_loss,
     compute_hard_motif_metrics,
-    compute_masked_motif_loss,
-    compute_motif_loss,
     get_motif_temperature,
     get_reconstructed_adj_probs,
     summarize_hard_motif_threshold_sweep,
     summarize_single_graph_motif_counts,
+)
+from motif_counting.motif_objective import (
+    MOTIF_LOSS_MODES,
+    NON_LITERAL_MOTIF_GROUP,
+    SYNTACTIC_LITERAL_MOTIF_GROUP,
+    build_motif_group_objectives,
+    calibrate_group_histogram_specs,
+    compute_grouped_motif_loss,
+)
+from motif_counting.motif_representations import (
+    MOTIF_OUTPUT_MODE_CHOICES,
+    canonicalize_motif_output_mode,
+    represent_full_motif_matrices,
 )
 from motif_counting.sanity_check_compare import (
     compare_aggregated_counts_to_factorbase_detailed,
@@ -963,14 +973,49 @@ parser.add_argument('--motif_loss', type=str2bool, default=False)
 parser.add_argument(
     '--motif_output_mode',
     type=str,
-    default='count',
-    choices=['count', 'matrix'],
+    default='total_count',
+    choices=sorted(MOTIF_OUTPUT_MODE_CHOICES),
     help=(
-        'Representation returned by the final motif matrix chain. count sums '
-        'all matrix entries into one scalar per motif (existing behavior); '
-        'matrix retains padded N_max x N_max results and applies a Kia-MM-style '
-        'calibrated Gaussian loss independently to every motif matrix, then '
-        'globally averages those per-motif losses.'
+        'Motif statistic representation: full_matrix retains every valid matrix '
+        'entry; row_column_marginals retains both marginals for NxN results and '
+        'the non-singleton marginal for 1xN/Nx1 results; marginal_histogram '
+        'forms permutation-invariant soft histograms of those marginals; '
+        'total_count sums all entries. Legacy aliases: matrix and count.'
+    ),
+)
+parser.add_argument(
+    '--non_literal_motif_output_mode',
+    type=str,
+    default=None,
+    choices=sorted(MOTIF_OUTPUT_MODE_CHOICES),
+    help=(
+        'Representation for original/non-literal relational motifs. '
+        'Defaults to motif_output_mode.'
+    ),
+)
+parser.add_argument(
+    '--syntactic_literal_motif_output_mode',
+    type=str,
+    default=None,
+    choices=sorted(MOTIF_OUTPUT_MODE_CHOICES),
+    help=(
+        'Representation for syntactic-literal motifs. '
+        'Defaults to motif_output_mode.'
+    ),
+)
+parser.add_argument(
+    '--motif_histogram_num_bins',
+    type=int,
+    default=16,
+    help='Number of soft bins per marginal histogram; must be at least 2.',
+)
+parser.add_argument(
+    '--motif_histogram_smoothing',
+    type=float,
+    default=0.25,
+    help=(
+        'Histogram sigmoid-boundary temperature as a fraction of each '
+        'log-count bin width; must be greater than zero.'
     ),
 )
 parser.add_argument(
@@ -998,13 +1043,27 @@ parser.add_argument(
     '--motif_loss_mode',
     type=str,
     default='abs_log_ratio',
-    choices=['abs_log_ratio', 'squared_log_ratio', 'calibrated_gaussian'],
+    choices=sorted(MOTIF_LOSS_MODES),
     help=(
         'Motif loss variant: symmetric abs(log-ratio), squared log-ratio, '
         'or calibrated_gaussian for Kia-MM style Gaussian NLL '
-        'with per-motif sigma estimated from minibatch RMSE. Matrix output '
-        'requires calibrated_gaussian.'
+        'with per-motif sigma estimated from minibatch RMSE. Structured output '
+        'modes require calibrated_gaussian.'
     )
+)
+parser.add_argument(
+    '--non_literal_motif_loss_mode',
+    type=str,
+    default=None,
+    choices=sorted(MOTIF_LOSS_MODES),
+    help='Loss for original/non-literal motifs. Defaults to motif_loss_mode.',
+)
+parser.add_argument(
+    '--syntactic_literal_motif_loss_mode',
+    type=str,
+    default=None,
+    choices=sorted(MOTIF_LOSS_MODES),
+    help='Loss for syntactic-literal motifs. Defaults to motif_loss_mode.',
 )
 # Motif-temperature annealing only affects motif counting, not the main
 # reconstruction loss. Keep start=end=1.0 to disable it, or use a schedule like
@@ -1386,18 +1445,31 @@ train_batch_size = args.train_batch_size
 # Motif settings
 #===============================
 use_motif_loss = args.motif_loss
-motif_output_mode = args.motif_output_mode
+motif_output_mode = canonicalize_motif_output_mode(args.motif_output_mode)
+args.motif_output_mode = motif_output_mode
 motif_loss_mode = args.motif_loss_mode
-if (
-    use_motif_loss
-    and motif_output_mode == 'matrix'
-    and motif_loss_mode != 'calibrated_gaussian'
-):
-    raise ValueError(
-        "motif_output_mode=matrix currently implements the Kia-MM calibrated "
-        "Gaussian objective and therefore requires "
-        "motif_loss_mode=calibrated_gaussian."
-    )
+non_literal_motif_output_mode = canonicalize_motif_output_mode(
+    args.non_literal_motif_output_mode or motif_output_mode
+)
+syntactic_literal_motif_output_mode = canonicalize_motif_output_mode(
+    args.syntactic_literal_motif_output_mode or motif_output_mode
+)
+non_literal_motif_loss_mode = (
+    args.non_literal_motif_loss_mode or motif_loss_mode
+)
+syntactic_literal_motif_loss_mode = (
+    args.syntactic_literal_motif_loss_mode or motif_loss_mode
+)
+args.non_literal_motif_output_mode = non_literal_motif_output_mode
+args.syntactic_literal_motif_output_mode = syntactic_literal_motif_output_mode
+args.non_literal_motif_loss_mode = non_literal_motif_loss_mode
+args.syntactic_literal_motif_loss_mode = syntactic_literal_motif_loss_mode
+motif_histogram_num_bins = int(args.motif_histogram_num_bins)
+motif_histogram_smoothing = float(args.motif_histogram_smoothing)
+if motif_histogram_num_bins < 2:
+    raise ValueError("motif_histogram_num_bins must be at least 2.")
+if motif_histogram_smoothing <= 0.0:
+    raise ValueError("motif_histogram_smoothing must be greater than zero.")
 motif_temperature_start = max(float(args.motif_temperature_start), 1e-3)
 motif_temperature_end = max(float(args.motif_temperature_end), 1e-3)
 motif_temperature_anneal_start_frac = min(
@@ -1690,6 +1762,12 @@ print(
       f" kl={alpha[-1]}"
 )
 print("motif_loss_mode:" + str(motif_loss_mode))
+print(
+    "motif_group_objectives:"
+    + f" non_literal={non_literal_motif_output_mode}/{non_literal_motif_loss_mode},"
+      f" syntactic_literal={syntactic_literal_motif_output_mode}/"
+      f"{syntactic_literal_motif_loss_mode}"
+)
 print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
 print(
     "motif_temperature_anneal:"
@@ -1715,6 +1793,12 @@ logging.info(
       f" kl={alpha[-1]}"
 )
 logging.info("motif_loss_mode:" + str(motif_loss_mode))
+logging.info(
+    "motif_group_objectives:"
+    + f" non_literal={non_literal_motif_output_mode}/{non_literal_motif_loss_mode},"
+      f" syntactic_literal={syntactic_literal_motif_output_mode}/"
+      f"{syntactic_literal_motif_loss_mode}"
+)
 logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
 logging.info(
     "motif_temperature_anneal:"
@@ -2371,8 +2455,10 @@ else:
 
 
 #====================================================================================
-#region Motif Loss Setup: build motif store and precompute dataset motif counts
-# This block prepares motif-count targets used by the motif-loss term.
+#region Motif Loss Setup: build motif store and canonical full-matrix targets
+# Every group-specific representation is derived later from these same targets.
+motif_group_objectives = []
+motif_training_uses_only_total_counts = False
 if use_motif_loss:
     # Initializes the motif rule store (RuleBasedMotifStore).
     RuleBasedMotifStore(database_name=database_name, args=args) 
@@ -2409,83 +2495,104 @@ if use_motif_loss:
         device='cuda',
     )
 
-    if motif_output_mode == 'matrix':
-        if sanity_check or sanity_check_only:
-            raise ValueError(
-                "FactorBase sanity comparison requires motif_output_mode=count. "
-                "Matrix mode intentionally retains unsummed chain results."
-            )
+    # Resolve and validate active group objectives before the potentially
+    # expensive full-matrix target count.
+    motif_group_objectives = build_motif_group_objectives(
+        syntactic_literal_mask=motif_counter.get_syntactic_literal_motif_mask(),
+        non_literal_output_mode=non_literal_motif_output_mode,
+        non_literal_loss_mode=non_literal_motif_loss_mode,
+        non_literal_weight=alpha_motif_loss,
+        syntactic_literal_output_mode=syntactic_literal_motif_output_mode,
+        syntactic_literal_loss_mode=syntactic_literal_motif_loss_mode,
+        syntactic_literal_weight=alpha_syntactic_literal_motif_loss,
+    )
+    motif_full_matrices, motif_full_matrix_mask = motif_counter.count_batch(
+        wrapper,
+        batch_size=motif_batch_size,
+        output_mode='full_matrix',
+        detach_to_cpu=True,
+    )
+    list_graphs.motif_full_matrices = motif_full_matrices
+    list_graphs.motif_full_matrix_mask = motif_full_matrix_mask
+    full_target_summary = (
+        "MOTIF CANONICAL FULL-MATRIX TARGETS:"
+        f" values={tuple(motif_full_matrices.shape)},"
+        f" mask={tuple(motif_full_matrix_mask.shape)}"
+    )
+    print(full_target_summary)
+    logging.info(full_target_summary)
 
-        motif_matrices, motif_matrix_mask = motif_counter.count_batch(
-            wrapper,
-            batch_size=motif_batch_size,
-            output_mode='matrix',
-            detach_to_cpu=True,
+    motif_group_objectives = calibrate_group_histogram_specs(
+        observed_full_matrices=motif_full_matrices,
+        full_matrix_mask=motif_full_matrix_mask,
+        groups=motif_group_objectives,
+        histogram_num_bins=motif_histogram_num_bins,
+        histogram_smoothing=motif_histogram_smoothing,
+    )
+    motif_training_uses_only_total_counts = bool(motif_group_objectives) and all(
+        group.output_mode == 'total_count'
+        for group in motif_group_objectives
+    )
+    for group in motif_group_objectives:
+        group_summary = (
+            f"MOTIF GROUP {group.name}: motifs={group.num_motifs}, "
+            f"representation={group.output_mode}, loss={group.loss_mode}, "
+            f"weight={group.weight}"
         )
-        # Real-graph targets never need gradients. Keep the potentially large
-        # matrix tensor on CPU and transfer only the current training batch.
-        list_graphs.motif_matrices = motif_matrices
-        list_graphs.motif_matrix_mask = motif_matrix_mask
-        del motif_matrices, motif_matrix_mask
-        print(
-            "MOTIF MATRIX TARGETS:"
-            f" values={tuple(list_graphs.motif_matrices.shape)},"
-            f" mask={tuple(list_graphs.motif_matrix_mask.shape)}"
+        print(group_summary)
+        logging.info(group_summary)
+
+    # FactorBase comparison always uses total counts derived from the canonical
+    # matrices, regardless of the representations selected for training.
+    if sanity_check or sanity_check_only:
+        counts, _, _ = represent_full_motif_matrices(
+            full_matrices=motif_full_matrices,
+            matrix_mask=motif_full_matrix_mask,
+            output_mode='total_count',
         )
-        logging.info(
-            "MOTIF MATRIX TARGETS:"
-            f" values={tuple(list_graphs.motif_matrices.shape)},"
-            f" mask={tuple(list_graphs.motif_matrix_mask.shape)}"
-        )
-    else:
-        # Existing scalar-count representation.
-        counts = motif_counter.count_batch(wrapper, batch_size=motif_batch_size)
         list_graphs.motif_counts = counts
+        # Previous sanity-check output:
+        # aggregated = counts.sum(0)
+        # print(aggregated)
+        aggregated = motif_counter.aggregate_motif_counts(counts)
+        print("\n" + "=" * 80)
+        print("SANITY CHECK: AGGREGATED MOTIF COUNTS")
+        print("=" * 80)
+        print(aggregated)
 
-        # In sanity mode, sums counts across all samples and prints them for inspection.
-        if sanity_check or sanity_check_only:
-            # Previous sanity-check output:
-            # aggregated = counts.sum(0)
-            # print(aggregated)
-            aggregated = motif_counter.aggregate_motif_counts(counts)
-            print("\n" + "=" * 80)
-            print("SANITY CHECK: AGGREGATED MOTIF COUNTS")
-            print("=" * 80)
-            print(aggregated)
+        motif_counter.display_rules_and_motifs(aggregated)
 
-            motif_counter.display_rules_and_motifs(aggregated)
-
-            try:
-                matches_factorbase, mismatches = (
-                    compare_aggregated_counts_to_factorbase_detailed(
-                        aggregated_counts=aggregated,
-                        motif_counter=motif_counter,
-                        database_name=database_name,
-                    )
+        try:
+            matches_factorbase, mismatches = (
+                compare_aggregated_counts_to_factorbase_detailed(
+                    aggregated_counts=aggregated,
+                    motif_counter=motif_counter,
+                    database_name=database_name,
                 )
-                print("\n" + "=" * 80)
-                print("FACTORBASE LOCAL_MULT COMPARISON")
-                print("=" * 80)
-                print(f"Counts match database local_mult values: {matches_factorbase}")
-                if not matches_factorbase:
-                    print("First mismatches:")
-                    for mismatch in mismatches[:20]:
-                        print(f"  {mismatch}")
-                    if len(mismatches) > 20:
-                        print(f"  ... and {len(mismatches) - 20} more mismatches")
-            except Exception as exc:
-                print("\n[SanityCheck] FactorBase comparison could not be completed:")
-                print(f"  {exc}")
+            )
+            print("\n" + "=" * 80)
+            print("FACTORBASE LOCAL_MULT COMPARISON")
+            print("=" * 80)
+            print(f"Counts match database local_mult values: {matches_factorbase}")
+            if not matches_factorbase:
+                print("First mismatches:")
+                for mismatch in mismatches[:20]:
+                    print(f"  {mismatch}")
+                if len(mismatches) > 20:
+                    print(f"  ... and {len(mismatches) - 20} more mismatches")
+        except Exception as exc:
+            print("\n[SanityCheck] FactorBase comparison could not be completed:")
+            print(f"  {exc}")
 
-            if dataset == "PROTEINS":
-                print("\nCompare these counts against FactorBase local_mult columns in:")
-                print("  proteins_experiment_BN.`edges(nodes0,nodes1)_CP`")
-                print("  proteins_experiment_BN.`node_feature(nodes0)_CP`")
-                print("  proteins_experiment_BN.`node_feature(nodes1)_CP`")
+        if dataset == "PROTEINS":
+            print("\nCompare these counts against FactorBase local_mult columns in:")
+            print("  proteins_experiment_BN.`edges(nodes0,nodes1)_CP`")
+            print("  proteins_experiment_BN.`node_feature(nodes0)_CP`")
+            print("  proteins_experiment_BN.`node_feature(nodes1)_CP`")
 
-        if sanity_check_only:
-            print("\nSanity-check-only mode enabled; exiting before model training.")
-            raise SystemExit(0)
+    if sanity_check_only:
+        print("\nSanity-check-only mode enabled; exiting before model training.")
+        raise SystemExit(0)
 #endregion
 #====================================================================================
 
@@ -2785,13 +2892,18 @@ for epoch in range(epoch_number):
         motif_temperature_guard_proposed = motif_temperature
         if use_motif_loss:
             observed_motif_counts = None
-            observed_motif_matrices = None
-            observed_motif_matrix_mask = None
-            if motif_output_mode == 'matrix':
-                observed_motif_matrices = list_graphs.motif_matrices[from_:batch_end].to(device)
-                observed_motif_matrix_mask = list_graphs.motif_matrix_mask.to(device)
-            else:
-                observed_motif_counts = list_graphs.motif_counts[from_:batch_end].to(device)
+            observed_motif_full_matrices = (
+                list_graphs.motif_full_matrices[from_:batch_end].to(device)
+            )
+            observed_motif_full_matrix_mask = (
+                list_graphs.motif_full_matrix_mask.to(device)
+            )
+            if motif_training_uses_only_total_counts:
+                observed_motif_counts, _, _ = represent_full_motif_matrices(
+                    full_matrices=observed_motif_full_matrices,
+                    matrix_mask=observed_motif_full_matrix_mask,
+                    output_mode='total_count',
+                )
 
             def motif_losses_at_temperature(current_motif_temperature):
                 current_recon_wrapper = ReconstructedDataWrapper(
@@ -2807,161 +2919,42 @@ for epoch in range(epoch_number):
                     prob_temperature=current_motif_temperature,
                     device=device,
                 )
-
-                if motif_output_mode == 'matrix':
-                    current_recon_matrices, current_recon_matrix_mask = motif_counter.count_batch(
-                        current_recon_wrapper,
-                        batch_size=motif_batch_size,
-                        output_mode='matrix',
-                    )
-                    if not torch.equal(
-                        observed_motif_matrix_mask,
-                        current_recon_matrix_mask,
-                    ):
-                        raise RuntimeError(
-                            "Observed and reconstructed motif matrix masks do not match."
-                        )
-
-                    # Kia-MM treats every P^s matrix as its own statistic: it
-                    # calibrates one sigma from all entries in that statistic
-                    # and averages its Gaussian NLL over those entries. Do the
-                    # same independently for every motif matrix, excluding only
-                    # artificial stack padding. Unlike Kia's eight-statistic
-                    # outer sum, average over motifs because rule sets can
-                    # contain many more motif matrices.
-                    per_motif_matrix_loss = (
-                        compute_calibrated_gaussian_motif_matrix_loss(
-                            observed_matrices=observed_motif_matrices,
-                            predicted_matrices=current_recon_matrices,
-                            valid_mask=current_recon_matrix_mask,
-                            reduction='none',
-                        )
-                    )
-                    if per_motif_matrix_loss.numel() == 0:
-                        current_motif_loss = reconstructed_adj_logit.new_zeros(())
-                    else:
-                        current_motif_loss = per_motif_matrix_loss.mean()
-                    current_non_literal_motif_loss = current_motif_loss
-                    current_syntactic_literal_motif_loss = reconstructed_adj_logit.new_zeros(())
-                    current_weighted_motif_loss_term = (
-                        alpha_motif_loss * current_motif_loss
-                    )
-
-                    if syntactic_literal_rule_mode == 'literals':
-                        current_syntactic_literal_motif_loss = current_motif_loss
-                        current_non_literal_motif_loss = reconstructed_adj_logit.new_zeros(())
-                        current_weighted_motif_loss_term = (
-                            alpha_syntactic_literal_motif_loss
-                            * current_syntactic_literal_motif_loss
-                        )
-
-                    if (
-                        syntactic_literal_rule_mode == 'both'
-                        and motif_counter.num_syntactic_literal_motifs > 0
-                    ):
-                        syntactic_literal_mask = motif_counter.get_syntactic_literal_motif_mask(
-                            device=per_motif_matrix_loss.device
-                        )
-                        if syntactic_literal_mask.numel() != per_motif_matrix_loss.numel():
-                            raise RuntimeError(
-                                "Syntactic literal motif mask length does not match "
-                                "the number of matrix-valued motifs."
-                            )
-                        non_literal_mask = ~syntactic_literal_mask
-                        current_syntactic_literal_motif_loss = (
-                            per_motif_matrix_loss[syntactic_literal_mask].mean()
-                        )
-                        if non_literal_mask.any():
-                            current_non_literal_motif_loss = (
-                                per_motif_matrix_loss[non_literal_mask].mean()
-                            )
-                        else:
-                            current_non_literal_motif_loss = (
-                                reconstructed_adj_logit.new_zeros(())
-                            )
-                        # Apply group-specific per-motif weights, then divide by
-                        # the total motif count. This is a global weighted mean,
-                        # so a small rule group is not overrepresented.
-                        current_weighted_motif_loss_term = (
-                            alpha_motif_loss
-                            * per_motif_matrix_loss[non_literal_mask].sum()
-                            + alpha_syntactic_literal_motif_loss
-                            * per_motif_matrix_loss[syntactic_literal_mask].sum()
-                        ) / per_motif_matrix_loss.numel()
-                    return (
-                        current_motif_loss,
-                        current_non_literal_motif_loss,
-                        current_syntactic_literal_motif_loss,
-                        current_weighted_motif_loss_term,
-                    )
-
-                current_recon_counts = motif_counter.count_batch(
+                (
+                    current_recon_full_matrices,
+                    current_recon_full_matrix_mask,
+                ) = motif_counter.count_batch(
                     current_recon_wrapper,
                     batch_size=motif_batch_size,
+                    output_mode='full_matrix',
                 )
-                current_motif_loss = compute_motif_loss(
-                    observed_counts=observed_motif_counts,
-                    predicted_counts=current_recon_counts,
-                    loss_mode=motif_loss_mode,
-                )
-                current_non_literal_motif_loss = current_motif_loss
-                current_syntactic_literal_motif_loss = torch.tensor(0.0, device=device)
-                current_weighted_motif_loss_term = current_motif_loss * alpha_motif_loss
-
-                if syntactic_literal_rule_mode == 'literals':
-                    current_syntactic_literal_motif_loss = current_motif_loss
-                    current_non_literal_motif_loss = torch.tensor(0.0, device=device)
-
-                if (
-                    syntactic_literal_rule_mode == 'both'
-                    and motif_counter.num_syntactic_literal_motifs > 0
+                if not torch.equal(
+                    observed_motif_full_matrix_mask,
+                    current_recon_full_matrix_mask,
                 ):
-                    syntactic_literal_mask = motif_counter.get_syntactic_literal_motif_mask(
-                        device=observed_motif_counts.device
+                    raise RuntimeError(
+                        "Observed and reconstructed full motif matrix masks "
+                        "do not match."
                     )
-                    non_literal_mask = ~syntactic_literal_mask
-
-                    current_syntactic_literal_motif_loss = compute_masked_motif_loss(
-                        observed_counts=observed_motif_counts,
-                        predicted_counts=current_recon_counts,
-                        motif_mask=syntactic_literal_mask,
-                        loss_mode=motif_loss_mode,
-                    )
-
-                    if non_literal_mask.any():
-                        current_non_literal_motif_loss = compute_masked_motif_loss(
-                            observed_counts=observed_motif_counts,
-                            predicted_counts=current_recon_counts,
-                            motif_mask=non_literal_mask,
-                            loss_mode=motif_loss_mode,
-                        )
-                    else:
-                        current_non_literal_motif_loss = torch.tensor(0.0, device=device)
-
-                    total_motif_entries = (
-                        motif_counter.num_syntactic_literal_motifs
-                        + motif_counter.num_non_syntactic_literal_motifs
-                    )
-                    literal_fraction = (
-                        motif_counter.num_syntactic_literal_motifs / total_motif_entries
-                    )
-                    non_literal_fraction = (
-                        motif_counter.num_non_syntactic_literal_motifs / total_motif_entries
-                    )
-                    current_weighted_motif_loss_term = (
-                        alpha_motif_loss
-                        * non_literal_fraction
-                        * current_non_literal_motif_loss
-                        + alpha_syntactic_literal_motif_loss
-                        * literal_fraction
-                        * current_syntactic_literal_motif_loss
-                    )
-
+                grouped_loss = compute_grouped_motif_loss(
+                    observed_full_matrices=observed_motif_full_matrices,
+                    predicted_full_matrices=current_recon_full_matrices,
+                    full_matrix_mask=current_recon_full_matrix_mask,
+                    groups=motif_group_objectives,
+                    histogram_num_bins=motif_histogram_num_bins,
+                    histogram_smoothing=motif_histogram_smoothing,
+                )
+                zero = reconstructed_adj_logit.new_zeros(())
                 return (
-                    current_motif_loss,
-                    current_non_literal_motif_loss,
-                    current_syntactic_literal_motif_loss,
-                    current_weighted_motif_loss_term,
+                    grouped_loss.loss,
+                    grouped_loss.group_losses.get(
+                        NON_LITERAL_MOTIF_GROUP,
+                        zero,
+                    ),
+                    grouped_loss.group_losses.get(
+                        SYNTACTIC_LITERAL_MOTIF_GROUP,
+                        zero,
+                    ),
+                    grouped_loss.weighted_loss,
                 )
 
             if (
@@ -3018,12 +3011,12 @@ for epoch in range(epoch_number):
                     ) = motif_losses_at_temperature(motif_temperature)
                 adaptive_motif_temperature = motif_temperature
 
-            if motif_output_mode == 'count':
+            if motif_training_uses_only_total_counts:
                 # The hard wrapper thresholds adjacency and converts categorical
                 # predictions to one-hot assignments, so these metrics reflect
-                # the discrete graph you would inspect after training. Matrix
-                # mode skips them because its custom hard-matrix metric has not
-                # been defined yet.
+                # the discrete graph you would inspect after training.
+                # Structured modes skip them because representation-specific
+                # hard metrics have not been defined yet.
                 with torch.no_grad():
                     hard_recon_wrapper = ReconstructedDataWrapper(
                         reconstructed_adj=reconstructed_adj_logit.detach(),
@@ -3080,7 +3073,7 @@ for epoch in range(epoch_number):
         detailed_hard_motif_counts = None
         should_report_detailed_hard_counts = (
             tiny_overfit
-            and motif_output_mode == 'count'
+            and motif_training_uses_only_total_counts
             and hard_exact_match_total == 1
             and ((step + 1) % visulizer_step == 0 or (epoch_number == epoch + 1))
         )

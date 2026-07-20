@@ -53,18 +53,222 @@ def compute_calibrated_gaussian_motif_loss(
     if observed_counts.shape[-1] == 0:
         return torch.tensor(0.0, device=observed_counts.device)
 
-    residual = observed_counts - predicted_counts
-    rmse_by_motif = residual.pow(2).mean(dim=0).sqrt()
-    log_sigma = torch.log(rmse_by_motif.clamp_min(float(eps)))
-    log_sigma = _softclip_min(log_sigma, float(min_log_sigma))
+    return compute_calibrated_gaussian_motif_statistic_loss(
+        observed_statistics=observed_counts,
+        predicted_statistics=predicted_counts,
+        min_log_sigma=min_log_sigma,
+        eps=eps,
+        reduction="mean",
+    )
 
-    sigma = torch.exp(log_sigma).unsqueeze(0)
-    per_entry_nll = (
-        0.5 * (residual / sigma).pow(2)
-        + log_sigma.unsqueeze(0)
+
+def compute_calibrated_gaussian_motif_statistic_loss(
+    observed_statistics,
+    predicted_statistics,
+    valid_mask=None,
+    min_log_sigma=-6.0,
+    eps=1e-12,
+    reduction="mean",
+):
+    """Compute one calibrated Gaussian loss per motif statistic.
+
+    Inputs have shape ``(B, M, ...)``.  Each motif ``M`` receives one sigma,
+    estimated from its minibatch RMSE across every valid trailing entry.  A
+    shared ``valid_mask`` has shape ``(M, ...)`` and excludes representation
+    padding.  With no trailing dimensions (scalar total counts), no mask is
+    needed.
+
+    This is the base definition for full matrices and scalar total counts.
+    ``compute_calibrated_gaussian_motif_channel_loss`` applies the same formula
+    independently to row/column marginal or histogram channels. The objective
+    is MSE-derived but is a calibrated Gaussian NLL rather than plain MSE.
+    """
+    if observed_statistics.shape != predicted_statistics.shape:
+        raise ValueError(
+            f"Shape mismatch: observed {tuple(observed_statistics.shape)} vs "
+            f"predicted {tuple(predicted_statistics.shape)}"
+        )
+    if observed_statistics.ndim < 2:
+        raise ValueError(
+            "Expected motif statistics with shape (B, M, ...), "
+            f"got {tuple(observed_statistics.shape)}."
+        )
+    if reduction not in {"mean", "sum", "none"}:
+        raise ValueError(
+            f"Unknown motif statistic loss reduction: {reduction}. "
+            "Expected 'mean', 'sum', or 'none'."
+        )
+
+    batch_size, num_motifs = observed_statistics.shape[:2]
+    if batch_size == 0:
+        raise ValueError("Cannot calibrate motif statistics from an empty batch.")
+    if num_motifs == 0:
+        per_motif_loss = predicted_statistics.new_empty((0,))
+        if reduction == "none":
+            return per_motif_loss
+        return predicted_statistics.sum() * 0.0
+
+    expected_mask_shape = tuple(observed_statistics.shape[1:])
+    if valid_mask is None:
+        valid_mask = torch.ones(
+            expected_mask_shape,
+            dtype=torch.bool,
+            device=predicted_statistics.device,
+        )
+    elif tuple(valid_mask.shape) != expected_mask_shape:
+        raise ValueError(
+            "Motif statistic mask must match (M, ...): "
+            f"mask={tuple(valid_mask.shape)}, "
+            f"statistics={tuple(observed_statistics.shape)}."
+        )
+    else:
+        valid_mask = valid_mask.to(
+            device=predicted_statistics.device,
+            dtype=torch.bool,
+        )
+
+    valid_spatial_count = valid_mask.reshape(num_motifs, -1).sum(dim=1)
+    if (valid_spatial_count == 0).any():
+        invalid_indices = torch.nonzero(
+            valid_spatial_count == 0,
+            as_tuple=False,
+        ).flatten().detach().cpu().tolist()
+        raise ValueError(
+            "Every motif statistic must contain at least one valid entry; "
+            f"empty masks found for motif indices {invalid_indices}."
+        )
+
+    residual = observed_statistics - predicted_statistics
+    masked_residual = torch.where(
+        valid_mask.unsqueeze(0),
+        residual,
+        torch.zeros((), dtype=residual.dtype, device=residual.device),
+    )
+    reduction_dims = (0,) + tuple(range(2, residual.ndim))
+    valid_entry_count = valid_spatial_count.to(residual.dtype) * batch_size
+    squared_error_sum = masked_residual.pow(2).sum(dim=reduction_dims)
+    mse_by_motif = squared_error_sum / valid_entry_count
+    rmse_by_motif = mse_by_motif.clamp_min(float(eps) ** 2).sqrt()
+    log_sigma = _softclip_min(torch.log(rmse_by_motif), float(min_log_sigma))
+
+    per_motif_loss = (
+        0.5
+        * squared_error_sum
+        / (torch.exp(2.0 * log_sigma) * valid_entry_count)
+        + log_sigma
         + 0.5 * math.log(2.0 * math.pi)
     )
-    return per_entry_nll.mean()
+
+    if reduction == "none":
+        return per_motif_loss
+    if reduction == "mean":
+        return per_motif_loss.mean()
+    return per_motif_loss.sum()
+
+
+def compute_calibrated_gaussian_motif_channel_loss(
+    observed_statistics,
+    predicted_statistics,
+    valid_mask,
+    min_log_sigma=-6.0,
+    eps=1e-12,
+    reduction="mean",
+):
+    """Calibrate direction channels separately, then average per motif.
+
+    ``observed_statistics`` has shape ``(B, M, C, ...)`` and ``valid_mask``
+    has shape ``(M, C, ...)``. Each valid channel gets its own RMSE-calibrated
+    sigma. Channel losses are then averaged within a motif, so an ``N x N``
+    result with row and column channels does not receive twice the outer weight
+    of an ``N x 1`` or ``1 x N`` result with only one meaningful channel.
+    """
+    if observed_statistics.shape != predicted_statistics.shape:
+        raise ValueError(
+            f"Shape mismatch: observed {tuple(observed_statistics.shape)} vs "
+            f"predicted {tuple(predicted_statistics.shape)}"
+        )
+    if observed_statistics.ndim < 3:
+        raise ValueError(
+            "Expected channel-valued motif statistics with shape (B, M, C, ...), "
+            f"got {tuple(observed_statistics.shape)}."
+        )
+    if tuple(valid_mask.shape) != tuple(observed_statistics.shape[1:]):
+        raise ValueError(
+            "Motif channel mask must match (M, C, ...): "
+            f"mask={tuple(valid_mask.shape)}, "
+            f"statistics={tuple(observed_statistics.shape)}."
+        )
+    if reduction not in {"mean", "sum", "none"}:
+        raise ValueError(
+            f"Unknown motif channel loss reduction: {reduction}. "
+            "Expected 'mean', 'sum', or 'none'."
+        )
+
+    batch_size, num_motifs, num_channels = observed_statistics.shape[:3]
+    if num_motifs == 0:
+        per_motif_loss = predicted_statistics.new_empty((0,))
+        if reduction == "none":
+            return per_motif_loss
+        return predicted_statistics.sum() * 0.0
+
+    valid_mask = valid_mask.to(
+        device=predicted_statistics.device,
+        dtype=torch.bool,
+    )
+    flattened_mask = valid_mask.reshape(
+        num_motifs * num_channels,
+        *valid_mask.shape[2:],
+    )
+    valid_channels = flattened_mask.reshape(
+        num_motifs * num_channels,
+        -1,
+    ).any(dim=1)
+    valid_channel_count_by_motif = valid_channels.reshape(
+        num_motifs,
+        num_channels,
+    ).sum(dim=1)
+    if (valid_channel_count_by_motif == 0).any():
+        invalid_indices = torch.nonzero(
+            valid_channel_count_by_motif == 0,
+            as_tuple=False,
+        ).flatten().detach().cpu().tolist()
+        raise ValueError(
+            "Every motif must contain at least one valid statistic channel; "
+            f"empty channel masks found for motif indices {invalid_indices}."
+        )
+
+    flattened_observed = observed_statistics.reshape(
+        batch_size,
+        num_motifs * num_channels,
+        *observed_statistics.shape[3:],
+    )
+    flattened_predicted = predicted_statistics.reshape_as(flattened_observed)
+    active_channel_losses = compute_calibrated_gaussian_motif_statistic_loss(
+        observed_statistics=flattened_observed[:, valid_channels],
+        predicted_statistics=flattened_predicted[:, valid_channels],
+        valid_mask=flattened_mask[valid_channels],
+        min_log_sigma=min_log_sigma,
+        eps=eps,
+        reduction="none",
+    )
+
+    active_flat_indices = torch.nonzero(
+        valid_channels,
+        as_tuple=False,
+    ).flatten()
+    active_motif_indices = active_flat_indices // num_channels
+    summed_loss_by_motif = active_channel_losses.new_zeros(
+        (num_motifs,)
+    ).index_add(0, active_motif_indices, active_channel_losses)
+    per_motif_loss = summed_loss_by_motif / valid_channel_count_by_motif.to(
+        active_channel_losses.dtype
+    )
+
+    if reduction == "none":
+        return per_motif_loss
+    if reduction == "mean":
+        return per_motif_loss.mean()
+    return per_motif_loss.sum()
 
 
 def compute_calibrated_gaussian_motif_matrix_loss(
@@ -122,63 +326,22 @@ def compute_calibrated_gaussian_motif_matrix_loss(
             "Expected 'mean', 'sum', or 'none'."
         )
 
-    batch_size, num_motifs = observed_matrices.shape[:2]
-    if batch_size == 0:
-        raise ValueError("Cannot calibrate motif matrix loss from an empty batch.")
-    if num_motifs == 0:
-        per_motif_loss = predicted_matrices.new_empty((0,))
-        if reduction == "none":
-            return per_motif_loss
-        return predicted_matrices.sum() * 0.0
-
-    valid_mask = valid_mask.to(
-        device=predicted_matrices.device,
-        dtype=torch.bool,
-    )
-    valid_spatial_count = valid_mask.sum(dim=(1, 2))
-    if (valid_spatial_count == 0).any():
-        invalid_indices = torch.nonzero(
-            valid_spatial_count == 0,
-            as_tuple=False,
-        ).flatten().detach().cpu().tolist()
-        raise ValueError(
-            "Every motif matrix must contain at least one valid entry; "
-            f"empty masks found for motif indices {invalid_indices}."
+    try:
+        return compute_calibrated_gaussian_motif_statistic_loss(
+            observed_statistics=observed_matrices,
+            predicted_statistics=predicted_matrices,
+            valid_mask=valid_mask,
+            min_log_sigma=min_log_sigma,
+            eps=eps,
+            reduction=reduction,
         )
-
-    residual = observed_matrices - predicted_matrices
-    broadcast_mask = valid_mask.unsqueeze(0)
-    masked_residual = torch.where(
-        broadcast_mask,
-        residual,
-        torch.zeros((), dtype=residual.dtype, device=residual.device),
-    )
-
-    valid_entry_count = valid_spatial_count.to(residual.dtype) * batch_size
-    squared_error_sum = masked_residual.pow(2).sum(dim=(0, 2, 3))
-    mse_by_motif = squared_error_sum / valid_entry_count
-    # Clamp before sqrt so an exact match has a finite zero gradient. Clamping
-    # the RMSE after sqrt preserves the forward value but leaves sqrt'(0)=inf,
-    # which can produce NaN gradients through the calibrated sigma path.
-    rmse_by_motif = mse_by_motif.clamp_min(float(eps) ** 2).sqrt()
-    log_sigma = torch.log(rmse_by_motif)
-    log_sigma = _softclip_min(log_sigma, float(min_log_sigma))
-
-    # Reduce the Gaussian NLL algebraically instead of materializing another
-    # (B, M, N_max, N_max) tensor, which matters for matrix-mode memory use.
-    per_motif_loss = (
-        0.5
-        * squared_error_sum
-        / (torch.exp(2.0 * log_sigma) * valid_entry_count)
-        + log_sigma
-        + 0.5 * math.log(2.0 * math.pi)
-    )
-
-    if reduction == "none":
-        return per_motif_loss
-    if reduction == "mean":
-        return per_motif_loss.mean()
-    return per_motif_loss.sum()
+    except ValueError as exc:
+        # Preserve the established matrix-specific wording for callers/tests.
+        if "Every motif statistic" in str(exc):
+            raise ValueError(
+                str(exc).replace("motif statistic", "motif matrix")
+            ) from exc
+        raise
 
 
 def compute_motif_loss_asymmetric(observed_counts, predicted_counts, loss_mode="abs_log_ratio"):
