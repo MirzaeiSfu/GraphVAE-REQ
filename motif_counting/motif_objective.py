@@ -43,7 +43,7 @@ class MotifGroupObjective:
 
 @dataclass(frozen=True)
 class GroupedMotifLoss:
-    """Unweighted global motif mean, weighted objective, and group diagnostics."""
+    """Unweighted group sum, weighted objective, and group diagnostics."""
 
     loss: torch.Tensor
     weighted_loss: torch.Tensor
@@ -279,12 +279,13 @@ def compute_grouped_motif_loss(
             histogram_smoothing=histogram_smoothing,
         )
         group_losses[group.name] = group_loss
-        motif_fraction = group.num_motifs / float(total_motifs)
-        loss = loss + motif_fraction * group_loss
-        weighted_loss = (
-            weighted_loss
-            + group.weight * motif_fraction * group_loss
-        )
+        # Each group loss is already averaged over the motifs in that group.
+        # Compose groups directly so their explicit alpha values control their
+        # relative influence, independent of how many motif rules each group
+        # contains:
+        #   L = sum_g alpha_g * L_g.
+        loss = loss + group_loss
+        weighted_loss = weighted_loss + group.weight * group_loss
 
     return GroupedMotifLoss(
         loss=loss,

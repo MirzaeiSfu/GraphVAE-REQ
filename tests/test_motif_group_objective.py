@@ -88,11 +88,11 @@ def test_group_specific_full_matrix_and_marginal_losses_share_one_count():
     )
     torch.testing.assert_close(
         result.loss,
-        0.5 * expected_non_literal + 0.5 * expected_literal,
+        expected_non_literal + expected_literal,
     )
     torch.testing.assert_close(
         result.weighted_loss,
-        2.0 * 0.5 * expected_non_literal + 3.0 * 0.5 * expected_literal,
+        2.0 * expected_non_literal + 3.0 * expected_literal,
     )
 
     result.weighted_loss.backward()

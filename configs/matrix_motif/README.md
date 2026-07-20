@@ -34,18 +34,25 @@ motif:
   syntactic_literal_motif_loss_mode: calibrated_gaussian
 ```
 
-Leaving a group-specific setting `null` inherits its global setting. Group
-losses are averaged over their own motifs, multiplied by the group's fraction
-of all active motifs and its existing loss weight, then summed. This preserves
-the previous global per-motif weighting. See the runnable partial configuration
-in `group_specific_representation_example.yaml`.
+Leaving a group-specific setting `null` inherits its global setting. Each group
+loss is averaged over the motifs in that group and the groups are composed
+directly with their explicit weights:
+
+```text
+L = alpha_original * L_original + alpha_literal * L_literal
+```
+
+Consequently, the relative influence of a group is controlled by its alpha and
+does not shrink merely because that group contains fewer motif rules. See the
+runnable partial configuration in `group_specific_representation_example.yaml`.
 
 All structured modes use Kia-MM-style calibrated Gaussian NLL. Full matrices
 receive one RMSE-calibrated sigma per motif. Row and column marginals receive
 separate sigmas, like GraphVAE-MM's in-degree and out-degree statistics; their
 valid directional losses are averaged back to one loss per motif. Histogram
-channels follow the same rule. The per-motif losses are then globally averaged.
-The validity mask excludes artificial padding and redundant scalar marginals.
+channels follow the same rule. Motifs are averaged within each group before the
+weighted group sum. The validity mask excludes artificial padding and redundant
+scalar marginals.
 
 For `marginal_histogram`, bins are calibrated once from the real targets and
 then reused for every reconstruction. Histograms operate on `log1p` marginal

@@ -1,0 +1,4 @@
+# Group-specific motif-representation comparison.
+# Format: HOST GPU CONFIG_YAML
+cs-cl-19 0 configs/matrix_motif/lobster_matrix_full_original_marginal_literals_currentdb_constant.yaml
+cs-cl-26 1 configs/matrix_motif/lobster_matrix_full_original_marginal_histogram_literals_currentdb_constant.yaml
