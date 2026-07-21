@@ -19,6 +19,7 @@ MOTIF_OUTPUT_MODES = {
     "full_matrix",
     "row_column_marginals",
     "marginal_histogram",
+    "degree_histogram",
     "total_count",
 }
 MOTIF_OUTPUT_MODE_CHOICES = MOTIF_OUTPUT_MODES | set(MOTIF_OUTPUT_MODE_ALIASES)
@@ -167,6 +168,65 @@ def compute_row_column_marginals_from_full_matrices(
     return marginals, marginal_mask
 
 
+def compute_degree_histograms_from_full_matrices(
+    full_matrices: torch.Tensor,
+    matrix_mask: torch.Tensor,
+    histogram_width: float = 0.1,
+):
+    """Apply GraphVAE-MM's soft degree histogram to square motif matrices.
+
+    Row sums of a selected ``N_max x N_max`` motif matrix become node degrees.
+    The histogram has integer centers ``0, ..., N_max - 1`` and triangular
+    memberships ``relu(1 - width * abs(degree - center))``, matching the
+    repository's :class:`GlobalProperties.Histogram` degree statistic.  This
+    representation is intended for a protected unit binary-relation motif,
+    whose full count matrix is the corresponding adjacency matrix.
+    """
+    _validate_full_motif_matrices(full_matrices, matrix_mask)
+    if histogram_width <= 0.0:
+        raise ValueError("Degree histogram width must be greater than zero.")
+
+    matrix_mask = matrix_mask.to(device=full_matrices.device, dtype=torch.bool)
+    natural_heights = matrix_mask.any(dim=2).sum(dim=1)
+    natural_widths = matrix_mask.any(dim=1).sum(dim=1)
+    n_max = full_matrices.shape[-1]
+    invalid_motifs = (natural_heights != n_max) | (natural_widths != n_max)
+    if invalid_motifs.any():
+        invalid_indices = torch.nonzero(
+            invalid_motifs,
+            as_tuple=False,
+        ).flatten().detach().cpu().tolist()
+        raise ValueError(
+            "degree_histogram requires natural N_max x N_max motif matrices; "
+            f"invalid motif indices {invalid_indices}."
+        )
+
+    masked_matrices = torch.where(
+        matrix_mask.unsqueeze(0),
+        full_matrices,
+        torch.zeros((), dtype=full_matrices.dtype, device=full_matrices.device),
+    )
+    degrees = masked_matrices.sum(dim=3)
+    bin_centers = torch.arange(
+        n_max,
+        device=full_matrices.device,
+        dtype=full_matrices.dtype,
+    )
+    memberships = torch.relu(
+        1.0
+        - torch.abs(degrees.unsqueeze(-1) - bin_centers.view(1, 1, 1, n_max))
+        * float(histogram_width)
+    )
+    histograms = memberships.sum(dim=2)
+    histogram_mask = torch.ones(
+        full_matrices.shape[1],
+        n_max,
+        dtype=torch.bool,
+        device=full_matrices.device,
+    )
+    return histograms, histogram_mask
+
+
 def represent_full_motif_matrices(
     full_matrices: torch.Tensor,
     matrix_mask: torch.Tensor,
@@ -200,6 +260,13 @@ def represent_full_motif_matrices(
             ),
         )
         return masked_matrices.sum(dim=(2, 3)), None, None
+
+    if output_mode == "degree_histogram":
+        histograms, histogram_mask = compute_degree_histograms_from_full_matrices(
+            full_matrices=full_matrices,
+            matrix_mask=matrix_mask,
+        )
+        return histograms, histogram_mask, None
 
     marginals, marginal_mask = compute_row_column_marginals_from_full_matrices(
         full_matrices,

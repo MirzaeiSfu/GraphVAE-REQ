@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from motif_counting.motif_counter import RelationalMotifCounter
@@ -8,6 +9,7 @@ from motif_counting.motif_loss_utils import (
 from motif_counting.motif_representations import (
     build_marginal_histogram_spec,
     canonicalize_motif_output_mode,
+    compute_degree_histograms_from_full_matrices,
     compute_marginal_histograms,
     compute_row_column_marginals,
     compute_total_motif_count,
@@ -23,6 +25,45 @@ def test_output_mode_aliases_have_clear_canonical_names():
     assert canonicalize_motif_output_mode("marginal_histogram") == (
         "marginal_histogram"
     )
+    assert canonicalize_motif_output_mode("degree_histogram") == (
+        "degree_histogram"
+    )
+
+
+def test_degree_histogram_matches_graphvae_mm_triangular_memberships():
+    matrices = torch.tensor(
+        [[[[0.0, 1.0, 0.0], [1.0, 0.0, 1.0], [0.0, 1.0, 0.0]]]],
+        requires_grad=True,
+    )
+    matrix_mask = torch.ones(1, 3, 3, dtype=torch.bool)
+
+    histograms, histogram_mask = compute_degree_histograms_from_full_matrices(
+        matrices,
+        matrix_mask,
+    )
+
+    degrees = torch.tensor([1.0, 2.0, 1.0])
+    centers = torch.arange(3, dtype=matrices.dtype)
+    expected = torch.relu(
+        1.0 - torch.abs(degrees.unsqueeze(1) - centers.unsqueeze(0)) * 0.1
+    ).sum(dim=0)
+    assert histograms.shape == (1, 1, 3)
+    torch.testing.assert_close(histograms[0, 0], expected)
+    assert histogram_mask.all()
+
+    histograms.sum().backward()
+    assert matrices.grad is not None
+    assert torch.isfinite(matrices.grad).all()
+    assert matrices.grad.abs().sum().item() > 0.0
+
+
+def test_degree_histogram_rejects_non_square_natural_motif_results():
+    matrices = torch.zeros(1, 1, 3, 3)
+    vector_mask = torch.zeros(1, 3, 3, dtype=torch.bool)
+    vector_mask[0, :, :1] = True
+
+    with pytest.raises(ValueError, match="requires natural N_max x N_max"):
+        compute_degree_histograms_from_full_matrices(matrices, vector_mask)
 
 
 def test_square_result_retains_both_row_and_column_marginals():
@@ -201,7 +242,7 @@ def test_channel_loss_calibrates_row_and_column_directions_separately():
     assert torch.count_nonzero(predicted.grad[:, 1, 1]).item() == 0
 
 
-def test_counter_integrates_all_four_canonical_modes():
+def test_counter_integrates_all_five_canonical_modes():
     counter = RelationalMotifCounter.__new__(RelationalMotifCounter)
     counter.device = "cpu"
     counter.rules = [["edge(X,Y)"]]
@@ -252,6 +293,10 @@ def test_counter_integrates_all_four_canonical_modes():
         output_mode="marginal_histogram",
         histogram_spec=histogram_spec,
     )
+    degree_histograms, degree_histogram_mask = counter.count_batch(
+        preprocessor,
+        output_mode="degree_histogram",
+    )
     total_count = counter.count_batch(preprocessor, output_mode="total_count")
 
     assert full_matrix.shape == (2, 1, 2, 2)
@@ -263,6 +308,8 @@ def test_counter_integrates_all_four_canonical_modes():
     assert histogram_mask.all()
     torch.testing.assert_close(histograms, repeated_histograms)
     torch.testing.assert_close(histogram_mask, repeated_mask)
+    assert degree_histograms.shape == (2, 1, 2)
+    assert degree_histogram_mask.all()
     torch.testing.assert_close(
         total_count,
         preprocessor.adjacency.flatten(start_dim=1).sum(dim=1, keepdim=True),

@@ -1,7 +1,7 @@
 # Motif statistic representations
 
 The counting algorithm always returns one canonical padded full-matrix tensor
-and its natural-shape mask. The loss layer derives one of four representations
+and its natural-shape mask. The loss layer derives one of five representations
 from that shared result:
 
 | Mode | Tensor shape | Definition |
@@ -9,6 +9,7 @@ from that shared result:
 | `full_matrix` | `(graphs, motifs, N_max, N_max)` | Every valid entry of the final motif matrix-chain result. |
 | `row_column_marginals` | `(graphs, motifs, 2, N_max)` | Row and column marginals for `NxN`; only the node-sized marginal for `Nx1`/`1xN`; one scalar channel for `1x1`. |
 | `marginal_histogram` | `(graphs, motifs, 2, bins)` | Permutation-invariant soft histograms of the valid row/column marginals. |
+| `degree_histogram` | `(graphs, motifs, N_max)` | GraphVAE-MM's integer-centered triangular soft histogram of row sums; restricted to natural `N_max x N_max` motif matrices. |
 | `total_count` | `(graphs, motifs)` | Sum of every final matrix entry; this is the original non-matrix motif count. |
 
 The old names `matrix` and `count` remain accepted aliases for `full_matrix`
@@ -21,6 +22,8 @@ both motif groups. Override either group independently with:
   relational motifs;
 - `syntactic_literal_motif_output_mode` /
   `syntactic_literal_motif_loss_mode` for injected literal motifs.
+- `unit_relation_motif_output_mode` / `unit_relation_motif_loss_mode` for an
+  optional separate group of positive bare binary-relation motifs.
 
 For example, this uses full matrices for original motifs and shape-aware
 marginals for literal motifs while counting the motif matrices only once:
@@ -40,11 +43,28 @@ directly with their explicit weights:
 
 ```text
 L = alpha_original * L_original + alpha_literal * L_literal
+    + alpha_unit_relation * L_unit_relation
 ```
 
 Consequently, the relative influence of a group is controlled by its alpha and
 does not shrink merely because that group contains fewer motif rules. See the
 runnable partial configuration in `group_specific_representation_example.yaml`.
+
+The unit-relation group is opt-in. When enabled, its mask is removed from the
+original/non-literal group so no motif is supervised twice. With
+`protect_unit_relation_motifs_from_pruning: true`, global pruning still applies
+to every other rule while positive cached value rows are restored for bare
+binary relations. Explicit false/complement rows are not assigned to the
+degree group. This treats the cache as an external rule source and does not
+modify it.
+
+`degree_histogram` is designed for this group. For a unit relation such as
+`edges(nodes0,nodes1)`, its full motif count matrix is the relation adjacency
+matrix. The representation sums each row and applies the same bin centers,
+width `0.1`, and triangular membership function as the repository's existing
+GraphVAE-MM degree statistic. The runnable controlled experiment is
+`lobster_matrix_full_original_unit_relation_degree_histogram_currentdb_constant.yaml`;
+its inventory is `unit_relation_degree_experiment_manifest.csv`.
 
 All structured modes use Kia-MM-style calibrated Gaussian NLL. Full matrices
 receive one RMSE-calibrated sigma per motif. Row and column marginals receive

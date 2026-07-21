@@ -23,6 +23,7 @@ MOTIF_LOSS_MODES = {
 }
 NON_LITERAL_MOTIF_GROUP = "non_literal"
 SYNTACTIC_LITERAL_MOTIF_GROUP = "syntactic_literal"
+UNIT_RELATION_MOTIF_GROUP = "unit_relation"
 
 
 @dataclass(frozen=True)
@@ -98,18 +99,55 @@ def build_motif_group_objectives(
     syntactic_literal_output_mode: str,
     syntactic_literal_loss_mode: str,
     syntactic_literal_weight: float,
+    unit_relation_mask: Optional[torch.Tensor] = None,
+    unit_relation_output_mode: Optional[str] = None,
+    unit_relation_loss_mode: Optional[str] = None,
+    unit_relation_weight: float = 0.0,
 ) -> List[MotifGroupObjective]:
-    """Build active non-literal and literal groups from the counter mask."""
+    """Build disjoint original, literal, and optional unit-relation groups."""
     if syntactic_literal_mask.ndim != 1:
         raise ValueError(
             "Expected a 1D syntactic-literal motif mask, "
             f"got {tuple(syntactic_literal_mask.shape)}."
         )
     syntactic_literal_mask = syntactic_literal_mask.to(dtype=torch.bool).cpu()
-    group_specs = (
+    if unit_relation_mask is None:
+        unit_relation_mask = torch.zeros_like(syntactic_literal_mask)
+    elif (
+        unit_relation_mask.ndim != 1
+        or unit_relation_mask.numel() != syntactic_literal_mask.numel()
+    ):
+        raise ValueError(
+            "Unit-relation motif mask must match the syntactic-literal mask, "
+            f"got {tuple(unit_relation_mask.shape)} and "
+            f"{tuple(syntactic_literal_mask.shape)}."
+        )
+    else:
+        unit_relation_mask = unit_relation_mask.to(dtype=torch.bool).cpu()
+
+    unit_group_enabled = unit_relation_output_mode is not None
+    if unit_group_enabled and unit_relation_loss_mode is None:
+        raise ValueError(
+            "unit_relation_loss_mode is required when the unit-relation motif "
+            "group is enabled."
+        )
+    if unit_group_enabled and not unit_relation_mask.any():
+        raise ValueError(
+            "The unit-relation motif group was enabled, but no unit binary-"
+            "relation motif survived runtime rule selection."
+        )
+    if unit_group_enabled and (unit_relation_mask & syntactic_literal_mask).any():
+        raise ValueError(
+            "Unit-relation and syntactic-literal motif masks must not overlap."
+        )
+
+    separated_unit_mask = unit_relation_mask if unit_group_enabled else torch.zeros_like(
+        unit_relation_mask
+    )
+    group_specs = [
         (
             NON_LITERAL_MOTIF_GROUP,
-            ~syntactic_literal_mask,
+            ~syntactic_literal_mask & ~separated_unit_mask,
             non_literal_output_mode,
             non_literal_loss_mode,
             non_literal_weight,
@@ -121,7 +159,17 @@ def build_motif_group_objectives(
             syntactic_literal_loss_mode,
             syntactic_literal_weight,
         ),
-    )
+    ]
+    if unit_group_enabled:
+        group_specs.append(
+            (
+                UNIT_RELATION_MOTIF_GROUP,
+                separated_unit_mask,
+                unit_relation_output_mode,
+                unit_relation_loss_mode,
+                unit_relation_weight,
+            )
+        )
 
     groups = []
     for name, motif_mask, output_mode, loss_mode, weight in group_specs:

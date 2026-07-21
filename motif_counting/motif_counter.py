@@ -150,31 +150,10 @@ class RelationalMotifCounter:
         else:
             self.total_relation_occurrences = dict(self.relation_occurrence_counts)
 
-        # ── Select value set based on --rule_prune ────────────────────
-        rule_prune = getattr(self.args, 'rule_prune', False)
-
-        if "values_full" in data:
-            # New-format pickle
-            if rule_prune:
-                self.values = data["values_pruned"]
-                n_full   = sum(len(v) for v in data["values_full"])
-                n_pruned = sum(len(v) for v in self.values)
-                print(
-                    "  rule_prune=True: "
-                    f"{n_pruned} / {n_full} value combinations kept "
-                    "(formula-pruned; full rows remain cached for rule_prune=False)"
-                )
-            else:
-                self.values = data["values_full"]
-                print(f"  rule_prune=False: using all {sum(len(v) for v in data['values_full'])} value combinations")
-        else:
-            # Old-format pickle — use whatever was stored
-            self.values = data["values"]
-            print(f"  Warning: old-format pickle — delete {pickle_path} "
-                  f"to regenerate with both value sets cached.")
+        self.values = self._select_motif_values(data, pickle_path)
 
         self._filter_rules_for_runtime_mode()
-        self._build_syntactic_literal_masks()
+        self._build_motif_group_masks()
 
         self.device = getattr(self.args, 'device', 'cuda')
 
@@ -209,6 +188,12 @@ class RelationalMotifCounter:
 
     def get_syntactic_literal_motif_mask(self, device=None) -> torch.Tensor:
         mask = self.syntactic_literal_motif_mask
+        if device is not None:
+            return mask.to(device)
+        return mask
+
+    def get_unit_relation_motif_mask(self, device=None) -> torch.Tensor:
+        mask = self.unit_relation_motif_mask
         if device is not None:
             return mask.to(device)
         return mask
@@ -258,6 +243,8 @@ class RelationalMotifCounter:
         * ``marginal_histogram``: soft histograms of those marginals with shape
           ``(B, M, 2, histogram_num_bins)``, their mask, and the fixed histogram
           specification used for both observed and reconstructed graphs.
+        * ``degree_histogram``: GraphVAE-MM triangular soft histograms of row
+          sums from natural square motif matrices, shape ``(B, M, N_max)``.
 
         Legacy ``count`` and ``matrix`` names remain aliases for
         ``total_count`` and ``full_matrix`` respectively.
@@ -809,6 +796,92 @@ class RelationalMotifCounter:
             or self._is_relation_syntactic_literal_rule(rule)
         )
 
+    def _is_unit_relation_rule(self, rule: List[str]) -> bool:
+        """Return whether a rule is one bare binary database relation atom."""
+        if len(rule) != 1:
+            return False
+        functor, arguments = self._parse_atom(rule[0])
+        return functor in self.relations and len(arguments) == 2
+
+    def _is_positive_unit_relation_value(self, rule_idx: int, table_row) -> bool:
+        """Identify value rows that materialize a relation, not its complement."""
+        if not self._is_unit_relation_rule(self.rules[rule_idx]):
+            return False
+        relation_value = table_row[self.multiples[rule_idx]]
+        # State-two counting uses the relation adjacency for every value except
+        # the explicit false state, for which it uses the complement.
+        return relation_value != 'F'
+
+    def _select_motif_values(self, data: Dict, pickle_path: Path):
+        """Select pruned/full rows and optionally restore unit relations.
+
+        The cache remains unchanged. Protection is a runtime override that
+        restores only positive value rows of bare binary relation rules from
+        ``values_full`` after selecting the pruned value set.
+        """
+        rule_prune = getattr(self.args, 'rule_prune', False)
+        protect_unit_relations = getattr(
+            self.args,
+            'protect_unit_relation_motifs_from_pruning',
+            False,
+        )
+
+        if "values_full" not in data:
+            if rule_prune and protect_unit_relations:
+                raise RuntimeError(
+                    "Cannot protect unit-relation motifs with an old-format "
+                    f"cache at {pickle_path}; regenerate it with values_full."
+                )
+            print(
+                f"  Warning: old-format pickle — delete {pickle_path} "
+                "to regenerate with both value sets cached."
+            )
+            return [list(rows) for rows in data["values"]]
+
+        if not rule_prune:
+            values = [list(rows) for rows in data["values_full"]]
+            print(
+                "  rule_prune=False: using all "
+                f"{sum(len(rows) for rows in values)} value combinations"
+            )
+            return values
+
+        values = [list(rows) for rows in data["values_pruned"]]
+        restored_rule_indices = []
+        if protect_unit_relations:
+            for rule_idx, rule in enumerate(self.rules):
+                if not self._is_unit_relation_rule(rule):
+                    continue
+                selected_negative_rows = [
+                    row for row in values[rule_idx]
+                    if not self._is_positive_unit_relation_value(rule_idx, row)
+                ]
+                selected_positive_count = (
+                    len(values[rule_idx]) - len(selected_negative_rows)
+                )
+                full_positive_rows = [
+                    row for row in data["values_full"][rule_idx]
+                    if self._is_positive_unit_relation_value(rule_idx, row)
+                ]
+                if selected_positive_count != len(full_positive_rows):
+                    restored_rule_indices.append(rule_idx)
+                values[rule_idx] = selected_negative_rows + list(full_positive_rows)
+
+        n_full = sum(len(rows) for rows in data["values_full"])
+        n_selected = sum(len(rows) for rows in values)
+        print(
+            "  rule_prune=True: "
+            f"{n_selected} / {n_full} value combinations kept "
+            "(formula-pruned; full rows remain cached for rule_prune=False)"
+        )
+        if protect_unit_relations:
+            print(
+                "  protected unit-relation motifs: "
+                f"restored {len(restored_rule_indices)} rule(s), "
+                f"indices={restored_rule_indices}"
+            )
+        return values
+
     def _filter_rules_for_runtime_mode(self) -> None:
         mode = self.syntactic_literal_rule_mode
         if mode == "both":
@@ -860,7 +933,7 @@ class RelationalMotifCounter:
                 {new_idx: old_values[old_idx] for new_idx, old_idx in enumerate(keep_indices)}
             )
 
-    def _build_syntactic_literal_masks(self):
+    def _build_motif_group_masks(self):
         rule_mask: List[bool] = []
         motif_mask: List[bool] = []
 
@@ -882,6 +955,30 @@ class RelationalMotifCounter:
         self.num_syntactic_literal_motifs = int(self.syntactic_literal_motif_mask.sum().item())
         self.num_non_syntactic_literal_motifs = int(
             self.syntactic_literal_motif_mask.numel() - self.num_syntactic_literal_motifs
+        )
+
+        self.unit_relation_rule_mask = []
+        unit_relation_motif_mask: List[bool] = []
+        for rule_idx, rule in enumerate(self.rules):
+            is_unit_relation_rule = self._is_unit_relation_rule(rule)
+            row_mask = [
+                is_unit_relation_rule
+                and self._is_positive_unit_relation_value(rule_idx, table_row)
+                for table_row in self.values[rule_idx]
+            ]
+            self.unit_relation_rule_mask.append(any(row_mask))
+            unit_relation_motif_mask.extend(row_mask)
+        self.unit_relation_rule_indices = [
+            rule_idx
+            for rule_idx, is_unit_relation in enumerate(self.unit_relation_rule_mask)
+            if is_unit_relation
+        ]
+        self.unit_relation_motif_mask = torch.tensor(
+            unit_relation_motif_mask,
+            dtype=torch.bool,
+        )
+        self.num_unit_relation_motifs = int(
+            self.unit_relation_motif_mask.sum().item()
         )
 
     def _find_feature(self, functor: str) -> Tuple[bool, Optional[int], Optional[str]]:

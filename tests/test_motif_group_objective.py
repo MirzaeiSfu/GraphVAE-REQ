@@ -8,6 +8,7 @@ from motif_counting.motif_loss_utils import (
 from motif_counting.motif_objective import (
     NON_LITERAL_MOTIF_GROUP,
     SYNTACTIC_LITERAL_MOTIF_GROUP,
+    UNIT_RELATION_MOTIF_GROUP,
     build_motif_group_objectives,
     calibrate_group_histogram_specs,
     compute_grouped_motif_loss,
@@ -134,6 +135,65 @@ def test_group_specific_histogram_is_calibrated_only_from_observed_group():
     )
     assert torch.isfinite(result.loss)
     assert torch.isfinite(result.weighted_loss)
+
+
+def test_unit_relation_degree_histogram_is_a_disjoint_weighted_group():
+    observed, predicted, matrix_mask, literal_mask = make_full_matrices()
+    unit_relation_mask = torch.tensor([False, True, False, False])
+    groups = build_motif_group_objectives(
+        syntactic_literal_mask=literal_mask,
+        non_literal_output_mode="full_matrix",
+        non_literal_loss_mode="calibrated_gaussian",
+        non_literal_weight=2.0,
+        syntactic_literal_output_mode="row_column_marginals",
+        syntactic_literal_loss_mode="calibrated_gaussian",
+        syntactic_literal_weight=0.0,
+        unit_relation_mask=unit_relation_mask,
+        unit_relation_output_mode="degree_histogram",
+        unit_relation_loss_mode="calibrated_gaussian",
+        unit_relation_weight=3.0,
+    )
+
+    assert [group.name for group in groups] == [
+        NON_LITERAL_MOTIF_GROUP,
+        SYNTACTIC_LITERAL_MOTIF_GROUP,
+        UNIT_RELATION_MOTIF_GROUP,
+    ]
+    assert groups[0].motif_mask.tolist() == [True, False, False, False]
+    assert groups[1].motif_mask.tolist() == [False, False, True, True]
+    assert groups[2].motif_mask.tolist() == [False, True, False, False]
+
+    result = compute_grouped_motif_loss(
+        observed_full_matrices=observed,
+        predicted_full_matrices=predicted,
+        full_matrix_mask=matrix_mask,
+        groups=groups,
+    )
+    observed_degree_histogram, degree_mask, _ = represent_full_motif_matrices(
+        observed[:, 1:2],
+        matrix_mask[1:2],
+        output_mode="degree_histogram",
+    )
+    predicted_degree_histogram, _, _ = represent_full_motif_matrices(
+        predicted[:, 1:2],
+        matrix_mask[1:2],
+        output_mode="degree_histogram",
+    )
+    expected_unit_relation = compute_calibrated_gaussian_motif_statistic_loss(
+        observed_degree_histogram,
+        predicted_degree_histogram,
+        degree_mask,
+    )
+
+    torch.testing.assert_close(
+        result.group_losses[UNIT_RELATION_MOTIF_GROUP],
+        expected_unit_relation,
+    )
+    expected_weighted = (
+        2.0 * result.group_losses[NON_LITERAL_MOTIF_GROUP]
+        + 3.0 * expected_unit_relation
+    )
+    torch.testing.assert_close(result.weighted_loss, expected_weighted)
 
 
 def test_structured_group_rejects_non_gaussian_loss():
