@@ -1166,9 +1166,10 @@ parser.add_argument(
     type=int,
     default=None,
     help=(
-        'Optional extra cap for rule-pruned motif values. When set, each rule '
-        'keeps only the top N rows according to the pruning score. Full rows '
-        'are still cached for rule_prune=False.'
+        'Optional extra cap for rule-pruned motif values. When set, each '
+        'multi-atom rule keeps only the top N rows according to the pruning '
+        'score. Single-atom rules always keep all rows, and full rows are still '
+        'cached for rule_prune=False.'
     )
 )
 parser.add_argument(

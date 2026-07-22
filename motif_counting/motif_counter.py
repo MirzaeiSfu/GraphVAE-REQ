@@ -813,11 +813,13 @@ class RelationalMotifCounter:
         return relation_value != 'F'
 
     def _select_motif_values(self, data: Dict, pickle_path: Path):
-        """Select pruned/full rows and optionally restore unit relations.
+        """Select motif rows while preserving every single-atom rule.
 
-        The cache remains unchanged. Protection is a runtime override that
-        restores only positive value rows of bare binary relation rules from
-        ``values_full`` after selecting the pruned value set.
+        New caches already store all rows for single-atom rules in
+        ``values_pruned``. Restoring them from ``values_full`` here also makes
+        the guarantee apply to caches generated before that exemption existed.
+        The unit-relation option remains a relation-specific safety check for
+        the protected positive rows.
         """
         rule_prune = getattr(self.args, 'rule_prune', False)
         protect_unit_relations = getattr(
@@ -846,7 +848,14 @@ class RelationalMotifCounter:
             )
             return values
 
-        values = [list(rows) for rows in data["values_pruned"]]
+        values = [
+            list(full_rows) if len(rule) == 1 else list(pruned_rows)
+            for rule, full_rows, pruned_rows in zip(
+                self.rules,
+                data["values_full"],
+                data["values_pruned"],
+            )
+        ]
         restored_rule_indices = []
         if protect_unit_relations:
             for rule_idx, rule in enumerate(self.rules):
@@ -872,7 +881,7 @@ class RelationalMotifCounter:
         print(
             "  rule_prune=True: "
             f"{n_selected} / {n_full} value combinations kept "
-            "(formula-pruned; full rows remain cached for rule_prune=False)"
+            "(formula-pruned; single-atom rules keep all rows)"
         )
         if protect_unit_relations:
             print(

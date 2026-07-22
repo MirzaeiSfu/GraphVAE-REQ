@@ -102,7 +102,7 @@ class RuleBasedMotifStore:
         # Both value sets stored in pickle so rule_prune can be toggled without
         # deleting the cache.
         self.values_full:   List = []   # all rows (rule_prune=False)
-        self.values_pruned: List = []   # statistically significant rows (rule_prune=True)
+        self.values_pruned: List = []   # pruned multi-atom rows; full single-atom rows
 
         # Structural metadata for rules
         self.functors: Dict = {}
@@ -683,7 +683,10 @@ class RuleBasedMotifStore:
 
         pruned_scored_rows = []
         pruned_value = []
-        if keep_all_values:
+        # A single atom is already the smallest possible rule, so preserve all
+        # of its value rows regardless of whether it came from FactorBase or
+        # was added as a synthetic literal rule.
+        if keep_all_values or len(rule) == 1:
             pruned_value = list(value_rows)
         else:
             for row in value_rows:

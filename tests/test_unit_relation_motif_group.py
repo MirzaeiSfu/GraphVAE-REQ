@@ -20,7 +20,7 @@ def make_counter(*, protect=True):
     return counter
 
 
-def test_protected_pruning_restores_only_bare_binary_relations():
+def test_pruning_preserves_single_atom_rules_and_protects_unit_relations():
     counter = make_counter(protect=True)
     data = {
         "values_full": [
@@ -38,7 +38,7 @@ def test_protected_pruning_restores_only_bare_binary_relations():
     selected = counter._select_motif_values(data, Path("cache.pkl"))
 
     assert selected[0] == [["F"], ["T"]]
-    assert selected[1] == []
+    assert selected[1] == [["1"], ["2"]]
     assert selected[2] == [["type_a", "T"]]
     assert selected is not data["values_full"]
     assert selected[0] is not data["values_full"][0]
@@ -60,7 +60,7 @@ def test_unit_relation_mask_tracks_restored_value_rows():
     assert counter.num_unit_relation_motifs == 1
 
 
-def test_pruning_without_protection_keeps_the_cached_selection():
+def test_pruning_without_relation_protection_still_preserves_single_atom_rules():
     counter = make_counter(protect=False)
     data = {
         "values_full": [[["T"]], [["1"]], []],
@@ -69,4 +69,4 @@ def test_pruning_without_protection_keeps_the_cached_selection():
 
     selected = counter._select_motif_values(data, Path("cache.pkl"))
 
-    assert selected == [[], [], []]
+    assert selected == [[["T"]], [["1"]], []]
