@@ -46,6 +46,8 @@ DEFAULT_CHECKPOINT_CANDIDATES = (
     "model_9999_0",
 )
 DEFAULT_OUTPUT_DIRNAME = "attributed_random_gin_eval"
+GENERATED_DGL_FILENAME = "generated_attributed_graphs.bin"
+REFERENCE_DGL_FILENAME = "reference_attributed_graphs.bin"
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,6 +159,14 @@ def parse_args() -> argparse.Namespace:
         "--save-samples",
         action="store_true",
         help="Also save the aligned attributed graph collections as a compressed NPZ.",
+    )
+    parser.add_argument(
+        "--save-dgl",
+        action="store_true",
+        help=(
+            "Also save generated and reference DGL files accepted by "
+            "evaluate_attributed_dgl_graphs.py."
+        ),
     )
     return parser.parse_args()
 
@@ -456,6 +466,28 @@ def save_graph_collections(
     )
 
 
+def save_dgl_graph_collections(
+    output_dir: Path,
+    generated_graphs: Sequence,
+    reference_graphs: Sequence,
+) -> dict[str, str]:
+    """Save the full-feature DGL collections used by the evaluator."""
+
+    try:
+        import dgl
+    except ImportError as exc:  # pragma: no cover - environment guard
+        raise RuntimeError("DGL is required to save attributed graph files.") from exc
+
+    generated_path = (output_dir / GENERATED_DGL_FILENAME).resolve()
+    reference_path = (output_dir / REFERENCE_DGL_FILENAME).resolve()
+    dgl.save_graphs(str(generated_path), list(generated_graphs))
+    dgl.save_graphs(str(reference_path), list(reference_graphs))
+    return {
+        "generated": str(generated_path),
+        "reference": str(reference_path),
+    }
+
+
 def write_csv(output_path: Path, payload: dict):
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
@@ -604,6 +636,13 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
         if "decoded_node" in modes
         else modes[0]
     )
+    dgl_exports = None
+    if args.save_dgl:
+        dgl_exports = save_dgl_graph_collections(
+            output_dir,
+            generated_dgl,
+            reference_dgl,
+        )
 
     payload = {
         "schema_version": "attributed-random-gin-v1",
@@ -641,6 +680,8 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
         "attributed_f1_pr": evaluation["modes"][primary_mode]["summary"]["f1_pr"],
         "evaluation": evaluation,
     }
+    if dgl_exports is not None:
+        payload["dgl_exports"] = dgl_exports
 
     json_path = output_dir / "attributed_random_gin.json"
     json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -657,8 +698,8 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
 
 def main():
     args = parse_args()
-    if args.max_graphs == 1 or args.max_graphs < 0:
-        raise ValueError("--max-graphs must be 0 (all) or at least 2.")
+    if args.max_graphs in {1, 2} or args.max_graphs < 0:
+        raise ValueError("--max-graphs must be 0 (all) or at least 3.")
     if args.generation_batch_size < 1:
         raise ValueError("--generation-batch-size must be positive.")
     if args.repeats < 1:

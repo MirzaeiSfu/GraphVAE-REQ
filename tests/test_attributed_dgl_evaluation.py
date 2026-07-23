@@ -7,6 +7,12 @@ from eval.attributed_gin import (
     attributed_graph_from_dgl,
     evaluate_dgl_feature_modes,
 )
+from scripts.evaluate_attributed_dgl_graphs import load_dgl_graphs
+from scripts.evaluate_attributed_graph_realism_checkpoints import (
+    GENERATED_DGL_FILENAME,
+    REFERENCE_DGL_FILENAME,
+    save_dgl_graph_collections,
+)
 
 
 def make_bidirectional_path(node_count: int, feature_offset: float = 0.0):
@@ -105,3 +111,30 @@ def test_dgl_api_runs_feature_aware_random_gin():
     assert result["input_contract"]["graph_type"] == "DGLGraph"
     assert result["input_contract"]["pyg_inputs_accepted"] is False
     assert set(result["modes"]) == {"topology_control", "decoded_node_edge"}
+
+
+def test_checkpoint_dgl_exports_are_accepted_by_file_evaluator(tmp_path):
+    generated = [make_bidirectional_path(size) for size in (3, 4, 5)]
+    reference = [
+        make_bidirectional_path(size, feature_offset=0.1)
+        for size in (3, 4, 5)
+    ]
+
+    paths = save_dgl_graph_collections(tmp_path, generated, reference)
+
+    assert paths == {
+        "generated": str((tmp_path / GENERATED_DGL_FILENAME).resolve()),
+        "reference": str((tmp_path / REFERENCE_DGL_FILENAME).resolve()),
+    }
+    loaded_generated = load_dgl_graphs(tmp_path / GENERATED_DGL_FILENAME)
+    loaded_reference = load_dgl_graphs(tmp_path / REFERENCE_DGL_FILENAME)
+    assert len(loaded_generated) == len(generated)
+    assert len(loaded_reference) == len(reference)
+    torch.testing.assert_close(
+        loaded_generated[1].ndata["attr"],
+        generated[1].ndata["attr"],
+    )
+    torch.testing.assert_close(
+        loaded_reference[2].edata["attr"],
+        reference[2].edata["attr"],
+    )

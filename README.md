@@ -297,7 +297,8 @@ python scripts/evaluate_attributed_graph_realism_checkpoints.py \
   --run-dir runs/my_feature_aware_run \
   --split test \
   --repeats 10 \
-  --max-graphs 1000
+  --max-graphs 1000 \
+  --save-dgl
 ```
 
 This evaluator regenerates adjacency, node attributes, and edge attributes
@@ -309,6 +310,26 @@ underlying GIN input path is float-valued and also accepts continuous node or
 edge attributes when they are supplied without categorical one-hot metadata.
 The original `run_config_used.yaml`, matching dataset cache, and a checkpoint
 with feature-decoder parameters are required.
+
+`--save-dgl` keeps the normal checkpoint evaluation and additionally writes:
+
+```text
+<output-dir>/generated_attributed_graphs.bin
+<output-dir>/reference_attributed_graphs.bin
+```
+
+These are the same full-feature DGL collections used by that evaluation and
+can be passed directly to the model-independent CLI:
+
+```bash
+python scripts/evaluate_attributed_dgl_graphs.py \
+  --generated-dgl runs/my_feature_aware_run/attributed_random_gin_eval/generated_attributed_graphs.bin \
+  --reference-dgl runs/my_feature_aware_run/attributed_random_gin_eval/reference_attributed_graphs.bin \
+  --model-name GraphVAE
+```
+
+The existing `--save-samples` NPZ option remains available for previous
+workflows.
 
 To evaluate DeFoG, GRAN, GraphRNN, or another trained model against the same
 held-out graphs, export both collections as DGL files:
