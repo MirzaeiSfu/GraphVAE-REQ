@@ -222,7 +222,14 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   host_token="$(sanitize "$host")"
   gpu_token="$(sanitize "$gpu")"
   device="cuda:$gpu"
-  if [[ "$gpu" == cpu || "$gpu" == cuda:* ]]; then
+  cuda_visible_devices=""
+  if [[ "$gpu" =~ ^[0-9]+$ ]]; then
+    # Isolate the scheduled physical GPU and expose it to the process as
+    # logical cuda:0. Some legacy preprocessing paths use bare "cuda"
+    # instead of args.device, so passing cuda:N alone is not sufficient.
+    cuda_visible_devices="$gpu"
+    device="cuda:0"
+  elif [[ "$gpu" == cpu || "$gpu" == cuda:* ]]; then
     device="$gpu"
   fi
 
@@ -235,6 +242,11 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     env
     MPLBACKEND=Agg
     PYTHONUNBUFFERED=1
+  )
+  if [[ -n "$cuda_visible_devices" ]]; then
+    main_cmd+=(CUDA_VISIBLE_DEVICES="$cuda_visible_devices")
+  fi
+  main_cmd+=(
     "$job_python_bin"
     -u
     main.py
@@ -264,6 +276,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     "config_path=$config_path"
     "host=$host"
     "gpu=$gpu"
+    "cuda_visible_devices=$cuda_visible_devices"
     "device=$device"
     "python_bin=$job_python_bin"
   )

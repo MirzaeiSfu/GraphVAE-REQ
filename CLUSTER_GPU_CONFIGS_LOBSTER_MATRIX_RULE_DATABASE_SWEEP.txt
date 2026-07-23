@@ -1,0 +1,4 @@
+cs-cl-18 0 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_both_currentdb_constant.yaml
+cs-cl-19 0 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_both_h3_no_features_constant.yaml
+cs-cl-19 1 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_h3_no_features_constant.yaml
+cs-cl-18 1 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_h3s_lc1_v2_cfg410001000_constant.yaml

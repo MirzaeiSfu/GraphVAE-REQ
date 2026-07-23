@@ -1,0 +1,3 @@
+# Strong-prior group-specific matrix experiment.
+# Format: HOST GPU CONFIG_YAML
+cs-cl-26 1 configs/matrix_motif/lobster_matrix_kia40_2000_full_original_marginal_literals_stats1_currentdb_constant.yaml

@@ -1,21 +1,16 @@
-# LOBSTER GraphVAE experiment retaining every final motif-chain matrix.
-#
-# This starts from the existing LOBSTER Table 2 GraphVAE + motif setup, but
-# motif_output_mode=matrix replaces each scalar motif count with a padded
-# [N_max, N_max] matrix. Every motif matrix receives the same calibrated
-# Gaussian statistic loss that GraphVAE-MM applies independently to P^1,...,P^5.
-
+# LOBSTER matrix-motif rule-source sweep: h3s/lc1-v2 no-feature database, original rules.
 data:
   dataset: LOBSTER
   use_feature: true
   bfsOrdering: true
   bfs_strategy: legacy_first_component
   directed: true
-  database_name: lobster_undir_feat_snap_85093d
+  database_name: lob_h3s_lc1_v2_undir_no_feature_cfg410001000
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null
   data_dir: null
+  lobster_feature_schema: old_v1
   split_mode: paper_70_10_20
   split_seed: 123
   train_fraction: 0.7
@@ -23,62 +18,58 @@ data:
   seed: 0
   deterministic: true
   deterministic_warn_only: false
-
 model:
   model: GraphVAE
   encoder_type: AvePool
   decoder: FC
   graphEmDim: 1024
   beta: null
-
 experiment:
   epoch_number: 20000
-  Vis_step: 1000
+  Vis_step: 4000
   redraw: false
   lr: 0.0003
   train_batch_size: 200
   task: graphGeneration
-
 motif:
   motif_loss: true
-  motif_output_mode: matrix
   use_syntactic_literal_rules: false
   syntactic_literal_rule_mode: original
-  # Matrix mode uses the Kia-MM calibrated Gaussian objective exclusively.
   motif_loss_mode: calibrated_gaussian
   motif_temperature_start: 1.0
   motif_temperature_end: 1.0
   motif_temperature_anneal_start_frac: 1.0
+  motif_temperature_guard_ratio: 0.0
+  motif_temperature_guard_relax_factor: 1.05
+  motif_temperature_guard_sharpen_factor: 0.995
   rule_prune: true
-  # Matrix outputs are much larger than scalar counts, so use smaller chunks.
-  motif_batch_size: 64
+  motif_batch_size: 200
   prepare_motif_cache_only: false
-
+  motif_output_mode: matrix
 loss:
   alpha_kernel_cost: 1.0
+  use_graphvae_mm_bce_kl_weights: false
   alpha_node_feat: 1.0
   alpha_edge_feat: 1.0
-  # Shared weight applied after globally averaging the per-motif matrix losses.
-  alpha_motif_loss: 1.0
+  alpha_motif_loss: 0.1
   alpha_syntactic_literal_motif_loss: 0.0
   alpha_adj_recon: 0.0
-
 runtime:
-  run_label: lobster-graphvae-matrix-motifs
-  graph_save_path: runs/matrix_motif/lobster_graphvae_matrix_motifs
-  dataset_cache_dir: runs/cluster_tests/lobster_table2/dataset_cache
+  run_label: lobster_matrix_plain1_1_n1_e1_m0p1_original_h3s_lc1_v2_cfg410001000_constant
+  graph_save_path: runs/matrix_motif/rule_database_sweep/lobster_matrix_plain1_1_n1_e1_m0p1_original_h3s_lc1_v2_cfg410001000_constant
+  dataset_cache_dir: runs/cluster_tests/lobster_old_features/dataset_cache
   disable_dataset_cache: false
-  motif_cache_dir: null
+  motif_cache_dir: cache_motifs_old_lobster
   PATH: model
   UseGPU: true
   device: cuda:0
   plot_testGraphs: true
   ideal_Evalaution: false
-  keep_best_validation_mmd: true
+  keep_best_validation_mmd: false
   best_validation_mmd_metric: table3_priority
   save_validation_checkpoints: false
-  checkpoint_interval_epochs: 1000
-  third_party_eval: true
+  checkpoint_interval_epochs: 4000
+  third_party_eval: false
   third_party_eval_repeats: 10
   third_party_eval_max_graphs: 1000
   third_party_eval_seed: 0

@@ -1,0 +1,2 @@
+config,original_representation,literal_representation,original_weight,literal_weight,adjacency_bce_weight,kl_weight,rule_prune,selection_checkpoints
+configs/matrix_motif/lobster_matrix_kia40_2000_full_original_marginal_literals_stats1_currentdb_constant.yaml,full_matrix,row_column_marginals,1.0,1.0,40.0,2000.0,true,5
