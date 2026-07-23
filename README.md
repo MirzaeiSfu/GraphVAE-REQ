@@ -289,6 +289,78 @@ python scripts/evaluate_graph_realism_batch.py \
   --root-dir runs/table2_reproduction
 ```
 
+Post-hoc Random-GIN evaluation using the node and edge attributes decoded by a
+trained GraphVAE checkpoint:
+
+```bash
+python scripts/evaluate_attributed_graph_realism_checkpoints.py \
+  --run-dir runs/my_feature_aware_run \
+  --split test \
+  --repeats 10 \
+  --max-graphs 1000
+```
+
+This evaluator regenerates adjacency, node attributes, and edge attributes
+from the same latent samples. It reports matched `topology_control`,
+`decoded_node`, `decoded_edge`, and primary `decoded_node_edge` ablations,
+without constructing degree or clustering features. Categorical decoder
+channels are resolved by argmax within each original feature group. The
+underlying GIN input path is float-valued and also accepts continuous node or
+edge attributes when they are supplied without categorical one-hot metadata.
+The original `run_config_used.yaml`, matching dataset cache, and a checkpoint
+with feature-decoder parameters are required.
+
+To evaluate DeFoG, GRAN, GraphRNN, or another trained model against the same
+held-out graphs, export both collections as DGL files:
+
+```bash
+python scripts/evaluate_attributed_dgl_graphs.py \
+  --generated-dgl defog_generated.bin \
+  --reference-dgl fixed_test_graphs.bin \
+  --model-name DeFoG \
+  --repeats 10 \
+  --max-graphs 1000
+```
+
+Each file must be written with `dgl.save_graphs`. Every individual homogeneous
+DGL graph must provide:
+
+```python
+graph.ndata["attr"] = final_node_features.float()  # shape: [N, D_node]
+graph.edata["attr"] = final_edge_features.float()  # shape: [E, D_edge]
+dgl.save_graphs("defog_generated.bin", generated_graphs)
+dgl.save_graphs("fixed_test_graphs.bin", reference_graphs)
+```
+
+`edata["attr"]` may be omitted only when the dataset has no edge attributes.
+Categorical values must already be one-hot floats; continuous values remain
+real-valued floats. Generated and reference graphs must use identical feature
+dimensions, channel ordering, and categorical meanings. In particular, if
+training used category ID `1` for red, both exports must encode red in the
+corresponding same one-hot channel.
+
+The public evaluator boundary is:
+
+```text
+DGLGraph -> validated attributed graph -> vendored DGL Random-GIN
+```
+
+For direct Python use, the primary API is:
+
+```python
+from eval.attributed_gin import evaluate_dgl_feature_modes
+
+results = evaluate_dgl_feature_modes(generated_graphs, reference_graphs)
+```
+
+PyG objects and plain tensor dictionaries are intentionally rejected. A model
+implemented in PyG should convert its output to DGL in its own repository
+before calling this evaluator. The evaluator ignores input self-loops, merges
+matching duplicate directions of undirected edges, preserves feature/edge
+alignment, applies the common largest-connected-component policy, and adds
+evaluator self-loops with zero edge attributes. Conflicting attributes on the
+two directions of an undirected edge are an error.
+
 Regenerate 50/50 reference reports:
 
 ```bash
