@@ -29,6 +29,9 @@ model:
   decoder: FC
   graphEmDim: 1024
   beta: null
+  # false reproduces Kia's variance-scaled posterior sampling. Set true only
+  # for corrected runs of our model.
+  correct_reparameterization: false
 
 #===============================
 # Experiment arguments

@@ -918,6 +918,16 @@ parser.add_argument(
     help="beta coefiicieny",
     type=float
 )
+parser.add_argument(
+    '--correct_reparameterization',
+    type=str2bool,
+    default=False,
+    help=(
+        "Opt in to the correct VAE sample z=mean+eps*std. The default false "
+        "preserves Kia's legacy z=mean+eps*variance behavior for baseline "
+        "reproduction; pass true only for corrected model runs."
+    ),
+)
 
 #===============================
 # Experiment arguments
@@ -1472,6 +1482,7 @@ encoder_type = args.encoder_type
 graphEmDim = args.graphEmDim
 decoder_type = args.decoder
 beta = args.beta
+correct_reparameterization = args.correct_reparameterization
 
 #===============================
 # Experiment settings
@@ -1820,6 +1831,10 @@ if beta != None:
 
 latent_mode = "AE" if AutoEncoder else "VAE"
 print("latent_mode:" + latent_mode)
+print(
+    "reparameterization:"
+    + ("correct_std" if correct_reparameterization else "legacy_variance")
+)
 print("kernl_type:" + str(kernl_type))
 print("alpha: " + str(alpha) + " num_step:" + str(step_num))
 print(
@@ -1854,6 +1869,10 @@ print(
 )
 
 logging.info("latent_mode:" + latent_mode)
+logging.info(
+    "reparameterization:"
+    + ("correct_std" if correct_reparameterization else "legacy_variance")
+)
 logging.info("kernl_type:" + str(kernl_type))
 logging.info("alpha: " + str(alpha) + " num_step:" + str(step_num))
 logging.info(
@@ -2797,7 +2816,8 @@ if use_edge_feature_decoder:
 #====================================================================================
 model = kernelGVAE(kernel_model, encoder, decoder, AutoEncoder, graphEmDim=graphEmDim,
                    node_feature_decoder=node_feat_decoder,
-                   edge_feature_decoder=edge_feat_decoder)
+                   edge_feature_decoder=edge_feat_decoder,
+                   correct_reparameterization=correct_reparameterization)
 
 model.to(device)
 
