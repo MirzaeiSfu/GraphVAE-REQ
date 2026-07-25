@@ -261,6 +261,11 @@ Motif caches are written under `cache_motifs/` unless `MOTIF_CACHE_DIR` or
 
 ## Evaluation
 
+The reusable PyG-first evaluator for DeFoG and other generator repositories is
+documented in [`graph_evaluation/`](graph_evaluation/README.md). It provides
+matched PyG Random-GIN, GraphCL, and InfoGraph runners plus an optional adapter
+to the existing DGL Random-GIN. It is independent of `main.py`.
+
 Statistics-based Table 2 style evaluation:
 
 ```bash

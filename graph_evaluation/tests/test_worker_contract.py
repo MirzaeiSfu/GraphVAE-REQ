@@ -1,0 +1,32 @@
+"""Tests for metadata checks performed at the isolated worker boundary."""
+
+import pytest
+
+from ggm_eval.worker import _validate_schema_identity
+
+
+def test_schema_identity_accepts_matching_declared_metadata():
+    identity = _validate_schema_identity(
+        training={"dataset": "PROTEINS", "feature_schema": "proteins-v1"},
+        generated={"dataset": "PROTEINS", "feature_schema": "proteins-v1"},
+        reference={"dataset": "PROTEINS", "feature_schema": "proteins-v1"},
+    )
+
+    assert identity == {
+        "dataset": "PROTEINS",
+        "feature_schema": "proteins-v1",
+    }
+
+
+def test_schema_identity_rejects_mismatch_or_missing_declaration():
+    with pytest.raises(ValueError, match="feature_schema"):
+        _validate_schema_identity(
+            generated={"feature_schema": "proteins-v1"},
+            reference={"feature_schema": "proteins-v2"},
+        )
+
+    with pytest.raises(ValueError, match="dataset"):
+        _validate_schema_identity(
+            generated={"dataset": "PROTEINS"},
+            reference={},
+        )

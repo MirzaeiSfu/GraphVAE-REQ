@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-ggm-evaluation"
+version = "0.1.0"
+description = "PyG-first evaluation adapters for graph generative models"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = [
+    "numpy>=1.21",
+    "torch>=2.0",
+    "torch-geometric>=2.0",
+]
+
+[project.optional-dependencies]
+contrastive = [
+    "PyGCL",
+    "networkx",
+    "scikit-learn",
+    "scipy",
+    "tqdm",
+]
+test = [
+    "pytest>=7",
+]
+
+[project.scripts]
+ggm-eval = "ggm_eval.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
