@@ -86,6 +86,72 @@ ggm-eval inspect-upstream \
 
 See [UPSTREAMS.md](UPSTREAMS.md) before redistributing that checkout.
 
+## Quick evaluation with bundled trained GNNs
+
+The package includes three independently trained GraphCL-GIN checkpoints for
+each of `AIDS`, `ENZYMES`, `MUTAG`, `PROTEINS`, `PTC`, `QM9`, and
+`ogbg-molbbbp`. This convenience path is entirely inside `graph_evaluation`;
+it does not call or import the repository's root `main.py`.
+
+From Python:
+
+```python
+from ggm_eval import evaluate_with_trained_gnns
+
+result = evaluate_with_trained_gnns(
+    dataset="PROTEINS",
+    generated="run/generated_graphs.pt",
+    reference="run/real_test_graphs.pt",
+    output_dir="run/trained_gnn_evaluation",
+    device="auto",
+)
+
+print(result["summary"])
+```
+
+Or use the equivalent command:
+
+```bash
+ggm-eval evaluate-trained \
+  --dataset PROTEINS \
+  --generated run/generated_graphs.pt \
+  --reference run/real_test_graphs.pt \
+  --output-dir run/trained_gnn_evaluation \
+  --device auto
+```
+
+The wrapper accepts common aliases such as `protein` and `ogbg`, selects seeds
+`0 1 2`, verifies every checkpoint against its manifest size and SHA-256
+digest, and delegates to the same isolated evaluation runner described below.
+Use `seeds=[0]` in Python or `--seeds 0` on the command line only when a
+single-encoder diagnostic is intentional.
+
+The trained weights are bundled, but the research source and its runtime
+dependencies are not. Point to the pinned checkout explicitly:
+
+```bash
+export GGM_EVAL_CONTRASTIVE_REPO=\
+../Self-Supervised-Models-for-GGM-Evaluation
+```
+
+Alternatively, pass `upstream_repository=...` in Python or
+`--upstream-repo ...` on the command line. Without an explicit setting, the
+wrapper searches common sibling checkout locations. The runner still rejects
+a checkout at the wrong revision or with local modifications unless
+`allow_unpinned_upstream=True`/`--allow-unpinned-upstream` is deliberately
+selected.
+
+The generated and reference files must use the same dataset and feature
+schema as the selected trained encoder. For example, the bundled PROTEINS
+encoders expect `default|export=decoded_node`, while the AIDS, QM9, and
+`ogbg-molbbbp` encoders expect their documented node-and-edge schemas. The
+worker checks these identities before computing metrics.
+
+The checkpoint registry, complete training provenance, and integrity digests
+are in
+`src/ggm_eval/trained_models/manifest.json`; the binary layout and usage
+constraints are documented in `src/ggm_eval/trained_models/README.md`.
+
 ## PyG interchange contract
 
 Each graph is an individual homogeneous `torch_geometric.data.Data`:
@@ -387,6 +453,10 @@ evaluation would place the trained encoder out of distribution.
 
 ## Evaluating frozen PyG encoders
 
+Use `evaluate-trained` above for the bundled GraphCL-GINs. The lower-level
+`evaluate` command remains available for newly trained GraphCL, InfoGraph, or
+matched random-GIN checkpoints:
+
 ```bash
 ggm-eval evaluate \
   --generated defog_generated.pt \
@@ -454,6 +524,10 @@ reports/defog_graphcl/
 │   └── runtime/{stdout.log,stderr.log}
 └── checkpoint_001/...
 ```
+
+Both `evaluate` and `evaluate-trained` use this layout. With the bundled
+three-seed evaluators, directories `checkpoint_000` through
+`checkpoint_002` are present.
 
 The JSON preserves per-checkpoint values, input digests, upstream revision,
 upstream dirty-state, feature mode, dimensions, and nearest-neighbour

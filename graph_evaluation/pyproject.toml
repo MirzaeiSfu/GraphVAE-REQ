@@ -36,5 +36,12 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+ggm_eval = [
+    "trained_models/README.md",
+    "trained_models/manifest.json",
+    "trained_models/graphcl_gin/*/seed_*/checkpoint.pt",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -35,8 +35,25 @@ def test_cli_exposes_primary_and_legacy_engines():
             "report",
         ]
     )
+    trained = parser.parse_args(
+        [
+            "evaluate-trained",
+            "--dataset",
+            "protein",
+            "--generated",
+            "generated.pt",
+            "--reference",
+            "reference.pt",
+            "--output-dir",
+            "trained-report",
+        ]
+    )
 
     assert train.encoder == "graphcl"
     assert train.seeds == [0, 1]
     assert train.limit_lipschitz is True
+    assert trained.command == "evaluate-trained"
+    assert trained.upstream_repo is None
+    assert trained.device == "auto"
+    assert trained.seeds is None
     assert legacy.command == "evaluate-legacy"

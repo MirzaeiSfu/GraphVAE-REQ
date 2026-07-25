@@ -49,36 +49,12 @@ from data import (  # noqa: E402
 from eval.attributed_gin import graph_from_dense_attributes  # noqa: E402
 from ggm_eval import save_pyg_collection  # noqa: E402
 from ggm_eval.adapters import attributed_arrays_to_pyg  # noqa: E402
+from ggm_eval.datasets import normalize_dataset_name  # noqa: E402
 from util import build_onehot_features  # noqa: E402
 
 
-DATASET_ALIASES = {
-    "protein": "PROTEINS",
-    "proteins": "PROTEINS",
-    "mutag": "MUTAG",
-    "ptc": "PTC",
-    "aids": "AIDS",
-    "enzymes": "ENZYMES",
-    "enzymez": "ENZYMES",
-    "qm9": "QM9",
-    "ogbg": "ogbg-molbbbp",
-    "ogbg-molbbbp": "ogbg-molbbbp",
-}
 SPLIT_MODES = ("legacy_80_20", "paper_70_10_20")
 BFS_STRATEGIES = ("none", "legacy_first_component", "all_components")
-
-
-def normalize_dataset_name(raw_name: str) -> str:
-    """Return the repository's canonical dataset identity."""
-
-    normalized = str(raw_name).strip()
-    canonical = DATASET_ALIASES.get(normalized.lower())
-    if canonical is None:
-        raise ValueError(
-            f"Unsupported dataset {raw_name!r}. Choose one of "
-            f"{sorted(set(DATASET_ALIASES.values()))}."
-        )
-    return canonical
 
 
 def base_feature_schema(

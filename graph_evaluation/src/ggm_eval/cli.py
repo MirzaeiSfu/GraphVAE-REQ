@@ -18,6 +18,7 @@ from .runner import (
     evaluate_legacy_random_gin,
     train_contrastive_encoders,
 )
+from .trained import evaluate_with_trained_gnns
 from .upstreams import validate_contrastive_upstream
 
 
@@ -119,6 +120,25 @@ def _evaluate(args):
     )
 
 
+def _evaluate_trained(args):
+    _print(
+        evaluate_with_trained_gnns(
+            dataset=args.dataset,
+            generated=args.generated,
+            reference=args.reference,
+            output_dir=args.output_dir,
+            upstream_repository=args.upstream_repo,
+            seeds=args.seeds,
+            python_executable=args.python,
+            device=args.device,
+            nearest_k=args.nearest_k,
+            max_graphs=args.max_graphs,
+            trusted_input=args.trusted_input,
+            allow_unpinned_upstream=args.allow_unpinned_upstream,
+        )
+    )
+
+
 def _evaluate_legacy(args):
     _print(
         evaluate_legacy_random_gin(
@@ -160,12 +180,20 @@ def _add_python_flag(parser):
     )
 
 
-def _add_upstream_flags(parser):
+def _add_upstream_flags(parser, *, required=True):
     parser.add_argument(
         "--upstream-repo",
         type=Path,
-        required=True,
-        help="Checkout of Self-Supervised-Models-for-GGM-Evaluation.",
+        required=required,
+        help=(
+            "Checkout of Self-Supervised-Models-for-GGM-Evaluation. "
+            + (
+                ""
+                if required
+                else "If omitted, use GGM_EVAL_CONTRASTIVE_REPO or discover "
+                "a nearby checkout."
+            )
+        ),
     )
     parser.add_argument(
         "--allow-unpinned-upstream",
@@ -286,6 +314,40 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_input_flag(evaluate)
     _add_python_flag(evaluate)
     evaluate.set_defaults(handler=_evaluate)
+
+    trained = subparsers.add_parser(
+        "evaluate-trained",
+        help="Evaluate with bundled, dataset-matched GraphCL-GIN checkpoints.",
+    )
+    trained.add_argument(
+        "--dataset",
+        required=True,
+        help=(
+            "Dataset identity or alias: PROTEINS, MUTAG, PTC, AIDS, "
+            "ENZYMES, QM9, or ogbg-molbbbp."
+        ),
+    )
+    trained.add_argument("--generated", type=Path, required=True)
+    trained.add_argument("--reference", type=Path, required=True)
+    trained.add_argument("--output-dir", type=Path, required=True)
+    trained.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        help="Optional subset of bundled seeds; defaults to 0 1 2.",
+    )
+    trained.add_argument("--device", default="auto")
+    trained.add_argument("--nearest-k", type=int, default=5)
+    trained.add_argument(
+        "--max-graphs",
+        type=int,
+        default=0,
+        help="Zero uses every reference graph.",
+    )
+    _add_upstream_flags(trained, required=False)
+    _add_common_input_flag(trained)
+    _add_python_flag(trained)
+    trained.set_defaults(handler=_evaluate_trained)
 
     legacy = subparsers.add_parser(
         "evaluate-legacy",

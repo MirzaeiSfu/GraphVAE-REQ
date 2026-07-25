@@ -1,0 +1,461 @@
+{
+  "format": "ggm-eval-trained-model-bundle",
+  "version": 1,
+  "encoder": "graphcl",
+  "architecture": "gin",
+  "campaign": {
+    "name": "graphcl_gin_20260725",
+    "completed": "2026-07-25",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "epochs": 100,
+    "notes": "QM9 used a deterministic 10,000-source-graph cap; all other datasets used the full retained source collection."
+  },
+  "upstream": {
+    "repository": "https://github.com/hamed1375/Self-Supervised-Models-for-GGM-Evaluation",
+    "revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95"
+  },
+  "datasets": {
+    "AIDS": {
+      "aliases": [
+        "aids"
+      ],
+      "feature_mode": "decoded_node_edge",
+      "feature_schema": "tu-quantile8-maxall|export=decoded_node_edge",
+      "model": {
+        "edge_dim": 3,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 59,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_split": {
+        "split": "train",
+        "split_mode": "legacy_80_20",
+        "split_seed": 123,
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "train_fraction": 0.8,
+        "validation_fraction": 0.0,
+        "test_fraction": 0.19999999999999996,
+        "bfs_strategy": "all_components"
+      },
+      "training_collection_sha256": "64d09e01dd1f3251acba8ab1f065dd66e12bc859451e1459608a7bd671dbc4f1",
+      "training_graphs": {
+        "directed_edge_count": 51276,
+        "edge_feature_dim": 3,
+        "graph_count": 1600,
+        "node_feature_dim": 59,
+        "total_nodes": 24615
+      },
+      "checkpoints": [
+        {
+          "seed": 0,
+          "path": "graphcl_gin/AIDS/seed_0/checkpoint.pt",
+          "size_bytes": 128226,
+          "sha256": "6316f4ee27994cae74f16488353760a04f94e7f18af4227565eab37203567c5b",
+          "final_training_loss": 10.590547436475754
+        },
+        {
+          "seed": 1,
+          "path": "graphcl_gin/AIDS/seed_1/checkpoint.pt",
+          "size_bytes": 128226,
+          "sha256": "b50573f757ae45279c14b9d379080b31dcfd2dd2b5bd4b63d2bac5d3eb5fa232",
+          "final_training_loss": 10.620121577382088
+        },
+        {
+          "seed": 2,
+          "path": "graphcl_gin/AIDS/seed_2/checkpoint.pt",
+          "size_bytes": 128226,
+          "sha256": "610c46e473914fbb58e7fc0288de3d08f4a0381d6a17bb5dd18c66c46937a49c",
+          "final_training_loss": 9.927645945549012
+        }
+      ]
+    },
+    "ENZYMES": {
+      "aliases": [
+        "enzymes",
+        "enzymez"
+      ],
+      "feature_mode": "decoded_node",
+      "feature_schema": "tu-quantile8-maxall|export=decoded_node",
+      "model": {
+        "edge_dim": 0,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 115,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_split": {
+        "split": "train",
+        "split_mode": "legacy_80_20",
+        "split_seed": 123,
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "train_fraction": 0.8,
+        "validation_fraction": 0.0,
+        "test_fraction": 0.19999999999999996,
+        "bfs_strategy": "all_components"
+      },
+      "training_collection_sha256": "2a26d1fa3f6f6597b125606c88f120585584e59059f7263571d2ee6f7bd6712a",
+      "training_graphs": {
+        "directed_edge_count": 57252,
+        "edge_feature_dim": 0,
+        "graph_count": 480,
+        "node_feature_dim": 115,
+        "total_nodes": 14930
+      },
+      "checkpoints": [
+        {
+          "seed": 0,
+          "path": "graphcl_gin/ENZYMES/seed_0/checkpoint.pt",
+          "size_bytes": 131490,
+          "sha256": "4f1605587793c352ca7504730fd2d86264bd1421f5d2d2002734bd81ca763bf5",
+          "final_training_loss": 3.322143737971783
+        },
+        {
+          "seed": 1,
+          "path": "graphcl_gin/ENZYMES/seed_1/checkpoint.pt",
+          "size_bytes": 131490,
+          "sha256": "31e33529e3dd3a1d214615fc26c684d5df90fd8b4f0c8d2f26c233cbd0e6af14",
+          "final_training_loss": 3.3801552563905717
+        },
+        {
+          "seed": 2,
+          "path": "graphcl_gin/ENZYMES/seed_2/checkpoint.pt",
+          "size_bytes": 131490,
+          "sha256": "0900f616f56bcfb6f00dc4914c6a6aef42802e41e534419da84a694588831ef6",
+          "final_training_loss": 3.2881936386227606
+        }
+      ]
+    },
+    "MUTAG": {
+      "aliases": [
+        "mutag"
+      ],
+      "feature_mode": "decoded_node",
+      "feature_schema": "gin-node-label-v2|export=decoded_node",
+      "model": {
+        "edge_dim": 0,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 7,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_split": {
+        "split": "train",
+        "split_mode": "legacy_80_20",
+        "split_seed": 123,
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "train_fraction": 0.8,
+        "validation_fraction": 0.0,
+        "test_fraction": 0.19999999999999996,
+        "bfs_strategy": "all_components"
+      },
+      "training_collection_sha256": "a553b13ea4041f9715a922bcf06eb8c4d8abf4b7f76a41f087cfea1137e90a2e",
+      "training_graphs": {
+        "directed_edge_count": 6054,
+        "edge_feature_dim": 0,
+        "graph_count": 150,
+        "node_feature_dim": 7,
+        "total_nodes": 2735
+      },
+      "checkpoints": [
+        {
+          "seed": 0,
+          "path": "graphcl_gin/MUTAG/seed_0/checkpoint.pt",
+          "size_bytes": 117666,
+          "sha256": "78474f874cd867f922fe73751e1dc26acae9b7ad6bcce830aa7957e36cf541df",
+          "final_training_loss": 3.6010272294282912
+        },
+        {
+          "seed": 1,
+          "path": "graphcl_gin/MUTAG/seed_1/checkpoint.pt",
+          "size_bytes": 117666,
+          "sha256": "c2d28fb12c174539e71ac271458084105f95dd00ac648a18a8f32b250ba3e0fc",
+          "final_training_loss": 3.7128061056137085
+        },
+        {
+          "seed": 2,
+          "path": "graphcl_gin/MUTAG/seed_2/checkpoint.pt",
+          "size_bytes": 117666,
+          "sha256": "5a0889536d78bf049313666c5f8271e3b7362b681fc43d2caa548a7ee4ca1b81",
+          "final_training_loss": 3.882721346616745
+        }
+      ]
+    },
+    "PROTEINS": {
+      "aliases": [
+        "protein",
+        "proteins"
+      ],
+      "feature_mode": "decoded_node",
+      "feature_schema": "default|export=decoded_node",
+      "model": {
+        "edge_dim": 0,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 3,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_split": {
+        "split": "train",
+        "split_mode": "paper_70_10_20",
+        "split_seed": 123,
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "train_fraction": 0.7,
+        "validation_fraction": 0.1,
+        "test_fraction": 0.20000000000000004,
+        "bfs_strategy": "all_components"
+      },
+      "training_collection_sha256": "d38470335d7d5f676dcd70394cf2dc1afcc9e340f6cf9af217b289d47887431a",
+      "training_graphs": {
+        "directed_edge_count": 83532,
+        "edge_feature_dim": 0,
+        "graph_count": 731,
+        "node_feature_dim": 3,
+        "total_nodes": 22214
+      },
+      "checkpoints": [
+        {
+          "seed": 0,
+          "path": "graphcl_gin/PROTEINS/seed_0/checkpoint.pt",
+          "size_bytes": 117154,
+          "sha256": "aef5277a9c0a59b76dd527d139c3bb4e520889d97f18a864fc002552fad31658",
+          "final_training_loss": 11.107947732508183
+        },
+        {
+          "seed": 1,
+          "path": "graphcl_gin/PROTEINS/seed_1/checkpoint.pt",
+          "size_bytes": 117154,
+          "sha256": "83c7bee0f0b6a475ef5f44b7540a5bf72923a7e9b50559ea4a219c0c8876172f",
+          "final_training_loss": 11.247822561860085
+        },
+        {
+          "seed": 2,
+          "path": "graphcl_gin/PROTEINS/seed_2/checkpoint.pt",
+          "size_bytes": 117154,
+          "sha256": "5a257b89278fd46ae318da8ec06751dc0ef05a870c5e27dd6af72a3ac58a1684",
+          "final_training_loss": 10.399368119239806
+        }
+      ]
+    },
+    "PTC": {
+      "aliases": [
+        "ptc"
+      ],
+      "feature_mode": "decoded_node",
+      "feature_schema": "gin-node-label-v2|export=decoded_node",
+      "model": {
+        "edge_dim": 0,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 19,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_split": {
+        "split": "train",
+        "split_mode": "legacy_80_20",
+        "split_seed": 123,
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "train_fraction": 0.8,
+        "validation_fraction": 0.0,
+        "test_fraction": 0.19999999999999996,
+        "bfs_strategy": "all_components"
+      },
+      "training_collection_sha256": "55cbaf20e76d9efb7be900028d1bc2f0dd76de02904f4011edb3b9c64d3a2eec",
+      "training_graphs": {
+        "directed_edge_count": 14058,
+        "edge_feature_dim": 0,
+        "graph_count": 275,
+        "node_feature_dim": 19,
+        "total_nodes": 6913
+      },
+      "checkpoints": [
+        {
+          "seed": 0,
+          "path": "graphcl_gin/PTC/seed_0/checkpoint.pt",
+          "size_bytes": 119202,
+          "sha256": "bff7448f4ddf4707a41f5d67988ee78a52b23cbf5af12a2c26b39d5b96ba9483",
+          "final_training_loss": 2.865154565870762
+        },
+        {
+          "seed": 1,
+          "path": "graphcl_gin/PTC/seed_1/checkpoint.pt",
+          "size_bytes": 119202,
+          "sha256": "3d342934282cb7f25daff7245e2ec520e4a96e00fde721a7afe9601423771fa7",
+          "final_training_loss": 2.940559460222721
+        },
+        {
+          "seed": 2,
+          "path": "graphcl_gin/PTC/seed_2/checkpoint.pt",
+          "size_bytes": 119202,
+          "sha256": "f4b0c94ca9aa41e8ed9ef10e69a8f0dbb73be264ffd9417d3f34814f7dc9486d",
+          "final_training_loss": 2.8063315093517303
+        }
+      ]
+    },
+    "QM9": {
+      "aliases": [
+        "qm9"
+      ],
+      "feature_mode": "decoded_node_edge",
+      "feature_schema": "default|export=decoded_node_edge",
+      "model": {
+        "edge_dim": 3,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 9,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_split": {
+        "split": "train",
+        "split_mode": "legacy_80_20",
+        "split_seed": 123,
+        "selection_seed": 0,
+        "source_graph_limit": 10000,
+        "train_fraction": 0.8,
+        "validation_fraction": 0.0,
+        "test_fraction": 0.19999999999999996,
+        "bfs_strategy": "all_components"
+      },
+      "training_collection_sha256": "4ad6e95dd920f30a22b4b8c6bc60a94cd9c083c8da6dbfcc0b5d4195d2b41099",
+      "training_graphs": {
+        "directed_edge_count": 298800,
+        "edge_feature_dim": 3,
+        "graph_count": 8000,
+        "node_feature_dim": 9,
+        "total_nodes": 144359
+      },
+      "checkpoints": [
+        {
+          "seed": 0,
+          "path": "graphcl_gin/QM9/seed_0/checkpoint.pt",
+          "size_bytes": 120994,
+          "sha256": "ec71211a9f988e320536fa0c77863d3af0b66d8eca00b6e08ebcba64804a456d",
+          "final_training_loss": 135.37922607660295
+        },
+        {
+          "seed": 1,
+          "path": "graphcl_gin/QM9/seed_1/checkpoint.pt",
+          "size_bytes": 120994,
+          "sha256": "83db5d5ec4d7d76b6f4a2d529e35f2e126d24ababbb74f55422e1fea5c2c63c8",
+          "final_training_loss": 57.067785108089446
+        },
+        {
+          "seed": 2,
+          "path": "graphcl_gin/QM9/seed_2/checkpoint.pt",
+          "size_bytes": 120994,
+          "sha256": "294191b189714053b93f47617ac21580ca52e613f01480c35a01d1ab25400c95",
+          "final_training_loss": 56.04802184104919
+        }
+      ]
+    },
+    "ogbg-molbbbp": {
+      "aliases": [
+        "ogbg",
+        "ogbg-molbbbp",
+        "ogbg_molbbbp"
+      ],
+      "feature_mode": "decoded_node_edge",
+      "feature_schema": "default|export=decoded_node_edge",
+      "model": {
+        "edge_dim": 9,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 39,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_split": {
+        "split": "train",
+        "split_mode": "paper_70_10_20",
+        "split_seed": 123,
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "train_fraction": 0.7,
+        "validation_fraction": 0.1,
+        "test_fraction": 0.20000000000000004,
+        "bfs_strategy": "all_components"
+      },
+      "training_collection_sha256": "80c691e153a15705701a0c7cdee4eb8f8437548fe64390753745de382e69df5d",
+      "training_graphs": {
+        "directed_edge_count": 71496,
+        "edge_feature_dim": 9,
+        "graph_count": 1413,
+        "node_feature_dim": 39,
+        "total_nodes": 33016
+      },
+      "checkpoints": [
+        {
+          "seed": 0,
+          "path": "graphcl_gin/ogbg-molbbbp/seed_0/checkpoint.pt",
+          "size_bytes": 127778,
+          "sha256": "e2e3673a03d1784b63ac047dbfc990a6c767de0afa665012909e3754c971d31c",
+          "final_training_loss": 11.096737997233868
+        },
+        {
+          "seed": 1,
+          "path": "graphcl_gin/ogbg-molbbbp/seed_1/checkpoint.pt",
+          "size_bytes": 127778,
+          "sha256": "a4823f2e600d186df070bd572a3aa2ac0b22d87c0440c74ac5f60556afe1a72b",
+          "final_training_loss": 9.629936216026545
+        },
+        {
+          "seed": 2,
+          "path": "graphcl_gin/ogbg-molbbbp/seed_2/checkpoint.pt",
+          "size_bytes": 127778,
+          "sha256": "efd918210ab1c2a23c8f47d82c5e9fa26815f17c98e419089f7d622a5788c344",
+          "final_training_loss": 10.173447912186385
+        }
+      ]
+    }
+  }
+}

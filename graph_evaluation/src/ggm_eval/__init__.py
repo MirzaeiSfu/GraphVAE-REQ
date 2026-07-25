@@ -19,14 +19,22 @@ from .io import (
     load_pyg_collection_with_metadata,
     save_pyg_collection,
 )
+from .trained import (
+    available_trained_datasets,
+    evaluate_with_trained_gnns,
+    resolve_trained_checkpoints,
+)
 
 __all__ = [
     "FEATURE_MODES",
     "CollectionSummary",
+    "available_trained_datasets",
     "collection_digest",
+    "evaluate_with_trained_gnns",
     "load_pyg_collection",
     "load_pyg_collection_with_metadata",
     "prepare_collection",
+    "resolve_trained_checkpoints",
     "save_pyg_collection",
     "validate_collection",
     "validate_pyg_graph",
