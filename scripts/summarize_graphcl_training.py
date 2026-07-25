@@ -17,8 +17,19 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import statistics
 from pathlib import Path
+
+
+EXPECTED_UPSTREAM_REVISION = "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95"
+EXPECTED_MODEL = {
+    "num_layers": 3,
+    "hidden_dim": 32,
+    "init": "orthogonal",
+    "limit_lipschitz": True,
+    "lipschitz_factor": 1.0,
+}
 
 
 def _schedule_datasets(path: Path) -> dict[str, dict]:
@@ -83,6 +94,8 @@ def collect_summary(
     collected_root: Path,
     schedule_path: Path,
     expected_seeds: list[int],
+    expected_epochs: int,
+    expected_upstream_revision: str,
 ) -> dict:
     """Return a validated aggregate of all scheduled training jobs."""
 
@@ -123,6 +136,11 @@ def collect_summary(
                     f"{expected_seeds}."
                 )
             training_runs = payload.get("training_runs") or []
+            if len(training_runs) != len(expected_seeds):
+                raise ValueError(
+                    f"Training run count for {dataset} is "
+                    f"{len(training_runs)}, expected {len(expected_seeds)}."
+                )
             by_seed = {int(run["seed"]): run for run in training_runs}
             if sorted(by_seed) != sorted(expected_seeds):
                 raise ValueError(
@@ -133,6 +151,55 @@ def collect_summary(
             dataset_rows = []
             for seed in expected_seeds:
                 run = by_seed[seed]
+                if run.get("checkpoint_format") != "ggm-eval-upstream-gconv":
+                    raise ValueError(
+                        f"Checkpoint format mismatch for {dataset}/seed_{seed}."
+                    )
+                if int(run.get("checkpoint_version", -1)) != 1:
+                    raise ValueError(
+                        f"Checkpoint version mismatch for {dataset}/seed_{seed}."
+                    )
+                if run.get("encoder") != "graphcl":
+                    raise ValueError(
+                        f"Encoder mismatch for {dataset}/seed_{seed}."
+                    )
+                if run.get("feature_mode") != schedule["feature_mode"]:
+                    raise ValueError(
+                        f"Run feature mode mismatch for {dataset}/seed_{seed}."
+                    )
+                training = run.get("training") or {}
+                if training.get("trained") is not True:
+                    raise ValueError(
+                        f"Run is not marked trained for {dataset}/seed_{seed}."
+                    )
+                if int(training.get("epochs", -1)) != expected_epochs:
+                    raise ValueError(
+                        f"Epoch mismatch for {dataset}/seed_{seed}: "
+                        f"{training.get('epochs')!r} versus {expected_epochs}."
+                    )
+                model = run.get("model") or {}
+                for field, expected_value in EXPECTED_MODEL.items():
+                    if model.get(field) != expected_value:
+                        raise ValueError(
+                            f"Model field {field!r} mismatch for "
+                            f"{dataset}/seed_{seed}: {model.get(field)!r} "
+                            f"versus {expected_value!r}."
+                        )
+                upstream = run.get("upstream") or {}
+                if upstream.get("revision") != expected_upstream_revision:
+                    raise ValueError(
+                        f"Upstream revision mismatch for {dataset}/seed_{seed}."
+                    )
+                if upstream.get("revision_matches") is not True:
+                    raise ValueError(
+                        f"Upstream pin was not enforced for "
+                        f"{dataset}/seed_{seed}."
+                    )
+                if upstream.get("worktree_dirty") is not False:
+                    raise ValueError(
+                        f"Upstream worktree was dirty for "
+                        f"{dataset}/seed_{seed}."
+                    )
                 checkpoint = run_dir / f"seed_{seed}" / "checkpoint.pt"
                 if not checkpoint.is_file() or checkpoint.stat().st_size == 0:
                     raise ValueError(f"Missing checkpoint: {checkpoint}.")
@@ -142,6 +209,21 @@ def collect_summary(
                         f"Checkpoint metadata dataset mismatch for "
                         f"{dataset}/seed_{seed}: {metadata.get('dataset')!r}."
                     )
+                if metadata.get("feature_mode") != schedule["feature_mode"]:
+                    raise ValueError(
+                        f"Metadata feature mode mismatch for "
+                        f"{dataset}/seed_{seed}."
+                    )
+                training_loss = float(run["training_loss"])
+                elapsed_seconds = float(run["elapsed_seconds"])
+                if not math.isfinite(training_loss):
+                    raise ValueError(
+                        f"Non-finite loss for {dataset}/seed_{seed}."
+                    )
+                if not math.isfinite(elapsed_seconds) or elapsed_seconds <= 0:
+                    raise ValueError(
+                        f"Invalid elapsed time for {dataset}/seed_{seed}."
+                    )
                 row = {
                     "dataset": dataset,
                     "host": schedule["host"],
@@ -149,9 +231,9 @@ def collect_summary(
                     "feature_mode": schedule["feature_mode"],
                     "feature_schema": metadata.get("feature_schema"),
                     "seed": seed,
-                    "epochs": int(run["training"]["epochs"]),
-                    "training_loss": float(run["training_loss"]),
-                    "elapsed_seconds": float(run["elapsed_seconds"]),
+                    "epochs": int(training["epochs"]),
+                    "training_loss": training_loss,
+                    "elapsed_seconds": elapsed_seconds,
                     "graph_count": int(run["training_graphs"]["graph_count"]),
                     "node_feature_dim": int(
                         run["training_graphs"]["node_feature_dim"]
@@ -165,7 +247,7 @@ def collect_summary(
                     "training_collection_sha256": run[
                         "training_collection_sha256"
                     ],
-                    "upstream_revision": run["upstream"]["revision"],
+                    "upstream_revision": upstream["revision"],
                 }
                 dataset_rows.append(row)
                 rows.append(row)
@@ -198,6 +280,12 @@ def collect_summary(
         "schedule": str(schedule_path.resolve()),
         "expected_datasets": list(scheduled),
         "expected_seeds": expected_seeds,
+        "protocol": {
+            "encoder": "graphcl",
+            "epochs": expected_epochs,
+            "model": EXPECTED_MODEL,
+            "upstream_revision": expected_upstream_revision,
+        },
         "dataset_count": len(datasets),
         "checkpoint_count": len(rows),
         "datasets": datasets,
@@ -273,6 +361,11 @@ def main():
         default=Path("CLUSTER_GRAPHCL_GIN_20260725.txt"),
     )
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    parser.add_argument("--expected-epochs", type=int, default=100)
+    parser.add_argument(
+        "--expected-upstream-revision",
+        default=EXPECTED_UPSTREAM_REVISION,
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
 
@@ -285,6 +378,8 @@ def main():
         collected_root=collected_root,
         schedule_path=args.schedule.expanduser().resolve(),
         expected_seeds=[int(seed) for seed in args.seeds],
+        expected_epochs=int(args.expected_epochs),
+        expected_upstream_revision=args.expected_upstream_revision,
     )
     (output_dir / "graphcl_training_summary.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
