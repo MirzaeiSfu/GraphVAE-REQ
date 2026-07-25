@@ -164,6 +164,7 @@ SSH_OPTS=(-o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" -o StrictHostKeyChecking=acce
 RSYNC_SSH_CMD="ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT -o StrictHostKeyChecking=accept-new"
 CODE_RSYNC_EXCLUDES=(
   --exclude .git/
+  --exclude .graphcl_deps/
   --exclude __pycache__/
   --exclude .pytest_cache/
   --exclude cache_datasets/
@@ -171,6 +172,7 @@ CODE_RSYNC_EXCLUDES=(
   --exclude cache_motifs_archive/
   --exclude collected_runs/
   --exclude data_raw/
+  --exclude graph_evaluation_inputs/
   --exclude runs/
 )
 
