@@ -1,0 +1,103 @@
+{
+  "device": "cuda",
+  "generated_filename": "Single_comp_generatedGraphs_adj_kiarash_parity_rollout0.npy",
+  "max_graphs": 1000,
+  "metrics": {
+    "f1_pr": {
+      "mean": 1.00001,
+      "std": 0.0
+    },
+    "mmd_linear": {
+      "max": 91.68568420410156,
+      "max_to_median_ratio": 1.1456569087493311,
+      "mean": 77.00564079284668,
+      "mean_to_median_ratio": 0.962222675795307,
+      "median": 80.0289192199707,
+      "min": 62.476009368896484,
+      "std": 10.683882953363598,
+      "trim_fraction": 0.1,
+      "trimmed_mean": 76.9868392944336
+    },
+    "mmd_rbf": {
+      "mean": 0.4611652135848999,
+      "std": 0.005109060597107761
+    },
+    "precision": {
+      "mean": 1.0,
+      "std": 0.0
+    },
+    "recall": {
+      "mean": 1.0,
+      "std": 0.0
+    }
+  },
+  "num_generated_graphs": 20,
+  "num_reference_graphs": 20,
+  "raw_metrics": {
+    "f1_pr": [
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001
+    ],
+    "mmd_linear": [
+      82.40818786621094,
+      77.64965057373047,
+      69.38887023925781,
+      83.00411987304688,
+      64.62660217285156,
+      83.8875503540039,
+      62.476009368896484,
+      91.43299865722656,
+      91.68568420410156,
+      63.496734619140625
+    ],
+    "mmd_rbf": [
+      0.4555596113204956,
+      0.4571627378463745,
+      0.46282267570495605,
+      0.45475447177886963,
+      0.4608914852142334,
+      0.46119505167007446,
+      0.4586360454559326,
+      0.47038841247558594,
+      0.46996355056762695,
+      0.46027809381484985
+    ],
+    "precision": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "recall": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "reference_filename": "heldoutTestGraphs_adj_.npy",
+  "repeats": 10,
+  "run_dir": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-13_gpu0/seed_0",
+  "seed": 0,
+  "structural_features": true
+}

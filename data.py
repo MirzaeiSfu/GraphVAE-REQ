@@ -579,7 +579,8 @@ def list_graph_loader(
         limited_to=None,
         lobster_feature_schema="optimal_v2",
         tu_attribute_bins=8,
-        tu_max_nodes=None):
+        tu_max_nodes=None,
+        shuffle_seed=None):
   list_adj = []
   list_x =[]
   list_labels = []
@@ -1694,7 +1695,12 @@ def list_graph_loader(
 
   def return_subset(A, X, Y, NF, EF, limited_to):
         indx = list(range(len(A)))
-        random.shuffle(indx)
+        shuffle_rng = (
+            random
+            if shuffle_seed is None
+            else random.Random(int(shuffle_seed))
+        )
+        shuffle_rng.shuffle(indx)
         A  = [A[i]  for i in indx]
         X  = [X[i]  for i in indx]
         NF = [NF[i] for i in indx]

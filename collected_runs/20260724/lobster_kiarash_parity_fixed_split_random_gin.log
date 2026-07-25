@@ -1,0 +1,254 @@
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-13_gpu0/seed_0: f1_pr=1.000010, mmd_rbf=0.461165, mmd_linear=77.005641, mmd_linear_median=80.028919, mmd_linear_trimmed=76.986839, precision=1.000000, recall=1.000000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_kia40_2000_legacy__cs-cl-09_gpu1/seed_0: f1_pr=0.997446, mmd_rbf=0.192506, mmd_linear=28.687084, mmd_linear_median=30.001560, mmd_linear_trimmed=28.736540, precision=1.000000, recall=0.995000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+fid calculation produces singular product; adding 1e-06 to diagonal of cov estimates
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_plain1_1_corrected__cs-cl-18_gpu0/seed_0: f1_pr=0.556814, mmd_rbf=0.005124, mmd_linear=1441249701.200000, mmd_linear_median=104306852.000000, mmd_linear_trimmed=209389260.000000, precision=0.625000, recall=0.525000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_0: f1_pr=0.509883, mmd_rbf=0.044971, mmd_linear=13169973113.600000, mmd_linear_median=952875840.000000, mmd_linear_trimmed=1910261632.000000, precision=0.485000, recall=0.555000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_1/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-19_gpu0/seed_1: f1_pr=0.997446, mmd_rbf=0.329030, mmd_linear=50.959524, mmd_linear_median=52.764050, mmd_linear_trimmed=50.921825, precision=0.995000, recall=1.000000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_1/lobster_kiarash_parity_kia40_2000_legacy__cs-cl-18_gpu1/seed_1: f1_pr=1.000010, mmd_rbf=0.503012, mmd_linear=82.776064, mmd_linear_median=85.957714, mmd_linear_trimmed=82.709732, precision=1.000000, recall=1.000000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_1/lobster_kiarash_parity_plain1_1_corrected__cs-cl-26_gpu0/seed_1: f1_pr=0.542583, mmd_rbf=0.054523, mmd_linear=11068032137.600000, mmd_linear_median=813819584.000000, mmd_linear_trimmed=1657023656.000000, precision=0.450000, recall=0.780000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_1/lobster_kiarash_parity_plain1_1_legacy__cs-cl-19_gpu1/seed_1: f1_pr=0.441146, mmd_rbf=0.020000, mmd_linear=5906842811.200000, mmd_linear_median=427384512.000000, mmd_linear_trimmed=856094496.000000, precision=0.375000, recall=0.565000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2: f1_pr=0.974369, mmd_rbf=0.299129, mmd_linear=40.965637, mmd_linear_median=42.179388, mmd_linear_trimmed=40.849515, precision=0.950000, recall=1.000000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_legacy__cs-cl-26_gpu1/seed_2: f1_pr=0.935999, mmd_rbf=0.240890, mmd_linear=13.381629, mmd_linear_median=12.824283, mmd_linear_trimmed=13.403622, precision=0.880000, recall=1.000000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_corrected__cs-cl-18_gpu0/seed_2: f1_pr=0.599717, mmd_rbf=0.285643, mmd_linear=140.119304, mmd_linear_median=53.116707, mmd_linear_trimmed=75.931867, precision=0.550000, recall=0.700000
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+orthogonal
+ModuleNotFoundError: No module named 'tensorflow'
+/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2: f1_pr=0.577289, mmd_rbf=0.005140, mmd_linear=1475312604.000000, mmd_linear_median=106748384.000000, mmd_linear_trimmed=213855003.000000, precision=0.505000, recall=0.700000
+Wrote batch summary CSV to /local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260724/lobster_kiarash_parity_fixed_split_posthoc_selection/random_gin_summary.csv

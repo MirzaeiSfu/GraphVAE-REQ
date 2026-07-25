@@ -92,6 +92,21 @@ has weight `1` and the relational/literal groups have weight `0`. Their
 inventory is `kiarash_parity_experiment_manifest.csv`. Zero-weight groups are
 projected out before motif counting, so these controls count only the one
 unit-edge matrix while hybrids retain every nonzero-weight group.
+They also set `dataset_loader_seed: 0`. This decouples the loader's aligned
+pre-split shuffle from the model/training seed; `split_seed: 123` therefore
+produces identical train, validation, and held-out sets for all three training
+seeds. Leaving `dataset_loader_seed` unset preserves legacy global-RNG
+behavior.
+
+Post-training, use `select_lobster_checkpoints_per_run.py` with ten validation
+rollouts to freeze one checkpoint independently for every training run. Merge
+those validation-only manifests with
+`scripts/evaluate_lobster_frozen_selections.py`; the evaluator writes the
+combined frozen decision before opening held-out graphs, then evaluates every
+selected checkpoint with ten paired prior rollouts and reports both raw and
+largest-component graph sizes. Pass one `--selection-json` argument for each
+worker selection manifest. `--runs-root` is repeatable so a fixed evaluation
+can combine a reused seed-0 root with corrected seed-1/seed-2 reruns.
 
 All structured modes use Kia-MM-style calibrated Gaussian NLL. Full matrices
 receive one RMSE-calibrated sigma per motif. Row and column marginals receive

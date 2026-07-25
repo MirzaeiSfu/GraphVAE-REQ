@@ -436,7 +436,11 @@ def write_summary_csv(path: Path, rows: list[dict[str, object]]) -> None:
         "recall_std",
     ]
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=fieldnames,
+            lineterminator="\n",
+        )
         writer.writeheader()
         writer.writerows(rows)
 

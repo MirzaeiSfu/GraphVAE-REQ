@@ -204,7 +204,7 @@ def load_config_defaults(config_path, valid_keys):
     return flat_config
 
 
-DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v3"
+DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v4"
 DEFAULT_SPLIT_SEED = 123
 DEFAULT_LEGACY_TRAIN_FRACTION = 0.8
 DEFAULT_PAPER_TRAIN_FRACTION = 0.7
@@ -275,6 +275,7 @@ def build_dataset_cache_metadata(
     split_mode,
     bfs_strategy,
     split_plan,
+    dataset_loader_seed,
     feature_schema="default",
 ):
     return {
@@ -288,6 +289,7 @@ def build_dataset_cache_metadata(
         "val_fraction": float(split_plan["val_fraction"]),
         "test_fraction": float(split_plan["test_fraction"]),
         "split_seed": int(split_plan["split_seed"]),
+        "dataset_loader_seed": dataset_loader_seed,
     }
 
 
@@ -299,6 +301,7 @@ def build_dataset_cache_name(cache_metadata):
         f"_val{_format_cache_float(cache_metadata['val_fraction'])}"
         f"_test{_format_cache_float(cache_metadata['test_fraction'])}"
         f"_seed{cache_metadata['split_seed']}"
+        f"_loaderseed-{_sanitize_cache_component(cache_metadata['dataset_loader_seed'])}"
         f"_bfs-{_sanitize_cache_component(cache_metadata['bfs_strategy'])}"
         f"_features-{_sanitize_cache_component(cache_metadata['feature_schema'])}.pkl"
     )
@@ -852,6 +855,17 @@ parser.add_argument(
     type=int,
     default=DEFAULT_SPLIT_SEED,
     help='Random seed used when shuffling graphs before train/validation/test splitting.'
+)
+parser.add_argument(
+    '--dataset_loader_seed',
+    type=int,
+    default=None,
+    help=(
+        'Optional seed for the aligned shuffle performed by list_graph_loader '
+        'before train/validation/test splitting. The legacy default uses the '
+        'global model seed; set this explicitly when comparing training seeds '
+        'on an identical dataset partition.'
+    ),
 )
 parser.add_argument(
     '--seed',
@@ -2283,6 +2297,7 @@ dataset_cache_metadata = build_dataset_cache_metadata(
     split_mode=split_mode,
     bfs_strategy=bfs_strategy,
     split_plan=split_plan,
+    dataset_loader_seed=args.dataset_loader_seed,
     feature_schema=(
         f"lobster-{lobster_feature_schema}"
         if dataset == "LOBSTER"
@@ -2362,6 +2377,7 @@ else:
          lobster_feature_schema=lobster_feature_schema,
          tu_attribute_bins=tu_attribute_bins,
          tu_max_nodes=tu_max_nodes,
+         shuffle_seed=args.dataset_loader_seed,
      )
 
     # list_adj   = list_adj[:400]
