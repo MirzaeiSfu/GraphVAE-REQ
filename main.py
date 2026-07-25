@@ -21,10 +21,26 @@ import argparse
 import re
 import subprocess
 import sys
+import numpy as np
 try:
     import yaml
 except ImportError:
     yaml = None
+
+# The reusable evaluator is kept as an installable subproject.  Adding its
+# source directory here lets a repository checkout export the same public PyG
+# contract without requiring a separate editable-install step.
+GRAPH_EVALUATION_SOURCE_DIR = (
+    Path(__file__).resolve().parent / "graph_evaluation" / "src"
+)
+if GRAPH_EVALUATION_SOURCE_DIR.is_dir():
+    graph_evaluation_source = str(GRAPH_EVALUATION_SOURCE_DIR)
+    if graph_evaluation_source not in sys.path:
+        sys.path.insert(0, graph_evaluation_source)
+
+from ggm_eval import save_pyg_collection, validate_collection
+from ggm_eval.adapters import attributed_arrays_to_pyg
+from eval.attributed_gin import graph_from_dense_attributes
 from model import *
 from data import *
 import pickle
@@ -385,6 +401,9 @@ THIRD_PARTY_EVAL_REFERENCE_FILENAME = "testGraphs_adj_.npy"
 THIRD_PARTY_EVAL_JSON_FILENAME = "graph_realism_random_gin.json"
 THIRD_PARTY_EVAL_SUMMARY_FILENAME = "graph_realism_batch_summary.csv"
 THIRD_PARTY_EVAL_LOG_FILENAME = "third_party_eval.log"
+PYG_TRAIN_GRAPHS_FILENAME = "real_train_graphs.pt"
+PYG_REFERENCE_GRAPHS_FILENAME = "real_test_graphs.pt"
+PYG_GENERATED_GRAPHS_FILENAME = "generated_graphs.pt"
 FINAL_TABLE2_METRICS_FILENAME = "final_table2_metrics.json"
 FINAL_TABLE3_METRICS_FILENAME = "final_table3_metrics.json"
 FINAL_METRICS_SUMMARY_FILENAME = "final_metrics_summary.json"
@@ -462,14 +481,33 @@ def write_final_metric_summaries(
     final_mmd_result,
     third_party_json_path=None,
     model_source="final_epoch",
+    pyg_export_summary=None,
 ):
     run_dir = Path(run_dir)
     parsed_metrics = parse_graph_quality_result(final_mmd_result)
+    pyg_export_summary = dict(pyg_export_summary or {})
     common_payload = {
         "split": "test",
         "model_source": model_source,
-        "generated_graphs": str(run_dir / THIRD_PARTY_EVAL_GENERATED_FILENAME),
-        "reference_graphs": str(run_dir / THIRD_PARTY_EVAL_REFERENCE_FILENAME),
+        "graph_interchange_format": "pyg_safe_tensor_collection_v1",
+        "generated_graphs": pyg_export_summary.get(
+            "generated", str(run_dir / PYG_GENERATED_GRAPHS_FILENAME)
+        ),
+        "reference_graphs": pyg_export_summary.get(
+            "reference", str(run_dir / PYG_REFERENCE_GRAPHS_FILENAME)
+        ),
+        "training_graphs": pyg_export_summary.get(
+            "train", str(run_dir / PYG_TRAIN_GRAPHS_FILENAME)
+        ),
+        "graph_counts": pyg_export_summary.get("counts"),
+        "legacy_structural_adjacency_artifacts": {
+            "generated": str(
+                run_dir / THIRD_PARTY_EVAL_GENERATED_FILENAME
+            ),
+            "reference": str(
+                run_dir / THIRD_PARTY_EVAL_REFERENCE_FILENAME
+            ),
+        },
         "raw_eval_result": str(final_mmd_result),
     }
     table2_payload = {
@@ -1787,7 +1825,276 @@ class LatentMtrixTransformer(torch.nn.Module):
 # ============================================================================
 
 #region Testing and evaluation and helper functions
-def test_(number_of_samples, model, graph_size, path_to_save_g, remove_self=True, save_graphs=True):
+def _pyg_graph_from_aligned_attributes(attributed_graph, *, name):
+    """Convert the decoder-aligned intermediate graph to the public PyG contract."""
+
+    if attributed_graph is None:
+        return None
+    return attributed_arrays_to_pyg(
+        attributed_graph.edges,
+        attributed_graph.node_attributes,
+        attributed_graph.edge_attributes,
+        attributed_graph.source_node_ids,
+        name=name,
+    )
+
+
+def _cached_pyg_export_split(cache, split, *, include_node, include_edge):
+    """Read one real-data split in the exact feature space decoded by the model.
+
+    Multi-graph caches store unpadded one-hot arrays under split-specific keys.
+    Single-graph caches predate those keys, so they use the original full-data
+    arrays.  A topology-only model intentionally exports a constant node
+    feature instead of leaking reference attributes that it cannot generate.
+    """
+
+    if split == "train":
+        adjacencies = cache["list_adj"]
+        node_values = cache.get("list_noh_train")
+        edge_values = cache.get("list_eoh_train")
+        fallback_dataset = cache.get("list_graphs")
+    elif split == "test":
+        adjacencies = cache["test_list_adj"]
+        node_values = cache.get("list_noh_test")
+        edge_values = cache.get("list_eoh_test")
+        fallback_dataset = cache.get("list_test_graphs")
+    else:
+        raise ValueError(f"Unsupported PyG export split: {split!r}.")
+
+    if node_values is None and fallback_dataset is not None:
+        node_values = getattr(fallback_dataset, "list_node_onehot", None)
+    if edge_values is None and fallback_dataset is not None:
+        edge_values = getattr(fallback_dataset, "list_edge_onehot", None)
+    if cache.get("single_graph"):
+        if node_values is None:
+            node_values = cache.get("list_node_onehot")
+        if edge_values is None:
+            edge_values = cache.get("list_edge_onehot")
+
+    adjacencies = list(adjacencies)
+    if include_node:
+        if node_values is None:
+            raise ValueError(
+                f"The cached {split} split has no node attributes, but the "
+                "model exports decoded node features."
+            )
+        node_values = list(node_values)
+        if len(node_values) != len(adjacencies):
+            raise ValueError(
+                f"Cached {split} adjacency/node-feature lengths differ: "
+                f"{len(adjacencies)} versus {len(node_values)}."
+            )
+    else:
+        node_values = [
+            np.ones((int(adjacency.shape[0]), 1), dtype=np.float32)
+            for adjacency in adjacencies
+        ]
+
+    if include_edge:
+        if edge_values is None:
+            raise ValueError(
+                f"The cached {split} split has no edge attributes, but the "
+                "model exports decoded edge features."
+            )
+        edge_values = list(edge_values)
+        if len(edge_values) != len(adjacencies):
+            raise ValueError(
+                f"Cached {split} adjacency/edge-feature lengths differ: "
+                f"{len(adjacencies)} versus {len(edge_values)}."
+            )
+    else:
+        edge_values = [None] * len(adjacencies)
+
+    return adjacencies, node_values, edge_values
+
+
+def _real_split_as_pyg(
+    cache,
+    split,
+    *,
+    include_node,
+    include_edge,
+    adjacency_threshold=0.5,
+    max_graphs=0,
+):
+    """Convert cached real graphs to strict PyG objects without DGL round trips."""
+
+    adjacencies, node_values, edge_values = _cached_pyg_export_split(
+        cache,
+        split,
+        include_node=include_node,
+        include_edge=include_edge,
+    )
+    pyg_graphs = []
+    for index, (adjacency, node_attributes, edge_attributes) in enumerate(
+        zip(adjacencies, node_values, edge_values)
+    ):
+        attributed_graph = graph_from_dense_attributes(
+            adjacency,
+            node_attributes,
+            edge_attributes,
+            node_feature_info=(
+                cache.get("node_onehot_info") if include_node else None
+            ),
+            edge_feature_info=(
+                cache.get("edge_onehot_info") if include_edge else None
+            ),
+            values_are_logits=False,
+            adjacency_threshold=adjacency_threshold,
+        )
+        pyg_graph = _pyg_graph_from_aligned_attributes(
+            attributed_graph,
+            name=f"{split} graph {index}",
+        )
+        if pyg_graph is not None:
+            pyg_graphs.append(pyg_graph)
+        if max_graphs > 0 and len(pyg_graphs) >= max_graphs:
+            break
+    if not pyg_graphs:
+        raise ValueError(
+            f"No non-empty {split} graphs remained for the final PyG export."
+        )
+    return pyg_graphs
+
+
+def save_final_pyg_evaluation_collections(
+    output_dir,
+    generated_graphs,
+    cache,
+    *,
+    dataset_name,
+    generator_name,
+    model_source,
+    include_node,
+    include_edge,
+    adjacency_threshold=0.5,
+):
+    """Save training, reference, and generated graphs in one PyG-first format.
+
+    The training collection is included because contrastive GNN evaluators
+    must fit their encoder without seeing held-out reference graphs.  Each
+    ``.pt`` file uses the restricted tensor-only ``ggm_eval`` serialization
+    and is accompanied by a human-readable JSON manifest.
+    """
+
+    if not generated_graphs:
+        raise ValueError("No generated graphs are available for PyG export.")
+    output_dir = Path(output_dir).resolve()
+    training_graphs = _real_split_as_pyg(
+        cache,
+        "train",
+        include_node=include_node,
+        include_edge=include_edge,
+        adjacency_threshold=adjacency_threshold,
+    )
+    reference_graphs = _real_split_as_pyg(
+        cache,
+        "test",
+        include_node=include_node,
+        include_edge=include_edge,
+        adjacency_threshold=adjacency_threshold,
+        max_graphs=len(generated_graphs),
+    )
+    if len(reference_graphs) != len(generated_graphs):
+        raise ValueError(
+            "The PyG export requires equally sized generated and reference "
+            f"collections, got {len(generated_graphs)} and "
+            f"{len(reference_graphs)}."
+        )
+
+    if include_node and include_edge:
+        feature_mode = "decoded_node_edge"
+    elif include_node:
+        feature_mode = "decoded_node"
+    elif include_edge:
+        feature_mode = "decoded_edge"
+    else:
+        feature_mode = "topology_control"
+    cache_metadata = cache.get("cache_metadata") or {}
+    base_schema = str(cache_metadata.get("feature_schema", "default"))
+    feature_schema = f"{base_schema}|export={feature_mode}"
+    common_metadata = {
+        "dataset": str(dataset_name),
+        "feature_mode": feature_mode,
+        "feature_schema": feature_schema,
+        "generator": str(generator_name),
+        "producer": "GraphVAE-REQ/main.py",
+        "model_source": str(model_source),
+    }
+    paths = {
+        "train": output_dir / PYG_TRAIN_GRAPHS_FILENAME,
+        "reference": output_dir / PYG_REFERENCE_GRAPHS_FILENAME,
+        "generated": output_dir / PYG_GENERATED_GRAPHS_FILENAME,
+    }
+    collections = {
+        "train": training_graphs,
+        "reference": reference_graphs,
+        "generated": generated_graphs,
+    }
+    collection_summaries = {
+        name: validate_collection(graphs, name=f"PyG {name} graphs")
+        for name, graphs in collections.items()
+    }
+    node_dims = {
+        summary.node_feature_dim for summary in collection_summaries.values()
+    }
+    edge_dims = {
+        summary.edge_feature_dim for summary in collection_summaries.values()
+    }
+    if len(node_dims) != 1 or len(edge_dims) != 1:
+        raise ValueError(
+            "PyG train/reference/generated feature dimensions differ: "
+            + ", ".join(
+                f"{name}=({summary.node_feature_dim}, "
+                f"{summary.edge_feature_dim})"
+                for name, summary in collection_summaries.items()
+            )
+        )
+
+    manifests = {}
+    for collection_name, graphs in collections.items():
+        manifests[collection_name] = save_pyg_collection(
+            paths[collection_name],
+            graphs,
+            metadata={
+                **common_metadata,
+                "split": collection_name,
+            },
+        )
+
+    summary = {
+        **{name: str(path.resolve()) for name, path in paths.items()},
+        "counts": {
+            name: int(manifest["summary"]["graph_count"])
+            for name, manifest in manifests.items()
+        },
+        "feature_mode": feature_mode,
+        "feature_schema": feature_schema,
+    }
+    logging.info("Saved final PyG graph collections: %s", summary)
+    return summary
+
+
+def test_(
+    number_of_samples,
+    model,
+    graph_size,
+    path_to_save_g,
+    remove_self=True,
+    save_graphs=True,
+    pyg_graphs_out=None,
+    node_feature_info=None,
+    edge_feature_info=None,
+    adjacency_threshold=0.5,
+):
+    """Sample graphs and optionally capture the same samples as attributed PyG.
+
+    ``pyg_graphs_out`` is a caller-owned list.  Supplying it enables feature
+    decoding only for this evaluation pass, avoiding the cost during periodic
+    structural validation.  Adjacency, node logits, and edge logits all come
+    from the same latent vector, so exported attributes remain aligned.
+    """
+
     import os
     if not os.path.exists(path_to_save_g):
         os.makedirs(path_to_save_g)
@@ -1806,10 +2113,58 @@ def test_(number_of_samples, model, graph_size, path_to_save_g, remove_self=True
             print("--- %s seconds ---" % (time.time() - start_time))
             logging.info("--- %s seconds ---" % (time.time() - start_time))
             reconstructed_adj = torch.sigmoid(adj_logit)
-            sample_graph = reconstructed_adj[0].cpu().detach().numpy()
+            adjacency_probabilities = (
+                reconstructed_adj[0].cpu().detach().numpy().copy()
+            )
+            if pyg_graphs_out is not None:
+                node_logits = (
+                    model.node_feature_decoder(z.to(device).float())
+                    if model.node_feature_decoder is not None
+                    else None
+                )
+                edge_logits = (
+                    model.edge_feature_decoder(z.to(device).float())
+                    if model.edge_feature_decoder is not None
+                    else None
+                )
+                node_values = (
+                    np.ones(
+                        (adjacency_probabilities.shape[0], 1),
+                        dtype=np.float32,
+                    )
+                    if node_logits is None
+                    else node_logits[0].cpu().detach().numpy()
+                )
+                attributed_graph = graph_from_dense_attributes(
+                    adjacency_probabilities,
+                    node_values,
+                    (
+                        None
+                        if edge_logits is None
+                        else edge_logits[0].cpu().detach().numpy()
+                    ),
+                    node_feature_info=(
+                        node_feature_info if node_logits is not None else None
+                    ),
+                    edge_feature_info=(
+                        edge_feature_info if edge_logits is not None else None
+                    ),
+                    values_are_logits=(
+                        node_logits is not None or edge_logits is not None
+                    ),
+                    adjacency_threshold=adjacency_threshold,
+                )
+                pyg_graph = _pyg_graph_from_aligned_attributes(
+                    attributed_graph,
+                    name=f"generated graph {len(pyg_graphs_out)}",
+                )
+                if pyg_graph is not None:
+                    pyg_graphs_out.append(pyg_graph)
+
+            sample_graph = adjacency_probabilities.copy()
             # sample_graph = sample_graph[:g_size,:g_size]
-            sample_graph[sample_graph >= 0.5] = 1
-            sample_graph[sample_graph < 0.5] = 0
+            sample_graph[sample_graph >= adjacency_threshold] = 1
+            sample_graph[sample_graph < adjacency_threshold] = 0
             G = nx.from_numpy_array(sample_graph)
             # generated_graph_list.append(G)
             f_name = path_to_save_g + str(k) + str(g_size) + str(j) + dataset
@@ -1833,8 +2188,29 @@ def test_(number_of_samples, model, graph_size, path_to_save_g, remove_self=True
     return generated_graph_list
 
 
-def EvalTwoSet(model, test_list_adj, graph_save_path, Save_generated=True, _f_name=None, onlyTheBigestConCom = True):
-    generated_graphs = test_(1, model, [x.shape[0] for x in test_list_adj], graph_save_path, save_graphs=Save_generated)
+def EvalTwoSet(
+    model,
+    test_list_adj,
+    graph_save_path,
+    Save_generated=True,
+    _f_name=None,
+    onlyTheBigestConCom=True,
+    pyg_graphs_out=None,
+    node_feature_info=None,
+    edge_feature_info=None,
+):
+    """Evaluate generated topology and optionally return matching PyG samples."""
+
+    generated_graphs = test_(
+        1,
+        model,
+        [x.shape[0] for x in test_list_adj],
+        graph_save_path,
+        save_graphs=Save_generated,
+        pyg_graphs_out=pyg_graphs_out,
+        node_feature_info=node_feature_info,
+        edge_feature_info=edge_feature_info,
+    )
     graphs_to_writeOnDisk = [nx.to_numpy_array(G) for G in generated_graphs]
     if (onlyTheBigestConCom==False):
         if Save_generated:
@@ -3355,13 +3731,37 @@ if task == "graphGeneration":
             )
         print(best_eval_message)
         logging.info(best_eval_message)
+    final_pyg_graphs = []
     final_mmd_res = EvalTwoSet(
         model,
         test_list_adj,
         graph_save_path,
         Save_generated=True,
         _f_name="final_eval",
+        pyg_graphs_out=final_pyg_graphs,
+        node_feature_info=node_onehot_info,
+        edge_feature_info=edge_onehot_info,
     )
+    final_pyg_export_summary = save_final_pyg_evaluation_collections(
+        graph_save_dir,
+        final_pyg_graphs,
+        _cache,
+        dataset_name=dataset,
+        generator_name=(
+            "GraphVAE" if model_name == "kipf" else model_name
+        ),
+        model_source=final_eval_model_source,
+        include_node=model.node_feature_decoder is not None,
+        include_edge=model.edge_feature_decoder is not None,
+    )
+    pyg_export_message = (
+        "Saved reusable PyG graph collections: "
+        f"{final_pyg_export_summary['train']}, "
+        f"{final_pyg_export_summary['reference']}, "
+        f"{final_pyg_export_summary['generated']}"
+    )
+    print(pyg_export_message)
+    logging.info(pyg_export_message)
     third_party_json_path = None
     if third_party_eval:
         third_party_json_path = run_third_party_graph_realism_eval(graph_save_dir, args, device)
@@ -3370,6 +3770,7 @@ if task == "graphGeneration":
         final_mmd_res,
         third_party_json_path=third_party_json_path,
         model_source=final_eval_model_source,
+        pyg_export_summary=final_pyg_export_summary,
     )
     final_metric_message = (
         "Saved final Table 2/Table 3 metric summaries: "

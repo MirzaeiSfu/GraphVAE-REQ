@@ -169,6 +169,28 @@ Validate an artifact before training or evaluation:
 ggm-eval validate --graphs defog_generated.pt
 ```
 
+### GraphVAE exports from `main.py`
+
+A completed GraphVAE graph-generation run writes the contract directly:
+
+```text
+<run-dir>/real_train_graphs.pt
+<run-dir>/real_test_graphs.pt
+<run-dir>/generated_graphs.pt
+```
+
+The generated collection is captured during the same sampling pass used by
+the final structural evaluation. Adjacency, node attributes, and edge
+attributes therefore come from the same latent vector. The real training and
+test collections are projected into the same feature mode as the generator:
+models without a node or edge decoder do not receive unavailable real
+attributes on only one side of the comparison.
+
+Use `real_train_graphs.pt` only for encoder training. Use
+`real_test_graphs.pt` and `generated_graphs.pt` only for the frozen-encoder
+comparison. The main workflow creates no DGL graph artifact; the DGL adapters
+below are retained for old files and the historical evaluator.
+
 ## Existing DGL artifacts
 
 Convert a file created with `dgl.save_graphs`:

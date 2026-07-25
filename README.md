@@ -246,7 +246,9 @@ Typical artifacts include:
 
 - `train.log`
 - `mmd.log`
-- generated graph `.npy` files
+- `real_train_graphs.pt`, `real_test_graphs.pt`, and `generated_graphs.pt`
+- a `.pt.json` manifest beside each PyG graph collection
+- legacy structural-only graph `.npy` files used by the Table 2 scripts
 - generated graph plots
 - model checkpoints
 - `RUN_LABEL.txt`
@@ -264,7 +266,24 @@ Motif caches are written under `cache_motifs/` unless `MOTIF_CACHE_DIR` or
 The reusable PyG-first evaluator for DeFoG and other generator repositories is
 documented in [`graph_evaluation/`](graph_evaluation/README.md). It provides
 matched PyG Random-GIN, GraphCL, and InfoGraph runners plus an optional adapter
-to the existing DGL Random-GIN. It is independent of `main.py`.
+to the existing DGL Random-GIN. The evaluator remains independent of
+`main.py`, while every completed graph-generation run now automatically
+exports its inputs in the evaluator's PyG contract:
+
+```text
+<run-dir>/real_train_graphs.pt   # encoder pre-training only
+<run-dir>/real_test_graphs.pt    # held-out evaluation reference
+<run-dir>/generated_graphs.pt    # samples from the evaluated checkpoint
+```
+
+These are restricted tensor-only payloads that load as collections of
+individual PyG `Data` objects. The generated topology, node attributes, and
+edge attributes are decoded from the same latent sample. If a model has no
+feature decoder, real and generated graphs both receive the corresponding
+topology-control representation instead of mismatched reference features.
+The adjacent JSON manifests record the graph count, tensor dimensions,
+dataset, feature schema, feature mode, model source, and collection digest.
+`main.py` does not save DGL graph files.
 
 Statistics-based Table 2 style evaluation:
 
@@ -294,98 +313,37 @@ python scripts/evaluate_graph_realism_batch.py \
   --root-dir runs/table2_reproduction
 ```
 
-Post-hoc Random-GIN evaluation using the node and edge attributes decoded by a
-trained GraphVAE checkpoint:
+For example, train GraphCL only on the exported real training split:
 
 ```bash
-python scripts/evaluate_attributed_graph_realism_checkpoints.py \
-  --run-dir runs/my_feature_aware_run \
-  --split test \
-  --repeats 10 \
-  --max-graphs 1000 \
-  --save-dgl
+ggm-eval train \
+  --graphs runs/my_feature_aware_run/real_train_graphs.pt \
+  --encoder graphcl \
+  --feature-mode decoded_node_edge \
+  --seeds 0 1 2 \
+  --upstream-repo ../Self-Supervised-Models-for-GGM-Evaluation \
+  --output-dir encoders/my_run_graphcl
 ```
 
-This evaluator regenerates adjacency, node attributes, and edge attributes
-from the same latent samples. It reports matched `topology_control`,
-`decoded_node`, `decoded_edge`, and primary `decoded_node_edge` ablations,
-without constructing degree or clustering features. Categorical decoder
-channels are resolved by argmax within each original feature group. The
-underlying GIN input path is float-valued and also accepts continuous node or
-edge attributes when they are supplied without categorical one-hot metadata.
-The original `run_config_used.yaml`, matching dataset cache, and a checkpoint
-with feature-decoder parameters are required.
-
-`--save-dgl` keeps the normal checkpoint evaluation and additionally writes:
-
-```text
-<output-dir>/generated_attributed_graphs.bin
-<output-dir>/reference_attributed_graphs.bin
-```
-
-These are the same full-feature DGL collections used by that evaluation and
-can be passed directly to the model-independent CLI:
+Then compare the generated and held-out collections with the frozen encoders:
 
 ```bash
-python scripts/evaluate_attributed_dgl_graphs.py \
-  --generated-dgl runs/my_feature_aware_run/attributed_random_gin_eval/generated_attributed_graphs.bin \
-  --reference-dgl runs/my_feature_aware_run/attributed_random_gin_eval/reference_attributed_graphs.bin \
-  --model-name GraphVAE
+ggm-eval evaluate \
+  --generated runs/my_feature_aware_run/generated_graphs.pt \
+  --reference runs/my_feature_aware_run/real_test_graphs.pt \
+  --checkpoint encoders/my_run_graphcl/seed_0/checkpoint.pt \
+  --checkpoint encoders/my_run_graphcl/seed_1/checkpoint.pt \
+  --checkpoint encoders/my_run_graphcl/seed_2/checkpoint.pt \
+  --upstream-repo ../Self-Supervised-Models-for-GGM-Evaluation \
+  --output-dir reports/my_run_graphcl
 ```
 
-The existing `--save-samples` NPZ option remains available for previous
-workflows.
-
-To evaluate DeFoG, GRAN, GraphRNN, or another trained model against the same
-held-out graphs, export both collections as DGL files:
-
-```bash
-python scripts/evaluate_attributed_dgl_graphs.py \
-  --generated-dgl defog_generated.bin \
-  --reference-dgl fixed_test_graphs.bin \
-  --model-name DeFoG \
-  --repeats 10 \
-  --max-graphs 1000
-```
-
-Each file must be written with `dgl.save_graphs`. Every individual homogeneous
-DGL graph must provide:
-
-```python
-graph.ndata["attr"] = final_node_features.float()  # shape: [N, D_node]
-graph.edata["attr"] = final_edge_features.float()  # shape: [E, D_edge]
-dgl.save_graphs("defog_generated.bin", generated_graphs)
-dgl.save_graphs("fixed_test_graphs.bin", reference_graphs)
-```
-
-`edata["attr"]` may be omitted only when the dataset has no edge attributes.
-Categorical values must already be one-hot floats; continuous values remain
-real-valued floats. Generated and reference graphs must use identical feature
-dimensions, channel ordering, and categorical meanings. In particular, if
-training used category ID `1` for red, both exports must encode red in the
-corresponding same one-hot channel.
-
-The public evaluator boundary is:
-
-```text
-DGLGraph -> validated attributed graph -> vendored DGL Random-GIN
-```
-
-For direct Python use, the primary API is:
-
-```python
-from eval.attributed_gin import evaluate_dgl_feature_modes
-
-results = evaluate_dgl_feature_modes(generated_graphs, reference_graphs)
-```
-
-PyG objects and plain tensor dictionaries are intentionally rejected. A model
-implemented in PyG should convert its output to DGL in its own repository
-before calling this evaluator. The evaluator ignores input self-loops, merges
-matching duplicate directions of undirected edges, preserves feature/edge
-alignment, applies the common largest-connected-component policy, and adds
-evaluator self-loops with zero edge attributes. Conflicting attributes on the
-two directions of an undirected edge are an error.
+Use the feature mode written in the artifact manifests; topology-only and
+node-only runs should not be evaluated as `decoded_node_edge`. Existing DGL
+artifacts and the historical DGL Random-GIN remain available through the
+adapters documented under
+[`graph_evaluation/`](graph_evaluation/README.md), but DGL is not the
+interchange format for new generator outputs.
 
 Regenerate 50/50 reference reports:
 

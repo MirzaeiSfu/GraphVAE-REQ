@@ -1,4 +1,4 @@
-"""Direct PyG/DGL adapters with explicit edge-feature alignment.
+"""Direct attributed-array/PyG/DGL adapters with explicit feature alignment.
 
 No conversion passes through NetworkX.  DGL edge IDs are read in order and
 PyG edge rows are written in exactly the same order.  Historical DGL inputs
@@ -18,6 +18,90 @@ from torch_geometric.data import Data
 
 from .contract import normalize_pyg_graph, validate_pyg_graph
 from .io import load_pyg_collection, save_pyg_collection
+
+
+def attributed_arrays_to_pyg(
+    edges,
+    node_attributes,
+    edge_attributes=None,
+    source_node_ids=None,
+    *,
+    name: str = "attributed graph",
+) -> Data:
+    """Build a strict PyG graph from aligned undirected attribute arrays.
+
+    ``edges`` must contain each undirected edge exactly once as a canonical
+    pair ``u < v``.  The adapter adds the reverse direction and duplicates the
+    corresponding edge-attribute row.  This small boundary lets dense graph
+    decoders export the PyG interchange contract without constructing a DGL
+    graph or losing the decoder's original node IDs.
+    """
+
+    edges_np = np.asarray(edges, dtype=np.int64)
+    node_np = np.asarray(node_attributes, dtype=np.float32)
+    if edges_np.ndim != 2 or edges_np.shape[1] != 2:
+        raise ValueError(
+            f"{name}.edges must have shape (E, 2), got {edges_np.shape}."
+        )
+    if node_np.ndim != 2 or node_np.shape[1] < 1:
+        raise ValueError(
+            f"{name}.node_attributes must have shape (N, D>=1), "
+            f"got {node_np.shape}."
+        )
+    if not len(edges_np):
+        raise ValueError(f"{name} must contain at least one undirected edge.")
+    if np.any(edges_np[:, 0] >= edges_np[:, 1]):
+        raise ValueError(
+            f"{name}.edges must contain canonical undirected pairs with u < v."
+        )
+    if int(edges_np.min()) < 0 or int(edges_np.max()) >= len(node_np):
+        raise ValueError(f"{name}.edges contains an invalid node index.")
+    if len({tuple(row) for row in edges_np.tolist()}) != len(edges_np):
+        raise ValueError(f"{name}.edges contains duplicate undirected pairs.")
+
+    undirected_edge_attr = None
+    if edge_attributes is not None:
+        edge_np = np.asarray(edge_attributes, dtype=np.float32)
+        if edge_np.ndim != 2 or edge_np.shape[0] != len(edges_np):
+            raise ValueError(
+                f"{name}.edge_attributes must have shape "
+                f"({len(edges_np)}, D), got {edge_np.shape}."
+            )
+        if edge_np.shape[1] > 0:
+            undirected_edge_attr = edge_np
+
+    reverse_edges = edges_np[:, ::-1]
+    edge_index = torch.as_tensor(
+        np.concatenate((edges_np, reverse_edges), axis=0).T.copy(),
+        dtype=torch.int64,
+    )
+    edge_attr = (
+        None
+        if undirected_edge_attr is None
+        else torch.as_tensor(
+            np.concatenate(
+                (undirected_edge_attr, undirected_edge_attr), axis=0
+            ),
+            dtype=torch.float32,
+        )
+    )
+    graph = Data(
+        x=torch.as_tensor(node_np, dtype=torch.float32),
+        edge_index=edge_index,
+        edge_attr=edge_attr,
+        num_nodes=len(node_np),
+    )
+    if source_node_ids is not None:
+        source_ids_np = np.asarray(source_node_ids, dtype=np.int64)
+        if source_ids_np.shape != (len(node_np),):
+            raise ValueError(
+                f"{name}.source_node_ids must have shape ({len(node_np)},), "
+                f"got {source_ids_np.shape}."
+            )
+        graph.source_node_ids = torch.as_tensor(
+            source_ids_np.copy(), dtype=torch.int64
+        )
+    return normalize_pyg_graph(graph, name=name)
 
 
 def _require_dgl():
