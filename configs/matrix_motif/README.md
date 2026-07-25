@@ -98,6 +98,21 @@ produces identical train, validation, and held-out sets for all three training
 seeds. Leaving `dataset_loader_seed` unset preserves legacy global-RNG
 behavior.
 
+The strict parity gate additionally uses a matched 2x2 control because native
+GraphVAE-MM gives the decoded node and edge feature losses weights `40/40`,
+whereas the initial motif-derived parity runs used `1/1`:
+
+| Statistics implementation | Feature weights 1/1 | Feature weights 40/40 |
+| --- | --- | --- |
+| `GlobalProperties.kernel` | `lobster_graphvae_mm_fixed_split_matched1_legacy.yaml` | `lobster_graphvae_mm_fixed_split_native40_legacy.yaml` |
+| motif `kiarash_statistics` | `lobster_kiarash_parity_kia40_2000_legacy.yaml` | `lobster_kiarash_parity_kia40_2000_feature40_legacy.yaml` |
+
+All four cells use the same fixed split, legacy reparameterization, `40/2000`
+adjacency-BCE/KL weights, three training seeds, five candidate checkpoints,
+ten validation rollouts for checkpoint selection, and ten frozen held-out
+rollouts. This isolates the statistics implementation from feature weighting.
+The full protocol is in `kiarash_control_factorial_manifest.csv`.
+
 Post-training, use `select_lobster_checkpoints_per_run.py` with ten validation
 rollouts to freeze one checkpoint independently for every training run. Merge
 those validation-only manifests with
@@ -107,6 +122,8 @@ selected checkpoint with ten paired prior rollouts and reports both raw and
 largest-component graph sizes. Pass one `--selection-json` argument for each
 worker selection manifest. `--runs-root` is repeatable so a fixed evaluation
 can combine a reused seed-0 root with corrected seed-1/seed-2 reruns.
+For a custom experiment matrix, repeat `--condition` in the desired report
+order; the evaluator then verifies the complete three-seed Cartesian matrix.
 
 All structured modes use Kia-MM-style calibrated Gaussian NLL. Full matrices
 receive one RMSE-calibrated sigma per motif. Row and column marginals receive

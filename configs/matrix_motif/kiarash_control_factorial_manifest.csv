@@ -1,0 +1,5 @@
+config,statistic_path,node_edge_feature_weights,adjacency_bce_weight,kl_weight,reparameterization,training_seeds,validation_rollouts_per_checkpoint,test_rollouts_per_checkpoint,epochs,checkpoint_interval,execution
+configs/matrix_motif/lobster_graphvae_mm_fixed_split_matched1_legacy.yaml,GlobalProperties.kernel,1/1,40,2000,legacy_variance,"0;1;2",10,10,20000,4000,new
+configs/matrix_motif/lobster_kiarash_parity_kia40_2000_legacy.yaml,motif-derived kiarash_statistics,1/1,40,2000,legacy_variance,"0;1;2",10,10,20000,4000,reuse fixed-split parity runs
+configs/matrix_motif/lobster_graphvae_mm_fixed_split_native40_legacy.yaml,GlobalProperties.kernel,40/40,40,2000,legacy_variance,"0;1;2",10,10,20000,4000,new
+configs/matrix_motif/lobster_kiarash_parity_kia40_2000_feature40_legacy.yaml,motif-derived kiarash_statistics,40/40,40,2000,legacy_variance,"0;1;2",10,10,20000,4000,new

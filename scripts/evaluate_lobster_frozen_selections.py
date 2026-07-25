@@ -61,6 +61,14 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Collected run root; repeat when reused and rerun seeds differ.",
     )
+    parser.add_argument(
+        "--condition",
+        action="append",
+        help=(
+            "Expected condition in report order; repeat for custom experiment "
+            "matrices. Defaults to the four motif-parity conditions."
+        ),
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--expected-runs", type=int, default=12)
     parser.add_argument("--test-rollouts", type=int, default=10)
@@ -80,6 +88,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--expected-runs must be positive")
     if args.test_rollouts <= 0:
         parser.error("--test-rollouts must be positive")
+    if args.condition and len(set(args.condition)) != len(args.condition):
+        parser.error("--condition values must be unique")
     for label in ("generated_filename", "model_filename"):
         value = getattr(args, label)
         if Path(value).name != value or value in {"", ".", ".."}:
@@ -199,6 +209,7 @@ def load_frozen_winners(
     selection_paths: list[Path],
     runs_roots: list[Path],
     expected_runs: int,
+    condition_order: tuple[str, ...] = CONDITION_ORDER,
 ) -> list[dict]:
     resolved_by_run = {}
     for selection_path in selection_paths:
@@ -227,9 +238,9 @@ def load_frozen_winners(
     winners = sorted(
         resolved_by_run.values(),
         key=lambda row: (
-            CONDITION_ORDER.index(row["condition"])
-            if row["condition"] in CONDITION_ORDER
-            else len(CONDITION_ORDER),
+            condition_order.index(row["condition"])
+            if row["condition"] in condition_order
+            else len(condition_order),
             row["seed"],
         ),
     )
@@ -239,7 +250,7 @@ def load_frozen_winners(
         )
     expected_keys = {
         (condition, seed)
-        for condition in CONDITION_ORDER
+        for condition in condition_order
         for seed in range(3)
     }
     actual_keys = {(row["condition"], row["seed"]) for row in winners}
@@ -508,7 +519,8 @@ def write_report(path: Path, payload: dict) -> None:
         "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     conditions = payload["condition_summary"]
-    for condition in CONDITION_ORDER:
+    condition_order = payload.get("condition_order", CONDITION_ORDER)
+    for condition in condition_order:
         summary = conditions[condition]
         metrics = summary["metrics_across_seed_means"]
         lines.append(
@@ -522,7 +534,7 @@ def write_report(path: Path, payload: dict) -> None:
         + " | ".join(f"{GRAPHVAE_MM_BASELINE[metric]:.5f}" for metric in METRICS)
         + " | not reported | not reported |"
     )
-    reference_nodes = conditions[CONDITION_ORDER[0]]["reference_nodes"]
+    reference_nodes = conditions[condition_order[0]]["reference_nodes"]
     lines += [
         "",
         f"The held-out reference contains {reference_nodes['mean']:.2f} mean nodes.",
@@ -537,12 +549,14 @@ def write_report(path: Path, payload: dict) -> None:
 
 def run(args: argparse.Namespace) -> dict:
     runs_roots = [path.expanduser().resolve() for path in args.runs_root]
+    condition_order = tuple(args.condition or CONDITION_ORDER)
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     winners = load_frozen_winners(
         args.selection_json,
         runs_roots,
         args.expected_runs,
+        condition_order,
     )
 
     frozen_payload = {
@@ -601,6 +615,7 @@ def run(args: argparse.Namespace) -> dict:
         "test_rollouts": args.test_rollouts,
         "test_seed": args.seed,
         "paired_rollout_seeds_across_checkpoints": True,
+        "condition_order": list(condition_order),
         "heldout_reference_sha256": heldout_reference_sha256,
         "metrics": list(METRICS),
         "runs": run_results,

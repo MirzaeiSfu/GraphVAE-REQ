@@ -102,6 +102,53 @@ def test_load_frozen_winners_uses_source_root_name_to_disambiguate(tmp_path):
     assert winners[0]["run_dir"] == str((fixed_root / run).resolve())
 
 
+def test_load_frozen_winners_accepts_custom_complete_condition_matrix(tmp_path):
+    runs_root = tmp_path / "runs"
+    winners = []
+    condition_order = ("native_kernel", "motif_bundle")
+    for condition in condition_order:
+        for seed in range(3):
+            run_dir = (
+                runs_root
+                / f"seed_{seed}"
+                / f"{condition}__worker_gpu0"
+                / f"seed_{seed}"
+            )
+            run_dir.mkdir(parents=True)
+            checkpoint = run_dir / "periodic_epoch_20000.pt"
+            checkpoint.write_bytes(b"checkpoint")
+            winners.append(
+                {
+                    "run": str(run_dir.relative_to(runs_root)),
+                    "artifact_dir": str(run_dir),
+                    "checkpoint": checkpoint.name,
+                    "selection_score": 0.25,
+                    "validation": {"score": {"median": 0.2}},
+                }
+            )
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps({"winners": winners}),
+        encoding="utf-8",
+    )
+
+    loaded = load_frozen_winners(
+        [selection_path],
+        [runs_root],
+        expected_runs=6,
+        condition_order=condition_order,
+    )
+
+    assert [
+        (winner["condition"], winner["seed"])
+        for winner in loaded
+    ] == [
+        (condition, seed)
+        for condition in condition_order
+        for seed in range(3)
+    ]
+
+
 def test_aggregate_conditions_reports_seed_and_rollout_uncertainty():
     run_results = []
     for seed, degree_values in enumerate(([1.0, 3.0], [2.0, 4.0])):
