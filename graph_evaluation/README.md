@@ -273,6 +273,13 @@ removed by NumPy 1.24. The worker restores those five historical aliases
 before loading PyGCL. This compatibility shim does not change graph tensors,
 augmentations, losses, or model code in the research checkout.
 
+The matching `torch-sparse` CUDA random-walk kernel can fail with an illegal
+memory access on the worker GPU stack. For GraphCL CUDA runs, the adapter
+therefore executes only that sparse walk on its CPU backend and transfers the
+sampled node indices back to the graph device. Start-node sampling, random
+augmentation selection, walk length, subgraph extraction, and all learned
+operations retain the released implementation.
+
 The worker also imports `sklearn.metrics` explicitly before calling the
 released precision/recall and density/coverage code. Some supported
 scikit-learn releases do not populate that namespace from `import sklearn`

@@ -186,6 +186,60 @@ def _install_pyg_compatibility():
         )
 
 
+def _install_graphcl_cuda_random_walk_compatibility(device: torch.device):
+    """Run PyGCL's unstable sparse random-walk kernel on CPU.
+
+    PyGCL 0.1.2 constructs random-walk start nodes on CPU and then transfers
+    them to the graph device. With the supported PyTorch 2.1/CUDA 12 wheels,
+    ``torch_sparse.random_walk`` can illegally access memory on CUDA. Keep the
+    released start-node sampling and subgraph extraction unchanged, but run
+    only the sparse walk itself on its stable CPU backend.
+    """
+
+    if device.type != "cuda":
+        return
+
+    from torch_sparse import SparseTensor
+
+    import GCL.augmentors.functional as functional
+    import GCL.augmentors.rw_sampling as rw_sampling
+
+    def random_walk_subgraph(
+        edge_index,
+        edge_weight=None,
+        batch_size=1000,
+        length=10,
+    ):
+        num_nodes = edge_index.max().item() + 1
+        row, col = edge_index
+        adjacency = SparseTensor(
+            row=row.detach().cpu(),
+            col=col.detach().cpu(),
+            sparse_sizes=(num_nodes, num_nodes),
+        )
+        # Match the released implementation: torch.randint defaults to CPU.
+        start = torch.randint(
+            0,
+            num_nodes,
+            size=(batch_size,),
+            dtype=torch.long,
+        )
+        node_indices = adjacency.random_walk(
+            start.flatten(), length
+        ).view(-1)
+        node_indices = node_indices.to(edge_index.device)
+        return functional.subgraph(
+            node_indices,
+            edge_index,
+            edge_weight,
+        )
+
+    # RWSampling imports the function into its module namespace, so patch both
+    # references before the upstream constructs its RandomChoice augmentor.
+    functional.random_walk_subgraph = random_walk_subgraph
+    rw_sampling.random_walk_subgraph = random_walk_subgraph
+
+
 def _install_metric_compatibility():
     """Load the sklearn namespace expected by the released PR/DC code."""
 
@@ -319,6 +373,8 @@ def _train(args):
                 "GraphCL/InfoGraph training requires the upstream dependencies, "
                 "including PyGCL (import name GCL)."
             ) from exc
+        if args.encoder == "graphcl":
+            _install_graphcl_cuda_random_walk_compatibility(device)
         # The released GraphCL loop does not move batches to the configured
         # device. Supplying device-resident Data objects preserves its code.
         upstream_graphs = [graph.clone().to(device) for graph in graphs]
