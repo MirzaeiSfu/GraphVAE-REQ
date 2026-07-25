@@ -1,8 +1,12 @@
 """Tests for metadata checks performed at the isolated worker boundary."""
 
+import numpy as np
 import pytest
 
-from ggm_eval.worker import _validate_schema_identity
+from ggm_eval.worker import (
+    _install_numpy_legacy_aliases,
+    _validate_schema_identity,
+)
 
 
 def test_schema_identity_accepts_matching_declared_metadata():
@@ -30,3 +34,19 @@ def test_schema_identity_rejects_mismatch_or_missing_declaration():
             generated={"dataset": "PROTEINS"},
             reference={},
         )
+
+
+def test_upstream_shims_restore_numpy_aliases_needed_by_pygcl():
+    aliases = ("bool", "float", "int", "object", "str")
+    removed = {
+        alias: np.__dict__.pop(alias)
+        for alias in aliases
+        if alias in np.__dict__
+    }
+    try:
+        _install_numpy_legacy_aliases()
+        assert all(alias in np.__dict__ for alias in aliases)
+    finally:
+        for alias in aliases:
+            np.__dict__.pop(alias, None)
+        np.__dict__.update(removed)

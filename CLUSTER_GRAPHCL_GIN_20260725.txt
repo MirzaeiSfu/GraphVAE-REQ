@@ -1,0 +1,11 @@
+# HOST GPU DATASET FEATURE_MODE
+# One dataset job trains independent GraphCL-GIN checkpoints for seeds 0, 1,
+# and 2. Hosts with critically low scratch space are intentionally excluded.
+
+cs-cl-09 0 PROTEINS decoded_node
+cs-cl-09 1 MUTAG decoded_node
+cs-cl-16 0 ENZYMES decoded_node
+cs-cl-19 0 AIDS decoded_node_edge
+cs-cl-19 1 PTC decoded_node
+cs-cl-26 0 QM9 decoded_node_edge
+cs-cl-26 1 ogbg-molbbbp decoded_node_edge

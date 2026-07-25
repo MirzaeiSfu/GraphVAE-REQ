@@ -268,6 +268,11 @@ property from the already-existing first linear layer. This is a runtime API
 compatibility bridge only: model computation and checkpoint parameter names
 remain unchanged.
 
+PyGCL 0.1.2 imports scikit-learn 0.23, which still refers to scalar aliases
+removed by NumPy 1.24. The worker restores those five historical aliases
+before loading PyGCL. This compatibility shim does not change graph tensors,
+augmentations, losses, or model code in the research checkout.
+
 The worker also imports `sklearn.metrics` explicitly before calling the
 released precision/recall and density/coverage code. Some supported
 scikit-learn releases do not populate that namespace from `import sklearn`
@@ -277,6 +282,90 @@ By default the upstream checkout must have both the pinned commit and a clean
 worktree. `--allow-unpinned-upstream` permits a different or modified checkout
 only for an intentional experiment, and the resulting provenance remains in
 reports.
+
+### Reusable real-split export
+
+Encoder pre-training does not require running a graph generator. Export the
+real splits directly through the same loader, categorical one-hot builder,
+BFS normalization, and safe PyG serializer used by `main.py`:
+
+```bash
+python scripts/export_real_pyg_splits.py \
+  --dataset MUTAG \
+  --data-dir /scratch/graph-data \
+  --split-mode legacy_80_20 \
+  --output-dir graph_evaluation_inputs/MUTAG
+```
+
+The command writes `real_train_graphs.pt` and `real_test_graphs.pt`; a
+paper-style split also writes `real_validation_graphs.pt`. Training consumes
+only the training artifact. The adjacent manifests record the dataset,
+feature schema, split and selection seeds, optional source cap, normalization
+strategy, tensor dimensions, and collection digest.
+
+The exporter accepts `PROTEINS`/`protein`, `MUTAG`, `PTC`, `AIDS`, `ENZYMES`,
+`QM9`, and `ogbg`/`ogbg-molbbbp`. Its defaults are deterministic:
+`selection_seed=0`, `split_seed=123`, and largest-component BFS ordering.
+Choose the split mode used by the generator experiment. The last 20% is the
+held-out test set in both built-in modes, so a legacy 80/20 encoder split does
+not consume the paper 70/10/20 test partition.
+
+### Distributed seven-dataset GraphCL campaign
+
+The checked-in campaign files make the current run reproducible:
+
+- `CLUSTER_GRAPHCL_GIN_20260725.txt` assigns one dataset to each CUDA device;
+- `CLUSTER_REPO_PATHS_GRAPHCL_20260725.txt` includes only workers with adequate
+  free scratch space;
+- `scripts/cluster_run_graphcl_schedule.sh` validates inputs and launches one
+  isolated `tmux` session per dataset;
+- `scripts/summarize_graphcl_training.py` verifies and hashes every collected
+  checkpoint, then writes JSON, CSV, and Markdown summaries.
+
+The schedule trains the untouched upstream GraphCL-GIN implementation for
+100 epochs with seeds `0 1 2`, three GIN layers, hidden width 32, orthogonal
+initialization, and the released Lipschitz limiter. Node-only datasets use
+`decoded_node`; molecular datasets with bond features use
+`decoded_node_edge`.
+
+Each worker needs:
+
+1. this repository;
+2. a clean sibling checkout named
+   `Self-Supervised-Models-for-GGM-Evaluation` at the pinned commit;
+3. `.graphcl_deps/` containing PyGCL 0.1.2 plus `torch-scatter` and
+   `torch-sparse` wheels built for that worker's PyTorch/CUDA combination;
+4. `graph_evaluation_inputs/20260725/<dataset>/real_train_graphs.pt`.
+
+After those inputs are synchronized, launch:
+
+```bash
+scripts/cluster_run_graphcl_schedule.sh \
+  --repo-paths CLUSTER_REPO_PATHS_GRAPHCL_20260725.txt
+```
+
+Collect the completed run roots and validate the aggregate:
+
+```bash
+scripts/cluster_collect_results.sh \
+  --repo-paths CLUSTER_REPO_PATHS_GRAPHCL_20260725.txt \
+  --remote-run-root runs/graphcl_gin_20260725 \
+  --date-prefix 20260725
+
+python scripts/summarize_graphcl_training.py \
+  --collected-root collected_runs/20260725/graphcl_gin_20260725 \
+  --schedule CLUSTER_GRAPHCL_GIN_20260725.txt \
+  --seeds 0 1 2 \
+  --output-dir collected_runs/20260725/graphcl_gin_20260725_summary
+```
+
+For this campaign, PROTEINS and `ogbg-molbbbp` use the paper 70/10/20 split;
+MUTAG, PTC, AIDS, ENZYMES, and QM9 use 80/20. QM9 is deterministically capped
+at 10,000 source molecules before splitting (8,000 training graphs) to keep
+the released 100-epoch, three-seed loop computationally practical. That cap
+is part of its artifact metadata and must be reported when using the
+checkpoint. All other datasets use every graph retained by their repository
+loader.
 
 ### Feature modes
 

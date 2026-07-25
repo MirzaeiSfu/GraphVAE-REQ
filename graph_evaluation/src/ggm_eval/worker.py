@@ -93,6 +93,24 @@ def _activate_repository(path: Path):
             del sys.modules[module_name]
 
 
+def _install_numpy_legacy_aliases():
+    """Restore scalar aliases required by the released PyGCL dependency set."""
+
+    # PyGCL 0.1.2 imports scikit-learn 0.23 during package initialization.
+    # That scikit-learn release still references NumPy aliases removed in
+    # NumPy 1.24. Restore only those historical names; the aliases map to the
+    # equivalent Python scalars and leave array behavior unchanged.
+    for alias, scalar in (
+        ("bool", bool),
+        ("float", float),
+        ("int", int),
+        ("object", object),
+        ("str", str),
+    ):
+        if alias not in np.__dict__:
+            setattr(np, alias, scalar)
+
+
 def _install_upstream_import_shims():
     """Satisfy unused imports in the released PyG code.
 
@@ -104,6 +122,8 @@ def _install_upstream_import_shims():
     ``remote``/``get`` pair, which preserves the published non-distributed
     semantics.
     """
+
+    _install_numpy_legacy_aliases()
 
     try:
         importlib.import_module("dgl")
