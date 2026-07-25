@@ -1,0 +1,3 @@
+# Matched GraphVAE-MM / motif-statistics controls, training seed 0 wave 2.
+# Format: HOST GPU CONFIG_YAML
+cs-cl-36 0 configs/matrix_motif/lobster_graphvae_mm_fixed_split_matched1_legacy.yaml

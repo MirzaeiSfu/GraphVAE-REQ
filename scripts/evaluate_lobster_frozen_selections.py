@@ -217,6 +217,8 @@ def load_frozen_winners(
         for winner in payload["winners"]:
             run_dir = resolve_run_dir(winner, runs_roots)
             condition, seed = condition_and_seed(run_dir)
+            if condition not in condition_order:
+                continue
             checkpoint_path = run_dir / winner["checkpoint"]
             if not checkpoint_path.is_file():
                 raise FileNotFoundError(checkpoint_path)

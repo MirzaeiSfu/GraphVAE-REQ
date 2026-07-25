@@ -5,3 +5,4 @@ cs-cl-16 /local-scratch/graphvae-req-work/GraphVAE-REQ
 cs-cl-18 /local-scratch2/graphvae-req-work/GraphVAE-REQ
 cs-cl-19 /local-scratch2/graphvae-req-work/GraphVAE-REQ
 cs-cl-26 /local-scratch/graphvae-req-work/GraphVAE-REQ
+cs-cl-36 /var/tmp/mirzaei/graphvae-req-work/GraphVAE-REQ

@@ -1,6 +1,5 @@
 # Matched GraphVAE-MM / motif-statistics controls, training seed 0.
-# The matched-1 kernel control follows automatically on cs-cl-09 GPU 1 via
-# scripts/queue_lobster_kiarash_control_seed0_wave2.sh.
+# The matched-1 kernel control is in the seed-0 wave-2 schedule.
 # Format: HOST GPU CONFIG_YAML
 cs-cl-09 1 configs/matrix_motif/lobster_graphvae_mm_fixed_split_native40_legacy.yaml
 cs-cl-16 0 configs/matrix_motif/lobster_kiarash_parity_kia40_2000_feature40_legacy.yaml

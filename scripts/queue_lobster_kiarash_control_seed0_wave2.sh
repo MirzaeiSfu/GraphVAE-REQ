@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if (($# != 1)); then
-  echo "Usage: $0 REPO_PATH" >&2
+if (($# != 4)); then
+  echo "Usage: $0 REPO_PATH HOST_LABEL GPU PREDECESSOR_JOB" >&2
   exit 2
 fi
 
 repo_path="$1"
-gpu="1"
+host_label="$2"
+gpu="$3"
+predecessor_job="$4"
 seed="0"
 date_prefix="20260725"
 run_root="runs/20260725/lobster_graphvae_mm_fixed_split_controls/seed_0"
-predecessor_job="lobster_graphvae_mm_fixed_split_native40_legacy__cs-cl-09_gpu1"
-job="lobster_graphvae_mm_fixed_split_matched1_legacy__cs-cl-09_gpu1"
+job="lobster_graphvae_mm_fixed_split_matched1_legacy__${host_label}_gpu${gpu}"
 config="configs/matrix_motif/lobster_graphvae_mm_fixed_split_matched1_legacy.yaml"
 run_dir="$run_root/$job"
 run_label="${date_prefix}_${job}"
@@ -57,9 +58,9 @@ printf '%s\n' \
   $(printf '%q' "run_label=$run_label") \
   $(printf '%q' "config_name=lobster_graphvae_mm_fixed_split_matched1_legacy") \
   $(printf '%q' "config_path=$config") \
-  'host=cs-cl-09' \
-  'gpu=1' \
-  'cuda_visible_devices=1' \
+  $(printf '%q' "host=$host_label") \
+  $(printf '%q' "gpu=$gpu") \
+  $(printf '%q' "cuda_visible_devices=$gpu") \
   'device=cuda:0' \
   $(printf '%q' "python_bin=$python_bin") \
   > $(printf '%q' "$run_dir/RUN_INFO.txt")

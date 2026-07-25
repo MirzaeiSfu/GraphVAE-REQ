@@ -126,6 +126,24 @@ def test_load_frozen_winners_accepts_custom_complete_condition_matrix(tmp_path):
                     "validation": {"score": {"median": 0.2}},
                 }
             )
+    unrelated_run = (
+        runs_root
+        / "seed_0"
+        / "unrelated_condition__worker_gpu0"
+        / "seed_0"
+    )
+    unrelated_run.mkdir(parents=True)
+    unrelated_checkpoint = unrelated_run / "periodic_epoch_20000.pt"
+    unrelated_checkpoint.write_bytes(b"checkpoint")
+    winners.append(
+        {
+            "run": str(unrelated_run.relative_to(runs_root)),
+            "artifact_dir": str(unrelated_run),
+            "checkpoint": unrelated_checkpoint.name,
+            "selection_score": 0.25,
+            "validation": {"score": {"median": 0.2}},
+        }
+    )
     selection_path = tmp_path / "selection.json"
     selection_path.write_text(
         json.dumps({"winners": winners}),
