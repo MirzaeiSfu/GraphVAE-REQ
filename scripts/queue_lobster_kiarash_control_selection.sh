@@ -40,7 +40,7 @@ worker_command=$(cat <<EOF
 set -euo pipefail
 cd $(printf '%q' "$repo_path")
 while true; do
-  completed=\$(find $(printf '%q' "$run_root") -name model_19999_0 | wc -l)
+  completed=\$(find $(printf '%q' "$run_root") -name final_metrics_summary.json | wc -l)
   if ((completed >= $expected_runs)); then
     break
   fi

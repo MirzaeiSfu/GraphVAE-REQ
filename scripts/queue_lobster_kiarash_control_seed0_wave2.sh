@@ -44,7 +44,7 @@ fi
 worker_command=$(cat <<EOF
 set -euo pipefail
 cd $(printf '%q' "$repo_path")
-predecessor=$(printf '%q' "$run_root/$predecessor_job/seed_0/model_19999_0")
+predecessor=$(printf '%q' "$run_root/$predecessor_job/seed_0/final_metrics_summary.json")
 while [[ ! -f "\$predecessor" ]]; do
   echo "[wait] predecessor incomplete \$(date -Iseconds)"
   sleep 30
