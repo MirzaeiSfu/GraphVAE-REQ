@@ -1,15 +1,18 @@
 import pytest
 import torch
 
+from GlobalProperties import kernel
 from motif_counting.motif_counter import RelationalMotifCounter
 from motif_counting.motif_loss_utils import (
     compute_calibrated_gaussian_motif_channel_loss,
     compute_calibrated_gaussian_motif_statistic_loss,
 )
 from motif_counting.motif_representations import (
+    KIARASH_STATISTIC_NAMES,
     build_marginal_histogram_spec,
     canonicalize_motif_output_mode,
     compute_degree_histograms_from_full_matrices,
+    compute_kiarash_statistics_from_full_matrices,
     compute_marginal_histograms,
     compute_row_column_marginals,
     compute_total_motif_count,
@@ -27,6 +30,9 @@ def test_output_mode_aliases_have_clear_canonical_names():
     )
     assert canonicalize_motif_output_mode("degree_histogram") == (
         "degree_histogram"
+    )
+    assert canonicalize_motif_output_mode("kiarash_statistics") == (
+        "kiarash_statistics"
     )
 
 
@@ -64,6 +70,85 @@ def test_degree_histogram_rejects_non_square_natural_motif_results():
 
     with pytest.raises(ValueError, match="requires natural N_max x N_max"):
         compute_degree_histograms_from_full_matrices(matrices, vector_mask)
+
+
+def test_kiarash_statistics_match_global_properties_on_identical_soft_adjacency():
+    n_max = 13
+    generator = torch.Generator().manual_seed(20260724)
+    adjacency = torch.rand(
+        7,
+        n_max,
+        n_max,
+        dtype=torch.float64,
+        generator=generator,
+        requires_grad=True,
+    )
+    matrix_mask = torch.ones(1, n_max, n_max, dtype=torch.bool)
+    motif_statistics = compute_kiarash_statistics_from_full_matrices(
+        adjacency.unsqueeze(1),
+        matrix_mask,
+    )
+
+    legacy_kernel = kernel(
+        device=torch.device("cpu"),
+        kernel_type=[
+            "trans_matrix",
+            "in_degree_dist",
+            "out_degree_dist",
+            "TotalNumberOfTriangles",
+        ],
+        step_num=5,
+        bin_width=torch.ones(n_max, 1, dtype=adjacency.dtype),
+        bin_center=torch.arange(
+            n_max,
+            dtype=adjacency.dtype,
+        ).view(n_max, 1),
+        degree_bin_center=torch.arange(
+            n_max,
+            dtype=adjacency.dtype,
+        ).view(n_max, 1),
+        degree_bin_width=torch.full(
+            (n_max, 1),
+            0.1,
+            dtype=adjacency.dtype,
+        ),
+    )
+    legacy_statistics = legacy_kernel(adjacency)
+
+    assert len(motif_statistics) == len(KIARASH_STATISTIC_NAMES) == 8
+    assert len(legacy_statistics) == 8
+    for name, actual, expected in zip(
+        KIARASH_STATISTIC_NAMES,
+        motif_statistics,
+        legacy_statistics,
+    ):
+        torch.testing.assert_close(
+            actual,
+            expected,
+            rtol=1e-12,
+            atol=1e-12,
+            msg=lambda message, statistic=name: f"{statistic}: {message}",
+        )
+
+    sum(statistic.sum() for statistic in motif_statistics).backward()
+    assert adjacency.grad is not None
+    assert torch.isfinite(adjacency.grad).all()
+    assert adjacency.grad.abs().sum().item() > 0.0
+
+
+def test_kiarash_statistics_require_one_full_square_unit_motif():
+    matrices = torch.zeros(2, 2, 3, 3)
+    matrix_mask = torch.ones(2, 3, 3, dtype=torch.bool)
+    with pytest.raises(ValueError, match="exactly one"):
+        compute_kiarash_statistics_from_full_matrices(matrices, matrix_mask)
+
+    vector_mask = torch.zeros(1, 3, 3, dtype=torch.bool)
+    vector_mask[0, :, :1] = True
+    with pytest.raises(ValueError, match="natural N_max x N_max"):
+        compute_kiarash_statistics_from_full_matrices(
+            matrices[:, :1],
+            vector_mask,
+        )
 
 
 def test_square_result_retains_both_row_and_column_marginals():
@@ -242,7 +327,7 @@ def test_channel_loss_calibrates_row_and_column_directions_separately():
     assert torch.count_nonzero(predicted.grad[:, 1, 1]).item() == 0
 
 
-def test_counter_integrates_all_five_canonical_modes():
+def test_counter_integrates_all_six_canonical_modes():
     counter = RelationalMotifCounter.__new__(RelationalMotifCounter)
     counter.device = "cpu"
     counter.rules = [["edge(X,Y)"]]
@@ -297,6 +382,10 @@ def test_counter_integrates_all_five_canonical_modes():
         preprocessor,
         output_mode="degree_histogram",
     )
+    kiarash_statistics, kiarash_mask = counter.count_batch(
+        preprocessor,
+        output_mode="kiarash_statistics",
+    )
     total_count = counter.count_batch(preprocessor, output_mode="total_count")
 
     assert full_matrix.shape == (2, 1, 2, 2)
@@ -310,6 +399,8 @@ def test_counter_integrates_all_five_canonical_modes():
     torch.testing.assert_close(histogram_mask, repeated_mask)
     assert degree_histograms.shape == (2, 1, 2)
     assert degree_histogram_mask.all()
+    assert len(kiarash_statistics) == 8
+    assert kiarash_mask is None
     torch.testing.assert_close(
         total_count,
         preprocessor.adjacency.flatten(start_dim=1).sum(dim=1, keepdim=True),

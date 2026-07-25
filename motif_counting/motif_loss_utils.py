@@ -271,6 +271,58 @@ def compute_calibrated_gaussian_motif_channel_loss(
     return per_motif_loss.sum()
 
 
+def compute_calibrated_gaussian_kiarash_statistics_loss(
+    observed_statistics,
+    predicted_statistics,
+    min_log_sigma=-6.0,
+    eps=1e-12,
+    reduction="sum",
+):
+    """Apply GraphVAE-MM's separate-sigma loss to its eight kernel statistics.
+
+    The five transition matrices, two degree histograms, and triangle scalar
+    are heterogeneous tensors. Each receives its own minibatch-RMSE sigma and
+    Gaussian NLL, exactly like the loop in ``main.OptimizerVAE``. The legacy
+    outer reduction is a sum across all eight statistics.
+    """
+    if len(observed_statistics) != 8 or len(predicted_statistics) != 8:
+        raise ValueError(
+            "Kiarash statistics must contain exactly eight tensors: "
+            "P^1..P^5, in/out degree histograms, and total triangles."
+        )
+    if reduction not in {"mean", "sum", "none"}:
+        raise ValueError(
+            f"Unknown Kiarash-statistics loss reduction: {reduction}. "
+            "Expected 'mean', 'sum', or 'none'."
+        )
+
+    statistic_losses = []
+    for observed, predicted in zip(observed_statistics, predicted_statistics):
+        if observed.shape != predicted.shape:
+            raise ValueError(
+                "Kiarash statistic shape mismatch: "
+                f"observed {tuple(observed.shape)} vs "
+                f"predicted {tuple(predicted.shape)}."
+            )
+        if observed.ndim < 1:
+            raise ValueError("Every Kiarash statistic must include a batch dimension.")
+        per_statistic_loss = compute_calibrated_gaussian_motif_statistic_loss(
+            observed_statistics=observed.unsqueeze(1),
+            predicted_statistics=predicted.unsqueeze(1),
+            min_log_sigma=min_log_sigma,
+            eps=eps,
+            reduction="none",
+        )
+        statistic_losses.append(per_statistic_loss[0])
+
+    stacked_losses = torch.stack(statistic_losses)
+    if reduction == "none":
+        return stacked_losses
+    if reduction == "mean":
+        return stacked_losses.mean()
+    return stacked_losses.sum()
+
+
 def compute_calibrated_gaussian_motif_matrix_loss(
     observed_matrices,
     predicted_matrices,

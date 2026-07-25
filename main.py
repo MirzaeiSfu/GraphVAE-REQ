@@ -52,6 +52,7 @@ from motif_counting.motif_objective import (
     build_motif_group_objectives,
     calibrate_group_histogram_specs,
     compute_grouped_motif_loss,
+    restrict_to_nonzero_weight_motif_groups,
 )
 from motif_counting.motif_representations import (
     MOTIF_OUTPUT_MODE_CHOICES,
@@ -992,7 +993,9 @@ parser.add_argument(
         'the non-singleton marginal for 1xN/Nx1 results; marginal_histogram '
         'forms permutation-invariant soft histograms of those marginals; '
         'degree_histogram applies GraphVAE-MM soft degree bins to row sums of '
-        'natural NxN matrices; '
+        'natural NxN matrices; kiarash_statistics derives GraphVAE-MM P^1..P^5, '
+        'in/out degree histograms, and total triangles from exactly one natural '
+        'NxN unit-edge motif; '
         'total_count sums all entries. Legacy aliases: matrix and count.'
     ),
 )
@@ -2557,6 +2560,7 @@ else:
 # Every group-specific representation is derived later from these same targets.
 motif_group_objectives = []
 motif_training_uses_only_total_counts = False
+active_motif_rule_value_selection = None
 if use_motif_loss:
     # Initializes the motif rule store (RuleBasedMotifStore).
     RuleBasedMotifStore(database_name=database_name, args=args) 
@@ -2617,9 +2621,29 @@ if use_motif_loss:
         unit_relation_loss_mode=unit_relation_motif_loss_mode,
         unit_relation_weight=alpha_unit_relation_motif_loss,
     )
+    (
+        motif_group_objectives,
+        active_motif_mask,
+    ) = restrict_to_nonzero_weight_motif_groups(motif_group_objectives)
+    if not motif_group_objectives:
+        raise ValueError(
+            "motif_loss=true requires at least one motif group with nonzero weight."
+        )
+    active_motif_rule_value_selection = (
+        motif_counter.select_rule_values_from_motif_mask(active_motif_mask)
+    )
+    active_group_summary = (
+        "ACTIVE MOTIF OBJECTIVE:"
+        f" selected={int(active_motif_mask.sum().item())}/"
+        f"{active_motif_mask.numel()} motif entries,"
+        f" groups={[group.name for group in motif_group_objectives]}"
+    )
+    print(active_group_summary)
+    logging.info(active_group_summary)
     motif_full_matrices, motif_full_matrix_mask = motif_counter.count_batch(
         wrapper,
         batch_size=motif_batch_size,
+        selected_rules_values=active_motif_rule_value_selection,
         output_mode='full_matrix',
         detach_to_cpu=True,
     )
@@ -3038,6 +3062,7 @@ for epoch in range(epoch_number):
                 ) = motif_counter.count_batch(
                     current_recon_wrapper,
                     batch_size=motif_batch_size,
+                    selected_rules_values=active_motif_rule_value_selection,
                     output_mode='full_matrix',
                 )
                 if not torch.equal(

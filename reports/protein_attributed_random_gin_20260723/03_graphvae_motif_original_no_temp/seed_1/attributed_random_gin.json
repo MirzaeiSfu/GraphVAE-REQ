@@ -1,0 +1,247 @@
+{
+  "schema_version": "attributed-random-gin-v1",
+  "run_dir": "/local-scratch2/new/protein_best_models_20260715/proteins_table2/03_graphvae_motif_original_no_temp/seed_1",
+  "config": "/local-scratch2/new/protein_best_models_20260715/proteins_table2/03_graphvae_motif_original_no_temp/seed_1/run_config_used.yaml",
+  "checkpoint": "/local-scratch2/new/protein_best_models_20260715/proteins_table2/03_graphvae_motif_original_no_temp/seed_1/best_validation_mmd_model",
+  "dataset_cache_dir": "/local-scratch2/new/GraphVAE-REQ-main-check/results/protein/count_distance_dataset_cache",
+  "split": "test",
+  "device": "cuda:1",
+  "adjacency_threshold": 0.5,
+  "generation_seed": 12345,
+  "graph_counts": {
+    "accepted_per_collection": 210,
+    "generation_attempts": 210
+  },
+  "feature_source": {
+    "generated": "GraphVAE node_feature_decoder",
+    "reference": "cached dataset node one-hot attributes",
+    "categorical_decoding": "argmax independently within each feature group",
+    "hand_made_topology_features": false
+  },
+  "implementation": {
+    "feature_extractor": "third_party/ggmeval Random-GIN",
+    "precision_recall": "third_party/ggmeval prdcEvaluation"
+  },
+  "primary_mode": "decoded_node",
+  "attributed_f1_pr": {
+    "mean": 0.9464692338819066,
+    "std": 0.014987298095427154,
+    "min": 0.9174785590023559,
+    "max": 0.9642428047814953
+  },
+  "evaluation": {
+    "feature_dimensions": {
+      "node": 3,
+      "edge": 0
+    },
+    "repeats": 10,
+    "base_seed": 0,
+    "nearest_k": 5,
+    "modes": {
+      "topology_control": {
+        "summary": {
+          "f1_pr": {
+            "mean": 0.938055514281468,
+            "std": 0.01504639338886527,
+            "min": 0.9170591211778326,
+            "max": 0.9689113704105684
+          },
+          "precision": {
+            "mean": 0.9252380952380953,
+            "std": 0.03473580233302263,
+            "min": 0.8761904761904762,
+            "max": 0.9809523809523809
+          },
+          "recall": {
+            "mean": 0.9528571428571428,
+            "std": 0.02655162258942981,
+            "min": 0.9,
+            "max": 0.9857142857142858
+          },
+          "mmd_rbf": {
+            "mean": 0.06097302287817001,
+            "std": 0.014781248311984883,
+            "min": 0.04281729459762573,
+            "max": 0.0933070182800293
+          },
+          "mmd_linear": {
+            "mean": 111.40654672980308,
+            "std": 265.6560647790386,
+            "min": 0.5428550839424133,
+            "max": 902.9644165039062
+          }
+        },
+        "per_repeat": {
+          "f1_pr": [
+            0.9409191115700287,
+            0.9372350515772842,
+            0.9234267936473737,
+            0.9343611596059278,
+            0.9689113704105684,
+            0.9571528571428572,
+            0.9401908349668904,
+            0.9170591211778326,
+            0.9218313273636386,
+            0.939467515352278
+          ],
+          "precision": [
+            0.9,
+            0.9095238095238095,
+            0.9428571428571428,
+            0.9714285714285714,
+            0.9809523809523809,
+            0.9571428571428572,
+            0.9238095238095239,
+            0.8761904761904762,
+            0.8809523809523809,
+            0.9095238095238095
+          ],
+          "recall": [
+            0.9857142857142858,
+            0.9666666666666667,
+            0.9047619047619048,
+            0.9,
+            0.9571428571428572,
+            0.9571428571428572,
+            0.9571428571428572,
+            0.9619047619047619,
+            0.9666666666666667,
+            0.9714285714285714
+          ],
+          "mmd_rbf": [
+            0.060533344745635986,
+            0.04281729459762573,
+            0.06661167740821838,
+            0.05850033462047577,
+            0.044244974851608276,
+            0.04373735189437866,
+            0.06118232011795044,
+            0.07453286647796631,
+            0.06426304578781128,
+            0.0933070182800293
+          ],
+          "mmd_linear": [
+            96.48538208007812,
+            3.2610056400299072,
+            2.1782665252685547,
+            51.611019134521484,
+            49.874603271484375,
+            0.5428550839424133,
+            1.059211015701294,
+            1.4691554307937622,
+            902.9644165039062,
+            4.6195526123046875
+          ]
+        }
+      },
+      "decoded_node": {
+        "summary": {
+          "f1_pr": {
+            "mean": 0.9464692338819066,
+            "std": 0.014987298095427154,
+            "min": 0.9174785590023559,
+            "max": 0.9642428047814953
+          },
+          "precision": {
+            "mean": 0.9628571428571429,
+            "std": 0.03412661498508367,
+            "min": 0.8809523809523809,
+            "max": 0.9952380952380953
+          },
+          "recall": {
+            "mean": 0.931904761904762,
+            "std": 0.02294131327703981,
+            "min": 0.8952380952380953,
+            "max": 0.9714285714285714
+          },
+          "mmd_rbf": {
+            "mean": 0.02996254563331604,
+            "std": 0.00630110587584551,
+            "min": 0.016844749450683594,
+            "max": 0.038443684577941895
+          },
+          "mmd_linear": {
+            "mean": 13.040282875299454,
+            "std": 22.714060205403445,
+            "min": 0.8381195664405823,
+            "max": 75.92953491210938
+          }
+        },
+        "per_repeat": {
+          "f1_pr": [
+            0.9317884423155234,
+            0.9592443170900663,
+            0.9369208175569121,
+            0.9174785590023559,
+            0.9460975969219851,
+            0.9582045075321323,
+            0.9642428047814953,
+            0.9331246767839538,
+            0.9585353560278386,
+            0.9590552608068055
+          ],
+          "precision": [
+            0.9714285714285714,
+            0.9761904761904762,
+            0.9714285714285714,
+            0.8809523809523809,
+            0.9857142857142858,
+            0.9952380952380953,
+            0.9571428571428572,
+            0.919047619047619,
+            0.9904761904761905,
+            0.9809523809523809
+          ],
+          "recall": [
+            0.8952380952380953,
+            0.9428571428571428,
+            0.9047619047619048,
+            0.9571428571428572,
+            0.9095238095238095,
+            0.9238095238095239,
+            0.9714285714285714,
+            0.9476190476190476,
+            0.9285714285714286,
+            0.9380952380952381
+          ],
+          "mmd_rbf": [
+            0.025730907917022705,
+            0.016844749450683594,
+            0.028264522552490234,
+            0.038443684577941895,
+            0.029692530632019043,
+            0.02503877878189087,
+            0.03718790411949158,
+            0.029071390628814697,
+            0.03696709871292114,
+            0.032383888959884644
+          ],
+          "mmd_linear": [
+            8.312433242797852,
+            30.814977645874023,
+            1.3495566844940186,
+            1.778564214706421,
+            0.8575201034545898,
+            75.92953491210938,
+            1.3784908056259155,
+            8.15621280670166,
+            0.8381195664405823,
+            0.9874187707901001
+          ]
+        }
+      }
+    },
+    "input_contract": {
+      "graph_type": "DGLGraph",
+      "node_features": "ndata['attr'] float matrix",
+      "edge_features": "edata['attr'] float matrix or absent",
+      "generated_graphs": 210,
+      "reference_graphs": 210,
+      "pyg_inputs_accepted": false
+    }
+  },
+  "dgl_exports": {
+    "generated": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/reports/protein_attributed_random_gin_20260723/03_graphvae_motif_original_no_temp/seed_1/generated_attributed_graphs.bin",
+    "reference": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/reports/protein_attributed_random_gin_20260723/03_graphvae_motif_original_no_temp/seed_1/reference_attributed_graphs.bin"
+  }
+}

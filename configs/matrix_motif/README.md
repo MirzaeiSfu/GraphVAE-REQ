@@ -1,7 +1,7 @@
 # Motif statistic representations
 
 The counting algorithm always returns one canonical padded full-matrix tensor
-and its natural-shape mask. The loss layer derives one of five representations
+and its natural-shape mask. The loss layer derives one of six representations
 from that shared result:
 
 | Mode | Tensor shape | Definition |
@@ -10,6 +10,7 @@ from that shared result:
 | `row_column_marginals` | `(graphs, motifs, 2, N_max)` | Row and column marginals for `NxN`; only the node-sized marginal for `Nx1`/`1xN`; one scalar channel for `1x1`. |
 | `marginal_histogram` | `(graphs, motifs, 2, bins)` | Permutation-invariant soft histograms of the valid row/column marginals. |
 | `degree_histogram` | `(graphs, motifs, N_max)` | GraphVAE-MM's integer-centered triangular soft histogram of row sums; restricted to natural `N_max x N_max` motif matrices. |
+| `kiarash_statistics` | heterogeneous bundle | GraphVAE-MM's separate `P^1,...,P^5`, in/out degree histograms, and total-triangle scalar, derived from exactly one natural `N_max x N_max` unit-edge motif. |
 | `total_count` | `(graphs, motifs)` | Sum of every final matrix entry; this is the original non-matrix motif count. |
 
 The old names `matrix` and `count` remain accepted aliases for `full_matrix`
@@ -65,6 +66,32 @@ width `0.1`, and triangular membership function as the repository's existing
 GraphVAE-MM degree statistic. The runnable controlled experiment is
 `lobster_matrix_full_original_unit_relation_degree_histogram_currentdb_constant.yaml`;
 its inventory is `unit_relation_degree_experiment_manifest.csv`.
+
+`kiarash_statistics` is the exact composite parity representation for the
+same protected unit-edge motif. It returns the eight tensors in
+`GlobalProperties.kernel` order:
+
+```text
+P^1, P^2, P^3, P^4, P^5,
+in_degree_histogram, out_degree_histogram, total_number_of_triangles
+```
+
+Here `P = D^-1 M_edge`, using the same row normalization and degree bins as
+GraphVAE-MM. The bundle also preserves `GlobalProperties`' unconventional
+labels: its `in_degree_dist` is built from row sums and its `out_degree_dist`
+from column sums. For strict code parity, the triangle statistic first zeros
+the diagonal and computes `trace(M^3)/6`; this is
+`M - diag(diag(M))`, not literal subtraction of the identity for a soft
+decoded diagonal. Each of the eight tensors receives its own RMSE-calibrated
+sigma and Gaussian loss, and the eight losses are summed exactly like
+`OptimizerVAE`.
+
+The four parity configurations cross legacy/corrected reparameterization with
+adjacency-BCE/KL weights `40/2000` and `1/1`. In all four, the Kiarash bundle
+has weight `1` and the relational/literal groups have weight `0`. Their
+inventory is `kiarash_parity_experiment_manifest.csv`. Zero-weight groups are
+projected out before motif counting, so these controls count only the one
+unit-edge matrix while hybrids retain every nonzero-weight group.
 
 All structured modes use Kia-MM-style calibrated Gaussian NLL. Full matrices
 receive one RMSE-calibrated sigma per motif. Row and column marginals receive

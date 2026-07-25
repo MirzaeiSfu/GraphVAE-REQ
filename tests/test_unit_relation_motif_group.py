@@ -1,6 +1,9 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+import torch
+
 from motif_counting.motif_counter import RelationalMotifCounter
 
 
@@ -70,3 +73,20 @@ def test_pruning_without_relation_protection_still_preserves_single_atom_rules()
     selected = counter._select_motif_values(data, Path("cache.pkl"))
 
     assert selected == [[["T"]], [["1"]], []]
+
+
+def test_flat_motif_mask_maps_back_to_ordered_rule_values():
+    counter = make_counter(protect=True)
+    counter.values = [
+        [["F"], ["T"]],
+        [["1"], ["2"]],
+        [["type_a", "T"], ["type_b", "T"]],
+    ]
+
+    selection = counter.select_rule_values_from_motif_mask(
+        torch.tensor([False, True, True, False, False, True])
+    )
+
+    assert selection == {0: [1], 1: [0], 2: [1]}
+    with pytest.raises(ValueError, match="flattened rule/value"):
+        counter.select_rule_values_from_motif_mask(torch.tensor([True]))

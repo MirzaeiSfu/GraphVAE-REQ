@@ -198,6 +198,32 @@ class RelationalMotifCounter:
             return mask.to(device)
         return mask
 
+    def select_rule_values_from_motif_mask(
+        self,
+        motif_mask: torch.Tensor,
+    ) -> Dict[int, List[int]]:
+        """Map a flat motif-value mask back to ordered rule/value indices."""
+        motif_mask = torch.as_tensor(motif_mask, dtype=torch.bool, device="cpu")
+        expected_motifs = sum(len(value_rows) for value_rows in self.values)
+        if motif_mask.ndim != 1 or motif_mask.numel() != expected_motifs:
+            raise ValueError(
+                "Motif selection mask must match the flattened rule/value "
+                f"dimension ({expected_motifs},), got {tuple(motif_mask.shape)}."
+            )
+
+        selection = {}
+        offset = 0
+        for rule_idx, value_rows in enumerate(self.values):
+            value_count = len(value_rows)
+            selected_value_indices = torch.nonzero(
+                motif_mask[offset:offset + value_count],
+                as_tuple=False,
+            ).flatten().tolist()
+            if selected_value_indices:
+                selection[rule_idx] = selected_value_indices
+            offset += value_count
+        return selection
+
     def do_interactive_selection(self) -> Dict:
         """Interactive rule/value selection for multi-graph runs (ask only once)."""
         print("\n" + "="*80)
@@ -245,6 +271,9 @@ class RelationalMotifCounter:
           specification used for both observed and reconstructed graphs.
         * ``degree_histogram``: GraphVAE-MM triangular soft histograms of row
           sums from natural square motif matrices, shape ``(B, M, N_max)``.
+        * ``kiarash_statistics``: the heterogeneous GraphVAE-MM bundle
+          ``P^1..P^5``, in/out degree histograms, and total triangles; this
+          requires exactly one natural square unit-edge motif.
 
         Legacy ``count`` and ``matrix`` names remain aliases for
         ``total_count`` and ``full_matrix`` respectively.
@@ -270,7 +299,7 @@ class RelationalMotifCounter:
         Returns
         -------
         torch.Tensor for ``total_count``;
-        tuple[values, valid_mask] for matrix/marginal modes; or
+        tuple[values, valid_mask] for matrix/marginal/composite modes; or
         tuple[histograms, valid_mask, histogram_spec] for histogram mode
         """
         output_mode = canonicalize_motif_output_mode(output_mode)

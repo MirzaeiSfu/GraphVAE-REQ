@@ -1,0 +1,5 @@
+# Motif-derived Kiarash parity, training seed 2, launched after seed-0 slots
+# on cs-cl-16 and cs-cl-18 finish.
+# Format: HOST GPU CONFIG_YAML
+cs-cl-16 0 configs/matrix_motif/lobster_kiarash_parity_plain1_1_legacy.yaml
+cs-cl-18 0 configs/matrix_motif/lobster_kiarash_parity_plain1_1_corrected.yaml

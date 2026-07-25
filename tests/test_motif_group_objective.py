@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from motif_counting.motif_loss_utils import (
+    compute_calibrated_gaussian_kiarash_statistics_loss,
     compute_calibrated_gaussian_motif_channel_loss,
     compute_calibrated_gaussian_motif_statistic_loss,
 )
@@ -12,6 +13,7 @@ from motif_counting.motif_objective import (
     build_motif_group_objectives,
     calibrate_group_histogram_specs,
     compute_grouped_motif_loss,
+    restrict_to_nonzero_weight_motif_groups,
 )
 from motif_counting.motif_representations import represent_full_motif_matrices
 
@@ -196,6 +198,54 @@ def test_unit_relation_degree_histogram_is_a_disjoint_weighted_group():
     torch.testing.assert_close(result.weighted_loss, expected_weighted)
 
 
+def test_unit_relation_kiarash_bundle_sums_eight_separately_calibrated_losses():
+    observed, predicted, matrix_mask, literal_mask = make_full_matrices()
+    unit_relation_mask = torch.tensor([False, True, False, False])
+    groups = build_motif_group_objectives(
+        syntactic_literal_mask=literal_mask,
+        non_literal_output_mode="full_matrix",
+        non_literal_loss_mode="calibrated_gaussian",
+        non_literal_weight=0.0,
+        syntactic_literal_output_mode="row_column_marginals",
+        syntactic_literal_loss_mode="calibrated_gaussian",
+        syntactic_literal_weight=0.0,
+        unit_relation_mask=unit_relation_mask,
+        unit_relation_output_mode="kiarash_statistics",
+        unit_relation_loss_mode="calibrated_gaussian",
+        unit_relation_weight=2.5,
+    )
+
+    result = compute_grouped_motif_loss(
+        observed_full_matrices=observed,
+        predicted_full_matrices=predicted,
+        full_matrix_mask=matrix_mask,
+        groups=groups,
+    )
+    observed_statistics, _, _ = represent_full_motif_matrices(
+        observed[:, 1:2],
+        matrix_mask[1:2],
+        output_mode="kiarash_statistics",
+    )
+    predicted_statistics, _, _ = represent_full_motif_matrices(
+        predicted[:, 1:2],
+        matrix_mask[1:2],
+        output_mode="kiarash_statistics",
+    )
+    expected = compute_calibrated_gaussian_kiarash_statistics_loss(
+        observed_statistics,
+        predicted_statistics,
+    )
+
+    torch.testing.assert_close(
+        result.group_losses[UNIT_RELATION_MOTIF_GROUP],
+        expected,
+    )
+    torch.testing.assert_close(
+        result.weighted_loss,
+        2.5 * expected,
+    )
+
+
 def test_structured_group_rejects_non_gaussian_loss():
     with pytest.raises(ValueError, match="requires motif_loss_mode=calibrated_gaussian"):
         build_motif_group_objectives(
@@ -207,3 +257,26 @@ def test_structured_group_rejects_non_gaussian_loss():
             syntactic_literal_loss_mode="calibrated_gaussian",
             syntactic_literal_weight=1.0,
         )
+
+
+def test_zero_weight_groups_are_removed_before_counting():
+    groups = build_motif_group_objectives(
+        syntactic_literal_mask=torch.tensor([False, False, True, True]),
+        non_literal_output_mode="full_matrix",
+        non_literal_loss_mode="calibrated_gaussian",
+        non_literal_weight=0.0,
+        syntactic_literal_output_mode="row_column_marginals",
+        syntactic_literal_loss_mode="calibrated_gaussian",
+        syntactic_literal_weight=0.0,
+        unit_relation_mask=torch.tensor([False, True, False, False]),
+        unit_relation_output_mode="kiarash_statistics",
+        unit_relation_loss_mode="calibrated_gaussian",
+        unit_relation_weight=1.0,
+    )
+
+    active_groups, active_mask = restrict_to_nonzero_weight_motif_groups(groups)
+
+    assert active_mask.tolist() == [False, True, False, False]
+    assert len(active_groups) == 1
+    assert active_groups[0].name == UNIT_RELATION_MOTIF_GROUP
+    assert active_groups[0].motif_mask.tolist() == [True]

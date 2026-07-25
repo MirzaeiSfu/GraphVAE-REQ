@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import torch
 
 from motif_counting.motif_loss_utils import (
+    compute_calibrated_gaussian_kiarash_statistics_loss,
     compute_calibrated_gaussian_motif_channel_loss,
     compute_calibrated_gaussian_motif_statistic_loss,
     compute_motif_loss,
@@ -223,6 +224,49 @@ def calibrate_group_histogram_specs(
     return calibrated_groups
 
 
+def restrict_to_nonzero_weight_motif_groups(
+    groups: List[MotifGroupObjective],
+):
+    """Drop zero-weight groups and project retained masks to active motifs.
+
+    Counting motifs that cannot contribute to the weighted objective wastes
+    substantial memory for parity-only or small hybrid experiments. This
+    helper returns the projected objectives plus a mask in the original motif
+    space, allowing the counter to materialize canonical full matrices only
+    for motifs belonging to nonzero-weight groups.
+    """
+    if not groups:
+        return [], torch.zeros(0, dtype=torch.bool)
+
+    num_motifs = groups[0].motif_mask.numel()
+    _validate_groups_against_motif_dimension(groups, num_motifs)
+    active_mask = torch.zeros(num_motifs, dtype=torch.bool)
+    retained_groups = []
+    for group in groups:
+        if group.weight == 0.0:
+            continue
+        active_mask |= group.motif_mask.to(dtype=torch.bool, device="cpu")
+        retained_groups.append(group)
+
+    if not retained_groups:
+        return [], active_mask
+
+    projected_groups = [
+        replace(
+            group,
+            motif_mask=group.motif_mask.to(dtype=torch.bool, device="cpu")[
+                active_mask
+            ],
+        )
+        for group in retained_groups
+    ]
+    _validate_groups_against_motif_dimension(
+        projected_groups,
+        int(active_mask.sum().item()),
+    )
+    return projected_groups, active_mask
+
+
 def _compute_group_loss(
     observed_full_matrices: torch.Tensor,
     predicted_full_matrices: torch.Tensor,
@@ -242,6 +286,23 @@ def _compute_group_loss(
         dtype=torch.bool,
     )
     group_matrix_mask = full_matrix_mask[motif_mask]
+    if group.output_mode == "kiarash_statistics":
+        observed_statistics, _, _ = represent_full_motif_matrices(
+            full_matrices=observed_full_matrices[:, motif_mask],
+            matrix_mask=group_matrix_mask,
+            output_mode=group.output_mode,
+        )
+        predicted_statistics, _, _ = represent_full_motif_matrices(
+            full_matrices=predicted_full_matrices[:, motif_mask],
+            matrix_mask=group_matrix_mask,
+            output_mode=group.output_mode,
+        )
+        return compute_calibrated_gaussian_kiarash_statistics_loss(
+            observed_statistics=observed_statistics,
+            predicted_statistics=predicted_statistics,
+            reduction="sum",
+        )
+
     observed_statistics, observed_mask, _ = represent_full_motif_matrices(
         full_matrices=observed_full_matrices[:, motif_mask],
         matrix_mask=group_matrix_mask,

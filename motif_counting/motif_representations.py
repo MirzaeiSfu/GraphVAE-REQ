@@ -5,7 +5,7 @@ dimension is either ``1`` or ``N_max``.  This module gives those results
 explicit, consistently named reductions for use as graph statistics.
 """
 
-from typing import Dict
+from typing import Dict, NamedTuple
 
 import torch
 import torch.nn.functional as F
@@ -20,11 +20,38 @@ MOTIF_OUTPUT_MODES = {
     "row_column_marginals",
     "marginal_histogram",
     "degree_histogram",
+    "kiarash_statistics",
     "total_count",
 }
 MOTIF_OUTPUT_MODE_CHOICES = MOTIF_OUTPUT_MODES | set(MOTIF_OUTPUT_MODE_ALIASES)
 MOTIF_MARGINAL_CHANNELS = ("row", "column")
-MASKED_MOTIF_OUTPUT_MODES = MOTIF_OUTPUT_MODES - {"total_count"}
+MASKED_MOTIF_OUTPUT_MODES = MOTIF_OUTPUT_MODES - {
+    "kiarash_statistics",
+    "total_count",
+}
+KIARASH_STATISTIC_NAMES = (
+    "transition_1",
+    "transition_2",
+    "transition_3",
+    "transition_4",
+    "transition_5",
+    "in_degree_histogram",
+    "out_degree_histogram",
+    "total_number_of_triangles",
+)
+
+
+class KiarashStatistics(NamedTuple):
+    """The eight heterogeneous statistics returned by GraphVAE-MM on LOBSTER."""
+
+    transition_1: torch.Tensor
+    transition_2: torch.Tensor
+    transition_3: torch.Tensor
+    transition_4: torch.Tensor
+    transition_5: torch.Tensor
+    in_degree_histogram: torch.Tensor
+    out_degree_histogram: torch.Tensor
+    total_number_of_triangles: torch.Tensor
 
 
 def canonicalize_motif_output_mode(output_mode: str) -> str:
@@ -227,6 +254,93 @@ def compute_degree_histograms_from_full_matrices(
     return histograms, histogram_mask
 
 
+def compute_kiarash_statistics_from_full_matrices(
+    full_matrices: torch.Tensor,
+    matrix_mask: torch.Tensor,
+    histogram_width: float = 0.1,
+) -> KiarashStatistics:
+    """Derive GraphVAE-MM's complete LOBSTER kernel from one unit-edge motif.
+
+    This composite representation exactly follows :mod:`GlobalProperties`:
+
+    * row-normalize the adjacency-like motif and return ``P^1, ..., P^5``;
+    * apply the integer-centered triangular histogram to row sums (the legacy
+      ``in_degree_dist``) and column sums (``out_degree_dist``);
+    * zero the diagonal and return ``trace(M^3) / 6``.
+
+    GraphVAE-MM calibrates a separate Gaussian sigma for each of these eight
+    tensors, so they intentionally remain separate instead of being flattened
+    or averaged into one tensor. The representation is restricted to exactly
+    one natural ``N_max x N_max`` motif: the protected positive unit relation
+    whose canonical motif matrix is the decoded adjacency.
+    """
+    _validate_full_motif_matrices(full_matrices, matrix_mask)
+    if full_matrices.shape[1] != 1:
+        raise ValueError(
+            "kiarash_statistics requires exactly one unit-edge motif matrix, "
+            f"got {full_matrices.shape[1]} motifs."
+        )
+    if histogram_width <= 0.0:
+        raise ValueError("Kiarash histogram width must be greater than zero.")
+
+    matrix_mask = matrix_mask.to(device=full_matrices.device, dtype=torch.bool)
+    if not bool(matrix_mask[0].all()):
+        raise ValueError(
+            "kiarash_statistics requires a natural N_max x N_max motif matrix."
+        )
+
+    adjacency = full_matrices[:, 0]
+    row_normalizer = adjacency.sum(dim=2).float().clamp(min=1).reciprocal()
+    transition_1 = adjacency * row_normalizer.to(adjacency.dtype).unsqueeze(2)
+    transitions = [transition_1]
+    for _ in range(4):
+        transitions.append(torch.matmul(transition_1, transitions[-1]))
+
+    n_max = adjacency.shape[-1]
+    bin_centers = torch.arange(
+        n_max,
+        device=adjacency.device,
+        dtype=adjacency.dtype,
+    )
+
+    def degree_histogram(degrees: torch.Tensor) -> torch.Tensor:
+        memberships = torch.relu(
+            1.0
+            - torch.abs(degrees.unsqueeze(-1) - bin_centers.view(1, 1, n_max))
+            * float(histogram_width)
+        )
+        return memberships.sum(dim=1)
+
+    # Preserve GlobalProperties.kernel's naming and order exactly, including
+    # its unconventional labels: on each 2-D adjacency it calls row sums
+    # ``in_degree_dist`` and column sums ``out_degree_dist``.
+    in_degree_histogram = degree_histogram(adjacency.sum(dim=2))
+    out_degree_histogram = degree_histogram(adjacency.sum(dim=1))
+
+    off_diagonal = adjacency * (
+        1.0
+        - torch.eye(
+            n_max,
+            device=adjacency.device,
+            dtype=adjacency.dtype,
+        )
+    )
+    adjacency_cubed = torch.matmul(
+        off_diagonal,
+        torch.matmul(off_diagonal, off_diagonal),
+    )
+    total_number_of_triangles = (
+        torch.diagonal(adjacency_cubed, dim1=-2, dim2=-1).sum(dim=-1) / 6.0
+    )
+
+    return KiarashStatistics(
+        *transitions,
+        in_degree_histogram,
+        out_degree_histogram,
+        total_number_of_triangles,
+    )
+
+
 def represent_full_motif_matrices(
     full_matrices: torch.Tensor,
     matrix_mask: torch.Tensor,
@@ -238,9 +352,9 @@ def represent_full_motif_matrices(
     """Derive a requested statistic from canonical full motif matrices.
 
     Returns ``(values, valid_mask, histogram_spec)`` for every mode. Scalar
-    ``total_count`` values have no validity mask. Histogram specifications are
-    calibrated only when none is supplied and must then be reused for decoded
-    graphs.
+    ``total_count`` values and composite ``kiarash_statistics`` have no
+    validity mask. Histogram specifications are calibrated only when none is
+    supplied and must then be reused for decoded graphs.
     """
     output_mode = canonicalize_motif_output_mode(output_mode)
     _validate_full_motif_matrices(full_matrices, matrix_mask)
@@ -267,6 +381,13 @@ def represent_full_motif_matrices(
             matrix_mask=matrix_mask,
         )
         return histograms, histogram_mask, None
+
+    if output_mode == "kiarash_statistics":
+        statistics = compute_kiarash_statistics_from_full_matrices(
+            full_matrices=full_matrices,
+            matrix_mask=matrix_mask,
+        )
+        return statistics, None, None
 
     marginals, marginal_mask = compute_row_column_marginals_from_full_matrices(
         full_matrices,
