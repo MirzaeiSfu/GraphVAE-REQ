@@ -9,13 +9,17 @@ from motif_counting.motif_loss_utils import (
 from motif_counting.motif_objective import (
     NON_LITERAL_MOTIF_GROUP,
     SYNTACTIC_LITERAL_MOTIF_GROUP,
+    UNIT_RELATION_EDGE_COUNT_GROUP,
     UNIT_RELATION_MOTIF_GROUP,
     build_motif_group_objectives,
     calibrate_group_histogram_specs,
     compute_grouped_motif_loss,
     restrict_to_nonzero_weight_motif_groups,
 )
-from motif_counting.motif_representations import represent_full_motif_matrices
+from motif_counting.motif_representations import (
+    compute_undirected_edge_count_from_full_matrices,
+    represent_full_motif_matrices,
+)
 
 
 def make_full_matrices():
@@ -244,6 +248,58 @@ def test_unit_relation_kiarash_bundle_sums_eight_separately_calibrated_losses():
         result.weighted_loss,
         2.5 * expected,
     )
+
+
+def test_unit_relation_edge_count_is_an_independently_weighted_auxiliary():
+    observed, predicted, matrix_mask, literal_mask = make_full_matrices()
+    unit_relation_mask = torch.tensor([False, True, False, False])
+    groups = build_motif_group_objectives(
+        syntactic_literal_mask=literal_mask,
+        non_literal_output_mode="full_matrix",
+        non_literal_loss_mode="calibrated_gaussian",
+        non_literal_weight=0.0,
+        syntactic_literal_output_mode="row_column_marginals",
+        syntactic_literal_loss_mode="calibrated_gaussian",
+        syntactic_literal_weight=0.0,
+        unit_relation_mask=unit_relation_mask,
+        unit_relation_output_mode="kiarash_statistics",
+        unit_relation_loss_mode="calibrated_gaussian",
+        unit_relation_weight=1.0,
+        unit_relation_edge_count_weight=0.1,
+    )
+
+    result = compute_grouped_motif_loss(
+        observed_full_matrices=observed,
+        predicted_full_matrices=predicted,
+        full_matrix_mask=matrix_mask,
+        groups=groups,
+    )
+    observed_count = compute_undirected_edge_count_from_full_matrices(
+        observed[:, 1:2],
+        matrix_mask[1:2],
+    )
+    predicted_count = compute_undirected_edge_count_from_full_matrices(
+        predicted[:, 1:2],
+        matrix_mask[1:2],
+    )
+    expected_count_loss = compute_calibrated_gaussian_motif_statistic_loss(
+        observed_count,
+        predicted_count,
+        reduction="sum",
+    )
+
+    torch.testing.assert_close(
+        result.group_losses[UNIT_RELATION_EDGE_COUNT_GROUP],
+        expected_count_loss,
+    )
+    torch.testing.assert_close(
+        result.weighted_loss,
+        result.group_losses[UNIT_RELATION_MOTIF_GROUP]
+        + 0.1 * expected_count_loss,
+    )
+    result.weighted_loss.backward()
+    assert predicted.grad is not None
+    assert torch.isfinite(predicted.grad).all()
 
 
 def test_structured_group_rejects_non_gaussian_loss():

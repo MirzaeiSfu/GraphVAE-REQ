@@ -16,6 +16,7 @@ from motif_counting.motif_representations import (
     compute_marginal_histograms,
     compute_row_column_marginals,
     compute_total_motif_count,
+    compute_undirected_edge_count_from_full_matrices,
 )
 
 
@@ -149,6 +150,27 @@ def test_kiarash_statistics_require_one_full_square_unit_motif():
             matrices[:, :1],
             vector_mask,
         )
+
+
+def test_undirected_edge_count_excludes_diagonal_and_divides_symmetric_sum():
+    matrices = torch.tensor(
+        [[[[9.0, 0.2, 0.4], [0.2, 8.0, 0.7], [0.4, 0.7, 7.0]]]],
+        requires_grad=True,
+    )
+    matrix_mask = torch.ones(1, 3, 3, dtype=torch.bool)
+
+    edge_count = compute_undirected_edge_count_from_full_matrices(
+        matrices,
+        matrix_mask,
+    )
+
+    assert edge_count.shape == (1, 1)
+    torch.testing.assert_close(edge_count, torch.tensor([[1.3]]))
+    edge_count.sum().backward()
+    expected_gradient = 0.5 * (
+        torch.ones(3, 3) - torch.eye(3)
+    ).view(1, 1, 3, 3)
+    torch.testing.assert_close(matrices.grad, expected_gradient)
 
 
 def test_square_result_retains_both_row_and_column_marginals():

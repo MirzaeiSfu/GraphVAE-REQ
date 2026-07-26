@@ -13,6 +13,7 @@ from motif_counting.motif_loss_utils import (
 )
 from motif_counting.motif_representations import (
     canonicalize_motif_output_mode,
+    compute_undirected_edge_count_from_full_matrices,
     represent_full_motif_matrices,
 )
 
@@ -25,6 +26,7 @@ MOTIF_LOSS_MODES = {
 NON_LITERAL_MOTIF_GROUP = "non_literal"
 SYNTACTIC_LITERAL_MOTIF_GROUP = "syntactic_literal"
 UNIT_RELATION_MOTIF_GROUP = "unit_relation"
+UNIT_RELATION_EDGE_COUNT_GROUP = "unit_relation_edge_count"
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,7 @@ class MotifGroupObjective:
     output_mode: str
     loss_mode: str
     weight: float
+    edge_count_weight: float = 0.0
     histogram_spec: Optional[Dict[str, torch.Tensor]] = None
 
     @property
@@ -104,6 +107,7 @@ def build_motif_group_objectives(
     unit_relation_output_mode: Optional[str] = None,
     unit_relation_loss_mode: Optional[str] = None,
     unit_relation_weight: float = 0.0,
+    unit_relation_edge_count_weight: float = 0.0,
 ) -> List[MotifGroupObjective]:
     """Build disjoint original, literal, and optional unit-relation groups."""
     if syntactic_literal_mask.ndim != 1:
@@ -140,6 +144,11 @@ def build_motif_group_objectives(
     if unit_group_enabled and (unit_relation_mask & syntactic_literal_mask).any():
         raise ValueError(
             "Unit-relation and syntactic-literal motif masks must not overlap."
+        )
+    if not unit_group_enabled and unit_relation_edge_count_weight != 0.0:
+        raise ValueError(
+            "unit_relation_edge_count_weight requires the unit-relation motif "
+            "group to be enabled."
         )
 
     separated_unit_mask = unit_relation_mask if unit_group_enabled else torch.zeros_like(
@@ -185,6 +194,11 @@ def build_motif_group_objectives(
                 output_mode=output_mode,
                 loss_mode=loss_mode,
                 weight=float(weight),
+                edge_count_weight=(
+                    float(unit_relation_edge_count_weight)
+                    if name == UNIT_RELATION_MOTIF_GROUP
+                    else 0.0
+                ),
             )
         )
     return groups
@@ -243,7 +257,7 @@ def restrict_to_nonzero_weight_motif_groups(
     active_mask = torch.zeros(num_motifs, dtype=torch.bool)
     retained_groups = []
     for group in groups:
-        if group.weight == 0.0:
+        if group.weight == 0.0 and group.edge_count_weight == 0.0:
             continue
         active_mask |= group.motif_mask.to(dtype=torch.bool, device="cpu")
         retained_groups.append(group)
@@ -395,6 +409,38 @@ def compute_grouped_motif_loss(
         #   L = sum_g alpha_g * L_g.
         loss = loss + group_loss
         weighted_loss = weighted_loss + group.weight * group_loss
+
+        if (
+            group.name == UNIT_RELATION_MOTIF_GROUP
+            and group.edge_count_weight != 0.0
+        ):
+            motif_mask = group.motif_mask.to(
+                device=predicted_full_matrices.device,
+                dtype=torch.bool,
+            )
+            group_matrix_mask = full_matrix_mask[motif_mask]
+            observed_edge_count = (
+                compute_undirected_edge_count_from_full_matrices(
+                    observed_full_matrices[:, motif_mask],
+                    group_matrix_mask,
+                )
+            )
+            predicted_edge_count = (
+                compute_undirected_edge_count_from_full_matrices(
+                    predicted_full_matrices[:, motif_mask],
+                    group_matrix_mask,
+                )
+            )
+            edge_count_loss = compute_calibrated_gaussian_motif_statistic_loss(
+                observed_statistics=observed_edge_count,
+                predicted_statistics=predicted_edge_count,
+                reduction="sum",
+            )
+            group_losses[UNIT_RELATION_EDGE_COUNT_GROUP] = edge_count_loss
+            loss = loss + edge_count_loss
+            weighted_loss = (
+                weighted_loss + group.edge_count_weight * edge_count_loss
+            )
 
     return GroupedMotifLoss(
         loss=loss,

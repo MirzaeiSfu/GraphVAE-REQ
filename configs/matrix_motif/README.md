@@ -86,6 +86,18 @@ decoded diagonal. Each of the eight tensors receives its own RMSE-calibrated
 sigma and Gaussian loss, and the eight losses are summed exactly like
 `OptimizerVAE`.
 
+An optional `alpha_unit_relation_edge_count_loss` adds a separately calibrated
+graph-level statistic derived from the same protected matrix:
+
+```text
+C_E(M) = 0.5 * sum_{i != j} M_ij
+```
+
+The factor of one half counts symmetric LOBSTER adjacencies as undirected
+edges, and the diagonal is excluded. This auxiliary composes with
+`kiarash_statistics`; it does not add a handcrafted decoder feature or count
+the motif a second time.
+
 The four parity configurations cross legacy/corrected reparameterization with
 adjacency-BCE/KL weights `40/2000` and `1/1`. In all four, the Kiarash bundle
 has weight `1` and the relational/literal groups have weight `0`. Their

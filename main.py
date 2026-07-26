@@ -48,6 +48,7 @@ from motif_counting.motif_objective import (
     MOTIF_LOSS_MODES,
     NON_LITERAL_MOTIF_GROUP,
     SYNTACTIC_LITERAL_MOTIF_GROUP,
+    UNIT_RELATION_EDGE_COUNT_GROUP,
     UNIT_RELATION_MOTIF_GROUP,
     build_motif_group_objectives,
     calibrate_group_histogram_specs,
@@ -1259,6 +1260,15 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    '--alpha_unit_relation_edge_count_loss',
+    type=float,
+    default=0.0,
+    help=(
+        'Optional calibrated-Gaussian loss weight for the undirected edge '
+        'count 0.5 * sum_{i != j} M_ij derived from the unit-edge motif.'
+    ),
+)
+parser.add_argument(
     '--alpha_adj_recon',
     type=float,
     default=0.0,
@@ -1622,12 +1632,23 @@ alpha_unit_relation_motif_loss = (
         else float(args.alpha_unit_relation_motif_loss)
     )
 )
+alpha_unit_relation_edge_count_loss = float(
+    args.alpha_unit_relation_edge_count_loss
+)
 if (
     unit_relation_motif_output_mode is None
     and args.alpha_unit_relation_motif_loss is not None
 ):
     raise ValueError(
         "alpha_unit_relation_motif_loss requires "
+        "unit_relation_motif_output_mode."
+    )
+if (
+    unit_relation_motif_output_mode is None
+    and alpha_unit_relation_edge_count_loss != 0.0
+):
+    raise ValueError(
+        "alpha_unit_relation_edge_count_loss requires "
         "unit_relation_motif_output_mode."
     )
 alpha_adj_recon = args.alpha_adj_recon
@@ -1637,6 +1658,9 @@ args.alpha_edge_feat = alpha_edge_feat
 args.alpha_motif_loss = alpha_motif_loss
 args.alpha_syntactic_literal_motif_loss = alpha_syntactic_literal_motif_loss
 args.alpha_unit_relation_motif_loss = alpha_unit_relation_motif_loss
+args.alpha_unit_relation_edge_count_loss = (
+    alpha_unit_relation_edge_count_loss
+)
 
 #===============================
 # Runtime, output, and evaluation settings
@@ -1863,6 +1887,7 @@ print(
       f" motif={alpha_motif_loss},"
       f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
       f" unit_relation_motif={alpha_unit_relation_motif_loss},"
+      f" unit_relation_edge_count={alpha_unit_relation_edge_count_loss},"
       f" kia_bce_kl={use_graphvae_mm_bce_kl_weights},"
       f" adjacency_bce={alpha[-2]},"
       f" kl={alpha[-1]}"
@@ -1901,6 +1926,7 @@ logging.info(
       f" motif={alpha_motif_loss},"
       f" syntactic_literal_motif={alpha_syntactic_literal_motif_loss},"
       f" unit_relation_motif={alpha_unit_relation_motif_loss},"
+      f" unit_relation_edge_count={alpha_unit_relation_edge_count_loss},"
       f" kia_bce_kl={use_graphvae_mm_bce_kl_weights},"
       f" adjacency_bce={alpha[-2]},"
       f" kl={alpha[-1]}"
@@ -2636,6 +2662,7 @@ if use_motif_loss:
         unit_relation_output_mode=unit_relation_motif_output_mode,
         unit_relation_loss_mode=unit_relation_motif_loss_mode,
         unit_relation_weight=alpha_unit_relation_motif_loss,
+        unit_relation_edge_count_weight=alpha_unit_relation_edge_count_loss,
     )
     (
         motif_group_objectives,
@@ -3029,6 +3056,7 @@ for epoch in range(epoch_number):
         syntactic_literal_motif_loss = torch.tensor(0.0, device=device)
         non_literal_motif_loss = torch.tensor(0.0, device=device)
         unit_relation_motif_loss = torch.tensor(0.0, device=device)
+        unit_relation_edge_count_loss = torch.tensor(0.0, device=device)
         weighted_motif_loss_term = torch.tensor(0.0, device=device)
         hard_threshold_sweep_summary = None
         motif_temperature = get_motif_temperature(
@@ -3112,6 +3140,10 @@ for epoch in range(epoch_number):
                         UNIT_RELATION_MOTIF_GROUP,
                         zero,
                     ),
+                    grouped_loss.group_losses.get(
+                        UNIT_RELATION_EDGE_COUNT_GROUP,
+                        zero,
+                    ),
                     grouped_loss.weighted_loss,
                 )
 
@@ -3135,6 +3167,7 @@ for epoch in range(epoch_number):
                 non_literal_motif_loss,
                 syntactic_literal_motif_loss,
                 unit_relation_motif_loss,
+                unit_relation_edge_count_loss,
                 weighted_motif_loss_term,
             ) = motif_losses_at_temperature(motif_temperature)
 
@@ -3167,6 +3200,7 @@ for epoch in range(epoch_number):
                         non_literal_motif_loss,
                         syntactic_literal_motif_loss,
                         unit_relation_motif_loss,
+                        unit_relation_edge_count_loss,
                         weighted_motif_loss_term,
                     ) = motif_losses_at_temperature(motif_temperature)
                 adaptive_motif_temperature = motif_temperature
@@ -3262,6 +3296,7 @@ for epoch in range(epoch_number):
                   f"regular_motif={non_literal_motif_loss.item():.6f} "
                   f"syntactic_literal_motif={syntactic_literal_motif_loss.item():.6f} "
                   f"unit_relation_motif={unit_relation_motif_loss.item():.6f} "
+                  f"unit_relation_edge_count={unit_relation_edge_count_loss.item():.6f} "
                   f"motif_temp={motif_temperature:.3f} "
                   f"{motif_temperature_guard_status}"
                   f"hard_exact_all={bool(hard_motif_exact_zero.item())} "
@@ -3414,6 +3449,7 @@ for epoch in range(epoch_number):
             f"| regular_motif_loss: {non_literal_motif_loss.item():05f} "
             f"| syntactic_literal_motif_loss: {syntactic_literal_motif_loss.item():05f} "
             f"| unit_relation_motif_loss: {unit_relation_motif_loss.item():05f} "
+            f"| unit_relation_edge_count_loss: {unit_relation_edge_count_loss.item():05f} "
             f"| motif_temp: {motif_temperature:.3f} "
             f"{motif_temperature_guard_status}"
             f"| node_feat_loss: {node_feat_loss.item():05f} "

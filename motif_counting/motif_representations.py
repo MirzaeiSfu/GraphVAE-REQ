@@ -341,6 +341,40 @@ def compute_kiarash_statistics_from_full_matrices(
     )
 
 
+def compute_undirected_edge_count_from_full_matrices(
+    full_matrices: torch.Tensor,
+    matrix_mask: torch.Tensor,
+) -> torch.Tensor:
+    """Count undirected, non-self edges in one full unit-relation matrix.
+
+    LOBSTER adjacencies are stored symmetrically, so each undirected edge
+    appears twice.  The returned tensor has shape ``(B, 1)`` and computes
+    ``0.5 * sum_{i != j} M_ij``.  Keeping the motif dimension makes it directly
+    compatible with the calibrated-Gaussian motif-statistic loss.
+    """
+    _validate_full_motif_matrices(full_matrices, matrix_mask)
+    if full_matrices.shape[1] != 1:
+        raise ValueError(
+            "undirected edge count requires exactly one unit-edge motif matrix, "
+            f"got {full_matrices.shape[1]} motifs."
+        )
+
+    matrix_mask = matrix_mask.to(device=full_matrices.device, dtype=torch.bool)
+    if not bool(matrix_mask[0].all()):
+        raise ValueError(
+            "undirected edge count requires a natural N_max x N_max motif matrix."
+        )
+
+    adjacency = full_matrices[:, 0]
+    n_max = adjacency.shape[-1]
+    off_diagonal_mask = 1.0 - torch.eye(
+        n_max,
+        device=adjacency.device,
+        dtype=adjacency.dtype,
+    )
+    return (0.5 * (adjacency * off_diagonal_mask).sum(dim=(1, 2))).unsqueeze(1)
+
+
 def represent_full_motif_matrices(
     full_matrices: torch.Tensor,
     matrix_mask: torch.Tensor,
