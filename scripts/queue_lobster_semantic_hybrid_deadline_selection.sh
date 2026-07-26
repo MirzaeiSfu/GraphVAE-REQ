@@ -62,6 +62,11 @@ printf '%s\n' "completed_at=\$(date -Iseconds)" > \
 EOF
 )
 
-tmux new-session -d -s "$session" bash -lc \
-  "$worker_command 2>&1 | tee $(printf '%q' "$output_dir/stdout.log")"
+wrapped_command=$(cat <<EOF
+{
+$worker_command
+} 2>&1 | tee $(printf '%q' "$output_dir/stdout.log")
+EOF
+)
+tmux new-session -d -s "$session" bash -lc "$wrapped_command"
 echo "launched: $session"
