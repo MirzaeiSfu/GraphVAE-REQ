@@ -45,3 +45,47 @@ generate graphs smaller than the 62.05-node held-out reference (about 42 nodes
 with feature weights 1/1 and 38 nodes with 40/40). The important result for
 this gate is that the motif replacement does not cause additional graph-size
 collapse relative to its matched native control.
+
+## Matched RandomGIN F1-PR and RBF evaluation
+
+The previously missing RandomGIN comparison was run post hoc on the frozen
+rollout-0 graph collection from every checkpoint. Each run contains 20
+generated and 20 byte-identical held-out reference graphs. The Kia-style
+evaluator uses degree, clustering, and square-clustering node features and 10
+untrained RandomGIN initializations with common seeds 0 through 9.
+
+Values below are means ± sample standard deviations across the three training
+seeds. Each training-seed value is itself the mean over the 10 common
+RandomGIN initializations.
+
+| Feature weights | Statistics implementation | F1-PR | RBF MMD |
+|---|---|---:|---:|
+| 1/1 | Native `GlobalProperties.kernel` | 0.98620 ± 0.01293 | 0.22935 ± 0.08816 |
+| 1/1 | Motif-derived `kiarash_statistics` | 0.97782 ± 0.03624 | 0.31214 ± 0.16706 |
+| 40/40 | Native `GlobalProperties.kernel` | 0.99303 ± 0.00557 | 0.26386 ± 0.14034 |
+| 40/40 | Motif-derived `kiarash_statistics` | 0.99916 ± 0.00148 | 0.29817 ± 0.09237 |
+| Published GraphVAE-MM/Kiarash | Historical point estimate | 1.00001 | 0.44455 |
+
+The seed-paired difference is `motif - native`. The intervals are two-sided
+95% Student-t intervals over the three training seeds.
+
+| Feature weights | F1-PR difference | RBF MMD difference |
+|---|---:|---:|
+| 1/1 | -0.00838 [-0.09876, +0.08199] | +0.08279 [-0.48714, +0.65271] |
+| 40/40 | +0.00612 [-0.00918, +0.02143] | +0.03431 [-0.24309, +0.31172] |
+
+Every interval includes zero. Therefore the matched RandomGIN comparison also
+passes the operational implementation-parity gate: there is no detected
+F1-PR or RBF change attributable to replacing the native statistics with the
+motif-derived bundle. This remains a low-power compatibility result rather
+than a formal equivalence proof because there are only three training seeds.
+
+The published `1.00001` is explained by the evaluator's `1e-5` offset in the
+harmonic-mean formula when precision and recall both equal one. It is not the
+score of a trained GNN. Optional TensorFlow FID/KID imports were unavailable
+during this post-hoc run, but those metrics are outside this comparison; every
+required RandomGIN F1-PR, precision, recall, RBF, and linear-MMD value was
+produced. Per-run summaries are in
+`random_gin_matched_rollout0_summary.csv`, and paired results are in
+`random_gin_parity_gate.csv`. Each evaluated run also preserves its 10 raw
+repeat values in `graph_realism_random_gin_kiarash_matched_rollout0.json`.
