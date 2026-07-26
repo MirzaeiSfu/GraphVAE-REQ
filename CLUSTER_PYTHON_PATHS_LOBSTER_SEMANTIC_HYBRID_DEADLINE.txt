@@ -1,0 +1,3 @@
+cs-cl-18 /local-scratch2/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-19 /local-scratch2/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-26 /localhome/mirzaei/miniconda3/envs/micro/bin/python
