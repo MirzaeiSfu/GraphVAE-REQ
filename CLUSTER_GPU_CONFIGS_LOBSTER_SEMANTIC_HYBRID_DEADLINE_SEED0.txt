@@ -1,4 +1,4 @@
 # H1/H6, training seed 0.
 # Format: HOST GPU CONFIG_YAML
-cs-cl-09 1 configs/matrix_motif/lobster_semantic_hybrid_r001_legacy.yaml
-cs-cl-18 0 configs/matrix_motif/lobster_semantic_hybrid_r001_edgecount01_legacy.yaml
+cs-cl-18 0 configs/matrix_motif/lobster_semantic_hybrid_r001_legacy.yaml
+cs-cl-18 1 configs/matrix_motif/lobster_semantic_hybrid_r001_edgecount01_legacy.yaml
