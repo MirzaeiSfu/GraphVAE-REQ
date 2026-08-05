@@ -1323,6 +1323,16 @@ parser.add_argument(
     type=str2bool,
     help='Fail the run if automatic third-party evaluation fails.'
 )
+parser.add_argument(
+    '--skip_final_evaluation',
+    default=False,
+    type=str2bool,
+    help=(
+        'Stop after saving the final training checkpoint. This is intended for '
+        'validation-only hyperparameter optimization; it prevents automatic '
+        'held-out test generation and metric evaluation.'
+    ),
+)
 parser.set_defaults(tiny_overfit=False)
 parser.add_argument(
     '--tiny_overfit',
@@ -1522,6 +1532,7 @@ best_validation_mmd_metric = args.best_validation_mmd_metric
 save_validation_checkpoints = args.save_validation_checkpoints
 checkpoint_interval_epochs = max(0, int(args.checkpoint_interval_epochs))
 third_party_eval = args.third_party_eval
+skip_final_evaluation = args.skip_final_evaluation
 interactive = args.interactive
 sanity_check = args.sanity_check
 sanity_check_only = args.sanity_check_only
@@ -3713,7 +3724,7 @@ if not tiny_overfit:
 #==========================================================================================
 #   %% Evaluation of the model on graph generation task
 # region graph generation task
-if task == "graphGeneration":
+if task == "graphGeneration" and not skip_final_evaluation:
     final_eval_model_source = "final_epoch"
     if keep_best_validation_mmd and best_validation_mmd_model_path.exists():
         model.load_state_dict(

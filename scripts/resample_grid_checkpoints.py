@@ -47,7 +47,7 @@ from util import EdgeFeatureDecoder, NodeFeatureDecoder  # noqa: E402
 
 TABLE2_METRICS = ("degree", "clustering", "orbit", "spectral", "diameter")
 DENSE_DEFINITIONS = ("twice_mean", "mean_plus_3std", "max_reference")
-DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v2"
+DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v3"
 DEFAULT_SPLIT_SEED = 123
 DEFAULT_LEGACY_TRAIN_FRACTION = 0.8
 DEFAULT_PAPER_TRAIN_FRACTION = 0.7
@@ -147,16 +147,30 @@ def resolve_split_plan(config: dict) -> dict:
 
 def build_dataset_cache_metadata(config: dict) -> dict:
     split_plan = resolve_split_plan(config)
+    dataset = str(config["dataset"])
+    dataset_upper = dataset.upper()
+    if dataset == "LOBSTER":
+        feature_schema = f"lobster-{config.get('lobster_feature_schema', 'optimal_v2')}"
+    elif dataset_upper in {"AIDS", "ENZYMES", "ENZYMEZ"}:
+        feature_schema = (
+            f"tu-quantile{int(config.get('tu_attribute_bins', 8))}"
+            f"-max{config.get('tu_max_nodes') or 'all'}"
+        )
+    elif dataset_upper in {"MUTAG", "PTC"}:
+        feature_schema = "gin-node-label-v2"
+    else:
+        feature_schema = "default"
     return {
         "cache_schema_version": DATASET_CACHE_SCHEMA_VERSION,
-        "dataset": config["dataset"],
+        "dataset": dataset,
         "split_mode": config.get("split_mode", "legacy_80_20"),
-        "bfs_strategy": config.get("bfs_strategy", "all_components"),
+        "bfs_strategy": config.get("bfs_strategy", "legacy_first_component"),
         "split_kind": split_plan["split_kind"],
         "train_fraction": float(split_plan["train_fraction"]),
         "val_fraction": float(split_plan["val_fraction"]),
         "test_fraction": float(split_plan["test_fraction"]),
         "split_seed": int(split_plan["split_seed"]),
+        "feature_schema": feature_schema,
     }
 
 
