@@ -183,6 +183,16 @@ Useful config folders:
 
 ## Loss-Weight Sweeps
 
+For Bayesian optimization of the node/edge reconstruction weights against the
+validation-only, attribute-aware `decoded_node_edge` F1-PR objective, use
+[`scripts/tune_graphvae_attribute_weights.py`](scripts/tune_graphvae_attribute_weights.py).
+The complete workflow, reproducibility contract, smoke command, real-study
+command, and separate opt-in final test evaluation are documented in
+[`docs/attr_f1pr_bayesian_optimization.md`](docs/attr_f1pr_bayesian_optimization.md).
+
+The older utilities below generate fixed coarse/fine grids rather than the
+`Attr-F1PR` Bayesian optimization study.
+
 Generate a coarse log sweep over motif and node/edge feature weights:
 
 ```bash
