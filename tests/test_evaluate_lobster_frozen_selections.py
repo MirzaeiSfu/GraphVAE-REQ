@@ -6,6 +6,7 @@ from scripts.evaluate_lobster_frozen_selections import (
     aggregate_conditions,
     load_frozen_winners,
     numeric_summary,
+    resolve_run_dir,
 )
 
 
@@ -100,6 +101,31 @@ def test_load_frozen_winners_uses_source_root_name_to_disambiguate(tmp_path):
     )
 
     assert winners[0]["run_dir"] == str((fixed_root / run).resolve())
+
+
+def test_resolve_run_dir_prefers_collected_suffix_over_accessible_worker_path(
+    tmp_path,
+):
+    runs_root = tmp_path / "collected"
+    relative_run = "condition__worker_gpu0/seed_0"
+    collected_run = runs_root / "seed_0" / relative_run
+    collected_run.mkdir(parents=True)
+    (collected_run / "periodic_epoch_20000.pt").write_bytes(b"collected")
+
+    worker_run = tmp_path / "worker" / relative_run
+    worker_run.mkdir(parents=True)
+    (worker_run / "periodic_epoch_20000.pt").write_bytes(b"worker")
+
+    resolved = resolve_run_dir(
+        {
+            "run": relative_run,
+            "artifact_dir": str(worker_run),
+            "checkpoint": "periodic_epoch_20000.pt",
+        },
+        [runs_root],
+    )
+
+    assert resolved == collected_run.resolve()
 
 
 def test_load_frozen_winners_accepts_custom_complete_condition_matrix(tmp_path):

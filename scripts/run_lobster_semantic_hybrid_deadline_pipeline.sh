@@ -21,7 +21,7 @@ while true; do
   ready=0
   while read -r host worker_repo; do
     marker="${worker_repo}/${remote_selections}/${host}/SELECTION_COMPLETE"
-    if ssh -o ConnectTimeout=10 "$host" "test -f $(printf '%q' "$marker")"; then
+    if ssh -n -o ConnectTimeout=10 "$host" "test -f $(printf '%q' "$marker")"; then
       ready=$((ready + 1))
     fi
   done < "$repo_paths"

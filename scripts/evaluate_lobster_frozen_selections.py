@@ -174,21 +174,22 @@ def resolve_run_dir(winner: dict, runs_roots: list[Path]) -> Path:
             f"run={winner['run']!r}, matches={relative_matches}"
         )
 
-    artifact_dir = Path(winner["artifact_dir"]).expanduser()
-    if artifact_dir.is_dir():
-        return artifact_dir.resolve()
-
     checkpoint_name = winner["checkpoint"]
+    winner_run_parts = Path(winner["run"]).parts
     matches = [
         path.parent.resolve()
         for runs_root in runs_roots
         for path in runs_root.rglob(checkpoint_name)
-        if path.parent.name.startswith("seed_")
-        and winner["run"].split("/")[-1] == path.parent.name
+        if len(path.parent.parts) >= len(winner_run_parts)
+        and path.parent.parts[-len(winner_run_parts):] == winner_run_parts
     ]
     unique_matches = sorted(set(matches))
     if len(unique_matches) == 1:
         return unique_matches[0]
+
+    artifact_dir = Path(winner["artifact_dir"]).expanduser()
+    if not unique_matches and artifact_dir.is_dir():
+        return artifact_dir.resolve()
     raise FileNotFoundError(
         "Could not map frozen winner to exactly one local run directory: "
         f"run={winner['run']!r}, checkpoint={checkpoint_name!r}, "
