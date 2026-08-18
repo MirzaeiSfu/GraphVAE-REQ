@@ -1,0 +1,58 @@
+{
+  "selection_scope": "reused_validation_only_seed_0_winners",
+  "source_selection_root": "collected_runs/20260724/lobster_kiarash_parity_validation_selection",
+  "winners": [
+    {
+      "run": "seed_0/lobster_kiarash_parity_kia40_2000_legacy__cs-cl-09_gpu1/seed_0",
+      "artifact_dir": "/local-scratch2/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_kia40_2000_legacy__cs-cl-09_gpu1/seed_0",
+      "checkpoint": "periodic_epoch_12000.pt",
+      "selection_score": 0.3310125401952928,
+      "validation": {
+        "source_manifest": "cs-cl-09/selection.json",
+        "score": {
+          "median": 0.27098908454262394,
+          "std": 0.08300196419260099
+        }
+      }
+    },
+    {
+      "run": "seed_0/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-13_gpu0/seed_0",
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-13_gpu0/seed_0",
+      "checkpoint": "periodic_epoch_20000.pt",
+      "selection_score": 0.3512542187926601,
+      "validation": {
+        "source_manifest": "cs-cl-13/selection.json",
+        "score": {
+          "median": 0.2787596863233755,
+          "std": 0.08213542351822933
+        }
+      }
+    },
+    {
+      "run": "seed_0/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_0",
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_0",
+      "checkpoint": "periodic_epoch_16000.pt",
+      "selection_score": 1.908674706795425,
+      "validation": {
+        "source_manifest": "cs-cl-16/selection.json",
+        "score": {
+          "median": 1.266884104275386,
+          "std": 0.17260504879956873
+        }
+      }
+    },
+    {
+      "run": "seed_0/lobster_kiarash_parity_plain1_1_corrected__cs-cl-18_gpu0/seed_0",
+      "artifact_dir": "/local-scratch2/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity/seed_0/lobster_kiarash_parity_plain1_1_corrected__cs-cl-18_gpu0/seed_0",
+      "checkpoint": "periodic_epoch_08000.pt",
+      "selection_score": 1.5770504773959115,
+      "validation": {
+        "source_manifest": "cs-cl-18/selection.json",
+        "score": {
+          "median": 1.0980897510373229,
+          "std": 0.14849796389158826
+        }
+      }
+    }
+  ]
+}

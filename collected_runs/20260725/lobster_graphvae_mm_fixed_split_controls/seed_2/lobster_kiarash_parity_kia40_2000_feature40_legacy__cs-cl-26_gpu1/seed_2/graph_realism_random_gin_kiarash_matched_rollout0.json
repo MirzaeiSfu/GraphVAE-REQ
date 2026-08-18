@@ -1,0 +1,103 @@
+{
+  "device": "cpu",
+  "generated_filename": "Single_comp_generatedGraphs_adj_kiarash_parity_rollout0.npy",
+  "max_graphs": 1000,
+  "metrics": {
+    "f1_pr": {
+      "mean": 0.9974458980933528,
+      "std": 0.007692305719941329
+    },
+    "mmd_linear": {
+      "max": 32.03958511352539,
+      "max_to_median_ratio": 1.1353222685736752,
+      "mean": 27.048397636413576,
+      "mean_to_median_ratio": 0.9584596072966113,
+      "median": 28.220696449279785,
+      "min": 21.668537139892578,
+      "std": 3.7046584872197754,
+      "trim_fraction": 0.1,
+      "trimmed_mean": 27.09698176383972
+    },
+    "mmd_rbf": {
+      "mean": 0.20447185039520263,
+      "std": 0.0056674257729155625
+    },
+    "precision": {
+      "mean": 1.0,
+      "std": 0.0
+    },
+    "recall": {
+      "mean": 0.9949999999999999,
+      "std": 0.015000000000000015
+    }
+  },
+  "num_generated_graphs": 20,
+  "num_reference_graphs": 20,
+  "raw_metrics": {
+    "f1_pr": [
+      1.00001,
+      1.00001,
+      0.974368980933529,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001,
+      1.00001
+    ],
+    "mmd_linear": [
+      29.23443603515625,
+      27.311573028564453,
+      24.571441650390625,
+      29.129819869995117,
+      22.73733901977539,
+      29.20266342163086,
+      21.668537139892578,
+      32.03958511352539,
+      32.023319244384766,
+      22.565261840820312
+    ],
+    "mmd_rbf": [
+      0.19880181550979614,
+      0.20693457126617432,
+      0.21091604232788086,
+      0.20086157321929932,
+      0.21252214908599854,
+      0.199590265750885,
+      0.1939830780029297,
+      0.20468300580978394,
+      0.20728224515914917,
+      0.2091437578201294
+    ],
+    "precision": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "recall": [
+      1.0,
+      1.0,
+      0.95,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "reference_filename": "heldoutTestGraphs_adj_.npy",
+  "repeats": 10,
+  "run_dir": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/collected_runs/20260725/lobster_graphvae_mm_fixed_split_controls/seed_2/lobster_kiarash_parity_kia40_2000_feature40_legacy__cs-cl-26_gpu1/seed_2",
+  "seed": 0,
+  "structural_features": true
+}

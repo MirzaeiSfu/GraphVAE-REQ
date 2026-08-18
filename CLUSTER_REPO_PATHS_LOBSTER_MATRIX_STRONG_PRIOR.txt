@@ -1,0 +1,3 @@
+# Worker repositories used by the strong-prior matrix experiment.
+# Format: HOST REPO_PATH
+cs-cl-26 /local-scratch/graphvae-req-work/GraphVAE-REQ

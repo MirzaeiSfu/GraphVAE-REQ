@@ -1,0 +1,5 @@
+config,reparameterization,adjacency_bce_weight,kl_weight,unit_bundle_weight,relational_weight,literal_weight,dataset_loader_seed,training_seeds,validation_rollouts_per_checkpoint,epochs,checkpoint_interval
+configs/matrix_motif/lobster_kiarash_parity_kia40_2000_legacy.yaml,legacy_variance,40,2000,1,0,0,0,"0;1;2",10,20000,4000
+configs/matrix_motif/lobster_kiarash_parity_kia40_2000_corrected.yaml,correct_std,40,2000,1,0,0,0,"0;1;2",10,20000,4000
+configs/matrix_motif/lobster_kiarash_parity_plain1_1_legacy.yaml,legacy_variance,1,1,1,0,0,0,"0;1;2",10,20000,4000
+configs/matrix_motif/lobster_kiarash_parity_plain1_1_corrected.yaml,correct_std,1,1,1,0,0,0,"0;1;2",10,20000,4000

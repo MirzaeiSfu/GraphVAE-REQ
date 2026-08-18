@@ -1,0 +1,5 @@
+config,bce_kl,node,edge,motif,temperature,motif_output_mode,rule_mode,rule_database,motif_batch_size
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_both_currentdb_constant.yaml,1/1,1.0,1.0,0.1,constant_1.0,matrix,both,lobster_undir_feat_snap_85093d,200
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_both_h3_no_features_constant.yaml,1/1,1.0,1.0,0.1,constant_1.0,matrix,both,lobster_h3_la0_lc1_undir_without_features,200
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_h3_no_features_constant.yaml,1/1,1.0,1.0,0.1,constant_1.0,matrix,original,lobster_h3_la0_lc1_undir_without_features,200
+configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_h3s_lc1_v2_cfg410001000_constant.yaml,1/1,1.0,1.0,0.1,constant_1.0,matrix,original,lob_h3s_lc1_v2_undir_no_feature_cfg410001000,200

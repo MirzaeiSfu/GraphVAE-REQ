@@ -1,0 +1,8 @@
+cs-cl-17 0 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_constant.yaml
+cs-cl-17 1 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_annealed.yaml
+cs-cl-18 0 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m1_original_constant.yaml
+cs-cl-18 1 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m1_original_annealed.yaml
+cs-cl-19 0 configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m0p1_original_constant.yaml
+cs-cl-19 1 configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m0p1_original_annealed.yaml
+cs-cl-26 0 configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m1_original_constant.yaml
+cs-cl-26 1 configs/matrix_motif/lobster_matrix_kia40_2000_n1_e1_m1_original_annealed.yaml

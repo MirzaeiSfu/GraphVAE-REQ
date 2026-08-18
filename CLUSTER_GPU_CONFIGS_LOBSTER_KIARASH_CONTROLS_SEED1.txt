@@ -1,0 +1,5 @@
+# Matched GraphVAE-MM / motif-statistics controls, training seed 1.
+# Format: HOST GPU CONFIG_YAML
+cs-cl-18 0 configs/matrix_motif/lobster_graphvae_mm_fixed_split_native40_legacy.yaml
+cs-cl-18 1 configs/matrix_motif/lobster_graphvae_mm_fixed_split_matched1_legacy.yaml
+cs-cl-26 0 configs/matrix_motif/lobster_kiarash_parity_kia40_2000_feature40_legacy.yaml

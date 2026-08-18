@@ -86,11 +86,16 @@ class GraphTransformerDecoder_FC(torch.nn.Module):
 
 class kernelGVAE(torch.nn.Module):
     def __init__(self, ker, encoder, decoder, AutoEncoder, graphEmDim=4096, 
-                 node_feature_decoder=None, edge_feature_decoder=None):
+                 node_feature_decoder=None, edge_feature_decoder=None,
+                 correct_reparameterization=False):
         super(kernelGVAE, self).__init__()
         self.embeding_dim = graphEmDim
         self.kernel = ker  # TODO: bin and width whould be determined if kernel is his
         self.AutoEncoder = AutoEncoder
+        # Keep Kia's variance-scaled sampling as the default for reproducible
+        # baseline runs. Our models opt in to the mathematically correct
+        # standard-deviation-scaled reparameterization through the CLI/config.
+        self.correct_reparameterization = bool(correct_reparameterization)
         self.decode = decoder
         self.encode = encoder
 
@@ -128,8 +133,13 @@ class kernelGVAE(torch.nn.Module):
     def reparameterize(self, mean, log_std):
         if self.AutoEncoder == True:
             return mean
-        var = torch.exp(log_std).pow(2)
-        eps = torch.randn_like(var)
-        sample = eps.mul(var).add(mean)
-
-        return sample
+        std = torch.exp(log_std)
+        eps = torch.randn_like(std)
+        if getattr(self, "correct_reparameterization", False):
+            # q(z|x) = N(mean, std^2): z = mean + eps * std.
+            noise_scale = std
+        else:
+            # Legacy Kia behavior retained only for baseline reproduction:
+            # z = mean + eps * variance.
+            noise_scale = std.pow(2)
+        return eps.mul(noise_scale).add(mean)

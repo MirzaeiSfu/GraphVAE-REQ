@@ -1,0 +1,3 @@
+# Fast duplicate of the corrected seed-2 replacement; first clean completion wins.
+# Format: HOST GPU CONFIG_YAML
+cs-cl-16 0 configs/matrix_motif/lobster_kiarash_parity_kia40_2000_corrected.yaml

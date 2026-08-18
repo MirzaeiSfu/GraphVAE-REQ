@@ -1,0 +1,3 @@
+# Fixed-split replacement for the cs-cl-36 disk-full failure.
+# Format: HOST GPU CONFIG_YAML
+cs-cl-09 1 configs/matrix_motif/lobster_kiarash_parity_kia40_2000_corrected.yaml

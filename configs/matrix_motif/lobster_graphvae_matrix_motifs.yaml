@@ -11,7 +11,7 @@ data:
   bfsOrdering: true
   bfs_strategy: legacy_first_component
   directed: true
-  database_name: lobster_undir_feat_snap_85093d_cfg410000000
+  database_name: lobster_undir_feat_snap_85093d
   graph_type: homogeneous
   graph_index_start: null
   graph_index_end: null

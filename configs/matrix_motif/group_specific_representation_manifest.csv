@@ -1,0 +1,3 @@
+config,original_representation,literal_representation,original_weight,literal_weight,selection_checkpoints
+configs/matrix_motif/lobster_matrix_full_original_marginal_literals_currentdb_constant.yaml,full_matrix,row_column_marginals,0.1,0.1,5
+configs/matrix_motif/lobster_matrix_full_original_marginal_histogram_literals_currentdb_constant.yaml,full_matrix,marginal_histogram,0.1,0.1,5

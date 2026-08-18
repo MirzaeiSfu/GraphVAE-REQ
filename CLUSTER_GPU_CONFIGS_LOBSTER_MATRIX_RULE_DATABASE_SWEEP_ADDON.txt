@@ -1,0 +1,1 @@
+cs-cl-18 1 configs/matrix_motif/lobster_matrix_plain1_1_n1_e1_m0p1_original_h3s_lc1_v2_cfg410001000_constant.yaml

@@ -1,0 +1,2363 @@
+{
+  "candidates": [
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_04000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/periodic_epoch_04000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 1.217471592712715,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "selection_score": 3.587747860685198,
+      "validation": {
+        "dense_rate": 0.64,
+        "mean_raw_edges": {
+          "max": 171.6,
+          "mean": 153.39,
+          "median": 154.75,
+          "min": 119.6,
+          "std": 13.502921906017232
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.5,
+            "max_raw_edges": 197,
+            "mean_raw_edges": 142.5,
+            "metrics": {
+              "clustering": 1.101598856983328,
+              "degree": 0.2532409768638628,
+              "diameter": 0.12577877101539103,
+              "orbit": 1.1315648226175237,
+              "spectral": 0.2076090252878413
+            },
+            "normalized_mmd": 2.4682535002606083,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.6,
+            "max_raw_edges": 259,
+            "mean_raw_edges": 162.9,
+            "metrics": {
+              "clustering": 1.1065682963756922,
+              "degree": 0.2538283156090231,
+              "diameter": 0.18136076982752325,
+              "orbit": 1.115493953505577,
+              "spectral": 0.22074258056317797
+            },
+            "normalized_mmd": 2.595487572470202,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.3,
+            "max_raw_edges": 204,
+            "mean_raw_edges": 119.6,
+            "metrics": {
+              "clustering": 1.09999079919572,
+              "degree": 0.2737686225097058,
+              "diameter": 0.2872895320538489,
+              "orbit": 1.085027730910897,
+              "spectral": 0.21411699299089126
+            },
+            "normalized_mmd": 2.7671309274450864,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.7,
+            "max_raw_edges": 257,
+            "mean_raw_edges": 171.6,
+            "metrics": {
+              "clustering": 1.103575719210876,
+              "degree": 0.28233003589463546,
+              "diameter": 0.07564047390602036,
+              "orbit": 1.083013960505758,
+              "spectral": 0.21152088522656753
+            },
+            "normalized_mmd": 2.4507478677947354,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.8,
+            "max_raw_edges": 236,
+            "mean_raw_edges": 161.0,
+            "metrics": {
+              "clustering": 1.1009869215583175,
+              "degree": 0.27339217585451747,
+              "diameter": 0.26707269921553944,
+              "orbit": 1.0774500388936652,
+              "spectral": 0.21056893657835318
+            },
+            "normalized_mmd": 2.7183814312052403,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.6,
+            "max_raw_edges": 218,
+            "mean_raw_edges": 153.4,
+            "metrics": {
+              "clustering": 1.1032684832403488,
+              "degree": 0.29056331516005907,
+              "diameter": 0.2633606669910855,
+              "orbit": 1.052413120919234,
+              "spectral": 0.2352481563818587
+            },
+            "normalized_mmd": 2.8303210521670854,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.8,
+            "max_raw_edges": 195,
+            "mean_raw_edges": 156.1,
+            "metrics": {
+              "clustering": 1.0924586639132534,
+              "degree": 0.20213397944032474,
+              "diameter": 0.2261653365164198,
+              "orbit": 1.1275384663057264,
+              "spectral": 0.16937542176871756
+            },
+            "normalized_mmd": 2.356514512279935,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.7,
+            "max_raw_edges": 299,
+            "mean_raw_edges": 161.9,
+            "metrics": {
+              "clustering": 1.1009710027655442,
+              "degree": 0.2795428206452515,
+              "diameter": 0.12051330636206048,
+              "orbit": 1.0788834153417,
+              "spectral": 0.2273960553540526
+            },
+            "normalized_mmd": 2.5672075206481813,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.7,
+            "max_raw_edges": 200,
+            "mean_raw_edges": 151.6,
+            "metrics": {
+              "clustering": 1.087385998686171,
+              "degree": 0.1903175484464834,
+              "diameter": 0.06949948490129976,
+              "orbit": 1.0529140999994686,
+              "spectral": 0.14310462583694017
+            },
+            "normalized_mmd": 1.9491276022236643,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.7,
+            "max_raw_edges": 232,
+            "mean_raw_edges": 153.3,
+            "metrics": {
+              "clustering": 1.1053890933940251,
+              "degree": 0.30771203788048407,
+              "diameter": 0.1526815808305364,
+              "orbit": 1.0705160571190526,
+              "spectral": 0.24903199379242325
+            },
+            "normalized_mmd": 2.760602760571087,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 2.8303210521670854,
+          "mean": 2.5463774747065826,
+          "median": 2.5813475465591917,
+          "min": 1.9491276022236643,
+          "std": 0.24812966379130807
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_08000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/periodic_epoch_08000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 0.07242310485175382,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "selection_score": 0.38903550291792516,
+      "validation": {
+        "dense_rate": 0.0,
+        "mean_raw_edges": {
+          "max": 65.3,
+          "mean": 48.81,
+          "median": 47.6,
+          "min": 34.2,
+          "std": 10.624918823219309
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 89,
+            "mean_raw_edges": 48.5,
+            "metrics": {
+              "clustering": 0.0020504382961001877,
+              "degree": 0.015735281079817254,
+              "diameter": 0.09210395749756983,
+              "orbit": 0.13901082414328259,
+              "spectral": 0.02227816943596217
+            },
+            "normalized_mmd": 0.33650619468355586,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 94,
+            "mean_raw_edges": 65.3,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.009191589580711756,
+              "diameter": 0.2809256682883162,
+              "orbit": 0.03139254417326187,
+              "spectral": 0.02158184058939394
+            },
+            "normalized_mmd": 0.5521946687062559,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 75,
+            "mean_raw_edges": 38.9,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.03872978420945006,
+              "diameter": 0.05863624335605222,
+              "orbit": 0.03144246497426817,
+              "spectral": 0.028480176772541776
+            },
+            "normalized_mmd": 0.3051574693476714,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 93,
+            "mean_raw_edges": 56.5,
+            "metrics": {
+              "clustering": 0.008393831687963038,
+              "degree": 0.029725603080133833,
+              "diameter": 0.12005200710773412,
+              "orbit": 0.2213869168161513,
+              "spectral": 0.018783538121690757
+            },
+            "normalized_mmd": 0.447904655420133,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 75,
+            "mean_raw_edges": 38.4,
+            "metrics": {
+              "clustering": 0.01860483821973835,
+              "degree": 0.07451641123741881,
+              "diameter": 0.06062813283706814,
+              "orbit": 0.06409760306801648,
+              "spectral": 0.04662200593832577
+            },
+            "normalized_mmd": 0.4839916239110452,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 57,
+            "mean_raw_edges": 34.2,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.09476184628307704,
+              "diameter": 0.04526151888002772,
+              "orbit": 0.058441632998521786,
+              "spectral": 0.04364208483549237
+            },
+            "normalized_mmd": 0.49143758634712864,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 79,
+            "mean_raw_edges": 46.7,
+            "metrics": {
+              "clustering": 0.01766601159446579,
+              "degree": 0.01925072597648403,
+              "diameter": 0.09499016111502012,
+              "orbit": 0.009890172000956099,
+              "spectral": 0.03469591086432966
+            },
+            "normalized_mmd": 0.32881654711781777,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 115,
+            "mean_raw_edges": 54.6,
+            "metrics": {
+              "clustering": 0.0016195304549759815,
+              "degree": 0.03691121434767841,
+              "diameter": 0.07168526804479702,
+              "orbit": 0.08248958027301367,
+              "spectral": 0.02659903653522444
+            },
+            "normalized_mmd": 0.342062850311256,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 101,
+            "mean_raw_edges": 65.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.019139218829957505,
+              "diameter": 0.07899985259285514,
+              "orbit": 0.11096380409758755,
+              "spectral": 0.029367015889224524
+            },
+            "normalized_mmd": 0.33427788085779386,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 59,
+            "mean_raw_edges": 40.0,
+            "metrics": {
+              "clustering": 0.0067697068870127275,
+              "degree": 0.04113454555183771,
+              "diameter": 0.0645231387321703,
+              "orbit": 0.030661109092959604,
+              "spectral": 0.03879284972168917
+            },
+            "normalized_mmd": 0.35846513861759083,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 0.5521946687062559,
+          "mean": 0.39808146153202484,
+          "median": 0.3502639944644234,
+          "min": 0.3051574693476714,
+          "std": 0.0826629289622532
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_12000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/periodic_epoch_12000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 0.27484267809855284,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "selection_score": 0.4111544265780702,
+      "validation": {
+        "dense_rate": 0.0,
+        "mean_raw_edges": {
+          "max": 44.0,
+          "mean": 34.489999999999995,
+          "median": 35.0,
+          "min": 21.2,
+          "std": 6.822089122842065
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 70,
+            "mean_raw_edges": 30.4,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.023177021984241097,
+              "diameter": 0.20476819222656806,
+              "orbit": 0.024522662643690296,
+              "spectral": 0.029715381633831583
+            },
+            "normalized_mmd": 0.4940078704492117,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 84,
+            "mean_raw_edges": 37.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.0064467747647920515,
+              "diameter": 0.05395419750380692,
+              "orbit": 0.01607255040967215,
+              "spectral": 0.019140982573266463
+            },
+            "normalized_mmd": 0.17656968917436852,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 55,
+            "mean_raw_edges": 26.7,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.013079320208110756,
+              "diameter": 0.17528082026645642,
+              "orbit": 0.03661105338810322,
+              "spectral": 0.040785009011817586
+            },
+            "normalized_mmd": 0.46939193602063234,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 79,
+            "mean_raw_edges": 35.6,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.01735978081602374,
+              "diameter": 0.21594069085388512,
+              "orbit": 0.00419252336527598,
+              "spectral": 0.016501913200175355
+            },
+            "normalized_mmd": 0.4388448742079559,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 61,
+            "mean_raw_edges": 32.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.013495437875951977,
+              "diameter": 0.09894901418218072,
+              "orbit": 0.04440904890756281,
+              "spectral": 0.038376163061937696
+            },
+            "normalized_mmd": 0.3476649511101771,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 47,
+            "mean_raw_edges": 21.2,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.01937563826972588,
+              "diameter": 0.2891153899192376,
+              "orbit": 0.1041687307261665,
+              "spectral": 0.05982598111987869
+            },
+            "normalized_mmd": 0.7657509089750206,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 109,
+            "mean_raw_edges": 44.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.014502618373738452,
+              "diameter": 0.021262517659958013,
+              "orbit": 0.01631911342934056,
+              "spectral": 0.023928394890101012
+            },
+            "normalized_mmd": 0.16300634799142105,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 79,
+            "mean_raw_edges": 41.4,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.001245577822230004,
+              "diameter": 0.08464146572838327,
+              "orbit": 0.0051449961192300275,
+              "spectral": 0.015067700121146776
+            },
+            "normalized_mmd": 0.19088192110848984,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 79,
+            "mean_raw_edges": 42.2,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.0072870620224469995,
+              "diameter": 0.08430308779036955,
+              "orbit": 0.010059246558033141,
+              "spectral": 0.019123191893704705
+            },
+            "normalized_mmd": 0.22240051840523206,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 70,
+            "mean_raw_edges": 34.4,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.008709928800459732,
+              "diameter": 0.09303081197678154,
+              "orbit": 0.02874149826197181,
+              "spectral": 0.01813361585720008
+            },
+            "normalized_mmd": 0.24595514625256767,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 0.7657509089750206,
+          "mean": 0.3514474163695077,
+          "median": 0.2968100486813724,
+          "min": 0.16300634799142105,
+          "std": 0.18253483348823846
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_16000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/periodic_epoch_16000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 0.26216604622856143,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "selection_score": 0.4212140859820942,
+      "validation": {
+        "dense_rate": 0.0,
+        "mean_raw_edges": {
+          "max": 48.3,
+          "mean": 34.93000000000001,
+          "median": 34.8,
+          "min": 24.8,
+          "std": 7.2750326459748615
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 57,
+            "mean_raw_edges": 26.3,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.017410185498242026,
+              "diameter": 0.27086319540843706,
+              "orbit": 0.009113101575675353,
+              "spectral": 0.030829638599854547
+            },
+            "normalized_mmd": 0.5779364200775774,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 78,
+            "mean_raw_edges": 31.9,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.005990002179512288,
+              "diameter": 0.28190354787771854,
+              "orbit": 0.05573653623016561,
+              "spectral": 0.029486101244720064
+            },
+            "normalized_mmd": 0.5871232771288698,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 61,
+            "mean_raw_edges": 34.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.008113480819873953,
+              "diameter": 0.1420746326270813,
+              "orbit": 0.023852955652105434,
+              "spectral": 0.02505518954286079
+            },
+            "normalized_mmd": 0.34261102373540264,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 88,
+            "mean_raw_edges": 41.9,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.0028791091586246598,
+              "diameter": 0.12763538327985136,
+              "orbit": 0.004908165672598441,
+              "spectral": 0.021993314168937683
+            },
+            "normalized_mmd": 0.2861795760173949,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 76,
+            "mean_raw_edges": 38.7,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.0074230250133311415,
+              "diameter": 0.0761944361082606,
+              "orbit": 0.03669874970522624,
+              "spectral": 0.018898758912623492
+            },
+            "normalized_mmd": 0.22368544365730908,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 44,
+            "mean_raw_edges": 26.9,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.013417060329777186,
+              "diameter": 0.12813474600486674,
+              "orbit": 0.04683836422502896,
+              "spectral": 0.032400570164260234
+            },
+            "normalized_mmd": 0.37268530322714977,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 78,
+            "mean_raw_edges": 35.6,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.014363589998246384,
+              "diameter": 0.026792163066497787,
+              "orbit": 0.03591200792404381,
+              "spectral": 0.022331099507401087
+            },
+            "normalized_mmd": 0.17606534958316317,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 72,
+            "mean_raw_edges": 40.9,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.006676600859522042,
+              "diameter": 0.0983122112241478,
+              "orbit": 0.015460494274189829,
+              "spectral": 0.02476837509422558
+            },
+            "normalized_mmd": 0.2656780433018756,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 72,
+            "mean_raw_edges": 48.3,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.005248455393699336,
+              "diameter": 0.031080636420423913,
+              "orbit": 0.0018122162615139548,
+              "spectral": 0.01570839740096619
+            },
+            "normalized_mmd": 0.11822191143738806,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 57,
+            "mean_raw_edges": 24.8,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.016726402000460272,
+              "diameter": 0.2625122915048892,
+              "orbit": 0.06659230974073016,
+              "spectral": 0.02681350007894845
+            },
+            "normalized_mmd": 0.5798603761554691,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 0.5871232771288698,
+          "mean": 0.35300467243215994,
+          "median": 0.3143952998763988,
+          "min": 0.11822191143738806,
+          "std": 0.16510909819422034
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_20000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/periodic_epoch_20000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 0.2173782642401111,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "selection_score": 0.34477051888637783,
+      "validation": {
+        "dense_rate": 0.0,
+        "mean_raw_edges": {
+          "max": 47.2,
+          "mean": 36.53,
+          "median": 37.05,
+          "min": 24.7,
+          "std": 5.86873921724249
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 69,
+            "mean_raw_edges": 31.9,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.0016623835780282814,
+              "diameter": 0.17266741642919448,
+              "orbit": 0.04310698721219075,
+              "spectral": 0.02503934009383313
+            },
+            "normalized_mmd": 0.38440808582768216,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 77,
+            "mean_raw_edges": 38.4,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.007403116887684913,
+              "diameter": 0.0913002771731034,
+              "orbit": 0.015226216445432206,
+              "spectral": 0.02643053777442672
+            },
+            "normalized_mmd": 0.26241103391958565,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 72,
+            "mean_raw_edges": 33.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.002205651464227687,
+              "diameter": 0.1694486325913146,
+              "orbit": 0.03662100847239058,
+              "spectral": 0.02090737023655742
+            },
+            "normalized_mmd": 0.3625150049279455,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 78,
+            "mean_raw_edges": 41.4,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.012174589469579722,
+              "diameter": 0.15087390527785216,
+              "orbit": 0.01012727670454261,
+              "spectral": 0.02539902623746748
+            },
+            "normalized_mmd": 0.36012932659098584,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 61,
+            "mean_raw_edges": 33.6,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.007204188857641736,
+              "diameter": 0.06626368291407059,
+              "orbit": 0.06455246743984122,
+              "spectral": 0.022358498052584386
+            },
+            "normalized_mmd": 0.23507991916604914,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 81,
+            "mean_raw_edges": 37.5,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.014519602372678797,
+              "diameter": 0.05282956328376054,
+              "orbit": 0.03851707893220846,
+              "spectral": 0.027320020825641667
+            },
+            "normalized_mmd": 0.23603677962226252,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 107,
+            "mean_raw_edges": 47.2,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.003987477164649311,
+              "diameter": 0.06079672265314828,
+              "orbit": 0.0005772342214949155,
+              "spectral": 0.016218155731970718
+            },
+            "normalized_mmd": 0.16233643309866358,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 89,
+            "mean_raw_edges": 36.6,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.006853969993601661,
+              "diameter": 0.051668561188327966,
+              "orbit": 0.01701330716645888,
+              "spectral": 0.023206122189571188
+            },
+            "normalized_mmd": 0.1890556262729663,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 64,
+            "mean_raw_edges": 41.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.018537311291552783,
+              "diameter": 0.02297850232101384,
+              "orbit": 0.010090532920382422,
+              "spectral": 0.027263328397084008
+            },
+            "normalized_mmd": 0.1841907716740243,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 57,
+            "mean_raw_edges": 24.7,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.008525354650584127,
+              "diameter": 0.36014905716998946,
+              "orbit": 0.05522456483553273,
+              "spectral": 0.03998232571296456
+            },
+            "normalized_mmd": 0.7519055363269131,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 0.7519055363269131,
+          "mean": 0.3128068517427078,
+          "median": 0.2492239067709241,
+          "min": 0.16233643309866358,
+          "std": 0.16480818422170382
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_04000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/periodic_epoch_04000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 2.2623594698014187,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "selection_score": 2.0019672140344635,
+      "validation": {
+        "dense_rate": 0.15000000000000002,
+        "mean_raw_edges": {
+          "max": 1018.4,
+          "mean": 436.1,
+          "median": 508.04999999999995,
+          "min": 49.1,
+          "std": 346.1965106698795
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4468,
+            "mean_raw_edges": 498.3,
+            "metrics": {
+              "clustering": 0.33178784724504995,
+              "degree": 0.08106119267279888,
+              "diameter": 0.12026910958686188,
+              "orbit": 0.5065258915774098,
+              "spectral": 0.07568951902418997
+            },
+            "normalized_mmd": 1.0190540218045536,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4624,
+            "mean_raw_edges": 528.2,
+            "metrics": {
+              "clustering": 0.5190602283671178,
+              "degree": 0.05987195897127662,
+              "diameter": 0.03614196561533145,
+              "orbit": 0.568314393510237,
+              "spectral": 0.08857716079955291
+            },
+            "normalized_mmd": 0.9662348095428583,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 77,
+            "mean_raw_edges": 50.4,
+            "metrics": {
+              "clustering": 0.4300287534286026,
+              "degree": 0.07042294546323302,
+              "diameter": 0.17558867306087156,
+              "orbit": 0.6621429835360636,
+              "spectral": 0.07159894021490643
+            },
+            "normalized_mmd": 1.1741969283444444,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 97,
+            "mean_raw_edges": 49.1,
+            "metrics": {
+              "clustering": 0.22078566559881674,
+              "degree": 0.06705598025848003,
+              "diameter": 0.0490680155296539,
+              "orbit": 0.28646544706072397,
+              "spectral": 0.05710580469971416
+            },
+            "normalized_mmd": 0.6593602962218832,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4746,
+            "mean_raw_edges": 517.8,
+            "metrics": {
+              "clustering": 0.32351664356808785,
+              "degree": 0.10423882757262715,
+              "diameter": 0.2513354420188548,
+              "orbit": 0.5651460401296624,
+              "spectral": 0.08229199146151367
+            },
+            "normalized_mmd": 1.3323443482961497,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4724,
+            "mean_raw_edges": 541.2,
+            "metrics": {
+              "clustering": 0.5004566401858752,
+              "degree": 0.09577381598571577,
+              "diameter": 0.01651767142608107,
+              "orbit": 0.9037848843867344,
+              "spectral": 0.09937146870320235
+            },
+            "normalized_mmd": 1.2383328857948492,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 355,
+            "mean_raw_edges": 100.0,
+            "metrics": {
+              "clustering": 0.4819450669679548,
+              "degree": 0.12593910847510337,
+              "diameter": 0.05620600607924686,
+              "orbit": 0.6125685718227394,
+              "spectral": 0.12037593087620047
+            },
+            "normalized_mmd": 1.2877855195824899,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 311,
+            "mean_raw_edges": 81.2,
+            "metrics": {
+              "clustering": 0.23718579404784168,
+              "degree": 0.08528030959012067,
+              "diameter": 0.044828599803445,
+              "orbit": 0.6246325206619077,
+              "spectral": 0.08872630131589276
+            },
+            "normalized_mmd": 0.9969649674468457,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.4,
+            "max_raw_edges": 4746,
+            "mean_raw_edges": 1018.4,
+            "metrics": {
+              "clustering": 0.7228036314090327,
+              "degree": 0.15678601389565183,
+              "diameter": 0.12594368589999538,
+              "orbit": 0.7666932205444252,
+              "spectral": 0.14716901588867515
+            },
+            "normalized_mmd": 1.7158084528215034,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4741,
+            "mean_raw_edges": 976.4,
+            "metrics": {
+              "clustering": 0.4681895905569544,
+              "degree": 0.13006578780029288,
+              "diameter": 0.4021290062738,
+              "orbit": 0.5277696492774975,
+              "spectral": 0.11369470624349631
+            },
+            "normalized_mmd": 1.761114518075832,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 1.761114518075832,
+          "mean": 1.215119674793141,
+          "median": 1.206264907069647,
+          "min": 0.6593602962218832,
+          "std": 0.32044975805784703
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_08000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/periodic_epoch_08000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 2.124238006374001,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "selection_score": 1.9266746596939504,
+      "validation": {
+        "dense_rate": 0.11000000000000001,
+        "mean_raw_edges": {
+          "max": 998.6,
+          "mean": 379.84000000000003,
+          "median": 277.7,
+          "min": 38.2,
+          "std": 361.0167148484956
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4742,
+            "mean_raw_edges": 519.5,
+            "metrics": {
+              "clustering": 0.6656503629735018,
+              "degree": 0.07211738474942275,
+              "diameter": 0.17310373631677023,
+              "orbit": 0.44233095798868394,
+              "spectral": 0.10321962909028315
+            },
+            "normalized_mmd": 1.2330483259283593,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4747,
+            "mean_raw_edges": 545.7,
+            "metrics": {
+              "clustering": 0.7294153768937108,
+              "degree": 0.06644791583931364,
+              "diameter": 0.029756318193072784,
+              "orbit": 0.7968500310186096,
+              "spectral": 0.11147651857669572
+            },
+            "normalized_mmd": 1.2341532293066118,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 95,
+            "mean_raw_edges": 53.2,
+            "metrics": {
+              "clustering": 0.4369980715460431,
+              "degree": 0.06525243559382221,
+              "diameter": 0.27665919950153006,
+              "orbit": 0.6463598823910104,
+              "spectral": 0.06115850962936231
+            },
+            "normalized_mmd": 1.2742420859135852,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 55,
+            "mean_raw_edges": 38.2,
+            "metrics": {
+              "clustering": 0.12619802346993025,
+              "degree": 0.048029572696266065,
+              "diameter": 0.20748163755889393,
+              "orbit": 0.2521565213989172,
+              "spectral": 0.0547887584133091
+            },
+            "normalized_mmd": 0.8056643820218996,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 228,
+            "mean_raw_edges": 68.3,
+            "metrics": {
+              "clustering": 0.5002024759319978,
+              "degree": 0.08529839962619445,
+              "diameter": 0.13071613000701499,
+              "orbit": 0.4393732072294585,
+              "spectral": 0.0823366996512005
+            },
+            "normalized_mmd": 1.0789285896926457,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4303,
+            "mean_raw_edges": 487.1,
+            "metrics": {
+              "clustering": 0.7166007336265148,
+              "degree": 0.08114367443334647,
+              "diameter": 0.11490210921116573,
+              "orbit": 0.8999248660465573,
+              "spectral": 0.08647817268021973
+            },
+            "normalized_mmd": 1.3651166987911938,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 126,
+            "mean_raw_edges": 67.3,
+            "metrics": {
+              "clustering": 0.6239564795784123,
+              "degree": 0.06355375490143955,
+              "diameter": 0.04080124332346102,
+              "orbit": 0.9652538749471713,
+              "spectral": 0.08904305977222249
+            },
+            "normalized_mmd": 1.2260102995912294,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 168,
+            "mean_raw_edges": 57.6,
+            "metrics": {
+              "clustering": 0.15870411832941778,
+              "degree": 0.08655247351351991,
+              "diameter": 0.10568376080946784,
+              "orbit": 0.5223885909431597,
+              "spectral": 0.07266437390175651
+            },
+            "normalized_mmd": 0.9608813522362745,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.3,
+            "max_raw_edges": 4751,
+            "mean_raw_edges": 998.6,
+            "metrics": {
+              "clustering": 0.46874057192843765,
+              "degree": 0.10852105437229609,
+              "diameter": 0.12093946646406617,
+              "orbit": 0.5417459425373751,
+              "spectral": 0.09123636501442056
+            },
+            "normalized_mmd": 1.1994197605355812,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4732,
+            "mean_raw_edges": 962.9,
+            "metrics": {
+              "clustering": 0.37726941276009585,
+              "degree": 0.10043789736527065,
+              "diameter": 0.44219619385453224,
+              "orbit": 0.5027143671474483,
+              "spectral": 0.10770992692767645
+            },
+            "normalized_mmd": 1.69062783734022,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 1.69062783734022,
+          "mean": 1.20680925613576,
+          "median": 1.2295293127597944,
+          "min": 0.8056643820218996,
+          "std": 0.22434338136262297
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_12000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/periodic_epoch_12000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 2.0986393389580096,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "selection_score": 1.9124552754274586,
+      "validation": {
+        "dense_rate": 0.1,
+        "mean_raw_edges": {
+          "max": 788.9,
+          "mean": 370.24,
+          "median": 505.34999999999997,
+          "min": 39.3,
+          "std": 269.7827021882611
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4749,
+            "mean_raw_edges": 536.9,
+            "metrics": {
+              "clustering": 0.656543579216098,
+              "degree": 0.08010970077203061,
+              "diameter": 0.21060461234602346,
+              "orbit": 0.4624149561517038,
+              "spectral": 0.09600325833871781
+            },
+            "normalized_mmd": 1.2934838049439414,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4560,
+            "mean_raw_edges": 584.8,
+            "metrics": {
+              "clustering": 0.562200906733391,
+              "degree": 0.08407991090398736,
+              "diameter": 0.11954311673890683,
+              "orbit": 0.6986061217266991,
+              "spectral": 0.09276949508171417
+            },
+            "normalized_mmd": 1.2520089997120016,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 105,
+            "mean_raw_edges": 60.6,
+            "metrics": {
+              "clustering": 0.4754201540899886,
+              "degree": 0.06018635548356843,
+              "diameter": 0.12744481941471886,
+              "orbit": 0.6692657465696881,
+              "spectral": 0.06687172362910232
+            },
+            "normalized_mmd": 1.0735108369475594,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 72,
+            "mean_raw_edges": 39.3,
+            "metrics": {
+              "clustering": 0.14598798906839372,
+              "degree": 0.050747132513139226,
+              "diameter": 0.1860095875101695,
+              "orbit": 0.26320459838439647,
+              "spectral": 0.06327386396180801
+            },
+            "normalized_mmd": 0.8206840579319143,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 121,
+            "mean_raw_edges": 52.4,
+            "metrics": {
+              "clustering": 0.5054325206929484,
+              "degree": 0.08737107355070206,
+              "diameter": 0.22273367905020858,
+              "orbit": 0.47583336008365695,
+              "spectral": 0.10329264477974975
+            },
+            "normalized_mmd": 1.3225695020764423,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4717,
+            "mean_raw_edges": 521.8,
+            "metrics": {
+              "clustering": 0.6782062591154968,
+              "degree": 0.07588820265198071,
+              "diameter": 0.1391540882471971,
+              "orbit": 0.9329135848342431,
+              "spectral": 0.0994541776342115
+            },
+            "normalized_mmd": 1.4434280111103803,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 109,
+            "mean_raw_edges": 60.4,
+            "metrics": {
+              "clustering": 0.509692701541636,
+              "degree": 0.05057851411936354,
+              "diameter": 0.12716026039003347,
+              "orbit": 0.8926096035841822,
+              "spectral": 0.07322184945579524
+            },
+            "normalized_mmd": 1.2013783433254437,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4488,
+            "mean_raw_edges": 488.9,
+            "metrics": {
+              "clustering": 0.3490819632945954,
+              "degree": 0.09474797136810609,
+              "diameter": 0.2303531415594332,
+              "orbit": 0.49275397130030785,
+              "spectral": 0.08229904830437618
+            },
+            "normalized_mmd": 1.2444030686875724,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4727,
+            "mean_raw_edges": 788.9,
+            "metrics": {
+              "clustering": 0.41788720818474556,
+              "degree": 0.09246430571069508,
+              "diameter": 0.21504722741478677,
+              "orbit": 0.4404305001416664,
+              "spectral": 0.09794040774024082
+            },
+            "normalized_mmd": 1.2613865639994355,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4739,
+            "mean_raw_edges": 568.4,
+            "metrics": {
+              "clustering": 0.49604721370103033,
+              "degree": 0.10780314075213404,
+              "diameter": 0.07467751978681325,
+              "orbit": 0.5043374885549676,
+              "spectral": 0.11049737226652612
+            },
+            "normalized_mmd": 1.181990585712207,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 1.4434280111103803,
+          "mean": 1.20948437744469,
+          "median": 1.2482060341997872,
+          "min": 0.8206840579319143,
+          "std": 0.15835762595267627
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_16000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/periodic_epoch_16000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 1.9823676929880143,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "selection_score": 1.754167009454665,
+      "validation": {
+        "dense_rate": 0.12,
+        "mean_raw_edges": {
+          "max": 999.1,
+          "mean": 329.6,
+          "median": 77.9,
+          "min": 36.7,
+          "std": 354.4421476066299
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4750,
+            "mean_raw_edges": 871.0,
+            "metrics": {
+              "clustering": 0.5456952492818216,
+              "degree": 0.07744922862336501,
+              "diameter": 0.19325431545781235,
+              "orbit": 0.4986577965079656,
+              "spectral": 0.0885007650219447
+            },
+            "normalized_mmd": 1.222706283844621,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4748,
+            "mean_raw_edges": 999.1,
+            "metrics": {
+              "clustering": 0.407522616232608,
+              "degree": 0.08904581767285391,
+              "diameter": 0.0546707857653117,
+              "orbit": 0.5012887003303013,
+              "spectral": 0.09583325038944945
+            },
+            "normalized_mmd": 1.026689075675149,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 113,
+            "mean_raw_edges": 54.4,
+            "metrics": {
+              "clustering": 0.3435768498182523,
+              "degree": 0.05737715017350142,
+              "diameter": 0.23239666686887595,
+              "orbit": 0.6330694393110882,
+              "spectral": 0.06913889744929835
+            },
+            "normalized_mmd": 1.1822456954346001,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 71,
+            "mean_raw_edges": 36.7,
+            "metrics": {
+              "clustering": 0.12650844281253404,
+              "degree": 0.04684512289285747,
+              "diameter": 0.23056167596661514,
+              "orbit": 0.24816750723830117,
+              "spectral": 0.05440171573595909
+            },
+            "normalized_mmd": 0.8350799039914909,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 262,
+            "mean_raw_edges": 64.7,
+            "metrics": {
+              "clustering": 0.4106497050412877,
+              "degree": 0.11686154488601774,
+              "diameter": 0.11068036169241746,
+              "orbit": 0.37950829153616217,
+              "spectral": 0.1140931828994578
+            },
+            "normalized_mmd": 1.182793444840993,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 268,
+            "mean_raw_edges": 83.4,
+            "metrics": {
+              "clustering": 0.622384071772253,
+              "degree": 0.08776690976325519,
+              "diameter": 0.040327188362065725,
+              "orbit": 0.7596148748385815,
+              "spectral": 0.09443773573538117
+            },
+            "normalized_mmd": 1.1933434457278602,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 82,
+            "mean_raw_edges": 54.0,
+            "metrics": {
+              "clustering": 0.568095279403936,
+              "degree": 0.058470282786898364,
+              "diameter": 0.13758117483933185,
+              "orbit": 0.7893083876252939,
+              "spectral": 0.07909765111787426
+            },
+            "normalized_mmd": 1.2182732059300796,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 292,
+            "mean_raw_edges": 72.4,
+            "metrics": {
+              "clustering": 0.21319134709515675,
+              "degree": 0.10081719331636885,
+              "diameter": 0.08953825024354689,
+              "orbit": 0.41838184602335926,
+              "spectral": 0.08042394084978599
+            },
+            "normalized_mmd": 0.9576124229405041,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4738,
+            "mean_raw_edges": 523.5,
+            "metrics": {
+              "clustering": 0.29535064720874393,
+              "degree": 0.08210783019789258,
+              "diameter": 0.16300252340566057,
+              "orbit": 0.4666564517830195,
+              "spectral": 0.06288408695870862
+            },
+            "normalized_mmd": 1.0108615802426926,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4733,
+            "mean_raw_edges": 536.8,
+            "metrics": {
+              "clustering": 0.5044539983032569,
+              "degree": 0.07017561698520747,
+              "diameter": 0.04484268245279055,
+              "orbit": 0.4400013732757836,
+              "spectral": 0.11653726829822508
+            },
+            "normalized_mmd": 1.032084484341144,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 1.222706283844621,
+          "mean": 1.0861689542969135,
+          "median": 1.107165089887872,
+          "min": 0.8350799039914909,
+          "std": 0.12563998527915798
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_20000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/periodic_epoch_20000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 2.1033548671440943,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "selection_score": 1.820898106506772,
+      "validation": {
+        "dense_rate": 0.12,
+        "mean_raw_edges": {
+          "max": 1313.9,
+          "mean": 371.99,
+          "median": 104.19999999999999,
+          "min": 41.3,
+          "std": 423.9964373671081
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4750,
+            "mean_raw_edges": 924.9,
+            "metrics": {
+              "clustering": 0.6403902602536566,
+              "degree": 0.07233772505507119,
+              "diameter": 0.14458347788744386,
+              "orbit": 0.5819482330034924,
+              "spectral": 0.0961554983015056
+            },
+            "normalized_mmd": 1.2323726406654945,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4675,
+            "mean_raw_edges": 543.2,
+            "metrics": {
+              "clustering": 0.38832036012603044,
+              "degree": 0.08147754334313184,
+              "diameter": 0.09882291507114216,
+              "orbit": 0.5796609726958359,
+              "spectral": 0.0841121140471004
+            },
+            "normalized_mmd": 1.071532499618827,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 132,
+            "mean_raw_edges": 61.7,
+            "metrics": {
+              "clustering": 0.39033668036977653,
+              "degree": 0.05886133045988573,
+              "diameter": 0.1224870422334503,
+              "orbit": 0.8040736508500548,
+              "spectral": 0.06891029219887201
+            },
+            "normalized_mmd": 1.1192840133667397,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 101,
+            "mean_raw_edges": 41.3,
+            "metrics": {
+              "clustering": 0.12993578567178976,
+              "degree": 0.042457158603399714,
+              "diameter": 0.1004100739828746,
+              "orbit": 0.21025917953967665,
+              "spectral": 0.058264555834067755
+            },
+            "normalized_mmd": 0.6168025933256839,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 169,
+            "mean_raw_edges": 59.5,
+            "metrics": {
+              "clustering": 0.42959461628346884,
+              "degree": 0.11293687938991481,
+              "diameter": 0.17860510410623243,
+              "orbit": 0.4043008169190012,
+              "spectral": 0.11205220833823115
+            },
+            "normalized_mmd": 1.2895798856696317,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 718,
+            "mean_raw_edges": 146.7,
+            "metrics": {
+              "clustering": 0.690352082823871,
+              "degree": 0.08951243290087008,
+              "diameter": 0.08609260513382111,
+              "orbit": 0.8948740842199856,
+              "spectral": 0.11164823298508408
+            },
+            "normalized_mmd": 1.421188170851758,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 92,
+            "mean_raw_edges": 56.2,
+            "metrics": {
+              "clustering": 0.45585864071071835,
+              "degree": 0.05889295612731038,
+              "diameter": 0.11512333325046153,
+              "orbit": 0.756648399292048,
+              "spectral": 0.07558374849274441
+            },
+            "normalized_mmd": 1.1240144246681514,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 159,
+            "mean_raw_edges": 54.9,
+            "metrics": {
+              "clustering": 0.23407092465047796,
+              "degree": 0.09805281178496683,
+              "diameter": 0.08550430417498545,
+              "orbit": 0.46558174130819086,
+              "spectral": 0.085619266905546
+            },
+            "normalized_mmd": 0.9941143985175959,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 4746,
+            "mean_raw_edges": 517.6,
+            "metrics": {
+              "clustering": 0.30486659129006566,
+              "degree": 0.08185281226544516,
+              "diameter": 0.12261085342610278,
+              "orbit": 0.32140954955371037,
+              "spectral": 0.08681308340678129
+            },
+            "normalized_mmd": 0.9575554883908579,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.3,
+            "max_raw_edges": 4563,
+            "mean_raw_edges": 1313.9,
+            "metrics": {
+              "clustering": 0.4720606947148309,
+              "degree": 0.11090185332793889,
+              "diameter": 0.14699182729242743,
+              "orbit": 0.4263374142696692,
+              "spectral": 0.11942507332334262
+            },
+            "normalized_mmd": 1.2852144407094195,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 1.421188170851758,
+          "mean": 1.1111658555784159,
+          "median": 1.1216492190174456,
+          "min": 0.6168025933256839,
+          "std": 0.2136406828132115
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    }
+  ],
+  "dense_penalty_weight": 1.0,
+  "device": "cuda:0",
+  "edge_mean_penalty_weight": 0.25,
+  "global_validation_winner": {
+    "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+    "checkpoint": "periodic_epoch_20000.pt",
+    "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/periodic_epoch_20000.pt",
+    "dense_threshold": 135.94037773281045,
+    "edge_mean_log_error": 0.2173782642401111,
+    "reference_mean_edges": 45.4,
+    "run": "seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+    "selection_score": 0.34477051888637783,
+    "validation": {
+      "dense_rate": 0.0,
+      "mean_raw_edges": {
+        "max": 47.2,
+        "mean": 36.53,
+        "median": 37.05,
+        "min": 24.7,
+        "std": 5.86873921724249
+      },
+      "rollouts": [
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 69,
+          "mean_raw_edges": 31.9,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.0016623835780282814,
+            "diameter": 0.17266741642919448,
+            "orbit": 0.04310698721219075,
+            "spectral": 0.02503934009383313
+          },
+          "normalized_mmd": 0.38440808582768216,
+          "rollout": 0,
+          "seed": 20260724
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 77,
+          "mean_raw_edges": 38.4,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.007403116887684913,
+            "diameter": 0.0913002771731034,
+            "orbit": 0.015226216445432206,
+            "spectral": 0.02643053777442672
+          },
+          "normalized_mmd": 0.26241103391958565,
+          "rollout": 1,
+          "seed": 20260725
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 72,
+          "mean_raw_edges": 33.0,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.002205651464227687,
+            "diameter": 0.1694486325913146,
+            "orbit": 0.03662100847239058,
+            "spectral": 0.02090737023655742
+          },
+          "normalized_mmd": 0.3625150049279455,
+          "rollout": 2,
+          "seed": 20260726
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 78,
+          "mean_raw_edges": 41.4,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.012174589469579722,
+            "diameter": 0.15087390527785216,
+            "orbit": 0.01012727670454261,
+            "spectral": 0.02539902623746748
+          },
+          "normalized_mmd": 0.36012932659098584,
+          "rollout": 3,
+          "seed": 20260727
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 61,
+          "mean_raw_edges": 33.6,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.007204188857641736,
+            "diameter": 0.06626368291407059,
+            "orbit": 0.06455246743984122,
+            "spectral": 0.022358498052584386
+          },
+          "normalized_mmd": 0.23507991916604914,
+          "rollout": 4,
+          "seed": 20260728
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 81,
+          "mean_raw_edges": 37.5,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.014519602372678797,
+            "diameter": 0.05282956328376054,
+            "orbit": 0.03851707893220846,
+            "spectral": 0.027320020825641667
+          },
+          "normalized_mmd": 0.23603677962226252,
+          "rollout": 5,
+          "seed": 20260729
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 107,
+          "mean_raw_edges": 47.2,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.003987477164649311,
+            "diameter": 0.06079672265314828,
+            "orbit": 0.0005772342214949155,
+            "spectral": 0.016218155731970718
+          },
+          "normalized_mmd": 0.16233643309866358,
+          "rollout": 6,
+          "seed": 20260730
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 89,
+          "mean_raw_edges": 36.6,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.006853969993601661,
+            "diameter": 0.051668561188327966,
+            "orbit": 0.01701330716645888,
+            "spectral": 0.023206122189571188
+          },
+          "normalized_mmd": 0.1890556262729663,
+          "rollout": 7,
+          "seed": 20260731
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 64,
+          "mean_raw_edges": 41.0,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.018537311291552783,
+            "diameter": 0.02297850232101384,
+            "orbit": 0.010090532920382422,
+            "spectral": 0.027263328397084008
+          },
+          "normalized_mmd": 0.1841907716740243,
+          "rollout": 8,
+          "seed": 20260732
+        },
+        {
+          "dense_rate": 0.0,
+          "max_raw_edges": 57,
+          "mean_raw_edges": 24.7,
+          "metrics": {
+            "clustering": 0.0,
+            "degree": 0.008525354650584127,
+            "diameter": 0.36014905716998946,
+            "orbit": 0.05522456483553273,
+            "spectral": 0.03998232571296456
+          },
+          "normalized_mmd": 0.7519055363269131,
+          "rollout": 9,
+          "seed": 20260733
+        }
+      ],
+      "score": {
+        "max": 0.7519055363269131,
+        "mean": 0.3128068517427078,
+        "median": 0.2492239067709241,
+        "min": 0.16233643309866358,
+        "std": 0.16480818422170382
+      }
+    },
+    "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+  },
+  "heldout_materialized": false,
+  "materialized": [],
+  "runs_root": [
+    "runs/20260724/lobster_kiarash_parity_fixed_split"
+  ],
+  "selection_formula": "median_normalized_mmd + stability_weight*std + dense_penalty_weight*dense_rate + edge_mean_penalty_weight*abs(log(generated_mean_edges/reference_mean_edges))",
+  "selection_frozen_before_heldout_load": true,
+  "selection_scope": "one_checkpoint_per_run",
+  "selection_split": "validation",
+  "stability_weight": 0.25,
+  "third_party_command": null,
+  "third_party_completed": false,
+  "validation_rollouts": 10,
+  "validation_seed": 20260724,
+  "winners": [
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_20000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/periodic_epoch_20000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 0.2173782642401111,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2",
+      "selection_score": 0.34477051888637783,
+      "validation": {
+        "dense_rate": 0.0,
+        "mean_raw_edges": {
+          "max": 47.2,
+          "mean": 36.53,
+          "median": 37.05,
+          "min": 24.7,
+          "std": 5.86873921724249
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 69,
+            "mean_raw_edges": 31.9,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.0016623835780282814,
+              "diameter": 0.17266741642919448,
+              "orbit": 0.04310698721219075,
+              "spectral": 0.02503934009383313
+            },
+            "normalized_mmd": 0.38440808582768216,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 77,
+            "mean_raw_edges": 38.4,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.007403116887684913,
+              "diameter": 0.0913002771731034,
+              "orbit": 0.015226216445432206,
+              "spectral": 0.02643053777442672
+            },
+            "normalized_mmd": 0.26241103391958565,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 72,
+            "mean_raw_edges": 33.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.002205651464227687,
+              "diameter": 0.1694486325913146,
+              "orbit": 0.03662100847239058,
+              "spectral": 0.02090737023655742
+            },
+            "normalized_mmd": 0.3625150049279455,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 78,
+            "mean_raw_edges": 41.4,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.012174589469579722,
+              "diameter": 0.15087390527785216,
+              "orbit": 0.01012727670454261,
+              "spectral": 0.02539902623746748
+            },
+            "normalized_mmd": 0.36012932659098584,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 61,
+            "mean_raw_edges": 33.6,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.007204188857641736,
+              "diameter": 0.06626368291407059,
+              "orbit": 0.06455246743984122,
+              "spectral": 0.022358498052584386
+            },
+            "normalized_mmd": 0.23507991916604914,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 81,
+            "mean_raw_edges": 37.5,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.014519602372678797,
+              "diameter": 0.05282956328376054,
+              "orbit": 0.03851707893220846,
+              "spectral": 0.027320020825641667
+            },
+            "normalized_mmd": 0.23603677962226252,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 107,
+            "mean_raw_edges": 47.2,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.003987477164649311,
+              "diameter": 0.06079672265314828,
+              "orbit": 0.0005772342214949155,
+              "spectral": 0.016218155731970718
+            },
+            "normalized_mmd": 0.16233643309866358,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 89,
+            "mean_raw_edges": 36.6,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.006853969993601661,
+              "diameter": 0.051668561188327966,
+              "orbit": 0.01701330716645888,
+              "spectral": 0.023206122189571188
+            },
+            "normalized_mmd": 0.1890556262729663,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 64,
+            "mean_raw_edges": 41.0,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.018537311291552783,
+              "diameter": 0.02297850232101384,
+              "orbit": 0.010090532920382422,
+              "spectral": 0.027263328397084008
+            },
+            "normalized_mmd": 0.1841907716740243,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 57,
+            "mean_raw_edges": 24.7,
+            "metrics": {
+              "clustering": 0.0,
+              "degree": 0.008525354650584127,
+              "diameter": 0.36014905716998946,
+              "orbit": 0.05522456483553273,
+              "spectral": 0.03998232571296456
+            },
+            "normalized_mmd": 0.7519055363269131,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 0.7519055363269131,
+          "mean": 0.3128068517427078,
+          "median": 0.2492239067709241,
+          "min": 0.16233643309866358,
+          "std": 0.16480818422170382
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_kia40_2000_corrected__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    },
+    {
+      "artifact_dir": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "checkpoint": "periodic_epoch_16000.pt",
+      "checkpoint_path": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/periodic_epoch_16000.pt",
+      "dense_threshold": 135.94037773281045,
+      "edge_mean_log_error": 1.9823676929880143,
+      "reference_mean_edges": 45.4,
+      "run": "seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2",
+      "selection_score": 1.754167009454665,
+      "validation": {
+        "dense_rate": 0.12,
+        "mean_raw_edges": {
+          "max": 999.1,
+          "mean": 329.6,
+          "median": 77.9,
+          "min": 36.7,
+          "std": 354.4421476066299
+        },
+        "rollouts": [
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4750,
+            "mean_raw_edges": 871.0,
+            "metrics": {
+              "clustering": 0.5456952492818216,
+              "degree": 0.07744922862336501,
+              "diameter": 0.19325431545781235,
+              "orbit": 0.4986577965079656,
+              "spectral": 0.0885007650219447
+            },
+            "normalized_mmd": 1.222706283844621,
+            "rollout": 0,
+            "seed": 20260724
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4748,
+            "mean_raw_edges": 999.1,
+            "metrics": {
+              "clustering": 0.407522616232608,
+              "degree": 0.08904581767285391,
+              "diameter": 0.0546707857653117,
+              "orbit": 0.5012887003303013,
+              "spectral": 0.09583325038944945
+            },
+            "normalized_mmd": 1.026689075675149,
+            "rollout": 1,
+            "seed": 20260725
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 113,
+            "mean_raw_edges": 54.4,
+            "metrics": {
+              "clustering": 0.3435768498182523,
+              "degree": 0.05737715017350142,
+              "diameter": 0.23239666686887595,
+              "orbit": 0.6330694393110882,
+              "spectral": 0.06913889744929835
+            },
+            "normalized_mmd": 1.1822456954346001,
+            "rollout": 2,
+            "seed": 20260726
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 71,
+            "mean_raw_edges": 36.7,
+            "metrics": {
+              "clustering": 0.12650844281253404,
+              "degree": 0.04684512289285747,
+              "diameter": 0.23056167596661514,
+              "orbit": 0.24816750723830117,
+              "spectral": 0.05440171573595909
+            },
+            "normalized_mmd": 0.8350799039914909,
+            "rollout": 3,
+            "seed": 20260727
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 262,
+            "mean_raw_edges": 64.7,
+            "metrics": {
+              "clustering": 0.4106497050412877,
+              "degree": 0.11686154488601774,
+              "diameter": 0.11068036169241746,
+              "orbit": 0.37950829153616217,
+              "spectral": 0.1140931828994578
+            },
+            "normalized_mmd": 1.182793444840993,
+            "rollout": 4,
+            "seed": 20260728
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 268,
+            "mean_raw_edges": 83.4,
+            "metrics": {
+              "clustering": 0.622384071772253,
+              "degree": 0.08776690976325519,
+              "diameter": 0.040327188362065725,
+              "orbit": 0.7596148748385815,
+              "spectral": 0.09443773573538117
+            },
+            "normalized_mmd": 1.1933434457278602,
+            "rollout": 5,
+            "seed": 20260729
+          },
+          {
+            "dense_rate": 0.0,
+            "max_raw_edges": 82,
+            "mean_raw_edges": 54.0,
+            "metrics": {
+              "clustering": 0.568095279403936,
+              "degree": 0.058470282786898364,
+              "diameter": 0.13758117483933185,
+              "orbit": 0.7893083876252939,
+              "spectral": 0.07909765111787426
+            },
+            "normalized_mmd": 1.2182732059300796,
+            "rollout": 6,
+            "seed": 20260730
+          },
+          {
+            "dense_rate": 0.1,
+            "max_raw_edges": 292,
+            "mean_raw_edges": 72.4,
+            "metrics": {
+              "clustering": 0.21319134709515675,
+              "degree": 0.10081719331636885,
+              "diameter": 0.08953825024354689,
+              "orbit": 0.41838184602335926,
+              "spectral": 0.08042394084978599
+            },
+            "normalized_mmd": 0.9576124229405041,
+            "rollout": 7,
+            "seed": 20260731
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4738,
+            "mean_raw_edges": 523.5,
+            "metrics": {
+              "clustering": 0.29535064720874393,
+              "degree": 0.08210783019789258,
+              "diameter": 0.16300252340566057,
+              "orbit": 0.4666564517830195,
+              "spectral": 0.06288408695870862
+            },
+            "normalized_mmd": 1.0108615802426926,
+            "rollout": 8,
+            "seed": 20260732
+          },
+          {
+            "dense_rate": 0.2,
+            "max_raw_edges": 4733,
+            "mean_raw_edges": 536.8,
+            "metrics": {
+              "clustering": 0.5044539983032569,
+              "degree": 0.07017561698520747,
+              "diameter": 0.04484268245279055,
+              "orbit": 0.4400013732757836,
+              "spectral": 0.11653726829822508
+            },
+            "normalized_mmd": 1.032084484341144,
+            "rollout": 9,
+            "seed": 20260733
+          }
+        ],
+        "score": {
+          "max": 1.222706283844621,
+          "mean": 1.0861689542969135,
+          "median": 1.107165089887872,
+          "min": 0.8350799039914909,
+          "std": 0.12563998527915798
+        }
+      },
+      "validation_graphs": "/local-scratch/graphvae-req-work/GraphVAE-REQ/runs/20260724/lobster_kiarash_parity_fixed_split/seed_2/lobster_kiarash_parity_plain1_1_legacy__cs-cl-16_gpu0/seed_2/validationGraphs_adj_.npy"
+    }
+  ]
+}

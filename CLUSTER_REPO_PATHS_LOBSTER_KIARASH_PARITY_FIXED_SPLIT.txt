@@ -1,0 +1,7 @@
+# Workers containing the eight valid fixed-split seed-1/seed-2 runs.
+# The redundant cs-cl-09 replacement was stopped after cs-cl-16 completed.
+# Format: HOST REPO_PATH
+cs-cl-16 /local-scratch/graphvae-req-work/GraphVAE-REQ
+cs-cl-18 /local-scratch2/graphvae-req-work/GraphVAE-REQ
+cs-cl-19 /local-scratch2/graphvae-req-work/GraphVAE-REQ
+cs-cl-26 /local-scratch/graphvae-req-work/GraphVAE-REQ

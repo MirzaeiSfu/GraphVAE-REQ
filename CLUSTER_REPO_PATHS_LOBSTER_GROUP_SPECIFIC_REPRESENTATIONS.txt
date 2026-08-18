@@ -1,0 +1,4 @@
+# Worker repositories used by the group-specific representation comparison.
+# Format: HOST REPO_PATH
+cs-cl-19 /local-scratch2/graphvae-req-work/GraphVAE-REQ
+cs-cl-26 /local-scratch/graphvae-req-work/GraphVAE-REQ

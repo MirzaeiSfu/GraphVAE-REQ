@@ -283,6 +283,11 @@ class Datasets():
         self.motif_counts          = None
         self.motif_matrices        = None
         self.motif_matrix_mask     = None
+        self.motif_statistics      = None
+        self.motif_statistic_mask  = None
+        self.motif_histogram_spec  = None
+        self.motif_full_matrices   = None
+        self.motif_full_matrix_mask = None
         self.toatl_num_of_edges    = 0
         self.max_num_nodes         = 0
 
@@ -519,7 +524,11 @@ class Datasets():
                 self.motif_counts = self.motif_counts[indx]
             else:
                 self.motif_counts = [self.motif_counts[i] for i in indx]
-        elif self.motif_matrices is None:
+        elif (
+            self.motif_matrices is None
+            and self.motif_statistics is None
+            and self.motif_full_matrices is None
+        ):
             warnings.warn("Motif counts is an empty Set")
 
         if self.motif_matrices is not None:
@@ -528,8 +537,28 @@ class Datasets():
             else:
                 self.motif_matrices = [self.motif_matrices[i] for i in indx]
 
-        # motif_matrix_mask is shared across graphs and therefore must not be
-        # shuffled. It has shape (num_motifs, N_max, N_max).
+        if self.motif_statistics is not None:
+            if torch.is_tensor(self.motif_statistics) or isinstance(
+                self.motif_statistics,
+                np.ndarray,
+            ):
+                self.motif_statistics = self.motif_statistics[indx]
+            else:
+                self.motif_statistics = [self.motif_statistics[i] for i in indx]
+
+        if self.motif_full_matrices is not None:
+            if torch.is_tensor(self.motif_full_matrices) or isinstance(
+                self.motif_full_matrices,
+                np.ndarray,
+            ):
+                self.motif_full_matrices = self.motif_full_matrices[indx]
+            else:
+                self.motif_full_matrices = [
+                    self.motif_full_matrices[i] for i in indx
+                ]
+
+        # Motif masks and histogram specifications are shared across graphs
+        # and therefore must not be shuffled.
         if len(self.subgraph_indexes) > 0:
             self.adj_s            = [self.adj_s[i]            for i in indx]
             self.x_s              = [self.x_s[i]              for i in indx]
@@ -550,7 +579,8 @@ def list_graph_loader(
         limited_to=None,
         lobster_feature_schema="optimal_v2",
         tu_attribute_bins=8,
-        tu_max_nodes=None):
+        tu_max_nodes=None,
+        shuffle_seed=None):
   list_adj = []
   list_x =[]
   list_labels = []
@@ -1665,7 +1695,12 @@ def list_graph_loader(
 
   def return_subset(A, X, Y, NF, EF, limited_to):
         indx = list(range(len(A)))
-        random.shuffle(indx)
+        shuffle_rng = (
+            random
+            if shuffle_seed is None
+            else random.Random(int(shuffle_seed))
+        )
+        shuffle_rng.shuffle(indx)
         A  = [A[i]  for i in indx]
         X  = [X[i]  for i in indx]
         NF = [NF[i] for i in indx]

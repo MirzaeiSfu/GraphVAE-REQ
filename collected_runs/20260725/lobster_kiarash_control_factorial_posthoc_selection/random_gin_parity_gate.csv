@@ -1,0 +1,5 @@
+feature_weights,metric,motif_minus_native,ci95_low,ci95_high,contains_zero
+1/1,f1_pr,-0.00838165,-0.09875677,0.08199346,true
+1/1,mmd_rbf,0.08278651,-0.48713849,0.65271151,true
+40/40,f1_pr,0.00612150,-0.00918476,0.02142776,true
+40/40,mmd_rbf,0.03431302,-0.24309384,0.31171988,true
