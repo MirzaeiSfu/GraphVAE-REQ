@@ -1639,6 +1639,65 @@ storage-URL scans passed, `test_access=false` remained frozen, and no final-test
 artifact exists. Both deployed caches remain mode `0444`, size 59,295,793
 bytes, with unchanged canonical SHA-256.
 
+### Gate 5 R06 launch-ambiguity follow-up (2026-08-23)
+
+R06 first added and committed a fail-closed launch-reconciliation interface in
+`6cbd64c03f79ee569f69d276a6e2fa3d5a0c0743`. The controller now records the
+phase of every remote attempt and refuses a later wave after `ATTEMPTING`,
+`SSH_ERROR`, or `SSH_ACKNOWLEDGED` until `probe` matches the exact tmux name,
+sanitized terminal marker, worker-run identity, reserved PostgreSQL trial
+number, budget index, and database state. Probe results remain non-retryable
+while the host is unreachable, the tmux session or DB trial is active, evidence
+is missing, or marker identities conflict. The two test-only launch faults are
+hidden and require `GRAPHVAE_BO_ENABLE_TEST_FAULTS=1`; normal invocations cannot
+enable them accidentally. Focused launcher, unit, integrity, and smoke-config
+coverage passed with 56 tests before qualification.
+
+The fresh mock study
+`lobster_attr_f1pr_gate5_r06a_prelaunch_20260823a` used immutable contract
+SHA-256 `201e62cb13873a1c9708139fec3132c2e0251817d4bc6ac3f77a779f1f2acea9`,
+one reserved trial, and `max_parallel=1`. Its injected cs-cl-13 failure occurred
+before remote input staging and before any SSH/tmux launch call. Wave 1 retained
+launch state `PLANNED`; its probe found no tmux, worker marker, or matching DB
+trial and classified the identity `DEFINITE_PRELAUNCH` and retry-safe. The same
+single reservation remained `WAITING` and unclaimed.
+
+All attempt evidence was retained. The first retry exposed that the public
+deployment and cache manifests had been supplied to `init` but not copied into
+the new controller study root. That operator staging miss also failed before
+SSH, remained `PLANNED`, had no DB claim, and was independently probed as a
+second `DEFINITE_PRELAUNCH` identity. After the exact immutable manifests were
+installed mode `0444`, wave 3 launched the unchanged reservation once with
+dispatch sequence 3,000,000 and derived sampler seed 1,666,357,180. Its unique
+worker run claimed trial 0/budget index 0 and completed the bounded mock
+objective. No reservation was appended or replaced.
+
+The separate fresh mock study
+`lobster_attr_f1pr_gate5_r06b_ambiguous_20260823a` used contract SHA-256
+`b6df141108d480d1287cd4a5cd8dbb444b39f9dc675e6ae534a530d472b93984`,
+one reserved trial, and `max_parallel=1`. The controller received the remote
+tmux acknowledgement and then injected the ambiguous failure, truthfully
+recording wave 1 as `SSH_ERROR`, `AMBIGUOUS_SSH_ERROR`, and
+`injected_after_remote_ack=true`. An immediate unprobed `run` failed closed and
+created no wave 2. The original worker alone claimed trial 0/budget index 0
+with dispatch sequence 1,000,000 and derived seed 807,335,553. The first probe
+matched its `COMPLETED` marker to the reserved PostgreSQL `COMPLETE` row and
+classified it `RECONCILED_TERMINAL`; no duplicate or replacement was launched.
+
+Checksum collection retained the attempt, probe, worker, and trial trees for
+both studies. Controller audit froze each study and atomically published its
+portable SQLite snapshot. Independent reopen matched live PostgreSQL exactly:
+R06a semantic fingerprint
+`e314a9b7636aca984e49a4f202899268520c0e7a645d5a62231cfd92670ccf3f`
+and R06b fingerprint
+`af1c47ccbb1d5cdc4ee956f54eefc165cb530d8f1a9cd8be19b07a72d73a125e`.
+Both definitions preserve the exact validation objective path, validation
+split, and `test_access=false`. A combined 57-file scan found no protected
+credential material, unredacted storage URL, test access, or final-test
+artifact. The cache on both hosts remains mode `0444`, size 59,295,793 bytes,
+and SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1665,7 +1724,8 @@ collection, audit, freeze, and restore all pass on the one approved Gate 4 slot.
 Gate 5 is authorized, its dedicated two-host mapping is frozen, and protected
 authentication plus source/cache/runtime/GPU qualification now pass on both
 workers. R04 now passes with its separate frozen two-reservation mock study;
-R05 now passes with a different frozen two-reservation real LOBSTER study. R06
-is the next step. Gate 6 and later gates remain unstarted, and credentials must
-be rotated before any pilot or production use. Full QM9 BO remains blocked
-pending a separately reviewed staged or multi-fidelity budget.
+R05 passes with a different frozen two-reservation real LOBSTER study, and R06
+passes with separate frozen definite-prelaunch and post-launch-ambiguity mock
+studies. R07 is the next step. Gate 6 and later gates remain unstarted, and
+credentials must be rotated before any pilot or production use. Full QM9 BO
+remains blocked pending a separately reviewed staged or multi-fidelity budget.
