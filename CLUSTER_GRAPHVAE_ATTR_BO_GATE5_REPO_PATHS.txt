@@ -1,0 +1,4 @@
+# Dedicated Gate 5 two-host qualification deployment. Do not reuse Gate 4 or
+# the unmanaged general-purpose GraphVAE-REQ copies.
+cs-cl-13 /local-scratch/graphvae-req-work/GraphVAE-REQ-gate5-lobster
+cs-cl-17 /local-scratch/graphvae-req-work/GraphVAE-REQ-gate5-lobster

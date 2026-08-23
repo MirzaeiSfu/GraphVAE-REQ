@@ -1,0 +1,4 @@
+# HOST GPU WORKER_ID
+# Exactly two cross-host TITAN RTX slots for bounded Gate 5 qualification.
+cs-cl-13 0 cs-cl-13-gate5-gpu0
+cs-cl-17 0 cs-cl-17-gate5-gpu0

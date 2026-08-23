@@ -1487,6 +1487,28 @@ Gate 4 is complete. This qualification does not start or authorize Gate 5
 multi-worker tests, R08, a pilot, production, held-out evaluation, or full-QM9
 Bayesian optimization.
 
+### Gate 5 authorization and two-host staging contract (2026-08-23)
+
+Gate 5 is explicitly authorized for bounded two-worker qualification on
+`cs-cl-13:cuda:0` and `cs-cl-17:cuda:0`. The dedicated repository roots,
+pinned Python mappings, and physical-GPU slot identities are frozen in the
+three `CLUSTER_GRAPHVAE_ATTR_BO_GATE5_*` files. Gate 4 source roots and worker
+identities are not reused.
+
+Read-only predeployment probes found the dedicated Gate 5 source roots absent
+on both machines, so deployment cannot accidentally merge with an earlier
+qualification. Both hosts expose the same pinned NumPy, Torch, DGL, Optuna,
+psycopg2, SQLAlchemy, Alembic, and PyYAML versions used by Gate 4. Physical GPU
+0 on each host is an NVIDIA TITAN RTX with 24,576 MiB of reported VRAM.
+Available local scratch exceeded the source plus the immutable 59,295,793-byte
+LOBSTER cache on both workers at the time of the probe.
+
+The authorization includes protected PostgreSQL credential deployment to the
+new `cs-cl-17` qualification root and R04-R07 only. It does not authorize R08,
+the Gate 6 pilot, a production study, held-out evaluation, or full-QM9 BO.
+Qualification credentials remain outside version control and must be rotated
+before any pilot or production use.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1509,7 +1531,8 @@ design questions:
 Section 14 and Gates 1-3 are complete locally, and Gate 4 now passes with its
 separate R02 mock and R03 real LOBSTER studies. Protected credential deployment,
 authenticated `verify-full` preflight, source/cache staging, GPU isolation,
-collection, audit, freeze, and restore all pass on the one approved slot. Gate 5
-and later gates remain unstarted; credentials must be rotated before any pilot
-or production use. Full QM9 BO remains blocked pending a separately reviewed
-staged or multi-fidelity budget.
+collection, audit, freeze, and restore all pass on the one approved Gate 4 slot.
+Gate 5 is authorized and its dedicated two-host mapping is frozen, but no Gate 5
+study has yet been initialized. Gate 6 and later gates remain unstarted;
+credentials must be rotated before any pilot or production use. Full QM9 BO
+remains blocked pending a separately reviewed staged or multi-fidelity budget.
