@@ -1509,6 +1509,44 @@ the Gate 6 pilot, a production study, held-out evaluation, or full-QM9 BO.
 Qualification credentials remain outside version control and must be rotated
 before any pilot or production use.
 
+### Gate 5 two-host deployment qualification follow-up (2026-08-23)
+
+Separate Gate 5 controller and worker credential files were derived from the
+authorized protected qualification material and placed outside every source,
+cache, run, and artifact root. The controller, `cs-cl-13`, and `cs-cl-17` each
+use host-local directories at mode `0700` with regular non-symlink environment,
+passfile, and CA-certificate files at mode `0600`. All three hosts authenticated
+as the qualification role and database through `sslmode=verify-full`; a
+server-side `pg_stat_ssl` check reported TLS enabled for every connection. No
+credential value, unredacted storage URL, passfile content, or credential hash
+was printed, logged, committed, or written into qualification artifacts.
+
+Clean committed source `605eca17408250626c08b4a1238537fb9eeeecb1` was staged
+to both dedicated Gate 5 repository roots. Each independently verified all 942
+deployment files and tree fingerprint
+`4bf23dce7549b88b525efcb4c58a2bc7d94c655f21cdd4a0857f83916deab8a7`.
+The LOBSTER cache also independently reverified on each host with 70/10/20
+splits, 14 node channels, 11 edge channels, mode `0444`, size 59,295,793 bytes,
+and SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+
+The first exact runtime comparison failed closed on `cs-cl-17`: its installed
+NumPy reported version 1.24.3 but its top-level module bytes differed from the
+frozen controller and `cs-cl-13` runtime. Every other pinned module hash and
+version already matched, and no study or reservation existed. After confirming
+the shared environment had no active Python executable, only NumPy was
+force-reinstalled without dependencies or a download cache from the exact
+1.24.3 binary wheel whose initializer matched the frozen hash. Temporary wheel
+staging was then removed. The controller and both workers now reproduce runtime
+fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`.
+
+Physical GPU 0 on both workers re-probed as one NVIDIA TITAN RTX with 24,576
+MiB reported VRAM. With `CUDA_VISIBLE_DEVICES=0`, each pinned worker Python saw
+exactly one NVIDIA TITAN RTX at logical `cuda:0`. This step created no study,
+claimed no reservation, launched no worker, trained no model, and performed no
+held-out evaluation. The qualified deployment is restricted to R04-R07.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1532,7 +1570,9 @@ Section 14 and Gates 1-3 are complete locally, and Gate 4 now passes with its
 separate R02 mock and R03 real LOBSTER studies. Protected credential deployment,
 authenticated `verify-full` preflight, source/cache staging, GPU isolation,
 collection, audit, freeze, and restore all pass on the one approved Gate 4 slot.
-Gate 5 is authorized and its dedicated two-host mapping is frozen, but no Gate 5
-study has yet been initialized. Gate 6 and later gates remain unstarted;
-credentials must be rotated before any pilot or production use. Full QM9 BO
-remains blocked pending a separately reviewed staged or multi-fidelity budget.
+Gate 5 is authorized, its dedicated two-host mapping is frozen, and protected
+authentication plus source/cache/runtime/GPU qualification now pass on both
+workers. No Gate 5 study has yet been initialized; R04 is the next step. Gate 6
+and later gates remain unstarted, and credentials must be rotated before any
+pilot or production use. Full QM9 BO remains blocked pending a separately
+reviewed staged or multi-fidelity budget.

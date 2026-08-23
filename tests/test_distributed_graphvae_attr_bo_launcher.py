@@ -297,3 +297,33 @@ def test_gate4_mappings_select_exactly_one_approved_slot():
             "worker_id": "cs-cl-13-gate4-gpu0",
         }
     ]
+
+
+def test_gate5_mappings_select_exactly_two_cross_host_slots():
+    args = argparse.Namespace(
+        repo_paths=REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_GATE5_REPO_PATHS.txt",
+        python_paths=REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_GATE5_PYTHON_PATHS.txt",
+        slots=REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_GATE5_SLOTS.txt",
+    )
+    repositories, pythons, slots = _preflight_inputs(args)
+
+    assert repositories == {
+        "cs-cl-13": "/local-scratch/graphvae-req-work/GraphVAE-REQ-gate5-lobster",
+        "cs-cl-17": "/local-scratch/graphvae-req-work/GraphVAE-REQ-gate5-lobster",
+    }
+    assert pythons == {
+        "cs-cl-13": "/localhome/mirzaei/miniconda3/envs/micro/bin/python",
+        "cs-cl-17": "/localhome/mirzaei/miniconda3/envs/micro/bin/python",
+    }
+    assert slots == [
+        {
+            "host": "cs-cl-13",
+            "physical_gpu": 0,
+            "worker_id": "cs-cl-13-gate5-gpu0",
+        },
+        {
+            "host": "cs-cl-17",
+            "physical_gpu": 0,
+            "worker_id": "cs-cl-17-gate5-gpu0",
+        },
+    ]
