@@ -1887,6 +1887,15 @@ LOBSTER smoke configuration, eight-graph validation limit, five repeats,
 and `skip_final_evaluation=true`. R09 and R10 may begin only after that pilot is
 audited and frozen.
 
+The first Gate 6 source deployment attempt stopped before transfer because its
+dedicated controller `TMPDIR` did not yet exist. This exposed that
+`cluster_distribute_code.sh` used `set -uo pipefail`: a failed `mktemp` left an
+empty manifest path and the script continued into manifest generation. The
+deployment entry point now uses `set -euo pipefail`, so failure to allocate its
+temporary manifest exits immediately. The exact missing-parent case is covered
+by a bounded shell regression check. No remote Gate 6 source root or study was
+created by the failed attempt.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.

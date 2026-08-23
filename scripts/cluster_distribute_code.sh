@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 REPO_PATHS_FILE="CLUSTER_REPO_PATHS.txt"
 CODE_SOURCE_DIR="."
