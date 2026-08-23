@@ -150,6 +150,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     run.add_argument("--python-paths", type=Path, required=True)
     run.add_argument("--slots", type=Path, required=True)
     run.add_argument("--max-parallel", type=int, default=3)
+    run.add_argument(
+        "--credential-env-file",
+        type=str,
+        default=None,
+        help=(
+            "Absolute protected file sourced on the remote host before worker "
+            "launch. Its contents are never copied into commands or manifests."
+        ),
+    )
     run.add_argument("--dry-run", action="store_true")
     run.add_argument(
         "--execute-remote",
@@ -439,10 +448,32 @@ def render_worker_command(
     return command
 
 
-def render_remote_launch(command: Sequence[str], *, physical_gpu: int, lock_path: str) -> str:
+def render_remote_launch(
+    command: Sequence[str],
+    *,
+    physical_gpu: int,
+    lock_path: str,
+    credential_env_file: str | None = None,
+) -> str:
     # The storage URL remains solely in the named inherited environment variable.
+    environment_prefix = ""
+    if credential_env_file is not None:
+        credential_path = Path(credential_env_file)
+        if not credential_path.is_absolute():
+            raise ValueError("Remote credential environment file must be absolute.")
+        if any(
+            character in credential_env_file
+            for character in ("\n", "\r", "\x00")
+        ):
+            raise ValueError(
+                "Remote credential environment file contains control characters."
+            )
+        environment_prefix = (
+            f"set -a; . {shlex.quote(credential_env_file)}; set +a; "
+        )
     inner = (
-        f"CUDA_VISIBLE_DEVICES={shlex.quote(str(physical_gpu))} "
+        environment_prefix
+        + f"CUDA_VISIBLE_DEVICES={shlex.quote(str(physical_gpu))} "
         f"flock -n {shlex.quote(lock_path)} "
         + shlex.join(list(command))
     )
@@ -550,6 +581,11 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
         )
     if not args.dry_run and not args.execute_remote:
         raise ValueError("Remote dispatch requires the explicit --execute-remote acknowledgement.")
+    if not args.dry_run and not args.credential_env_file:
+        raise ValueError(
+            "Remote dispatch requires --credential-env-file so tmux receives "
+            "protected PostgreSQL settings."
+        )
     waiting = [
         trial
         for trial in study.get_trials(deepcopy=False)
@@ -605,6 +641,7 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
             worker_command,
             physical_gpu=slot["physical_gpu"],
             lock_path=f"/tmp/graphvae-bo-{slot['worker_id']}.lock",
+            credential_env_file=args.credential_env_file,
         )
         tmux_name = f"graphvae-bo-{run_id}"
         launch = {

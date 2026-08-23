@@ -472,6 +472,34 @@ def test_launcher_uses_physical_visibility_logical_cuda_and_no_secret_or_test():
     assert "--split test" not in rendered
 
 
+def test_launcher_sources_only_protected_credential_file_path():
+    command = [
+        "/env/bin/python",
+        "/repo/scripts/run_graphvae_attr_bo_worker.py",
+        "--storage-env",
+        "GRAPHVAE_BO_STORAGE_URL",
+    ]
+    credential_path = "/local-scratch/graphvae-bo-credentials/gate4/worker.env"
+    rendered = render_remote_launch(
+        command,
+        physical_gpu=0,
+        lock_path="/tmp/slot.lock",
+        credential_env_file=credential_path,
+    )
+
+    assert rendered.startswith(f"set -a; . {credential_path}; set +a; ")
+    assert "GRAPHVAE_BO_STORAGE_URL" in rendered
+    assert "postgresql" not in rendered.lower()
+    assert "password" not in rendered.lower()
+    with pytest.raises(ValueError, match="must be absolute"):
+        render_remote_launch(
+            command,
+            physical_gpu=0,
+            lock_path="/tmp/slot.lock",
+            credential_env_file="relative/worker.env",
+        )
+
+
 def test_l06_timeout_kills_exact_child_group_and_unrelated_process_survives(tmp_path):
     unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:

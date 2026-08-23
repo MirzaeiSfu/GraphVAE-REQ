@@ -179,6 +179,13 @@ exit. Each dispatch seed is derived from the study seed and immutable dispatch
 sequence by the roadmap's SHA-256 formula, and TPE always uses
 `constant_liar=True`.
 
+Actual remote dispatch also requires `--credential-env-file` with an absolute
+host-local path. The controller records and quotes only that path; the remote
+shell sources the protected file immediately before tmux starts the worker.
+The file supplies `GRAPHVAE_BO_STORAGE_URL`, `PGPASSFILE`, and
+`PGSSLROOTCERT`, is mode `0600` under a mode `0700` directory, and is never
+stored in the repository or collected artifacts.
+
 Mock versus real execution is part of the immutable study definition. A mock
 study renders only workers with `--mock`, a real study rejects mock workers,
 and controller/worker preflight rejects heartbeat/grace or maximum-concurrency
