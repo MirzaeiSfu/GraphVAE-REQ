@@ -1768,6 +1768,57 @@ test access, or final-test artifact. Both host caches remain mode `0444`, size
 59,295,793 bytes, and canonical SHA-256
 `928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
 
+### Gate 5 final acceptance audit (2026-08-23)
+
+The complete non-PostgreSQL distributed BO suite passed 58 tests across the
+unit, integrity, launcher, and smoke-configuration files. The separately
+marked PostgreSQL suite passed all 17 tests through the dedicated protected
+Gate 5 qualification connection. It used UUID-prefixed isolated studies only;
+a post-suite database query found zero remaining `graphvae_bo_pytest_*`
+studies. No test changed or deleted an R04-R07 qualification study.
+
+A single read-only cross-study audit then reopened all five frozen live
+PostgreSQL studies and their five independently portable SQLite snapshots. It
+revalidated every immutable contract, exact reservation index, terminal state,
+launch identity and derived dispatch seed, result artifact, evaluator payload,
+and R07 failure tombstone. The aggregate budget remains exactly seven
+reservations: six `COMPLETE`, the one intended R07 `FAIL`, and zero `WAITING`,
+`RUNNING`, other-state, guard, duplicate, missing, or replacement rows. The
+live/snapshot semantic fingerprints remain exactly those recorded in the R04,
+R05, R06, and R07 sections above. The corresponding portable snapshot
+SHA-256 values are:
+
+- R04: `7ec77d127b9ec96fb17ee6042d1198f57ff64f53bee072ae4ca5d83476c1ef96`;
+- R05: `2074b8af7c20f834f08fa28dc1ace60f8ff23a333761181532d25b96e81d7594`;
+- R06 definite-prelaunch: `b65814d2d549cbd81bff63e156c2f482b9ac348cadc3cf72b4d0bd364e9a12a2`;
+- R06 post-launch ambiguity: `beaba6421a2fa6cd94b15e789288a66e41a79ebac60104d54633f7dc4943378a`;
+- R07: `e0c44d96ecb42717f8c0dcfe35f3d8b803ffef3a17c75720db3642264789df7b`.
+
+Every completed artifact was re-derived from exactly
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean` and attests to
+validation split, `decoded_node_edge`, both `node_feature_decoder` and
+`edge_feature_decoder`, five repeats, eight generated plus eight reference
+graphs, and the immutable 14-node/11-edge LOBSTER schemas. Every definition
+retains `test_access=false`, `skip_final_evaluation=true`, heartbeat 60, grace
+600, non-replacement of failed slots, and `sslmode=verify-full`. The audit read
+374 files totaling 2,438,001,453 bytes and found zero protected credential
+material, unredacted PostgreSQL URL, `test_access=true`, or final-test
+artifact.
+
+Final host-side checks found the cache on both `cs-cl-13` and `cs-cl-17` still
+mode `0444`, exactly 59,295,793 bytes, and SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+Their current deployment manifests agree at SHA-256
+`a2d9220ffb2d3fff8be5f0e3b16e6dbeecf590b8ffcad851b6968153129e24f9`,
+the R07 source deployment, and their read-only cache manifests agree at
+`ffe65e9ef38f10c4bd2390804c4db248834881263b2c3e06ca03cb7789fd3a46`.
+The controller and both worker credential directories remain mode `0700`, and
+all protected environment, `PGPASSFILE`, and CA files remain mode `0600`.
+
+Gate 5 is complete. This qualification does not authorize Gate 6, R08, a
+held-out/test evaluation, production studies, or full-QM9 optimization. The
+qualification credentials must be rotated before Gate 6 or production use.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1785,7 +1836,7 @@ design questions:
 - make the current exact `/32` port-5432 firewall rules persistent in the
   Ansible-managed source or through SFU research support;
 - normalize the runtime environment and stage verified source/cache inputs
-  before Gates 4-6.
+  before Gate 6.
 
 Section 14 and Gates 1-3 are complete locally, and Gate 4 now passes with its
 separate R02 mock and R03 real LOBSTER studies. Protected credential deployment,
@@ -1797,8 +1848,8 @@ workers. R04 now passes with its separate frozen two-reservation mock study;
 R05 passes with a different frozen two-reservation real LOBSTER study, and R06
 passes with separate frozen definite-prelaunch and post-launch-ambiguity mock
 studies. R07 passes with one consumed failed reservation, exact orphan cleanup,
-native stale reconciliation, and a verified tombstone. The final full-suite and
-cross-study Gate 5 audit are next; Gate 5 is not yet declared complete. Gate 6
-and later gates remain unstarted, and credentials must be rotated before any
-pilot or production use. Full QM9 BO remains blocked pending a separately
-reviewed staged or multi-fidelity budget.
+native stale reconciliation, and a verified tombstone. The final full-suite,
+isolated PostgreSQL, cross-study snapshot/artifact, cache, and redaction audits
+all pass, so Gate 5 is complete. Gate 6 and later gates remain unstarted, and
+credentials must be rotated before any pilot or production use. Full QM9 BO
+remains blocked pending a separately reviewed staged or multi-fidelity budget.
