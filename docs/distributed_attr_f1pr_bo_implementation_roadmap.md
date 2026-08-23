@@ -1344,6 +1344,27 @@ printed or written to a command manifest, repository, or collected artifact.
 These credentials are authorized for Gate 4 qualification only and must be
 rotated before any later pilot or production gate.
 
+### Gate 4 runtime normalization follow-up (2026-08-23)
+
+Pre-initialization runtime comparison failed closed because the controller
+imported NumPy 1.24.3 while `cs-cl-13` imported 1.24.4, even though the worker's
+installed-package metadata incorrectly reported 1.24.3. No study or reservation
+was created with that mismatch. All other pinned dependency module hashes were
+already identical.
+
+The worker's disposable pip download cache was 31.6 GB and prevented a clean
+reinstall. Only `python -m pip cache purge` was used; it removed 2,480
+recoverable cache entries and did not delete environments, source, datasets,
+caches used by GraphVAE, runs, or artifacts. NumPy was then force-reinstalled
+without dependencies or a download cache into the existing qualified `micro`
+environment, using a task-specific temporary directory on local scratch. The
+controller was normalized to the same pinned wheel. NumPy, Torch, DGL, Optuna,
+psycopg2, SQLAlchemy, Alembic, and PyYAML imports passed on both hosts.
+
+The controller and worker now produce the identical semantic runtime fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`.
+This exact fingerprint will be frozen into the R02 and R03 study contracts.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
