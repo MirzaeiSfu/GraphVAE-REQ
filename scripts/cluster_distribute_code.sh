@@ -8,6 +8,11 @@ DRY_RUN=false
 SYNC_INPUTS=false
 SYNC_PATHS=("data_raw" "cache_motifs")
 CUSTOM_SYNC_PATHS=false
+BO_CACHE_PATH=""
+BO_CACHE_MANIFEST=""
+PYTHON_BIN="${PYTHON_BIN:-python}"
+REMOTE_PYTHON_BIN="${REMOTE_PYTHON_BIN:-python3}"
+DEPLOYMENT_MANIFEST_TMP=""
 
 usage() {
   cat <<'EOF'
@@ -23,6 +28,9 @@ Options:
                               When syncing cache_motifs, the remote cache_motifs
                               directory is removed first.
   --sync-path PATH           Extra/replacement path to sync; repeatable
+  --bo-cache PATH            Stage this prebuilt BO dataset cache with checksums
+  --bo-cache-manifest FILE   Manifest for --bo-cache; both options are required
+  --remote-python PATH       Python used for remote manifest verification
   --ssh-connect-timeout SEC  SSH connection timeout
   --dry-run                  Print commands without running them
   --help                     Show this help
@@ -109,6 +117,18 @@ while (($#)); do
       SYNC_PATHS+=("$2")
       shift 2
       ;;
+    --bo-cache)
+      BO_CACHE_PATH="$2"
+      shift 2
+      ;;
+    --bo-cache-manifest)
+      BO_CACHE_MANIFEST="$2"
+      shift 2
+      ;;
+    --remote-python)
+      REMOTE_PYTHON_BIN="$2"
+      shift 2
+      ;;
     --ssh-connect-timeout)
       SSH_CONNECT_TIMEOUT="$2"
       shift 2
@@ -140,6 +160,33 @@ if ! CODE_SOURCE_DIR_ABS="$(cd "$CODE_SOURCE_DIR" && pwd)"; then
 fi
 
 check_clean_code_source
+
+if [[ -n "$BO_CACHE_PATH" || -n "$BO_CACHE_MANIFEST" ]]; then
+  if [[ -z "$BO_CACHE_PATH" || -z "$BO_CACHE_MANIFEST" ]]; then
+    echo "--bo-cache and --bo-cache-manifest must be supplied together." >&2
+    exit 2
+  fi
+  if [[ ! -f "$BO_CACHE_PATH" || ! -f "$BO_CACHE_MANIFEST" ]]; then
+    echo "BO cache or cache manifest is missing." >&2
+    exit 2
+  fi
+  expected_cache_sha="$($PYTHON_BIN -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sha256"])' "$BO_CACHE_MANIFEST")"
+  cache_relative_path="$($PYTHON_BIN -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["relative_path"])' "$BO_CACHE_MANIFEST")"
+  if [[ "$cache_relative_path" == /* || "$cache_relative_path" == ".." || "$cache_relative_path" == ../* || "$cache_relative_path" == */../* ]]; then
+    echo "BO cache manifest relative_path is unsafe: $cache_relative_path" >&2
+    exit 2
+  fi
+  actual_cache_sha="$(sha256sum "$BO_CACHE_PATH" | awk '{print $1}')"
+  if [[ "$expected_cache_sha" != "$actual_cache_sha" ]]; then
+    echo "BO cache SHA-256 differs from its manifest." >&2
+    exit 2
+  fi
+fi
+
+DEPLOYMENT_MANIFEST_TMP="$(mktemp "${TMPDIR:-/tmp}/graphvae-bo-deployment.XXXXXX.json")"
+trap '[[ -n "$DEPLOYMENT_MANIFEST_TMP" ]] && rm -f "$DEPLOYMENT_MANIFEST_TMP"' EXIT
+run_cmd "$PYTHON_BIN" "$CODE_SOURCE_DIR_ABS/scripts/graphvae_attr_bo_fingerprints.py" \
+  --deployment-root "$CODE_SOURCE_DIR_ABS" --output "$DEPLOYMENT_MANIFEST_TMP"
 
 if [[ "$SYNC_INPUTS" == true ]]; then
   for sync_path in "${SYNC_PATHS[@]}"; do
@@ -213,6 +260,40 @@ EOF
     echo "[code] failed on $host; continuing" >&2
     failures=$((failures + 1))
     continue
+  fi
+
+  if ! run_cmd rsync -azc -e "$RSYNC_SSH_CMD" "$DEPLOYMENT_MANIFEST_TMP" "$host:$repo_path/deployment_manifest.json"; then
+    echo "[code] deployment manifest sync failed on $host" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+  remote_verify_script="set -euo pipefail; $(quote_one "$REMOTE_PYTHON_BIN") $(quote_one "$repo_path/scripts/graphvae_attr_bo_fingerprints.py") --deployment-root $(quote_one "$repo_path") --verify-manifest $(quote_one "$repo_path/deployment_manifest.json")"
+  verify_cmd=(ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_verify_script")")
+  if ! run_cmd "${verify_cmd[@]}"; then
+    echo "[code] remote deployment hash verification failed on $host" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+
+  if [[ -n "$BO_CACHE_PATH" ]]; then
+    remote_cache_path="${repo_path%/}/$cache_relative_path"
+    remote_cache_dir="$(dirname "$remote_cache_path")"
+    cache_name="$(basename "$remote_cache_path")"
+    run_cmd ssh -n "${SSH_OPTS[@]}" "$host" mkdir -p "$remote_cache_dir"
+    if ! run_cmd rsync -azc -e "$RSYNC_SSH_CMD" "$BO_CACHE_PATH" "$host:$remote_cache_dir/$cache_name"; then
+      failures=$((failures + 1))
+      continue
+    fi
+    if ! run_cmd rsync -azc -e "$RSYNC_SSH_CMD" "$BO_CACHE_MANIFEST" "$host:$repo_path/dataset_cache_manifest.json"; then
+      failures=$((failures + 1))
+      continue
+    fi
+    remote_hash_cmd="test \"\$(sha256sum $(quote_one "$remote_cache_dir/$cache_name") | awk '{print \$1}')\" = $(quote_one "$expected_cache_sha") && chmod a-w $(quote_one "$remote_cache_dir/$cache_name")"
+    if ! run_cmd ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_hash_cmd")"; then
+      echo "[cache] remote checksum/read-only verification failed on $host" >&2
+      failures=$((failures + 1))
+      continue
+    fi
   fi
 
   if [[ "$SYNC_INPUTS" == true ]]; then

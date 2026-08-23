@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
+import os
 import random
 import sys
+import tempfile
 from pathlib import Path
 from typing import Sequence
 
@@ -34,8 +37,16 @@ from eval.attributed_gin import (  # noqa: E402
 )
 from resample_grid_checkpoints import (  # noqa: E402
     build_model,
+    dataset_cache_path,
     load_cached_dataset,
     load_config,
+)
+from graphvae_attr_bo_fingerprints import (  # noqa: E402
+    feature_schema_fingerprint,
+    feature_schema_payload,
+    graph_fingerprint,
+    sha256_file,
+    split_fingerprint,
 )
 
 
@@ -48,6 +59,23 @@ DEFAULT_CHECKPOINT_CANDIDATES = (
 DEFAULT_OUTPUT_DIRNAME = "attributed_random_gin_eval"
 GENERATED_DGL_FILENAME = "generated_attributed_graphs.bin"
 REFERENCE_DGL_FILENAME = "reference_attributed_graphs.bin"
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(str(temporary), str(path))
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def parse_args() -> argparse.Namespace:
@@ -263,6 +291,57 @@ def _cache_split(cache: dict, split: str) -> tuple[list, list, list | None]:
     return list(adjacencies), list(node_values), (
         None if edge_values is None else list(edge_values)
     )
+
+
+def evaluator_input_integrity(cache: dict, config: dict, split: str) -> dict:
+    """Fingerprint the exact cache and feature inputs used by this evaluator."""
+
+    adjacencies, node_values, edge_values = _cache_split(cache, split)
+    graph_hashes = []
+    for index, (adjacency, node_attributes) in enumerate(
+        zip(adjacencies, node_values)
+    ):
+        graph_hashes.append(
+            graph_fingerprint(
+                adjacency,
+                node_attributes,
+                None if edge_values is None else edge_values[index],
+                relation_axes={
+                    "node": cache.get("node_onehot_info"),
+                    "edge": cache.get("edge_onehot_info"),
+                },
+            )
+        )
+    node_dimension = len(cache.get("node_onehot_info") or {}) or int(
+        np.asarray(node_values[0]).shape[-1]
+    )
+    edge_dimension = (
+        0
+        if edge_values is None
+        else len(cache.get("edge_onehot_info") or {})
+        or int(np.asarray(edge_values[0]).shape[-3])
+    )
+    node_schema = feature_schema_payload(
+        cache.get("node_onehot_info"),
+        total_dimension=node_dimension,
+        dtype=str(np.asarray(node_values[0]).dtype),
+    )
+    edge_schema = feature_schema_payload(
+        cache.get("edge_onehot_info"),
+        total_dimension=edge_dimension,
+        dtype=("none" if edge_values is None else str(np.asarray(edge_values[0]).dtype)),
+    )
+    cache_path = dataset_cache_path(config).expanduser().resolve()
+    return {
+        "cache_path": str(cache_path),
+        "cache_sha256": sha256_file(cache_path),
+        "split_fingerprint": split_fingerprint(graph_hashes),
+        "split_graph_count": len(graph_hashes),
+        "node_schema_fingerprint": feature_schema_fingerprint(node_schema),
+        "edge_schema_fingerprint": feature_schema_fingerprint(edge_schema),
+        "node_schema": node_schema,
+        "edge_schema": edge_schema,
+    }
 
 
 def build_reference_graphs(
@@ -489,15 +568,16 @@ def save_dgl_graph_collections(
 
 
 def write_csv(output_path: Path, payload: dict):
-    with output_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=("mode", "metric", "mean", "std", "min", "max"),
-        )
-        writer.writeheader()
-        for mode, mode_result in payload["evaluation"]["modes"].items():
-            for metric, summary in mode_result["summary"].items():
-                writer.writerow({"mode": mode, "metric": metric, **summary})
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(
+        buffer,
+        fieldnames=("mode", "metric", "mean", "std", "min", "max"),
+    )
+    writer.writeheader()
+    for mode, mode_result in payload["evaluation"]["modes"].items():
+        for metric, summary in mode_result["summary"].items():
+            writer.writerow({"mode": mode, "metric": metric, **summary})
+    _atomic_write_text(output_path, buffer.getvalue())
 
 
 def write_markdown(output_path: Path, payload: dict):
@@ -560,7 +640,7 @@ def write_markdown(output_path: Path, payload: dict):
             ),
         ]
     )
-    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _atomic_write_text(output_path, "\n".join(lines) + "\n")
 
 
 def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -> Path:
@@ -574,6 +654,7 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
     if args.dataset_cache_dir is not None:
         config["dataset_cache_dir"] = str(args.dataset_cache_dir.expanduser().resolve())
     cache = load_cached_dataset(config)
+    integrity = evaluator_input_integrity(cache, config, args.split)
 
     device = resolve_device(args.device)
     state_dict = _checkpoint_state_dict(checkpoint_path, device)
@@ -629,6 +710,15 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
         nearest_k=args.nearest_k,
         device=device,
     )
+    evaluation["actual_decoder_output_dimensions"] = {
+        "node": generated_graphs[0].node_feature_dim,
+        "edge": generated_graphs[0].edge_feature_dim,
+    }
+    evaluation["evaluator_seed"] = args.evaluator_seed
+    evaluation["evaluator_seeds"] = [
+        args.evaluator_seed + repeat for repeat in range(args.repeats)
+    ]
+    evaluation["repeats"] = args.repeats
     primary_mode = (
         "decoded_node_edge"
         if "decoded_node_edge" in modes
@@ -654,8 +744,15 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
         "device": str(device),
         "adjacency_threshold": args.adjacency_threshold,
         "generation_seed": args.generation_seed,
+        "evaluator_seed": args.evaluator_seed,
+        "evaluator_seeds": [
+            args.evaluator_seed + repeat for repeat in range(args.repeats)
+        ],
         "graph_counts": {
             "accepted_per_collection": len(reference_graphs),
+            "generated_accepted": len(generated_graphs),
+            "reference_accepted": len(reference_graphs),
+            "validation_cache_count": integrity["split_graph_count"],
             "generation_attempts": attempted,
         },
         "feature_source": {
@@ -677,6 +774,7 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
             "precision_recall": "third_party/ggmeval prdcEvaluation",
         },
         "primary_mode": primary_mode,
+        "integrity": integrity,
         "attributed_f1_pr": evaluation["modes"][primary_mode]["summary"]["f1_pr"],
         "evaluation": evaluation,
     }
@@ -684,7 +782,7 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
         payload["dgl_exports"] = dgl_exports
 
     json_path = output_dir / "attributed_random_gin.json"
-    json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    _atomic_write_text(json_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     write_csv(output_dir / "attributed_random_gin_summary.csv", payload)
     write_markdown(output_dir / "attributed_random_gin_report.md", payload)
     if args.save_samples:

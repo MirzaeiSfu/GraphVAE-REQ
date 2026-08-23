@@ -1,0 +1,11 @@
+# Distributed GraphVAE Attr-F1PR BO client stack for the existing Python 3.8 env.
+optuna==4.2.1
+psycopg2-binary==2.9.10
+SQLAlchemy==2.0.52
+alembic==1.14.1
+Mako==1.3.12
+colorlog==6.12.0
+greenlet==3.1.1
+importlib-metadata==8.5.0
+importlib-resources==6.4.5
+zipp==3.20.2

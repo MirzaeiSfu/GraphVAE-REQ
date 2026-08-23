@@ -1341,6 +1341,15 @@ parser.add_argument(
     help='Read/process raw dataset files without loading or saving processed dataset cache pickles.'
 )
 parser.add_argument(
+    '--require_existing_dataset_cache',
+    type=str2bool,
+    default=False,
+    help=(
+        'Fail before data processing when the exact dataset cache is missing. '
+        'Distributed BO workers enable this to prevent concurrent cache creation.'
+    )
+)
+parser.add_argument(
     '--motif_cache_dir',
     type=str,
     default=None,
@@ -1719,6 +1728,7 @@ graph_save_path = args.graph_save_path
 run_label = args.run_label
 dataset_cache_dir = args.dataset_cache_dir
 disable_dataset_cache = args.disable_dataset_cache
+require_existing_dataset_cache = args.require_existing_dataset_cache
 motif_cache_dir = args.motif_cache_dir
 PATH = args.PATH  # the dir to save the with the best performance on validation data
 plot_testGraphs = args.plot_testGraphs
@@ -2734,6 +2744,13 @@ if use_cache:
     dataset_cache_root.mkdir(parents=True, exist_ok=True)
     cache_name = build_dataset_cache_name(dataset_cache_metadata)
     cache_path = dataset_cache_root / cache_name
+    if require_existing_dataset_cache and not cache_path.is_file():
+        raise FileNotFoundError(
+            "Required existing dataset cache is missing: {}. Distributed workers "
+            "must use the controller-prepared cache and may not regenerate it.".format(
+                cache_path
+            )
+        )
 else:
     print("[Cache] Dataset cache disabled. Running data pipeline from raw data.")
     logging.info("[Cache] Dataset cache disabled. Running data pipeline from raw data.")
@@ -2926,8 +2943,18 @@ else:
     if use_cache:
         print(f"[Cache] Saving to {cache_path} ...")
         logging.info(f"[Cache] Saving to {cache_path} ...")
-        with open(cache_path, "wb") as _f:
-            pickle.dump(_cache, _f)
+        _cache_tmp = cache_path.with_name(
+            ".{}.{}.tmp".format(cache_path.name, os.getpid())
+        )
+        try:
+            with open(_cache_tmp, "wb") as _f:
+                pickle.dump(_cache, _f)
+                _f.flush()
+                os.fsync(_f.fileno())
+            os.replace(_cache_tmp, cache_path)
+        finally:
+            if _cache_tmp.exists():
+                _cache_tmp.unlink()
         print("[Cache] Saved successfully.")
         logging.info("[Cache] Saved successfully.")
     else:

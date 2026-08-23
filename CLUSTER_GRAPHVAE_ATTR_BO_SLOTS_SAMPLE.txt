@@ -1,0 +1,5 @@
+# HOST GPU WORKER_ID
+# This sample is an intended pool, not current availability evidence.
+cs-cl-13 0 cs-cl-13-gpu0
+cs-cl-17 0 cs-cl-17-gpu0
+cs-cl-17 1 cs-cl-17-gpu1

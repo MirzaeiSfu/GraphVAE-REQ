@@ -14,12 +14,15 @@ import argparse
 import copy
 import csv
 import hashlib
+import io
 import json
 import math
 import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 from dataclasses import dataclass
@@ -76,7 +79,7 @@ def require_optuna():
     if optuna is None:
         raise RuntimeError(
             "Optuna is required for Bayesian optimization. Install the updated "
-            "repository requirements (optuna>=3.6,<5). This workflow never "
+            "BO requirements (optuna==4.2.1). This workflow never "
             "falls back to grid or random search."
         )
 
@@ -256,19 +259,35 @@ def resolve_trial_config(
     training_seed: int,
     split_seed: int,
     device: str,
+    require_existing_dataset_cache: bool = False,
+    graph_save_path: str | None = None,
 ) -> dict[str, Any]:
     """Create the exact training configuration for one isolated trial."""
 
     resolved = inject_sampled_parameters(base_config, sampled_parameters)
+    # Controller-only smoke/timeout settings are recorded in the immutable BO
+    # contract but are not arguments understood by main.py.
+    resolved.pop("bayesian_optimization_qualification", None)
     fixed_values = (
         ("seed", int(training_seed), "data"),
         ("split_seed", int(split_seed), "data"),
         ("device", str(device), "runtime"),
-        ("graph_save_path", str((trial_directory / "training").resolve()), "runtime"),
+        (
+            "graph_save_path",
+            str((trial_directory / "training").resolve())
+            if graph_save_path is None
+            else graph_save_path,
+            "runtime",
+        ),
         ("run_label", f"attr-f1pr-bo-trial-{trial_number:05d}", "runtime"),
         ("skip_final_evaluation", True, "runtime"),
         ("third_party_eval", False, "runtime"),
         ("plot_testGraphs", False, "runtime"),
+        (
+            "require_existing_dataset_cache",
+            bool(require_existing_dataset_cache),
+            "runtime",
+        ),
     )
     for key, value, section in fixed_values:
         set_config_value(resolved, key, value, preferred_section=section)
@@ -276,16 +295,43 @@ def resolve_trial_config(
 
 
 def write_yaml(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.safe_dump(dict(payload), sort_keys=False),
-        encoding="utf-8",
+    atomic_write_bytes(
+        path, yaml.safe_dump(dict(payload), sort_keys=False).encode("utf-8")
     )
 
 
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    atomic_write_bytes(
+        path,
+        (json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n").encode(
+            "utf-8"
+        ),
+    )
+
+
+def atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Durably publish a complete file; readers never observe a partial write."""
+
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(str(temporary), str(path))
+        directory_descriptor = os.open(str(path.parent), os.O_RDONLY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def ensure_study_definition(
@@ -328,9 +374,97 @@ def sha256_file(path: Path) -> str:
 
 
 def create_trial_directory(output_dir: Path, trial_number: int) -> Path:
-    trial_dir = output_dir / "trials" / f"trial_{trial_number:05d}"
+    if not isinstance(trial_number, int) or isinstance(trial_number, bool) or trial_number < 0:
+        raise ValueError("Trial number must be a non-negative integer.")
+    root = Path(output_dir).resolve()
+    trial_dir = root / "trials" / f"trial_{trial_number:05d}"
+    trial_dir.resolve().relative_to(root)
     trial_dir.mkdir(parents=True, exist_ok=False)
     return trial_dir
+
+
+class _ForwardedSignal(BaseException):
+    def __init__(self, signum: int):
+        super().__init__(f"received signal {signum}")
+        self.signum = signum
+
+
+def _terminate_process_group(process: subprocess.Popen, grace_seconds: float) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=max(0.0, grace_seconds))
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    process.wait()
+
+
+def _pid_start_ticks(pid: int) -> int | None:
+    try:
+        # /proc/<pid>/stat field 22; split after the final ')' because command
+        # names may contain spaces and parentheses.
+        suffix = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1]
+        return int(suffix.split()[19])
+    except (FileNotFoundError, IndexError, ValueError, OSError):
+        return None
+
+
+def recover_recorded_process_group(
+    identity_path: Path,
+    *,
+    expected_cwd: Path,
+    expected_study_contract_sha256: str,
+    expected_worker_run_id: str,
+    grace_seconds: float = 10.0,
+) -> bool:
+    """Terminate only a still-matching recorded child, rejecting PID reuse."""
+
+    identity = json.loads(Path(identity_path).read_text(encoding="utf-8"))
+    pid = int(identity["pid"])
+    if (
+        identity.get("process_group_id") != pid
+        or identity.get("cwd") != str(Path(expected_cwd).resolve())
+        or identity.get("study_contract_sha256") != expected_study_contract_sha256
+        or identity.get("worker_run_id") != expected_worker_run_id
+        or identity.get("pid_start_ticks") != _pid_start_ticks(pid)
+    ):
+        raise TrialExecutionError("Recorded process identity does not match the live process.")
+    try:
+        live_cwd = Path(os.readlink(f"/proc/{pid}/cwd")).resolve()
+        live_command = [
+            part.decode("utf-8")
+            for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+            if part
+        ]
+        live_group = os.getpgid(pid)
+    except (FileNotFoundError, ProcessLookupError):
+        return False
+    if (
+        live_cwd != Path(expected_cwd).resolve()
+        or live_command != list(identity.get("command") or [])
+        or live_group != pid
+    ):
+        raise TrialExecutionError("Live process command/cwd/group differs from its record.")
+    os.killpg(pid, signal.SIGTERM)
+    deadline = time.monotonic() + max(0.0, grace_seconds)
+    while time.monotonic() < deadline:
+        if _pid_start_ticks(pid) is None:
+            return True
+        time.sleep(0.05)
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    return True
 
 
 def run_logged_command(
@@ -339,30 +473,68 @@ def run_logged_command(
     log_path: Path,
     environment: Mapping[str, str],
     timeout_seconds: float | None,
+    termination_grace_seconds: float = 10.0,
+    process_identity: Mapping[str, Any] | None = None,
 ) -> float:
     started = time.monotonic()
+    process: subprocess.Popen | None = None
+    old_handlers: dict[int, Any] = {}
+
+    def _signal_handler(signum, _frame):
+        raise _ForwardedSignal(signum)
+
     with log_path.open("w", encoding="utf-8") as log_handle:
         log_handle.write("COMMAND: " + " ".join(command) + "\n\n")
         log_handle.flush()
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 list(command),
                 cwd=REPO_ROOT,
                 env=dict(environment),
                 stdout=log_handle,
                 stderr=subprocess.STDOUT,
                 text=True,
-                timeout=timeout_seconds,
-                check=False,
+                start_new_session=True,
             )
+            identity = {
+                "schema_version": "graphvae-attr-f1pr-process-v1",
+                "pid": process.pid,
+                "process_group_id": process.pid,
+                "pid_start_ticks": _pid_start_ticks(process.pid),
+                "command": list(command),
+                "cwd": str(REPO_ROOT),
+                "started_at_unix": time.time(),
+                **dict(process_identity or {}),
+            }
+            write_json(log_path.with_suffix(log_path.suffix + ".process.json"), identity)
+            try:
+                for signum in (signal.SIGINT, signal.SIGTERM):
+                    old_handlers[signum] = signal.getsignal(signum)
+                    signal.signal(signum, _signal_handler)
+            except ValueError:
+                old_handlers.clear()
+            return_code = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired as exc:
+            if process is not None:
+                _terminate_process_group(process, termination_grace_seconds)
             raise TrialExecutionError(
                 f"Command exceeded timeout {timeout_seconds}s; see {log_path}."
             ) from exc
+        except _ForwardedSignal as exc:
+            if process is not None:
+                _terminate_process_group(process, termination_grace_seconds)
+            raise SystemExit(128 + exc.signum) from None
+        except BaseException:
+            if process is not None:
+                _terminate_process_group(process, termination_grace_seconds)
+            raise
+        finally:
+            for signum, handler in old_handlers.items():
+                signal.signal(signum, handler)
     elapsed = time.monotonic() - started
-    if result.returncode != 0:
+    if return_code != 0:
         raise TrialExecutionError(
-            f"Command failed with exit code {result.returncode}; see {log_path}."
+            f"Command failed with exit code {return_code}; see {log_path}."
         )
     return elapsed
 
@@ -491,6 +663,16 @@ def parse_attr_f1pr_payload(
     payload: Mapping[str, Any],
     *,
     expected_split: str,
+    expected_graph_count: int | None = None,
+    expected_cache_sha256: str | None = None,
+    expected_split_fingerprint: str | None = None,
+    expected_node_schema_fingerprint: str | None = None,
+    expected_edge_schema_fingerprint: str | None = None,
+    expected_node_feature_dimension: int | None = None,
+    expected_edge_feature_dimension: int | None = None,
+    expected_generation_seed: int | None = None,
+    expected_evaluator_seed: int | None = None,
+    expected_repeats: int | None = None,
 ) -> AttrF1PRMetrics:
     """Parse Attr-F1PR structurally and reject every topology/feature fallback."""
 
@@ -506,8 +688,14 @@ def parse_attr_f1pr_payload(
     try:
         evaluation = payload["evaluation"]
         dimensions = evaluation["feature_dimensions"]
+        actual_decoder_dimensions = evaluation.get(
+            "actual_decoder_output_dimensions", dimensions
+        )
         summary = evaluation["modes"][PRIMARY_MODE]["summary"]
-        graph_count = int(payload["graph_counts"]["accepted_per_collection"])
+        counts = payload["graph_counts"]
+        legacy_count = counts.get("accepted_per_collection")
+        generated_count = int(counts.get("generated_accepted", legacy_count))
+        reference_count = int(counts.get("reference_accepted", legacy_count))
     except (KeyError, TypeError, ValueError) as exc:
         raise TrialExecutionError(
             f"Evaluator output does not contain {OBJECTIVE_JSON_PATH}."
@@ -516,6 +704,21 @@ def parse_attr_f1pr_payload(
         raise TrialExecutionError(
             "decoded_node_edge requires positive matching node and edge feature dimensions."
         )
+    for name, expected in (
+        ("node", expected_node_feature_dimension),
+        ("edge", expected_edge_feature_dimension),
+    ):
+        if int(actual_decoder_dimensions.get(name, 0)) != int(dimensions[name]):
+            raise TrialExecutionError(
+                f"Actual {name} decoder output dimension differs from evaluator inputs."
+            )
+        if expected is not None and (
+            int(dimensions[name]) != int(expected)
+            or int(actual_decoder_dimensions[name]) != int(expected)
+        ):
+            raise TrialExecutionError(
+                f"Evaluator {name} feature dimension differs from the cache contract."
+            )
     feature_source = payload.get("feature_source", {})
     if feature_source.get("hand_made_topology_features") is not False:
         raise TrialExecutionError(
@@ -526,10 +729,45 @@ def parse_attr_f1pr_payload(
         raise TrialExecutionError(
             "Evaluator output does not attest that both GraphVAE attribute decoders were used."
         )
+    if generated_count != reference_count:
+        raise TrialExecutionError(
+            "Generated and reference accepted graph counts differ: "
+            f"{generated_count} versus {reference_count}."
+        )
+    graph_count = reference_count
+    if expected_graph_count is not None and graph_count != int(expected_graph_count):
+        raise TrialExecutionError(
+            f"Expected exactly {expected_graph_count} accepted validation graphs, "
+            f"got {graph_count}."
+        )
     if graph_count < 3:
         raise TrialExecutionError(
             f"Attr-F1PR requires at least three accepted graphs, got {graph_count}."
         )
+
+    integrity = payload.get("integrity") or {}
+    expected_integrity = {
+        "cache_sha256": expected_cache_sha256,
+        "split_fingerprint": expected_split_fingerprint,
+        "node_schema_fingerprint": expected_node_schema_fingerprint,
+        "edge_schema_fingerprint": expected_edge_schema_fingerprint,
+    }
+    for key, expected in expected_integrity.items():
+        if expected is not None and integrity.get(key) != expected:
+            raise TrialExecutionError(f"Evaluator integrity mismatch for {key}.")
+    expected_metadata = {
+        "generation_seed": expected_generation_seed,
+        "evaluator_seed": expected_evaluator_seed,
+        "repeats": expected_repeats,
+    }
+    for key, expected in expected_metadata.items():
+        actual = (
+            payload.get("evaluation", {}).get(key)
+            if key == "repeats"
+            else payload.get(key)
+        )
+        if expected is not None and actual != expected:
+            raise TrialExecutionError(f"Evaluator metadata mismatch for {key}.")
     return AttrF1PRMetrics(
         f1_pr=_finite_metric(summary, "f1_pr"),
         precision=_finite_metric(summary, "precision"),
@@ -538,10 +776,14 @@ def parse_attr_f1pr_payload(
     )
 
 
-def parse_attr_f1pr_file(path: Path, *, expected_split: str) -> AttrF1PRMetrics:
+def parse_attr_f1pr_file(
+    path: Path, *, expected_split: str, **expected: Any
+) -> AttrF1PRMetrics:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
-    return parse_attr_f1pr_payload(payload, expected_split=expected_split)
+    return parse_attr_f1pr_payload(
+        payload, expected_split=expected_split, **expected
+    )
 
 
 def _mock_evaluator_payload(
@@ -549,6 +791,10 @@ def _mock_evaluator_payload(
     *,
     split: str,
     graph_count: int = 8,
+    generation_seed: int | None = None,
+    evaluator_seed: int | None = None,
+    evaluator_repeats: int | None = None,
+    integrity: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     node_log = math.log10(parameters["alpha_node_feat"])
     edge_log = math.log10(parameters["alpha_edge_feat"])
@@ -559,11 +805,17 @@ def _mock_evaluator_payload(
     )
     precision = max(0.0, min(1.0, score + 0.01))
     recall = max(0.0, min(1.0, score - 0.01))
-    return {
+    payload = {
         "schema_version": "attributed-random-gin-v1",
         "split": split,
         "primary_mode": PRIMARY_MODE,
-        "graph_counts": {"accepted_per_collection": graph_count},
+        "generation_seed": generation_seed,
+        "evaluator_seed": evaluator_seed,
+        "graph_counts": {
+            "accepted_per_collection": graph_count,
+            "generated_accepted": graph_count,
+            "reference_accepted": graph_count,
+        },
         "feature_source": {
             "generated": "GraphVAE node_feature_decoder and edge_feature_decoder",
             "reference": "cached dataset node and edge one-hot attributes",
@@ -571,6 +823,8 @@ def _mock_evaluator_payload(
         },
         "evaluation": {
             "feature_dimensions": {"node": 4, "edge": 3},
+            "actual_decoder_output_dimensions": {"node": 4, "edge": 3},
+            "repeats": evaluator_repeats,
             "modes": {
                 PRIMARY_MODE: {
                     "summary": {
@@ -582,6 +836,18 @@ def _mock_evaluator_payload(
             },
         },
     }
+    if integrity is not None:
+        payload["integrity"] = dict(integrity)
+    return payload
+
+
+def _portable_path(path: Path, output_dir: Path, distributed: bool) -> str:
+    if not distributed:
+        return str(path.resolve())
+    try:
+        return path.resolve().relative_to(output_dir.resolve()).as_posix()
+    except ValueError as exc:
+        raise TrialExecutionError(f"Trial artifact escapes study root: {path}") from exc
 
 
 def _trial_environment(training_seed: int) -> dict[str, str]:
@@ -601,7 +867,25 @@ def execute_trial(
     split_seed: int,
 ) -> float:
     sampled_parameters = sample_search_space(trial, ranges)
+    distributed = bool(getattr(args, "distributed", False))
+    study_contract_sha256 = getattr(args, "study_contract_sha256", None)
+    budget_index = getattr(args, "budget_index", trial.user_attrs.get("budget_index"))
+    expected_graph_count = getattr(args, "expected_validation_graph_count", None)
+    integrity = dict(getattr(args, "integrity", {}) or {})
     trial_dir = create_trial_directory(output_dir, trial.number)
+    distributed_training_path = None
+    if distributed:
+        training_path = (trial_dir / "training").resolve()
+        try:
+            distributed_training_path = training_path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            if not args.mock:
+                raise TrialExecutionError(
+                    "Distributed artifact root must be beneath the deployed repository."
+                )
+            distributed_training_path = training_path.relative_to(
+                output_dir.resolve()
+            ).as_posix()
     resolved_config = resolve_trial_config(
         base_config,
         sampled_parameters,
@@ -610,6 +894,8 @@ def execute_trial(
         training_seed=args.training_seed,
         split_seed=split_seed,
         device=args.device,
+        require_existing_dataset_cache=distributed,
+        graph_save_path=distributed_training_path,
     )
     config_path = trial_dir / "resolved_config.yaml"
     write_yaml(config_path, resolved_config)
@@ -619,14 +905,33 @@ def execute_trial(
     evaluator_output_dir = (trial_dir / "validation_evaluation").resolve()
     result_path = trial_dir / "trial_result.json"
     started = time.monotonic()
+    started_at_unix = time.time()
     record: dict[str, Any] = {
-        "schema_version": "graphvae-attr-f1pr-bo-trial-v1",
+        "schema_version": "graphvae-attr-f1pr-bo-trial-v2",
         "objective": OBJECTIVE_NAME,
         "objective_json_path": OBJECTIVE_JSON_PATH,
         "trial_number": trial.number,
+        "budget_index": budget_index,
+        "study_contract_sha256": study_contract_sha256,
         "status": "RUNNING",
         "sampled_weights": sampled_parameters,
-        "resolved_config": str(config_path.resolve()),
+        "resolved_config": _portable_path(config_path, output_dir, distributed),
+        "resolved_config_sha256": sha256_file(config_path),
+        "host_local_trial_directory": str(trial_dir.resolve()),
+        "worker_id": getattr(args, "worker_id", None),
+        "worker_run_id": getattr(args, "worker_run_id", None),
+        "hostname": getattr(args, "hostname", None),
+        "physical_gpu": getattr(args, "physical_gpu", None),
+        "logical_device": args.device,
+        "gpu_model": getattr(args, "gpu_model", None),
+        "gpu_vram_bytes": getattr(args, "gpu_vram_bytes", None),
+        "sampler": "TPESampler",
+        "sampler_constant_liar": bool(getattr(args, "sampler_constant_liar", False)),
+        "sampler_seed": getattr(args, "sampler_seed", None),
+        "dispatch_sequence": getattr(args, "dispatch_sequence", None),
+        "tpe_startup_trials": getattr(args, "tpe_startup_trials", None),
+        "optuna_version": getattr(args, "optuna_version", None),
+        "db_driver_version": getattr(args, "db_driver_version", None),
         "training_seed": args.training_seed,
         "split_seed": split_seed,
         "generation_seed": args.generation_seed,
@@ -638,6 +943,8 @@ def execute_trial(
         "fixed_generated_graph_limit": args.max_graphs,
         "checkpoint": None,
         "checkpoint_sha256": None,
+        "evaluator_output_sha256": None,
+        "hashes": integrity,
         "validation_attr_f1pr": None,
         "validation_precision": None,
         "validation_recall": None,
@@ -646,6 +953,9 @@ def execute_trial(
         "evaluation_elapsed_seconds": None,
         "total_elapsed_seconds": None,
         "failure_reason": None,
+        "failure_phase": None,
+        "started_at_unix": started_at_unix,
+        "finished_at_unix": None,
     }
     write_json(result_path, record)
 
@@ -666,7 +976,9 @@ def execute_trial(
             training_elapsed = time.monotonic() - phase_started
             record.update(
                 {
-                    "checkpoint": str(checkpoint_path.resolve()),
+                    "checkpoint": _portable_path(
+                        checkpoint_path, output_dir, distributed
+                    ),
                     "checkpoint_sha256": sha256_file(checkpoint_path),
                     "training_elapsed_seconds": training_elapsed,
                 }
@@ -678,7 +990,19 @@ def execute_trial(
             evaluator_json_path = evaluator_output_dir / "attributed_random_gin.json"
             write_json(
                 evaluator_json_path,
-                _mock_evaluator_payload(sampled_parameters, split="validation"),
+                _mock_evaluator_payload(
+                    sampled_parameters,
+                    split="validation",
+                    graph_count=(
+                        int(expected_graph_count)
+                        if expected_graph_count is not None
+                        else 8
+                    ),
+                    generation_seed=args.generation_seed,
+                    evaluator_seed=args.evaluator_seed,
+                    evaluator_repeats=args.evaluator_repeats,
+                    integrity=integrity,
+                ),
             )
             (trial_dir / "evaluation_subprocess.log").write_text(
                 "Mock decoded_node_edge evaluation completed.\n", encoding="utf-8"
@@ -686,6 +1010,18 @@ def execute_trial(
             evaluation_elapsed = time.monotonic() - phase_started
         else:
             environment = _trial_environment(args.training_seed)
+            if distributed:
+                for secret_name in getattr(
+                    args,
+                    "secret_environment_names",
+                    (
+                        "GRAPHVAE_BO_STORAGE_URL",
+                        "GRAPHVAE_BO_TEST_STORAGE_URL",
+                        "PGPASSWORD",
+                        "PGPASSFILE",
+                    ),
+                ):
+                    environment.pop(secret_name, None)
             training_command = [
                 args.python_bin,
                 str(REPO_ROOT / "main.py"),
@@ -697,12 +1033,23 @@ def execute_trial(
                 log_path=trial_dir / "training_subprocess.log",
                 environment=environment,
                 timeout_seconds=args.training_timeout,
+                termination_grace_seconds=float(
+                    getattr(args, "process_termination_grace", 10.0)
+                ),
+                process_identity={
+                    "phase": "training",
+                    "study_contract_sha256": study_contract_sha256,
+                    "worker_run_id": getattr(args, "worker_run_id", None),
+                    "trial_number": trial.number,
+                },
             )
             checkpoint_path = discover_final_checkpoint(run_dir, epoch_number)
             validate_checkpoint_feature_heads(checkpoint_path)
             record.update(
                 {
-                    "checkpoint": str(checkpoint_path.resolve()),
+                    "checkpoint": _portable_path(
+                        checkpoint_path, output_dir, distributed
+                    ),
                     "checkpoint_sha256": sha256_file(checkpoint_path),
                     "training_elapsed_seconds": training_elapsed,
                 }
@@ -731,23 +1078,62 @@ def execute_trial(
                 log_path=trial_dir / "evaluation_subprocess.log",
                 environment=environment,
                 timeout_seconds=args.evaluation_timeout,
+                termination_grace_seconds=float(
+                    getattr(args, "process_termination_grace", 10.0)
+                ),
+                process_identity={
+                    "phase": "evaluation",
+                    "study_contract_sha256": study_contract_sha256,
+                    "worker_run_id": getattr(args, "worker_run_id", None),
+                    "trial_number": trial.number,
+                },
             )
             evaluator_json_path = evaluator_output_dir / "attributed_random_gin.json"
         record["evaluation_elapsed_seconds"] = evaluation_elapsed
-        record["evaluator_output"] = str(evaluator_json_path.resolve())
+        record["evaluator_output"] = _portable_path(
+            evaluator_json_path, output_dir, distributed
+        )
+        record["evaluator_output_sha256"] = sha256_file(evaluator_json_path)
         write_json(result_path, record)
 
         metrics = parse_attr_f1pr_file(
             evaluator_json_path,
             expected_split="validation",
+            expected_graph_count=expected_graph_count,
+            expected_cache_sha256=integrity.get("cache_sha256") if distributed else None,
+            expected_split_fingerprint=(
+                integrity.get("split_fingerprint") if distributed else None
+            ),
+            expected_node_schema_fingerprint=(
+                integrity.get("node_schema_fingerprint") if distributed else None
+            ),
+            expected_edge_schema_fingerprint=(
+                integrity.get("edge_schema_fingerprint") if distributed else None
+            ),
+            expected_node_feature_dimension=(
+                getattr(args, "expected_node_feature_dimension", None)
+                if distributed
+                else None
+            ),
+            expected_edge_feature_dimension=(
+                getattr(args, "expected_edge_feature_dimension", None)
+                if distributed
+                else None
+            ),
+            expected_generation_seed=args.generation_seed if distributed else None,
+            expected_evaluator_seed=args.evaluator_seed if distributed else None,
+            expected_repeats=args.evaluator_repeats if distributed else None,
         )
         checkpoint_hash = sha256_file(checkpoint_path)
         record.update(
             {
                 "status": "COMPLETE",
-                "checkpoint": str(checkpoint_path.resolve()),
+                "checkpoint": _portable_path(checkpoint_path, output_dir, distributed),
                 "checkpoint_sha256": checkpoint_hash,
-                "evaluator_output": str(evaluator_json_path.resolve()),
+                "evaluator_output": _portable_path(
+                    evaluator_json_path, output_dir, distributed
+                ),
+                "evaluator_output_sha256": sha256_file(evaluator_json_path),
                 "validation_attr_f1pr": metrics.f1_pr,
                 "validation_precision": metrics.precision,
                 "validation_recall": metrics.recall,
@@ -755,6 +1141,7 @@ def execute_trial(
                 "training_elapsed_seconds": training_elapsed,
                 "evaluation_elapsed_seconds": evaluation_elapsed,
                 "total_elapsed_seconds": time.monotonic() - started,
+                "finished_at_unix": time.time(),
             }
         )
         for key in (
@@ -762,6 +1149,7 @@ def execute_trial(
             "checkpoint",
             "checkpoint_sha256",
             "evaluator_output",
+            "evaluator_output_sha256",
             "training_elapsed_seconds",
             "evaluation_elapsed_seconds",
             "validation_precision",
@@ -775,6 +1163,11 @@ def execute_trial(
         trial.set_user_attr("generation_seed", args.generation_seed)
         trial.set_user_attr("evaluator_seed", args.evaluator_seed)
         trial.set_user_attr("evaluator_repeats", args.evaluator_repeats)
+        trial.set_user_attr(
+            "trial_result", _portable_path(result_path, output_dir, distributed)
+        )
+        if study_contract_sha256 is not None:
+            trial.set_user_attr("study_contract_sha256", study_contract_sha256)
         write_json(result_path, record)
         return metrics.f1_pr
     except Exception as exc:
@@ -787,13 +1180,22 @@ def execute_trial(
             {
                 "status": "FAIL",
                 "failure_reason": f"{type(exc).__name__}: {exc}",
+                "failure_phase": phase,
+                "exception_type": type(exc).__name__,
+                "exception_message": str(exc),
                 "failure_traceback": traceback.format_exc(),
                 "total_elapsed_seconds": time.monotonic() - started,
+                "finished_at_unix": time.time(),
             }
         )
         trial.set_user_attr("failure_reason", record["failure_reason"])
-        trial.set_user_attr("resolved_config", str(config_path.resolve()))
-        trial.set_user_attr("trial_result", str(result_path.resolve()))
+        trial.set_user_attr("failure_phase", phase)
+        trial.set_user_attr(
+            "resolved_config", _portable_path(config_path, output_dir, distributed)
+        )
+        trial.set_user_attr(
+            "trial_result", _portable_path(result_path, output_dir, distributed)
+        )
         trial.set_user_attr(
             "training_elapsed_seconds", record["training_elapsed_seconds"]
         )
@@ -813,6 +1215,44 @@ def sqlite_storage_url(database_path: Path) -> str:
     return "sqlite:///" + database_path.resolve().as_posix()
 
 
+def create_storage(
+    *,
+    database_path: Path | None = None,
+    storage_url: str | None = None,
+    distributed: bool = False,
+    heartbeat_interval: int = 60,
+    grace_period: int = 600,
+    connect_timeout: int = 15,
+    allow_insecure_local_test: bool = False,
+    allow_sslmode_require_exception: bool = False,
+):
+    """Construct storage independently from study/sampler construction."""
+
+    require_optuna()
+    if distributed:
+        if database_path is not None or storage_url is None:
+            raise ValueError("Distributed storage requires only a PostgreSQL URL.")
+        try:
+            from graphvae_attr_bo_distributed import create_postgresql_storage
+        except ImportError:
+            from scripts.graphvae_attr_bo_distributed import create_postgresql_storage
+        return create_postgresql_storage(
+            storage_url,
+            heartbeat_interval=heartbeat_interval,
+            grace_period=grace_period,
+            connect_timeout=connect_timeout,
+            allow_insecure_local_test=allow_insecure_local_test,
+            allow_sslmode_require_exception=allow_sslmode_require_exception,
+        )
+    if database_path is None or storage_url is not None:
+        raise ValueError("Serial storage requires only a local SQLite database path.")
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    return optuna.storages.RDBStorage(
+        url=sqlite_storage_url(database_path),
+        engine_kwargs={"connect_args": {"timeout": 60}},
+    )
+
+
 def create_or_load_study(
     *,
     database_path: Path,
@@ -821,11 +1261,7 @@ def create_or_load_study(
     startup_trials: int,
 ):
     require_optuna()
-    database_path.parent.mkdir(parents=True, exist_ok=True)
-    storage = optuna.storages.RDBStorage(
-        url=sqlite_storage_url(database_path),
-        engine_kwargs={"connect_args": {"timeout": 60}},
-    )
+    storage = create_storage(database_path=database_path)
     existing_trial_count = 0
     for summary in optuna.study.get_all_study_summaries(storage=storage):
         if summary.study_name == study_name:
@@ -893,38 +1329,43 @@ def write_study_outputs(
 ) -> Any | None:
     output_dir.mkdir(parents=True, exist_ok=True)
     trials = study.get_trials(deepcopy=False)
-    with (output_dir / "trials.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=TRIAL_CSV_FIELDS)
-        writer.writeheader()
-        for trial in trials:
-            attrs = trial.user_attrs
-            writer.writerow(
-                {
-                    "trial_number": trial.number,
-                    "state": trial.state.name,
-                    "validation_attr_f1pr": trial.value,
-                    "alpha_node_feat": trial.params.get("alpha_node_feat"),
-                    "alpha_edge_feat": trial.params.get("alpha_edge_feat"),
-                    "alpha_motif_loss": trial.params.get("alpha_motif_loss"),
-                    "validation_precision": attrs.get("validation_precision"),
-                    "validation_recall": attrs.get("validation_recall"),
-                    "accepted_validation_graphs": attrs.get("accepted_validation_graphs"),
-                    "training_elapsed_seconds": attrs.get("training_elapsed_seconds"),
-                    "evaluation_elapsed_seconds": attrs.get("evaluation_elapsed_seconds"),
-                    "resolved_config": attrs.get("resolved_config"),
-                    "checkpoint": attrs.get("checkpoint"),
-                    "checkpoint_sha256": attrs.get("checkpoint_sha256"),
-                    "failure_reason": attrs.get("failure_reason"),
-                }
-            )
+    csv_buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(csv_buffer, fieldnames=TRIAL_CSV_FIELDS)
+    writer.writeheader()
+    for trial in trials:
+        attrs = trial.user_attrs
+        writer.writerow(
+            {
+                "trial_number": trial.number,
+                "state": trial.state.name,
+                "validation_attr_f1pr": trial.value,
+                "alpha_node_feat": trial.params.get("alpha_node_feat"),
+                "alpha_edge_feat": trial.params.get("alpha_edge_feat"),
+                "alpha_motif_loss": trial.params.get("alpha_motif_loss"),
+                "validation_precision": attrs.get("validation_precision"),
+                "validation_recall": attrs.get("validation_recall"),
+                "accepted_validation_graphs": attrs.get("accepted_validation_graphs"),
+                "training_elapsed_seconds": attrs.get("training_elapsed_seconds"),
+                "evaluation_elapsed_seconds": attrs.get("evaluation_elapsed_seconds"),
+                "resolved_config": attrs.get("resolved_config"),
+                "checkpoint": attrs.get("checkpoint"),
+                "checkpoint_sha256": attrs.get("checkpoint_sha256"),
+                "failure_reason": attrs.get("failure_reason"),
+            }
+        )
+    atomic_write_bytes(
+        output_dir / "trials.csv", csv_buffer.getvalue().encode("utf-8")
+    )
 
     complete = completed_finite_trials(study)
     best_trial = max(complete, key=lambda item: float(item.value)) if complete else None
     if best_trial is None:
-        (output_dir / "SUMMARY.md").write_text(
-            "# GraphVAE Attr-F1PR Bayesian Optimization\n\n"
-            "No trial has completed with a finite validation Attr-F1PR.\n",
-            encoding="utf-8",
+        atomic_write_bytes(
+            output_dir / "SUMMARY.md",
+            (
+                "# GraphVAE Attr-F1PR Bayesian Optimization\n\n"
+                "No trial has completed with a finite validation Attr-F1PR.\n"
+            ).encode("utf-8"),
         )
         return None
 
@@ -959,15 +1400,17 @@ def write_study_outputs(
     weights = ", ".join(
         f"{key}={value:.8g}" for key, value in sorted(best_trial.params.items())
     )
-    (output_dir / "SUMMARY.md").write_text(
-        "# GraphVAE Attr-F1PR Bayesian Optimization\n\n"
-        f"- Study: `{study.study_name}`\n"
-        f"- Best trial: `{best_trial.number}`\n"
-        f"- Best weights: `{weights}`\n"
-        f"- Validation Attr-F1PR: `{float(best_trial.value):.6f}`\n"
-        f"- Objective path: `{OBJECTIVE_JSON_PATH}`\n"
-        "- Test split evaluated during optimization: `no`\n",
-        encoding="utf-8",
+    atomic_write_bytes(
+        output_dir / "SUMMARY.md",
+        (
+            "# GraphVAE Attr-F1PR Bayesian Optimization\n\n"
+            f"- Study: `{study.study_name}`\n"
+            f"- Best trial: `{best_trial.number}`\n"
+            f"- Best weights: `{weights}`\n"
+            f"- Validation Attr-F1PR: `{float(best_trial.value):.6f}`\n"
+            f"- Objective path: `{OBJECTIVE_JSON_PATH}`\n"
+            "- Test split evaluated during optimization: `no`\n"
+        ).encode("utf-8"),
     )
     return best_trial
 
@@ -1113,6 +1556,39 @@ def evaluate_best_on_test(args: argparse.Namespace) -> int:
         )
     with best_path.open("r", encoding="utf-8") as handle:
         best = json.load(handle)
+    distributed = bool(best.get("distributed", False))
+    if distributed:
+        frozen_path = output_dir / "FROZEN.json"
+        if not frozen_path.is_file():
+            raise RuntimeError(
+                "Distributed final-test evaluation requires a valid FROZEN.json."
+            )
+        frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
+        if (
+            frozen.get("lifecycle") != "FROZEN"
+            or frozen.get("study_contract_sha256")
+            != best.get("study_contract_sha256")
+            or frozen.get("best_trial_number") != best.get("trial_number")
+        ):
+            raise RuntimeError("Frozen marker and selected study contract differ.")
+        snapshot_path = output_dir / frozen.get(
+            "snapshot", "study_snapshot.sqlite3"
+        )
+        if not snapshot_path.is_file():
+            raise RuntimeError("Distributed final-test evaluation requires the audited snapshot.")
+        require_optuna()
+        frozen_study = optuna.load_study(
+            study_name=best["study_name"],
+            storage=sqlite_storage_url(snapshot_path),
+        )
+        if frozen_study.user_attrs.get("graphvae_bo_lifecycle") != "FROZEN":
+            raise RuntimeError("Portable study snapshot is not frozen.")
+        if any(
+            trial.user_attrs.get("graphvae_bo_reserved") is True
+            and trial.state in {TrialState.WAITING, TrialState.RUNNING}
+            for trial in frozen_study.get_trials(deepcopy=False)
+        ):
+            raise RuntimeError("Final-test evaluation refuses active reservations.")
     for name in (
         "training_seed",
         "generation_seed",
@@ -1121,8 +1597,16 @@ def evaluate_best_on_test(args: argparse.Namespace) -> int:
     ):
         if not args.seed_arguments_provided[name] and best.get(name) is not None:
             setattr(args, name, int(best[name]))
-    checkpoint_path = Path(best["checkpoint"]).resolve()
-    config_path = Path(best.get("best_config", best["resolved_config"])).resolve()
+    checkpoint_path = Path(best["checkpoint"])
+    config_path = Path(best.get("best_config", best["resolved_config"]))
+    if distributed:
+        checkpoint_path = (output_dir / checkpoint_path).resolve()
+        config_path = (output_dir / config_path).resolve()
+        checkpoint_path.relative_to(output_dir)
+        config_path.relative_to(output_dir)
+    else:
+        checkpoint_path = checkpoint_path.resolve()
+        config_path = config_path.resolve()
     if sha256_file(checkpoint_path) != best["checkpoint_sha256"]:
         raise RuntimeError("Selected checkpoint hash no longer matches best_trial.json.")
     if args.mock:
