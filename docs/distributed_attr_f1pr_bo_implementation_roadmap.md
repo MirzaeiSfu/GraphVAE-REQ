@@ -1226,6 +1226,30 @@ HBA routing are therefore qualified. Credential-protected authenticated access,
 firewall persistence, and Optuna concurrent state tests remain before Gate 2 is
 complete.
 
+### Local Gate 1/2 qualification follow-up (2026-08-23)
+
+The completed Section 14 implementation passed the mandatory fast local suite
+in the qualified `micro` environment: `118 passed, 14 deselected`. The
+deselected cases were the separately gated PostgreSQL, remote, GPU, and slow
+tests; no mandatory Gate 1 case was skipped. Targeted Python compilation, shell
+syntax, and Git whitespace checks also passed.
+
+Gate 2 was then run against a disposable PostgreSQL 16.15 cluster bound only to
+`127.0.0.1`. The cluster used a unique temporary data directory, and each test
+created and deleted only its own UUID-named Optuna study. All fourteen selected
+PostgreSQL tests passed with no skips. This includes P01-P11 and the local
+actual-worker cases L01, L02, and L04, covering empty reservation claims,
+multi-process allocation, interrupted initialization, oversubscription guards,
+deterministic constant-liar TPE settings, heartbeat expiry, outage-before-claim,
+controller advisory locking, portable snapshot reopening, and failed startup
+observations. The temporary server was stopped and its data directory removed
+after the run.
+
+This result qualifies the implemented native PostgreSQL state machine locally.
+It does not authorize remote credentials, replace the required remote
+`sslmode=verify-full` preflight, prove firewall-rule persistence, launch remote
+GraphVAE training, or approve a pilot or production study.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1242,12 +1266,11 @@ design questions:
   logging credentials;
 - make the current exact `/32` port-5432 firewall rules persistent in the
   Ansible-managed source or through SFU research support;
-- implement and pass Gate 1 locally;
-- run Gate 2's real PostgreSQL reservation/concurrency/heartbeat/resumption
-  suite before any remote GraphVAE training;
+- build and qualify the canonical tiny cache, deployment manifest, artifact
+  transport, and launcher dry-run in Gate 3;
 - normalize the runtime environment and stage verified source/cache inputs
   before Gates 4-6.
 
-Implementation should now begin at Section 14 and Gate 1. Credential deployment
-is not required for local coding and PostgreSQL tests on `cs-cl-18`; it is
-required before the first remote worker acceptance test.
+Section 14, Gate 1, and local Gate 2 are complete. Credential deployment is not
+required for Gate 3's local coding and dry-run tests; it is required before the
+first remote worker acceptance test in Gate 4.
