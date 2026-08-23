@@ -1,0 +1,5 @@
+# HOST GPU WORKER_ID
+# Three intended TITAN RTX slots for bounded non-QM9 Gate 6 qualification.
+cs-cl-13 0 cs-cl-13-gate6-gpu0
+cs-cl-17 0 cs-cl-17-gate6-gpu0
+cs-cl-17 1 cs-cl-17-gate6-gpu1

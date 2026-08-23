@@ -1843,6 +1843,50 @@ UUID-named study. This is interface qualification only: no Gate 6 study or GPU
 training has started, and the protected qualification credentials still must
 be rotated before R08.
 
+### Gate 6 authorization, credentials, and staging contract (2026-08-23)
+
+The user subsequently authorized every remaining roadmap action except
+full-QM9 Bayesian optimization. This authorizes the non-QM9 Gate 6 R08 and
+pilot, clean-snapshot R09, and the separate explicit post-freeze LOBSTER R10
+held-out evaluation. It does not authorize the Gate 7 30-reservation QM9 study
+or any substitute presented as a QM9 production result.
+
+Before any Gate 6 study was created, the dedicated PostgreSQL role password was
+rotated with a generated value that was never written to the repository or
+printed. A new protected `gate6` generation was created outside all repository,
+source, cache, and artifact roots. The controller verified the new generation
+through the `verify-full` storage constructor and separately proved the Gate 5
+password is rejected. Only `cs-cl-13` and `cs-cl-17` received the Gate 6 worker
+generation. All three protected directories are mode `0700`; environment,
+`PGPASSFILE`, CA, and rotation-metadata files are mode `0600`.
+
+The initial protected worker template inherited controller-side Gate 4
+`TMPDIR` and Matplotlib paths. Remote authentication still passed, but creation
+of those paths correctly failed. Before any source deployment or study, the
+controller and worker path variables were atomically changed to dedicated
+Gate 6 trees. Both workers now verify those host-local paths and their mode
+`0700`; no Python fallback is accepted as the Gate 6 runtime contract.
+
+The committed Gate 6 mappings select dedicated repository roots at
+`/local-scratch/graphvae-req-work/GraphVAE-REQ-gate6-lobster`, the pinned
+`micro` Python, and exactly these three intended TITAN RTX slots:
+
+- `cs-cl-13` physical GPU 0 as `cs-cl-13-gate6-gpu0`;
+- `cs-cl-17` physical GPU 0 as `cs-cl-17-gate6-gpu0`;
+- `cs-cl-17` physical GPU 1 as `cs-cl-17-gate6-gpu1`.
+
+R08 will use the fresh study
+`lobster_attr_f1pr_gate6_r08_fixed_20260823a`, exactly three reservations,
+`max_parallel=3`, sampler seed 43, and the predeclared fixed parameters
+`alpha_node_feat=2.0` and `alpha_edge_feat=3.0`. One bounded real LOBSTER smoke
+trial will run on each slot in one wave. The separate pilot will use
+`lobster_attr_f1pr_gate6_pilot_20260823a`, exactly five reservations,
+`max_parallel=3`, and sampler seed 47. Both retain the committed two-epoch
+LOBSTER smoke configuration, eight-graph validation limit, five repeats,
+600-second phase limits, exact validation objective, both attribute decoders,
+and `skip_final_evaluation=true`. R09 and R10 may begin only after that pilot is
+audited and frozen.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1874,6 +1918,7 @@ passes with separate frozen definite-prelaunch and post-launch-ambiguity mock
 studies. R07 passes with one consumed failed reservation, exact orphan cleanup,
 native stale reconciliation, and a verified tombstone. The final full-suite,
 isolated PostgreSQL, cross-study snapshot/artifact, cache, and redaction audits
-all pass, so Gate 5 is complete. Gate 6 and later gates remain unstarted, and
-credentials must be rotated before any pilot or production use. Full QM9 BO
-remains blocked pending a separately reviewed staged or multi-fidelity budget.
+all pass, so Gate 5 is complete. Gate 6 preparation has begun: credentials are
+rotated, the three-slot mapping and bounded non-QM9 study contracts are frozen,
+and no Gate 6 study has yet been created. Gate 7/full-QM9 BO remains explicitly
+excluded. R08 source/cache/runtime deployment qualification is next.

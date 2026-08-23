@@ -1,0 +1,4 @@
+# Dedicated non-QM9 Gate 6 qualification deployment. Do not reuse Gate 4,
+# Gate 5, or unmanaged general-purpose GraphVAE-REQ copies.
+cs-cl-13 /local-scratch/graphvae-req-work/GraphVAE-REQ-gate6-lobster
+cs-cl-17 /local-scratch/graphvae-req-work/GraphVAE-REQ-gate6-lobster

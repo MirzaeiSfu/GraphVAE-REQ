@@ -1,0 +1,3 @@
+# Pinned Python environment to requalify on every Gate 6 worker host.
+cs-cl-13 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-17 /localhome/mirzaei/miniconda3/envs/micro/bin/python
