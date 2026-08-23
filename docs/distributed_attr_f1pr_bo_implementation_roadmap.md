@@ -1547,6 +1547,47 @@ exactly one NVIDIA TITAN RTX at logical `cuda:0`. This step created no study,
 claimed no reservation, launched no worker, trained no model, and performed no
 held-out evaluation. The qualified deployment is restricted to R04-R07.
 
+### Gate 5 R04 two-host mock concurrency follow-up (2026-08-23)
+
+The fresh immutable mock study
+`lobster_attr_f1pr_gate5_r04_mock_20260823a` used committed source
+`26ed2863fb356c46113fca3a0a81666f625e732a` and contract SHA-256
+`75e845870b041c8f39d442ee8629cd103517a57ca6f91be946ab46ef3c06edd9`.
+It reserved exactly two scientific slots with `max_parallel=2`, heartbeat 60,
+grace 600, startup target five, and no replacement of failed reservations.
+Before launch, PostgreSQL reported exactly two reserved `WAITING` trials and no
+other row.
+
+One bounded wave launched `cs-cl-13-gate5-gpu0-dispatch-1000000` and
+`cs-cl-17-gate5-gpu0-dispatch-1000001` on the two dedicated physical GPU 0
+slots. Their recorded worker lifetimes overlapped by approximately 2.216
+seconds. PostgreSQL assigned distinct trial numbers and budget indexes 0 and 1;
+the SHA-256 seed derivation reproduced dispatch seeds 2,935,504,862 and
+1,180,592,659 exactly. Both workers recorded the frozen runtime fingerprint,
+NVIDIA TITAN RTX identity, logical `cuda:0`, and separate artifact identities.
+
+Both reservations reached `COMPLETE` with no locking error, `FAIL`,
+`WAITING`, `RUNNING`, unreserved guard row, duplicate, or replacement. Their
+deterministic mock validation Attr-F1PR values were 0.6760063945173143 and
+0.8995487816889531. Both artifacts use the exact
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean` objective, validation
+split, five repeats, eight accepted graphs, both attribute decoders, and the
+frozen 14-node/11-edge schemas. These mock values qualify orchestration only and
+are not model-quality evidence; parallel proposal order remains explicitly
+non-replayable.
+
+Checksum collection from both hosts merged without a differing collision.
+Controller audit accepted both trial and worker marker trees, finalized the
+study as `FROZEN`, and atomically published a portable SQLite snapshot. An
+independent reopen reproduced both `COMPLETE` trials, best trial 1, and semantic
+study fingerprint
+`626021351641f9c5960072823cf8e76f632257750fc564aaf9a52d060f3d1599`;
+the live PostgreSQL study matched that fingerprint exactly. Credential-material
+and generic storage-URL scans passed, optimization retained
+`test_access=false`, and no final-test artifact exists. Both remote caches
+remain mode `0444`, size 59,295,793 bytes, with unchanged SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1572,7 +1613,8 @@ authenticated `verify-full` preflight, source/cache staging, GPU isolation,
 collection, audit, freeze, and restore all pass on the one approved Gate 4 slot.
 Gate 5 is authorized, its dedicated two-host mapping is frozen, and protected
 authentication plus source/cache/runtime/GPU qualification now pass on both
-workers. No Gate 5 study has yet been initialized; R04 is the next step. Gate 6
+workers. R04 now passes with its separate frozen two-reservation mock study;
+R05 is the next step and requires a different fresh real LOBSTER study. Gate 6
 and later gates remain unstarted, and credentials must be rotated before any
 pilot or production use. Full QM9 BO remains blocked pending a separately
 reviewed staged or multi-fidelity budget.
