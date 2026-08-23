@@ -177,6 +177,7 @@ def test_shell_launchers_parse_and_offer_safe_staging_modes():
     )
     assert "--bo-cache-manifest" in distribute_help
     assert "--host HOST" in distribute_help
+    assert "--local-python PATH" in distribute_help
     assert "--exact-destination" in collect_help
 
 
@@ -228,6 +229,51 @@ def test_code_distributor_rejects_unknown_selected_host(tmp_path):
     )
     assert result.returncode == 2
     assert "No repo-path entry found for selected host: missing-worker" in result.stderr
+
+
+def test_code_distributor_stops_before_transfer_when_manifest_build_fails(tmp_path):
+    source = tmp_path / "source"
+    scripts = source / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "graphvae_attr_bo_fingerprints.py").write_text(
+        "raise SystemExit(9)\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q", str(source)], check=True)
+    subprocess.run(
+        ["git", "-C", str(source), "config", "user.email", "test@example.invalid"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(source), "config", "user.name", "Test User"],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(source), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(source), "commit", "-q", "-m", "fixture"],
+        check=True,
+    )
+    repo_paths = tmp_path / "repo_paths.txt"
+    repo_paths.write_text("worker-a /srv/graphvae-a\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts" / "cluster_distribute_code.sh"),
+            "--repo-paths",
+            str(repo_paths),
+            "--code-source",
+            str(source),
+            "--local-python",
+            "/bin/false",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 2
+    assert "nothing was transferred" in result.stderr
+    assert "-> worker-a:" not in result.stdout
 
 
 def test_gate4_mappings_select_exactly_one_approved_slot():

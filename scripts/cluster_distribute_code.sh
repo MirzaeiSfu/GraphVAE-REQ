@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -u
+set -uo pipefail
 
 REPO_PATHS_FILE="CLUSTER_REPO_PATHS.txt"
 CODE_SOURCE_DIR="."
@@ -32,6 +32,7 @@ Options:
   --sync-path PATH           Extra/replacement path to sync; repeatable
   --bo-cache PATH            Stage this prebuilt BO dataset cache with checksums
   --bo-cache-manifest FILE   Manifest for --bo-cache; both options are required
+  --local-python PATH        Python used to build the deployment manifest
   --remote-python PATH       Python used for remote manifest verification
   --ssh-connect-timeout SEC  SSH connection timeout
   --dry-run                  Print commands without running them
@@ -131,6 +132,10 @@ while (($#)); do
       BO_CACHE_MANIFEST="$2"
       shift 2
       ;;
+    --local-python)
+      PYTHON_BIN="$2"
+      shift 2
+      ;;
     --remote-python)
       REMOTE_PYTHON_BIN="$2"
       shift 2
@@ -176,8 +181,12 @@ if [[ -n "$BO_CACHE_PATH" || -n "$BO_CACHE_MANIFEST" ]]; then
     echo "BO cache or cache manifest is missing." >&2
     exit 2
   fi
-  expected_cache_sha="$($PYTHON_BIN -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sha256"])' "$BO_CACHE_MANIFEST")"
-  cache_relative_path="$($PYTHON_BIN -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["relative_path"])' "$BO_CACHE_MANIFEST")"
+  if ! cache_contract="$($PYTHON_BIN -c 'import json,sys; value=json.load(open(sys.argv[1], encoding="utf-8")); print(value["sha256"]); print(value["relative_path"])' "$BO_CACHE_MANIFEST")"; then
+    echo "Local Python could not read the BO cache manifest: $PYTHON_BIN" >&2
+    exit 2
+  fi
+  expected_cache_sha="${cache_contract%%$'\n'*}"
+  cache_relative_path="${cache_contract#*$'\n'}"
   if [[ "$cache_relative_path" == /* || "$cache_relative_path" == ".." || "$cache_relative_path" == ../* || "$cache_relative_path" == */../* ]]; then
     echo "BO cache manifest relative_path is unsafe: $cache_relative_path" >&2
     exit 2
@@ -191,8 +200,15 @@ fi
 
 DEPLOYMENT_MANIFEST_TMP="$(mktemp "${TMPDIR:-/tmp}/graphvae-bo-deployment.XXXXXX.json")"
 trap '[[ -n "$DEPLOYMENT_MANIFEST_TMP" ]] && rm -f "$DEPLOYMENT_MANIFEST_TMP"' EXIT
-run_cmd "$PYTHON_BIN" "$CODE_SOURCE_DIR_ABS/scripts/graphvae_attr_bo_fingerprints.py" \
-  --deployment-root "$CODE_SOURCE_DIR_ABS" --output "$DEPLOYMENT_MANIFEST_TMP"
+if ! run_cmd "$PYTHON_BIN" "$CODE_SOURCE_DIR_ABS/scripts/graphvae_attr_bo_fingerprints.py" \
+  --deployment-root "$CODE_SOURCE_DIR_ABS" --output "$DEPLOYMENT_MANIFEST_TMP"; then
+  echo "Local deployment manifest generation failed; nothing was transferred." >&2
+  exit 2
+fi
+if [[ "$DRY_RUN" == false && ! -s "$DEPLOYMENT_MANIFEST_TMP" ]]; then
+  echo "Local deployment manifest is empty; nothing was transferred." >&2
+  exit 2
+fi
 
 if [[ "$SYNC_INPUTS" == true ]]; then
   for sync_path in "${SYNC_PATHS[@]}"; do
@@ -290,7 +306,10 @@ EOF
     remote_cache_path="${repo_path%/}/$cache_relative_path"
     remote_cache_dir="$(dirname "$remote_cache_path")"
     cache_name="$(basename "$remote_cache_path")"
-    run_cmd ssh -n "${SSH_OPTS[@]}" "$host" mkdir -p "$remote_cache_dir"
+    if ! run_cmd ssh -n "${SSH_OPTS[@]}" "$host" mkdir -p "$remote_cache_dir"; then
+      failures=$((failures + 1))
+      continue
+    fi
     if ! run_cmd rsync -azc -e "$RSYNC_SSH_CMD" "$BO_CACHE_PATH" "$host:$remote_cache_dir/$cache_name"; then
       failures=$((failures + 1))
       continue

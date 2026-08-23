@@ -1389,6 +1389,13 @@ launch, records launch intent before SSH, and quotes the complete worker shell a
 tmux's single command argument. A new study name is required for the passing R02
 rerun; the consumed failed reservation is never replaced or rewritten.
 
+The first source restage after this change also failed closed when the
+distributor's implicit local `python` lacked NumPy. Remote deployment-manifest
+verification rejected the resulting empty file before worker launch. The
+distributor now accepts an explicit `--local-python`, treats manifest-generation
+failure or an empty manifest as fatal before any transport, and checks remote
+cache-directory creation before copying cache bytes.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
