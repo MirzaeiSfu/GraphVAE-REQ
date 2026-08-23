@@ -23,7 +23,10 @@ REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
-from graphvae_attr_bo_distributed import atomic_write_json  # noqa: E402
+from graphvae_attr_bo_distributed import (  # noqa: E402
+    DistributedContractError,
+    atomic_write_json,
+)
 from graphvae_attr_bo_fingerprints import (  # noqa: E402
     FINGERPRINT_SCHEMA_VERSION,
     feature_schema_fingerprint,
@@ -136,11 +139,58 @@ def build_cache_manifest(
     }
 
 
+def verify_cache_manifest(
+    cache_path: Path,
+    cache: dict[str, Any],
+    expected: dict[str, Any],
+) -> dict[str, Any]:
+    """Recompute and compare every staged cache and schema identity."""
+
+    if expected.get("schema_version") != "graphvae-attr-f1pr-cache-manifest-v1":
+        raise DistributedContractError("Unsupported cache manifest schema version.")
+    expected_metadata = expected.get("cache_metadata")
+    if not isinstance(expected_metadata, dict):
+        raise DistributedContractError("Cache manifest has no validated metadata.")
+    validate_dataset_cache_metadata(cache, expected_metadata, cache_path)
+    expected_count = int(expected.get("expected_validation_graphs", 0))
+    if expected_count < 3:
+        raise DistributedContractError(
+            "Cache manifest must require at least three validation graphs."
+        )
+    actual = build_cache_manifest(cache_path, cache, max_graphs=expected_count)
+    for field in (
+        "schema_version",
+        "fingerprint_schema_version",
+        "relative_path",
+        "filename",
+        "byte_length",
+        "sha256",
+        "cache_metadata",
+        "split_mode",
+        "splits",
+        "split_fingerprint",
+        "expected_validation_graphs",
+        "node_feature_dimension",
+        "edge_feature_dimension",
+        "node_schema",
+        "edge_schema",
+        "node_schema_fingerprint",
+        "edge_schema_fingerprint",
+    ):
+        if actual.get(field) != expected.get(field):
+            raise DistributedContractError(f"Cache manifest mismatch for {field}.")
+    if actual != expected:
+        raise DistributedContractError("Cache manifest contains unexpected fields.")
+    return actual
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-config", type=Path, required=True)
+    parser.add_argument("--base-config", type=Path, default=None)
     parser.add_argument("--cache-path", type=Path, default=None)
-    parser.add_argument("--output", type=Path, required=True)
+    publication = parser.add_mutually_exclusive_group(required=True)
+    publication.add_argument("--output", type=Path)
+    publication.add_argument("--verify-manifest", type=Path)
     parser.add_argument("--max-graphs", type=int, default=0)
     parser.add_argument("--make-read-only", action="store_true")
     return parser.parse_args(argv)
@@ -150,12 +200,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     if args.max_graphs in {1, 2} or args.max_graphs < 0:
         raise ValueError("--max-graphs must be 0 or at least 3.")
-    config = flatten_config(load_yaml_mapping(args.base_config))
+    expected_manifest = (
+        None
+        if args.verify_manifest is None
+        else json.loads(args.verify_manifest.read_text(encoding="utf-8"))
+    )
+    config = (
+        None
+        if args.base_config is None
+        else flatten_config(load_yaml_mapping(args.base_config))
+    )
     cache_path = (
         args.cache_path.expanduser().resolve()
         if args.cache_path is not None
-        else dataset_cache_path(config).expanduser().resolve()
+        else (
+            dataset_cache_path(config).expanduser().resolve()
+            if config is not None
+            else None
+        )
     )
+    if cache_path is None:
+        raise ValueError("--cache-path is required without --base-config.")
     if not cache_path.is_file():
         raise FileNotFoundError(
             f"Required existing dataset cache not found: {cache_path}. "
@@ -164,17 +229,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     before = (cache_path.stat().st_size, cache_path.stat().st_mtime_ns, sha256_file(cache_path))
     with cache_path.open("rb") as handle:
         cache = pickle.load(handle)
-    validate_dataset_cache_metadata(
-        cache, build_dataset_cache_metadata(config), cache_path
-    )
-    manifest = build_cache_manifest(cache_path, cache, max_graphs=args.max_graphs)
+    if config is not None:
+        validate_dataset_cache_metadata(
+            cache, build_dataset_cache_metadata(config), cache_path
+        )
+    if expected_manifest is None:
+        if config is None:
+            raise ValueError("--base-config is required when creating a manifest.")
+        manifest = build_cache_manifest(cache_path, cache, max_graphs=args.max_graphs)
+    else:
+        manifest = verify_cache_manifest(cache_path, cache, expected_manifest)
     after = (cache_path.stat().st_size, cache_path.stat().st_mtime_ns, sha256_file(cache_path))
     if before != after:
         raise RuntimeError("Dataset cache changed while its manifest was being built.")
-    atomic_write_json(args.output, manifest)
+    if args.output is not None:
+        atomic_write_json(args.output, manifest)
     if args.make_read_only:
         cache_path.chmod(cache_path.stat().st_mode & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
-    print(json.dumps({"manifest": str(args.output.resolve()), "sha256": manifest["sha256"]}))
+    manifest_path = args.output if args.output is not None else args.verify_manifest
+    print(
+        json.dumps(
+            {
+                "manifest": str(manifest_path.resolve()),
+                "sha256": manifest["sha256"],
+                "verified": args.verify_manifest is not None,
+            }
+        )
+    )
     return 0
 
 

@@ -65,6 +65,7 @@ from graphvae_attr_bo_distributed import (  # noqa: E402
     validate_identifier,
     validate_study_contract,
     worker_run_id,
+    write_failure_tombstone,
 )
 from graphvae_attr_bo_fingerprints import deployment_manifest  # noqa: E402
 from tune_graphvae_attribute_weights import (  # noqa: E402
@@ -938,6 +939,74 @@ def _assert_workers_reconciled(study: Any, output_dir: Path) -> None:
             )
 
 
+def _reconcile_terminal_failures_without_results(
+    study: Any,
+    output_dir: Path,
+    definition: Mapping[str, Any],
+) -> None:
+    """Publish tombstones only for DB-terminal reserved failures with no result."""
+
+    contract_hash = canonical_contract_hash(definition)
+    worker_root = output_dir / "workers"
+    for trial in study.get_trials(deepcopy=False):
+        attrs = trial.user_attrs
+        if attrs.get(RESERVED_ATTR) is not True or trial.state.name != "FAIL":
+            continue
+        trial_result = attrs.get("trial_result") or (
+            f"trials/trial_{trial.number:05d}/trial_result.json"
+        )
+        result_path = resolve_artifact_path(output_dir, trial_result)
+        tombstone_path = resolve_artifact_path(
+            output_dir,
+            attrs.get("failure_tombstone")
+            or f"trials/trial_{trial.number:05d}/trial_failure_tombstone.json",
+        )
+        if result_path.is_file() or tombstone_path.is_file():
+            continue
+        budget_index = int(attrs[BUDGET_INDEX_ATTR])
+        tombstone_path = write_failure_tombstone(
+            study_root=output_dir,
+            trial_number=trial.number,
+            budget_index=budget_index,
+            contract_hash=contract_hash,
+            worker_id=attrs.get("worker_id"),
+            worker_run_id_value=attrs.get("worker_run_id"),
+            failure_category="postgresql_terminal_fail_without_result_artifact",
+            missing_artifacts=(
+                {
+                    "kind": "trial_result",
+                    "path": trial_result,
+                    "verified_absent": True,
+                },
+            ),
+        )
+        worker_run = attrs.get("worker_run_id")
+        if not worker_run:
+            continue
+        run_dir = worker_root / worker_run
+        run_dir.mkdir(parents=True, exist_ok=True)
+        terminal_markers = [
+            run_dir / marker
+            for marker in ("COMPLETED", "FAILED_PRETRIAL", "RECONCILED_FAIL")
+            if (run_dir / marker).is_file()
+        ]
+        if terminal_markers:
+            continue
+        atomic_write_json(
+            run_dir / "RECONCILED_FAIL",
+            {
+                "schema_version": "graphvae-attr-f1pr-reconciled-fail-v1",
+                "trial_number": trial.number,
+                "budget_index": budget_index,
+                "db_state": "FAIL",
+                "failure_tombstone": relative_artifact_path(
+                    output_dir, tombstone_path
+                ),
+                "reconciled_at_unix": time.time(),
+            },
+        )
+
+
 def command_finalize(args: argparse.Namespace) -> int:
     output_dir = args.output_dir.expanduser().resolve()
     storage_url = storage_url_from_env(args.storage_env)
@@ -964,6 +1033,9 @@ def command_finalize(args: argparse.Namespace) -> int:
         if study.user_attrs.get(LIFECYCLE_ATTR) not in {LIFECYCLE_READY, LIFECYCLE_FROZEN}:
             raise DistributedContractError("Finalization requires READY or already FROZEN lifecycle.")
         assert_quiescent_reserved_study(study)
+        _reconcile_terminal_failures_without_results(
+            study, output_dir, local_definition
+        )
         _assert_workers_reconciled(study, output_dir)
         best = _final_outputs(study, local_definition, output_dir)
         locks.assert_alive()

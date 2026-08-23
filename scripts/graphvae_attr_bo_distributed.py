@@ -749,12 +749,30 @@ def audit_trial_result(
         tombstone_path = resolve_artifact_path(study_root, tombstone_relative)
         tombstone = json.loads(tombstone_path.read_text(encoding="utf-8"))
         if (
-            tombstone.get("trial_number") != trial.number
+            tombstone.get("schema_version")
+            != "graphvae-attr-f1pr-failure-tombstone-v1"
+            or not tombstone.get("failure_category")
+            or not isinstance(tombstone.get("missing_artifacts"), list)
+            or not tombstone.get("missing_artifacts")
+            or tombstone.get("trial_number") != trial.number
             or tombstone.get("budget_index") != budget_index
             or tombstone.get("db_state") != "FAIL"
             or tombstone.get("study_contract_sha256") != contract_hash
         ):
             raise DistributedContractError("Failure tombstone identity mismatch.")
+        for missing in tombstone["missing_artifacts"]:
+            if (
+                not isinstance(missing, Mapping)
+                or missing.get("verified_absent") is not True
+                or not missing.get("path")
+            ):
+                raise DistributedContractError(
+                    "Failure tombstone has an invalid missing-artifact record."
+                )
+            if resolve_artifact_path(study_root, str(missing["path"])).exists():
+                raise DistributedContractError(
+                    "Failure tombstone names an artifact that now exists."
+                )
         return tombstone
     result_relative = attrs.get("trial_result") or f"trials/trial_{trial.number:05d}/trial_result.json"
     result_path = resolve_artifact_path(study_root, result_relative)

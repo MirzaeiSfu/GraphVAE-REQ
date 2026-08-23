@@ -288,9 +288,9 @@ EOF
       failures=$((failures + 1))
       continue
     fi
-    remote_hash_cmd="test \"\$(sha256sum $(quote_one "$remote_cache_dir/$cache_name") | awk '{print \$1}')\" = $(quote_one "$expected_cache_sha") && chmod a-w $(quote_one "$remote_cache_dir/$cache_name")"
-    if ! run_cmd ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_hash_cmd")"; then
-      echo "[cache] remote checksum/read-only verification failed on $host" >&2
+    remote_cache_verify_cmd="set -euo pipefail; $(quote_one "$REMOTE_PYTHON_BIN") $(quote_one "$repo_path/scripts/prepare_graphvae_attr_bo_cache.py") --cache-path $(quote_one "$remote_cache_dir/$cache_name") --verify-manifest $(quote_one "$repo_path/dataset_cache_manifest.json") --make-read-only"
+    if ! run_cmd ssh -n "${SSH_OPTS[@]}" "$host" "bash -lc $(quote_one "$remote_cache_verify_cmd")"; then
+      echo "[cache] remote cache/split/schema verification failed on $host" >&2
       failures=$((failures + 1))
       continue
     fi

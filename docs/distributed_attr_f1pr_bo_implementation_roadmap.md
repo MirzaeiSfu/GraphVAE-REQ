@@ -1250,6 +1250,28 @@ It does not authorize remote credentials, replace the required remote
 `sslmode=verify-full` preflight, prove firewall-rule persistence, launch remote
 GraphVAE training, or approve a pilot or production study.
 
+### Gate 3 data-integrity qualification follow-up (2026-08-23)
+
+One deterministic synthetic qualification cache and canonical manifest were
+built with `dataset-cache-v4` metadata, a fixed dataset-loader seed, 21 training
+graphs, 3 validation graphs, 6 test graphs, and 30 unique graph fingerprints.
+The fixture is restricted to local cache/transport qualification and does not
+replace Gate 4's real QM9 cache.
+
+D01-D08 passed. Missing and byte-modified caches failed before PostgreSQL trial
+claim; two independently staged copies recomputed identical file, split,
+graph-count, and feature-schema identities; an equal-dimension channel-meaning
+change was rejected; a read-only cache survived an actual mock worker without
+content or mtime changes; partial collection was not promoted and could be
+retried safely; identical collection was idempotent while differing bytes were
+quarantined; and an all-failed study reconciled an artifactless heartbeat
+failure through a verified tombstone, wrote no false best trial, froze a
+portable snapshot, and returned nonzero.
+
+The post-change regression results were `123 passed, 16 deselected` for the
+non-PostgreSQL/non-remote/non-GPU/non-slow suite and `16 passed` for the complete
+disposable-PostgreSQL suite. Gate 3's launcher dry-run R01 remains separate.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.

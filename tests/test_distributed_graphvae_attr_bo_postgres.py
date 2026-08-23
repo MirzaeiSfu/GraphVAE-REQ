@@ -5,6 +5,7 @@ database, schema, table, or study not created by the running test.
 """
 
 import multiprocessing as mp
+import copy
 import json
 import os
 import signal
@@ -35,6 +36,7 @@ from scripts.graphvae_attr_bo_distributed import (
     atomic_write_json,
     reservation_audit,
     sampler_seed,
+    sha256_file,
     trial_semantic_fingerprint,
 )
 
@@ -101,7 +103,7 @@ def _definition(name, trials, max_parallel=2, base_config=None, base_config_sha2
 class IsolatedStudy:
     def __init__(
         self, url, trials, tmp_path, max_parallel=2, heartbeat=60, grace=600,
-        worker_ready=False,
+        worker_ready=False, cache_manifest=None,
     ):
         self.url = url
         self.name = f"graphvae_bo_pytest_{uuid.uuid4().hex}"
@@ -133,10 +135,26 @@ class IsolatedStudy:
             self.definition["storage"]["tls_policy"] = (
                 "localhost-test-exception" if _allow_insecure(url) else "verify-full"
             )
+        if cache_manifest is not None:
+            self.definition["dataset_cache"] = copy.deepcopy(cache_manifest)
+            self.definition["feature_schemas"] = {
+                "node_sha256": cache_manifest["node_schema_fingerprint"],
+                "edge_sha256": cache_manifest["edge_schema_fingerprint"],
+                "node": copy.deepcopy(cache_manifest["node_schema"]),
+                "edge": copy.deepcopy(cache_manifest["edge_schema"]),
+            }
+        self.controller_uuid = str(uuid.uuid4())
+        atomic_write_json(
+            self.root / "controller_identity.json",
+            {
+                "schema_version": "graphvae-attr-f1pr-controller-v1",
+                "controller_uuid": self.controller_uuid,
+            },
+        )
         self.contract = initialize_reserved_study(
             self.study,
             self.definition,
-            controller_uuid=str(uuid.uuid4()),
+            controller_uuid=self.controller_uuid,
             output_root=self.root,
         )
         self.next_dispatch_sequence = 0
@@ -180,6 +198,23 @@ def _heartbeat_worker(url, name, contract):
     )
 
     def objective(trial):
+        guard_reserved_trial(trial, study, expected_contract_hash=contract)
+        trial.suggest_float("alpha_node_feat", 1e-3, 1e2, log=True)
+        time.sleep(60)
+        return 0.5
+
+    study.optimize(objective, n_trials=1, catch=(Exception,))
+
+
+def _artifactless_heartbeat_worker(url, name, contract, worker_run_id):
+    storage = _storage(url, heartbeat=1, grace=2)
+    study = create_or_load_distributed_study(
+        storage, study_name=name, sampler_seed_value=1, create=False
+    )
+
+    def objective(trial):
+        trial.set_user_attr("worker_id", "heartbeat-worker")
+        trial.set_user_attr("worker_run_id", worker_run_id)
         guard_reserved_trial(trial, study, expected_contract_hash=contract)
         trial.suggest_float("alpha_node_feat", 1e-3, 1e2, log=True)
         time.sleep(60)
@@ -529,4 +564,156 @@ def test_p11_fail_does_not_count_as_usable_startup_observation(postgres_url, tmp
         assert len(failed) == 1
         assert len(usable) < 5
     finally:
+        isolated.cleanup()
+
+
+def test_d05_read_only_cache_survives_actual_mock_worker(postgres_url, tmp_path):
+    fixture_root = REPO_ROOT / "tests" / "fixtures" / "distributed_attr_f1pr_bo"
+    cache_path = fixture_root / "qm9_tiny_cache.pkl"
+    manifest = json.loads(
+        (fixture_root / "dataset_cache_manifest.json").read_text(encoding="utf-8")
+    )
+    isolated = IsolatedStudy(
+        postgres_url,
+        1,
+        tmp_path,
+        max_parallel=1,
+        worker_ready=True,
+        cache_manifest=manifest,
+    )
+    original_mode = cache_path.stat().st_mode
+    before = (cache_path.stat().st_mtime_ns, sha256_file(cache_path))
+    try:
+        cache_path.chmod(original_mode & ~0o222)
+        result = _run_mock_worker(
+            isolated, postgres_url, "read-only-cache-worker"
+        )
+        assert result.returncode == 0, result.stderr
+        assert isolated.study.get_trials(deepcopy=False)[0].state.name == "COMPLETE"
+        assert (cache_path.stat().st_mtime_ns, sha256_file(cache_path)) == before
+    finally:
+        cache_path.chmod(original_mode)
+        isolated.cleanup()
+
+
+def test_d08_all_fail_finalizer_reconciles_artifactless_heartbeat(
+    postgres_url, tmp_path
+):
+    import optuna
+
+    isolated = IsolatedStudy(
+        postgres_url,
+        2,
+        tmp_path,
+        max_parallel=1,
+        heartbeat=1,
+        grace=2,
+        worker_ready=True,
+    )
+    process = None
+    try:
+        first = _run_mock_worker(
+            isolated, postgres_url, "ordinary-fail", "--mock-fail-trial", "0"
+        )
+        assert first.returncode == 0, first.stderr
+        assert isolated.study.get_trials(deepcopy=False)[0].state.name == "FAIL"
+
+        heartbeat_run_id = "artifactless-heartbeat"
+        heartbeat_dir = isolated.root / "workers" / heartbeat_run_id
+        heartbeat_dir.mkdir(parents=True)
+        atomic_write_json(
+            heartbeat_dir / "RUN_INFO.json",
+            {"worker_id": "heartbeat-worker", "worker_run_id": heartbeat_run_id},
+        )
+        atomic_write_json(
+            heartbeat_dir / "HEARTBEAT.json",
+            {"worker_run_id": heartbeat_run_id, "updated_at_unix": time.time()},
+        )
+        context = mp.get_context("spawn")
+        process = context.Process(
+            target=_artifactless_heartbeat_worker,
+            args=(
+                postgres_url,
+                isolated.name,
+                isolated.contract,
+                heartbeat_run_id,
+            ),
+        )
+        process.start()
+        deadline = time.time() + 15
+        state = "WAITING"
+        while time.time() < deadline:
+            state = isolated.study.get_trials(deepcopy=False)[1].state.name
+            if state == "RUNNING":
+                break
+            time.sleep(0.1)
+        assert state == "RUNNING"
+        process.kill()
+        process.join(timeout=5)
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            optuna.storages.fail_stale_trials(isolated.study)
+            state = isolated.study.get_trials(deepcopy=False)[1].state.name
+            if state == "FAIL":
+                break
+            time.sleep(0.5)
+        assert state == "FAIL"
+        assert not (isolated.root / "trials" / "trial_00001").exists()
+
+        environment = os.environ.copy()
+        environment["GRAPHVAE_BO_TEST_STORAGE_URL"] = postgres_url
+        command = [
+            str(MICRO_PYTHON),
+            str(REPO_ROOT / "scripts" / "run_distributed_graphvae_attr_bo.py"),
+            "finalize",
+            "--study-name", isolated.name,
+            "--output-dir", str(isolated.root),
+            "--storage-env", "GRAPHVAE_BO_TEST_STORAGE_URL",
+        ]
+        if _allow_insecure(postgres_url):
+            command.append("--allow-insecure-local-postgres")
+        result = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+        assert result.returncode == 2, result.stderr
+        tombstone_path = (
+            isolated.root
+            / "trials"
+            / "trial_00001"
+            / "trial_failure_tombstone.json"
+        )
+        tombstone = json.loads(tombstone_path.read_text(encoding="utf-8"))
+        assert tombstone["db_state"] == "FAIL"
+        assert tombstone["budget_index"] == 1
+        assert tombstone["missing_artifacts"] == [
+            {
+                "kind": "trial_result",
+                "path": "trials/trial_00001/trial_result.json",
+                "verified_absent": True,
+            }
+        ]
+        assert (heartbeat_dir / "RECONCILED_FAIL").is_file()
+        assert "All reserved scientific trials failed" in (
+            isolated.root / "SUMMARY.md"
+        ).read_text(encoding="utf-8")
+        assert not (isolated.root / "best_trial.json").exists()
+        frozen = json.loads(
+            (isolated.root / "FROZEN.json").read_text(encoding="utf-8")
+        )
+        assert frozen["best_trial_number"] is None
+        snapshot = optuna.load_study(
+            study_name=isolated.name,
+            storage="sqlite:///" + (
+                isolated.root / "study_snapshot.sqlite3"
+            ).as_posix(),
+        )
+        assert [trial.state.name for trial in snapshot.trials] == ["FAIL", "FAIL"]
+    finally:
+        if process is not None and process.is_alive():
+            process.kill()
         isolated.cleanup()
