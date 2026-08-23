@@ -46,8 +46,11 @@ from scripts.tune_graphvae_attribute_weights import (
     PRIMARY_MODE,
     SearchRanges,
     TrialExecutionError,
+    _pid_start_ticks,
+    inspect_recorded_process_group,
     inject_sampled_parameters,
     parse_attr_f1pr_payload,
+    recover_recorded_process_group,
     run_logged_command,
     execute_trial,
     sample_search_space,
@@ -569,6 +572,79 @@ def test_l06_timeout_kills_exact_child_group_and_unrelated_process_survives(tmp_
     finally:
         unrelated.terminate()
         unrelated.wait(timeout=5)
+
+
+def test_r07_recorded_process_recovery_checks_identity_and_spares_unrelated(tmp_path):
+    command = [sys.executable, "-c", "import time; time.sleep(30)"]
+    target = subprocess.Popen(command, cwd=tmp_path, start_new_session=True)
+    unrelated = subprocess.Popen(command, cwd=tmp_path, start_new_session=True)
+    identity_path = tmp_path / "training_subprocess.log.process.json"
+    contract_hash = "c" * 64
+    atomic_write_json(
+        identity_path,
+        {
+            "schema_version": "graphvae-attr-f1pr-process-v1",
+            "pid": target.pid,
+            "process_group_id": target.pid,
+            "pid_start_ticks": _pid_start_ticks(target.pid),
+            "command": command,
+            "cwd": str(tmp_path.resolve()),
+            "study_contract_sha256": contract_hash,
+            "worker_run_id": "worker-run",
+            "trial_number": 0,
+            "phase": "training",
+        },
+    )
+    try:
+        inspected = inspect_recorded_process_group(
+            identity_path,
+            expected_cwd=tmp_path,
+            expected_study_contract_sha256=contract_hash,
+            expected_worker_run_id="worker-run",
+            expected_trial_number=0,
+            expected_phase="training",
+        )
+        assert inspected["status"] == "MATCHING_LIVE"
+        assert inspected["process_group_id"] == target.pid
+
+        with pytest.raises(TrialExecutionError, match="identity contract"):
+            recover_recorded_process_group(
+                identity_path,
+                expected_cwd=tmp_path,
+                expected_study_contract_sha256=contract_hash,
+                expected_worker_run_id="different-worker-run",
+                expected_trial_number=0,
+                expected_phase="training",
+                grace_seconds=0.1,
+            )
+        assert target.poll() is None
+
+        assert recover_recorded_process_group(
+            identity_path,
+            expected_cwd=tmp_path,
+            expected_study_contract_sha256=contract_hash,
+            expected_worker_run_id="worker-run",
+            expected_trial_number=0,
+            expected_phase="training",
+            grace_seconds=0.1,
+        )
+        target.wait(timeout=5)
+        assert unrelated.poll() is None
+        assert inspect_recorded_process_group(
+            identity_path,
+            expected_cwd=tmp_path,
+            expected_study_contract_sha256=contract_hash,
+            expected_worker_run_id="worker-run",
+            expected_trial_number=0,
+            expected_phase="training",
+        )["status"] == "ABSENT"
+    finally:
+        if target.poll() is None:
+            os.killpg(target.pid, signal.SIGKILL)
+            target.wait(timeout=5)
+        if unrelated.poll() is None:
+            os.killpg(unrelated.pid, signal.SIGKILL)
+            unrelated.wait(timeout=5)
 
 
 def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):

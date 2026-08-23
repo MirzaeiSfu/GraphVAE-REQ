@@ -232,6 +232,30 @@ slot consumes budget and is never silently replaced. Parallel studies provide
 trial reproducibility within the frozen tolerance, but do not promise an
 identical TPE proposal order; use `--max-parallel 1` for study-path replay.
 
+If a worker parent dies while its training or evaluation child remains, probe
+the recorded child identity on the owning host before any cleanup:
+
+```bash
+python scripts/recover_graphvae_attr_bo_process.py \
+  --repo-root /absolute/deployed/repository \
+  --study-root /absolute/deployed/repository/runs/bayesian_optimization/STUDY \
+  --worker-run-id WORKER_RUN_ID \
+  --trial-number 0 \
+  --phase training \
+  --study-contract-sha256 CONTRACT_SHA256 \
+  --output /absolute/deployed/repository/runs/bayesian_optimization/STUDY/workers/WORKER_RUN_ID/PROCESS_RECOVERY_PROBE.json
+```
+
+The probe sends no signal. It requires the exact recorded PID, process-group
+leader, PID start ticks, command, cwd, study contract, worker-run identity,
+trial number, and phase to match the live Linux process. Only after reviewing a
+`MATCHING_LIVE` probe may the same command be repeated with `--terminate
+--execute` and a distinct output path. PID reuse or any identity mismatch is a
+hard failure; unrelated process groups are never targeted. Process cleanup
+does not repair Optuna state: native heartbeat/stale-trial handling must move
+the original reservation to `FAIL`, after which finalization writes and audits
+its tombstone without replacement.
+
 ### Gate 1 and local Gate 2 tests
 
 ```bash

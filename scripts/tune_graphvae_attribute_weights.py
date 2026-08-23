@@ -418,53 +418,151 @@ def _pid_start_ticks(pid: int) -> int | None:
         return None
 
 
+def _pid_state(pid: int) -> str | None:
+    try:
+        suffix = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1]
+        return suffix.split()[0]
+    except (FileNotFoundError, IndexError, OSError):
+        return None
+
+
+def _process_group_has_live_members(process_group_id: int) -> bool:
+    """Return true only while the Linux process group has a non-zombie member."""
+
+    for stat_path in Path("/proc").glob("[0-9]*/stat"):
+        try:
+            suffix = stat_path.read_text(encoding="utf-8").rsplit(")", 1)[1]
+            fields = suffix.split()
+            state = fields[0]
+            process_group = int(fields[2])
+        except (FileNotFoundError, IndexError, ValueError, OSError):
+            continue
+        if process_group == process_group_id and state != "Z":
+            return True
+    return False
+
+
+def inspect_recorded_process_group(
+    identity_path: Path,
+    *,
+    expected_cwd: Path,
+    expected_study_contract_sha256: str,
+    expected_worker_run_id: str,
+    expected_trial_number: int | None = None,
+    expected_phase: str | None = None,
+) -> dict[str, Any]:
+    """Validate a recorded group against /proc without sending any signal."""
+
+    identity = json.loads(Path(identity_path).read_text(encoding="utf-8"))
+    pid = int(identity["pid"])
+    recorded_start_ticks = identity.get("pid_start_ticks")
+    recorded_command = identity.get("command")
+    if (
+        identity.get("schema_version") != "graphvae-attr-f1pr-process-v1"
+        or identity.get("process_group_id") != pid
+        or not isinstance(recorded_start_ticks, int)
+        or not isinstance(recorded_command, list)
+        or not recorded_command
+        or not all(isinstance(part, str) and part for part in recorded_command)
+        or identity.get("cwd") != str(Path(expected_cwd).resolve())
+        or identity.get("study_contract_sha256") != expected_study_contract_sha256
+        or identity.get("worker_run_id") != expected_worker_run_id
+        or (
+            expected_trial_number is not None
+            and identity.get("trial_number") != expected_trial_number
+        )
+        or (expected_phase is not None and identity.get("phase") != expected_phase)
+    ):
+        raise TrialExecutionError("Recorded process identity contract is invalid.")
+    live_start_ticks = _pid_start_ticks(pid)
+    if live_start_ticks is None or _pid_state(pid) == "Z":
+        if _process_group_has_live_members(pid):
+            raise TrialExecutionError(
+                "Recorded group leader is absent while its process group remains live."
+            )
+        status = "ABSENT"
+    elif live_start_ticks != recorded_start_ticks:
+        raise TrialExecutionError("Recorded PID has been reused by another process.")
+    else:
+        try:
+            live_cwd = Path(os.readlink(f"/proc/{pid}/cwd")).resolve()
+            live_command = [
+                part.decode("utf-8")
+                for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+                if part
+            ]
+            live_group = os.getpgid(pid)
+        except (FileNotFoundError, ProcessLookupError):
+            status = "ABSENT"
+        else:
+            if (
+                live_cwd != Path(expected_cwd).resolve()
+                or live_command != recorded_command
+                or live_group != pid
+            ):
+                raise TrialExecutionError(
+                    "Live process command/cwd/group differs from its record."
+                )
+            status = "MATCHING_LIVE"
+    command_sha256 = hashlib.sha256(
+        json.dumps(recorded_command, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return {
+        "status": status,
+        "pid": pid,
+        "process_group_id": pid,
+        "pid_start_ticks": recorded_start_ticks,
+        "command_sha256": command_sha256,
+        "cwd": identity["cwd"],
+        "study_contract_sha256": identity["study_contract_sha256"],
+        "worker_run_id": identity["worker_run_id"],
+        "trial_number": identity.get("trial_number"),
+        "phase": identity.get("phase"),
+    }
+
+
 def recover_recorded_process_group(
     identity_path: Path,
     *,
     expected_cwd: Path,
     expected_study_contract_sha256: str,
     expected_worker_run_id: str,
+    expected_trial_number: int | None = None,
+    expected_phase: str | None = None,
     grace_seconds: float = 10.0,
 ) -> bool:
     """Terminate only a still-matching recorded child, rejecting PID reuse."""
 
-    identity = json.loads(Path(identity_path).read_text(encoding="utf-8"))
-    pid = int(identity["pid"])
-    if (
-        identity.get("process_group_id") != pid
-        or identity.get("cwd") != str(Path(expected_cwd).resolve())
-        or identity.get("study_contract_sha256") != expected_study_contract_sha256
-        or identity.get("worker_run_id") != expected_worker_run_id
-        or identity.get("pid_start_ticks") != _pid_start_ticks(pid)
-    ):
-        raise TrialExecutionError("Recorded process identity does not match the live process.")
-    try:
-        live_cwd = Path(os.readlink(f"/proc/{pid}/cwd")).resolve()
-        live_command = [
-            part.decode("utf-8")
-            for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-            if part
-        ]
-        live_group = os.getpgid(pid)
-    except (FileNotFoundError, ProcessLookupError):
+    inspected = inspect_recorded_process_group(
+        identity_path,
+        expected_cwd=expected_cwd,
+        expected_study_contract_sha256=expected_study_contract_sha256,
+        expected_worker_run_id=expected_worker_run_id,
+        expected_trial_number=expected_trial_number,
+        expected_phase=expected_phase,
+    )
+    if inspected["status"] == "ABSENT":
         return False
-    if (
-        live_cwd != Path(expected_cwd).resolve()
-        or live_command != list(identity.get("command") or [])
-        or live_group != pid
-    ):
-        raise TrialExecutionError("Live process command/cwd/group differs from its record.")
-    os.killpg(pid, signal.SIGTERM)
+    pid = int(inspected["pid"])
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return False
     deadline = time.monotonic() + max(0.0, grace_seconds)
     while time.monotonic() < deadline:
-        if _pid_start_ticks(pid) is None:
+        if not _process_group_has_live_members(pid):
             return True
         time.sleep(0.05)
     try:
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
-        pass
-    return True
+        return True
+    deadline = time.monotonic() + max(1.0, min(5.0, grace_seconds))
+    while time.monotonic() < deadline:
+        if not _process_group_has_live_members(pid):
+            return True
+        time.sleep(0.05)
+    raise TrialExecutionError("Recorded process group remained live after SIGKILL.")
 
 
 def run_logged_command(

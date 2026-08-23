@@ -757,6 +757,7 @@ trial or alter the selected best trial.
 
 - `scripts/run_distributed_graphvae_attr_bo.py`;
 - `scripts/run_graphvae_attr_bo_worker.py`;
+- `scripts/recover_graphvae_attr_bo_process.py`;
 - `scripts/prepare_graphvae_attr_bo_cache.py`;
 - `scripts/graphvae_attr_bo_fingerprints.py`;
 - `requirements-bo-py38.txt`;
