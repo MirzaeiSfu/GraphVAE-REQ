@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -130,6 +131,44 @@ def _load_local_definition(artifact_root: Path, expected_hash: str) -> dict[str,
     return definition
 
 
+def _probe_gpu_identity(physical_gpu: int) -> tuple[str, int]:
+    """Return the physical GPU model and VRAM bytes or fail before trial claim."""
+
+    if physical_gpu < 0:
+        raise DistributedContractError("Physical GPU index must be non-negative.")
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total",
+                "--format=csv,noheader,nounits",
+                "-i",
+                str(physical_gpu),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        rows = [row.strip() for row in result.stdout.splitlines() if row.strip()]
+        if len(rows) != 1:
+            raise ValueError("GPU probe did not return exactly one row.")
+        model, memory_mib_text = (part.strip() for part in rows[0].rsplit(",", 1))
+        memory_mib = float(memory_mib_text)
+        if not model or memory_mib <= 0:
+            raise ValueError("GPU probe returned an empty model or non-positive VRAM.")
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        ValueError,
+    ) as exc:
+        raise DistributedContractError(
+            f"Could not verify physical GPU {physical_gpu} identity."
+        ) from exc
+    return model, int(memory_mib * 1024 * 1024)
+
+
 def local_preflight(
     args: argparse.Namespace, definition: Mapping[str, Any]
 ) -> tuple[dict[str, Any], Path | None]:
@@ -214,8 +253,8 @@ def _execution_args(
         worker_run_id=cli.worker_run_id,
         hostname=socket.gethostname(),
         physical_gpu=cli.physical_gpu,
-        gpu_model=None,
-        gpu_vram_bytes=None,
+        gpu_model=getattr(cli, "gpu_model", None),
+        gpu_vram_bytes=getattr(cli, "gpu_vram_bytes", None),
         dispatch_sequence=cli.dispatch_sequence,
         sampler_constant_liar=True,
         sampler_seed=cli.sampler_seed,
@@ -314,6 +353,8 @@ def run_worker(args: argparse.Namespace) -> int:
             "study_contract_sha256": args.study_contract_sha256,
             "dispatch_sequence": args.dispatch_sequence,
             "physical_gpu": args.physical_gpu,
+            "gpu_model": None,
+            "gpu_vram_bytes": None,
         }
     )
     atomic_write_json(run_dir / "RUN_INFO.json", info)
@@ -322,6 +363,21 @@ def run_worker(args: argparse.Namespace) -> int:
     storage_url = None
     try:
         enforce_pinned_versions()
+        args.gpu_model = None
+        args.gpu_vram_bytes = None
+        if args.physical_gpu is not None:
+            phase = "hardware_preflight"
+            args.gpu_model, args.gpu_vram_bytes = _probe_gpu_identity(
+                args.physical_gpu
+            )
+            info.update(
+                {
+                    "gpu_model": args.gpu_model,
+                    "gpu_vram_bytes": args.gpu_vram_bytes,
+                }
+            )
+            atomic_write_json(run_dir / "RUN_INFO.json", info)
+            phase = "local_preflight"
         definition = _load_local_definition(artifact_root, args.study_contract_sha256)
         expected_tls_policy = definition.get("storage", {}).get(
             "tls_policy", "verify-full"
@@ -394,6 +450,9 @@ def run_worker(args: argparse.Namespace) -> int:
         trial.set_user_attr("dispatch_sequence", int(args.dispatch_sequence))
         trial.set_user_attr("sampler_constant_liar", True)
         trial.set_user_attr("tpe_startup_trials", int(args.tpe_startup_trials))
+        trial.set_user_attr("physical_gpu", args.physical_gpu)
+        trial.set_user_attr("gpu_model", args.gpu_model)
+        trial.set_user_attr("gpu_vram_bytes", args.gpu_vram_bytes)
         import optuna
         import psycopg2
 

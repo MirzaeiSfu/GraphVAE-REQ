@@ -1421,6 +1421,31 @@ of `study_snapshot.sqlite3` all passed. The reopened snapshot preserves one
 lifecycle. No held-out artifact exists, optimization records `test_access=false`,
 and a credential-material scan of the collected study root passed.
 
+### Gate 4 first R03 attempt and GPU-metadata remediation (2026-08-23)
+
+The first real two-epoch LOBSTER study
+`lobster_attr_f1pr_gate4_r03_real_20260823a` completed one reserved GPU trial,
+was checksum-collected, audited, frozen, and independently restored. Its exact
+validation objective was finite at `0.000019999800003999925`; the evaluator used
+both attribute decoders, 14 node and 11 edge channels, five repeats, and eight
+generated plus eight reference validation graphs. This tiny smoke value is not
+model-quality evidence.
+
+The run did not execute final evaluation or create a `final_test` artifact. A
+training file named `testGraphs_adj_.npy` was inspected at source level and is a
+legacy filename written by `EvalTwoSet(model, val_adj, ...)` during validation;
+the held-out branch is guarded by `skip_final_evaluation=true`. Acceptance still
+uses the structured evaluator's validation split and fingerprint, never that
+legacy filename.
+
+R03a is retained as qualification-incomplete because its otherwise valid trial
+result recorded `gpu_model=null` and `gpu_vram_bytes=null`, violating the
+required worker metadata contract. The remediation probes the selected physical
+GPU with `nvidia-smi` before trial claim, fails pretrial if one exact model/VRAM
+row cannot be verified, propagates both values through worker, trial, and Optuna
+metadata, and makes collection audit reject a GPU result with missing identity.
+A new one-slot R03 study is required; R03a is never rewritten or extended.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.

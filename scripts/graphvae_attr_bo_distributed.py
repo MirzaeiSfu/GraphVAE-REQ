@@ -806,6 +806,18 @@ def audit_trial_result(
             raise DistributedContractError("COMPLETE trial objective is non-finite.")
         if float(result.get("validation_attr_f1pr")) != float(trial.value):
             raise DistributedContractError("Trial result objective differs from PostgreSQL.")
+        if result.get("physical_gpu") is not None:
+            gpu_model = result.get("gpu_model")
+            gpu_vram_bytes = result.get("gpu_vram_bytes")
+            if (
+                not isinstance(gpu_model, str)
+                or not gpu_model.strip()
+                or not isinstance(gpu_vram_bytes, int)
+                or gpu_vram_bytes <= 0
+            ):
+                raise DistributedContractError(
+                    "GPU trial result is missing verified model or VRAM metadata."
+                )
         expected_metadata = {
             "training_seed": definition["seeds"].get("training_seed"),
             "split_seed": definition["seeds"].get("split_seed"),

@@ -41,6 +41,7 @@ from scripts.run_distributed_graphvae_attr_bo import (
     render_tmux_ssh_command,
     render_worker_command,
 )
+from scripts.run_graphvae_attr_bo_worker import _probe_gpu_identity
 from scripts.tune_graphvae_attribute_weights import (
     PRIMARY_MODE,
     SearchRanges,
@@ -299,6 +300,13 @@ def test_u05_every_trial_identity_and_integrity_mismatch_fails_audit(tmp_path):
         atomic_write_json(path, changed)
         with pytest.raises(DistributedContractError):
             audit_trial_result(trial, study_root=tmp_path, definition=definition)
+    missing_gpu_identity = copy.deepcopy(original)
+    missing_gpu_identity.update(
+        {"physical_gpu": 0, "gpu_model": None, "gpu_vram_bytes": None}
+    )
+    atomic_write_json(path, missing_gpu_identity)
+    with pytest.raises(DistributedContractError, match="GPU trial result"):
+        audit_trial_result(trial, study_root=tmp_path, definition=definition)
     atomic_write_json(path, original)
     checkpoint = tmp_path / original["checkpoint"]
     checkpoint.write_bytes(b"tampered")
@@ -522,6 +530,28 @@ def test_launcher_preserves_worker_shell_as_one_tmux_argument():
         "graphvae-bo-worker-run",
         worker_shell,
     ]
+
+
+def test_gpu_probe_records_model_and_vram_bytes(monkeypatch):
+    def fake_run(command, **kwargs):
+        assert command[-2:] == ["-i", "3"]
+        assert kwargs == {
+            "check": True,
+            "capture_output": True,
+            "text": True,
+            "timeout": 10,
+        }
+        return subprocess.CompletedProcess(
+            command, 0, stdout="NVIDIA TITAN RTX, 24576\n"
+        )
+
+    monkeypatch.setattr(
+        "scripts.run_graphvae_attr_bo_worker.subprocess.run", fake_run
+    )
+    assert _probe_gpu_identity(3) == (
+        "NVIDIA TITAN RTX",
+        24576 * 1024 * 1024,
+    )
 
 
 def test_l06_timeout_kills_exact_child_group_and_unrelated_process_survives(tmp_path):
