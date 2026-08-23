@@ -1699,6 +1699,75 @@ artifact. The cache on both hosts remains mode `0444`, size 59,295,793 bytes,
 and SHA-256
 `928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
 
+### Gate 5 R07 orphan-process recovery follow-up (2026-08-23)
+
+R07 added the probe-first recovery interface in
+`a532410876e72cbb67e92f8a6eba531dc391473c`. It derives the only eligible
+identity file from the immutable study root, worker-run ID, trial number, and
+training/evaluation phase. A probe sends no signal. Termination additionally
+requires `--terminate --execute` and exact agreement between the recorded and
+live PID, process-group leader, PID start ticks, command, cwd, contract hash,
+worker-run identity, trial number, and phase. PID reuse, a missing leader with
+live group members, or any identity mismatch fails closed. Focused tests proved
+that a mismatch sends no signal, the matching group is removed, and an
+unrelated same-command group survives.
+
+The fresh real study `lobster_attr_f1pr_gate5_r07_orphan_20260823a` used worker
+source `a532410876e72cbb67e92f8a6eba531dc391473c`, immutable contract SHA-256
+`3d6338dd97aad3890609f6137e3dd0a87d7210cceb04934b6b94c74a8fb44117`,
+exactly one reserved trial, and `max_parallel=1`. It retained the committed
+LOBSTER smoke configuration: two epochs, eight evaluation graphs, five
+repeats, 600-second training/evaluation limits, and validation-only selection
+with `test_access=false`. The only launch used cs-cl-13 physical GPU 0,
+dispatch sequence 1,000,000, derived sampler seed 805,986,020, and worker run
+`cs-cl-13-gate5-gpu0-dispatch-1000000`.
+
+After PostgreSQL reported the sole reservation `RUNNING`, the training identity
+was durably present with PID and PGID 280432, start ticks 335885710, cwd equal
+to the dedicated Gate 5 repository, the exact study/worker/trial/phase fields,
+and command SHA-256
+`cf304f7baec51f18b16622168c16f5c1867f0338899582c621be6c44dd54728f`.
+The worker's exact tmux parent session was killed; probes immediately before
+and after that action both found the recorded child `MATCHING_LIVE`.
+
+The first unrelated-sentinel harness command was malformed: tmux rejected its
+format argument, no sentinel PID was obtained, and that attempt was not counted
+as survival evidence. Before child cleanup, a correctly quoted unrelated
+`sleep` session was then created as PID/PGID 292282 with start ticks 335896445.
+The recovery interface moved only the recorded child from `MATCHING_LIVE` to
+`ABSENT` and verified the complete group had no live member. The unrelated
+sentinel retained its original PID, PGID, start ticks, and command through that
+cleanup, then was removed separately. Final probes found both PIDs absent.
+
+Process cleanup did not edit Optuna state. The reservation remained `RUNNING`
+until the 18th bounded 30-second controller poll called Optuna's native stale
+sweep under the frozen heartbeat 60/grace 600 contract; it then transitioned
+to `FAIL`. There was still exactly one launch manifest, one reserved trial, no
+guard row, no replacement, and no `WAITING` or `RUNNING` work. The pre-tombstone
+launch probe stayed `MISSING_AMBIGUOUS` and non-retryable rather than trusting
+DB `FAIL` alone.
+
+Collection retained the partial training log, process identity, recovery
+records, resolved config, and the identity-bound `status=RUNNING` trial result.
+This exposed a finalizer gap, fixed in `6973720`: the controller now atomically
+retains that exact record as `trial_result.interrupted.json`, verifies its
+trial/budget/parameters/contract/worker identity, and binds its SHA-256
+`b48fdf4f7292ed7523fdbb5c0b02ad765837631f631194104edf521ddc525c4b`
+into the failure tombstone. The canonical `trial_result.json` path is verified
+absent. Tamper and idempotence coverage brought the focused suite to 58 tests.
+
+The all-failed finalizer returned its documented nonzero status while still
+freezing the quiescent study, writing `RECONCILED_FAIL`, publishing a portable
+snapshot, and truthfully selecting no best trial. The final probe matched the
+tombstone marker to trial 0/budget index 0/DB `FAIL` and became
+`RECONCILED_TERMINAL`. Independent reopen matched live PostgreSQL at semantic
+fingerprint
+`7e9054ba0f7771215fdd7b98a962b643ad74d1f41c9e935f851750aa59b0fc5e`.
+A 73-file scan found no protected credential material, unredacted storage URL,
+test access, or final-test artifact. Both host caches remain mode `0444`, size
+59,295,793 bytes, and canonical SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1727,6 +1796,9 @@ authentication plus source/cache/runtime/GPU qualification now pass on both
 workers. R04 now passes with its separate frozen two-reservation mock study;
 R05 passes with a different frozen two-reservation real LOBSTER study, and R06
 passes with separate frozen definite-prelaunch and post-launch-ambiguity mock
-studies. R07 is the next step. Gate 6 and later gates remain unstarted, and
-credentials must be rotated before any pilot or production use. Full QM9 BO
-remains blocked pending a separately reviewed staged or multi-fidelity budget.
+studies. R07 passes with one consumed failed reservation, exact orphan cleanup,
+native stale reconciliation, and a verified tombstone. The final full-suite and
+cross-study Gate 5 audit are next; Gate 5 is not yet declared complete. Gate 6
+and later gates remain unstarted, and credentials must be rotated before any
+pilot or production use. Full QM9 BO remains blocked pending a separately
+reviewed staged or multi-fidelity budget.
