@@ -1,0 +1,3 @@
+# HOST GPU WORKER_ID
+# One approved TITAN RTX slot for bounded Gate 4 qualification only.
+cs-cl-13 0 cs-cl-13-gate4-gpu0

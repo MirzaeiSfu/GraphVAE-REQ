@@ -15,7 +15,7 @@ from scripts.graphvae_attr_bo_distributed import (
     canonical_contract_hash,
     sha256_file,
 )
-from scripts.run_distributed_graphvae_attr_bo import command_collect
+from scripts.run_distributed_graphvae_attr_bo import _preflight_inputs, command_collect
 
 
 pytestmark = pytest.mark.unit
@@ -228,3 +228,26 @@ def test_code_distributor_rejects_unknown_selected_host(tmp_path):
     )
     assert result.returncode == 2
     assert "No repo-path entry found for selected host: missing-worker" in result.stderr
+
+
+def test_gate4_mappings_select_exactly_one_approved_slot():
+    args = argparse.Namespace(
+        repo_paths=REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_GATE4_REPO_PATHS.txt",
+        python_paths=REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_GATE4_PYTHON_PATHS.txt",
+        slots=REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_GATE4_SLOTS.txt",
+    )
+    repositories, pythons, slots = _preflight_inputs(args)
+
+    assert repositories == {
+        "cs-cl-13": "/local-scratch/graphvae-req-work/GraphVAE-REQ-gate4-lobster"
+    }
+    assert pythons == {
+        "cs-cl-13": "/localhome/mirzaei/miniconda3/envs/micro/bin/python"
+    }
+    assert slots == [
+        {
+            "host": "cs-cl-13",
+            "physical_gpu": 0,
+            "worker_id": "cs-cl-13-gate4-gpu0",
+        }
+    ]

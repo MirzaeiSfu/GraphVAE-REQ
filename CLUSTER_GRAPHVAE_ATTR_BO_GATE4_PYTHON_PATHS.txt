@@ -1,0 +1,2 @@
+# Qualified Python for the single Gate 4 worker host.
+cs-cl-13 /localhome/mirzaei/miniconda3/envs/micro/bin/python

@@ -1,0 +1,3 @@
+# Dedicated Gate 4 qualification deployment. Do not reuse the unmanaged
+# general-purpose GraphVAE-REQ copies listed in CLUSTER_REPO_PATHS.txt.
+cs-cl-13 /local-scratch/graphvae-req-work/GraphVAE-REQ-gate4-lobster

@@ -241,3 +241,16 @@ PROTEINS is not a valid replacement for this gate because the repository loads
 it without edge attributes, and the required `decoded_node_edge` evaluator
 correctly rejects such a cache. Full-QM9 BO remains blocked until a separately
 reviewed staged or multi-fidelity budget is defined.
+
+The one-worker deployment is isolated from unmanaged cluster copies by these
+committed mappings:
+
+```text
+CLUSTER_GRAPHVAE_ATTR_BO_GATE4_REPO_PATHS.txt
+CLUSTER_GRAPHVAE_ATTR_BO_GATE4_PYTHON_PATHS.txt
+CLUSTER_GRAPHVAE_ATTR_BO_GATE4_SLOTS.txt
+```
+
+They select only `cs-cl-13:cuda:0` and a dedicated
+`GraphVAE-REQ-gate4-lobster` deployment directory. Gate 4 commands must use
+these files rather than the multi-host sample pool.
