@@ -320,6 +320,7 @@ def _definition_for_init(
             "training_timeout_seconds": None if training_timeout <= 0 else training_timeout,
             "evaluation_timeout_seconds": None if evaluation_timeout <= 0 else evaluation_timeout,
             "termination_grace_seconds": termination_grace,
+            "mock": bool(args.mock),
         },
         source=source_manifest,
         environment=environment,
@@ -533,6 +534,20 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
     _assert_controller_owner(
         study, args.output_dir.expanduser().resolve(), controller_uuid
     )
+    contracted_parallelism = int(definition["scheduler"]["max_parallel"])
+    if args.max_parallel != contracted_parallelism:
+        raise DistributedContractError(
+            "Requested maximum parallelism differs from the immutable contract."
+        )
+    if (
+        args.heartbeat_interval
+        != int(definition["storage"]["heartbeat_interval"])
+        or args.grace_period
+        != int(definition["storage"]["grace_period"])
+    ):
+        raise DistributedContractError(
+            "Worker heartbeat/grace settings differ from the immutable contract."
+        )
     if not args.dry_run and not args.execute_remote:
         raise ValueError("Remote dispatch requires the explicit --execute-remote acknowledgement.")
     waiting = [
@@ -550,9 +565,9 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
     startup_target = int(definition["sampler"]["n_startup_trials"])
     startup_remaining = max(0, startup_target - usable_observations)
     wave_limit = (
-        min(args.max_parallel, startup_remaining)
+        min(contracted_parallelism, startup_remaining)
         if startup_remaining
-        else args.max_parallel
+        else contracted_parallelism
     )
     wave_slots = slots[: min(wave_limit, len(waiting), len(slots))]
     wave_index = len(list((args.output_dir / "launch_manifests").glob("wave_*.json"))) + 1
@@ -580,7 +595,7 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
             heartbeat_interval=args.heartbeat_interval,
             grace_period=args.grace_period,
             tpe_startup_trials=int(definition["sampler"]["n_startup_trials"]),
-            mock=False,
+            mock=bool(definition["training"].get("mock", False)),
             allow_sslmode_require_exception=(
                 definition["storage"].get("tls_policy")
                 == "require-documented-infrastructure-exception"

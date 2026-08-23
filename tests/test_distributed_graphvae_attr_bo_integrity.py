@@ -75,7 +75,7 @@ def _definition(name: str, config: dict, config_path: Path, manifest: dict):
             "repeat_count": 5,
             "max_graphs": 3,
         },
-        training={"epoch_number": 1},
+        training={"epoch_number": 1, "mock": True},
         source={},
         environment={},
         dataset_cache=manifest,

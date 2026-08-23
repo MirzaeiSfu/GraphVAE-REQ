@@ -1268,9 +1268,19 @@ quarantined; and an all-failed study reconciled an artifactless heartbeat
 failure through a verified tombstone, wrote no false best trial, froze a
 portable snapshot, and returned nonzero.
 
-The post-change regression results were `123 passed, 16 deselected` for the
-non-PostgreSQL/non-remote/non-GPU/non-slow suite and `16 passed` for the complete
-disposable-PostgreSQL suite. Gate 3's launcher dry-run R01 remains separate.
+R01 then passed through the actual controller `init`, `preflight --dry-run`, and
+`run --dry-run` commands for two synthetic hosts using physical GPU indexes 3
+and 7. Both commands mapped the selected physical device to logical `cuda:0`,
+preserved one-trial worker execution, inherited only the storage environment
+variable name, and contained no storage URL, password material, held-out test
+option, or remote-execution acknowledgement. No SSH command ran. Mock-versus-
+real execution, heartbeat/grace values, and maximum parallelism are now checked
+against the immutable study contract before rendering a worker command.
+
+The final Gate 3 regression results were `123 passed, 17 deselected` for the
+non-PostgreSQL/non-remote/non-GPU/non-slow suite and `17 passed` for the complete
+disposable-PostgreSQL suite. Gate 3 is complete locally. This does not authorize
+Gate 4's remote mock worker or tiny real GraphVAE trial.
 
 ### Current execution checkpoint
 
@@ -1288,11 +1298,10 @@ design questions:
   logging credentials;
 - make the current exact `/32` port-5432 firewall rules persistent in the
   Ansible-managed source or through SFU research support;
-- build and qualify the canonical tiny cache, deployment manifest, artifact
-  transport, and launcher dry-run in Gate 3;
 - normalize the runtime environment and stage verified source/cache inputs
   before Gates 4-6.
 
-Section 14, Gate 1, and local Gate 2 are complete. Credential deployment is not
-required for Gate 3's local coding and dry-run tests; it is required before the
-first remote worker acceptance test in Gate 4.
+Section 14 and Gates 1-3 are complete locally. The first remote worker
+acceptance test in Gate 4 still requires explicit credential-deployment
+authorization, authenticated `verify-full` preflight, a real canonical QM9
+cache, approved slots, and a new smoke study/output root.

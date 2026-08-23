@@ -343,6 +343,19 @@ def run_worker(args: argparse.Namespace) -> int:
             )
         if args.tpe_startup_trials != int(definition["sampler"]["n_startup_trials"]):
             raise DistributedContractError("Worker TPE startup setting differs from contract.")
+        if args.mock != bool(definition["training"].get("mock", False)):
+            raise DistributedContractError(
+                "Worker mock/real execution mode differs from contract."
+            )
+        if (
+            args.heartbeat_interval
+            != int(definition["storage"]["heartbeat_interval"])
+            or args.grace_period
+            != int(definition["storage"]["grace_period"])
+        ):
+            raise DistributedContractError(
+                "Worker heartbeat/grace settings differ from contract."
+            )
         base_config, _cache_path = local_preflight(args, definition)
         storage_url = storage_url_from_env(args.storage_env)
         phase = "postgresql_preflight"

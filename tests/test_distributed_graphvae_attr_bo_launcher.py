@@ -55,7 +55,7 @@ def _definition(name, config, config_path):
         },
         training={
             "epoch_number": 1, "training_timeout_seconds": 5,
-            "evaluation_timeout_seconds": 5,
+            "evaluation_timeout_seconds": 5, "mock": True,
         },
         source={},
         environment={},

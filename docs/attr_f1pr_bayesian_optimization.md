@@ -179,6 +179,11 @@ exit. Each dispatch seed is derived from the study seed and immutable dispatch
 sequence by the roadmap's SHA-256 formula, and TPE always uses
 `constant_liar=True`.
 
+Mock versus real execution is part of the immutable study definition. A mock
+study renders only workers with `--mock`, a real study rejects mock workers,
+and controller/worker preflight rejects heartbeat/grace or maximum-concurrency
+settings that differ from the frozen contract.
+
 Status, local staged collection, and freeze/finalization are explicit:
 
 ```bash

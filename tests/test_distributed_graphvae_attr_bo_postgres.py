@@ -132,6 +132,7 @@ class IsolatedStudy:
         if worker_ready:
             self.definition["source"] = {}
             self.definition["environment"] = {}
+            self.definition["training"]["mock"] = True
             self.definition["storage"]["tls_policy"] = (
                 "localhost-test-exception" if _allow_insecure(url) else "verify-full"
             )
@@ -717,3 +718,142 @@ def test_d08_all_fail_finalizer_reconciles_artifactless_heartbeat(
         if process is not None and process.is_alive():
             process.kill()
         isolated.cleanup()
+
+
+def test_r01_actual_controller_multi_host_dry_run_is_secret_and_test_safe(
+    postgres_url, tmp_path
+):
+    name = f"graphvae_bo_pytest_{uuid.uuid4().hex}"
+    output_root = tmp_path / name
+    repo_paths = tmp_path / "repos.txt"
+    python_paths = tmp_path / "pythons.txt"
+    slots = tmp_path / "slots.txt"
+    repo_paths.write_text(
+        "worker-a /srv/graphvae-a\nworker-b /srv/graphvae-b\n",
+        encoding="utf-8",
+    )
+    python_paths.write_text(
+        "worker-a /env/a/bin/python\nworker-b /env/b/bin/python\n",
+        encoding="utf-8",
+    )
+    slots.write_text(
+        "worker-a 3 worker-a-gpu3\nworker-b 7 worker-b-gpu7\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["GRAPHVAE_BO_R01_STORAGE_URL"] = postgres_url
+    controller = REPO_ROOT / "scripts" / "run_distributed_graphvae_attr_bo.py"
+    common = [
+        "--study-name", name,
+        "--output-dir", str(output_root),
+        "--storage-env", "GRAPHVAE_BO_R01_STORAGE_URL",
+    ]
+    if _allow_insecure(postgres_url):
+        common.append("--allow-insecure-local-postgres")
+    storage = None
+    try:
+        init = subprocess.run(
+            [
+                str(MICRO_PYTHON),
+                str(controller),
+                "init",
+                *common,
+                "--base-config",
+                "configs/bayesian_optimization/qm9_graphvae_attr_f1pr_smoke.yaml",
+                "--dataset-cache-manifest",
+                str(
+                    REPO_ROOT
+                    / "tests"
+                    / "fixtures"
+                    / "distributed_attr_f1pr_bo"
+                    / "dataset_cache_manifest.json"
+                ),
+                "--trials", "2",
+                "--max-parallel", "2",
+                "--sampler-seed", "11",
+                "--mock",
+            ],
+            cwd=REPO_ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+        assert init.returncode == 0, init.stderr
+        storage = _storage(postgres_url)
+
+        preflight = subprocess.run(
+            [
+                str(MICRO_PYTHON),
+                str(controller),
+                "preflight",
+                *common,
+                "--repo-paths", str(repo_paths),
+                "--python-paths", str(python_paths),
+                "--slots", str(slots),
+                "--dry-run",
+            ],
+            cwd=REPO_ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+        assert preflight.returncode == 0, preflight.stderr
+
+        dry_run = subprocess.run(
+            [
+                str(MICRO_PYTHON),
+                str(controller),
+                "run",
+                *common,
+                "--base-config",
+                "configs/bayesian_optimization/qm9_graphvae_attr_f1pr_smoke.yaml",
+                "--repo-paths", str(repo_paths),
+                "--python-paths", str(python_paths),
+                "--slots", str(slots),
+                "--max-parallel", "2",
+                "--dry-run",
+            ],
+            cwd=REPO_ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+        assert dry_run.returncode == 0, dry_run.stderr
+        manifest = json.loads(
+            (
+                output_root / "launch_manifests" / "wave_0001.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert manifest["dry_run"] is True
+        assert len(manifest["launches"]) == 2
+        assert {launch["physical_gpu"] for launch in manifest["launches"]} == {3, 7}
+        for launch in manifest["launches"]:
+            command = launch["remote_command"]
+            assert f"CUDA_VISIBLE_DEVICES={launch['physical_gpu']}" in command
+            assert f"--physical-gpu {launch['physical_gpu']}" in command
+            assert "--device cuda:0" in command
+            assert "--mock" in command
+            assert "--storage-env GRAPHVAE_BO_R01_STORAGE_URL" in command
+            assert "--split" not in command
+            assert "--execute-remote" not in command
+            assert "final_test" not in command
+            assert "PGPASS" not in command
+            assert "password" not in command.lower()
+            assert "postgresql" not in command.lower()
+            assert postgres_url not in command
+    finally:
+        if storage is None:
+            try:
+                storage = _storage(postgres_url)
+            except Exception:
+                storage = None
+        if storage is not None:
+            try:
+                import optuna
+
+                optuna.delete_study(study_name=name, storage=storage)
+            except KeyError:
+                pass
