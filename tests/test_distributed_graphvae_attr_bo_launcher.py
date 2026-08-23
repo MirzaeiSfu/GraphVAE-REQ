@@ -176,4 +176,55 @@ def test_shell_launchers_parse_and_offer_safe_staging_modes():
         text=True,
     )
     assert "--bo-cache-manifest" in distribute_help
+    assert "--host HOST" in distribute_help
     assert "--exact-destination" in collect_help
+
+
+def test_code_distributor_dry_run_can_target_one_host(tmp_path):
+    repo_paths = tmp_path / "repo_paths.txt"
+    repo_paths.write_text(
+        "worker-a /srv/graphvae-a\nworker-b /srv/graphvae-b\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts" / "cluster_distribute_code.sh"),
+            "--repo-paths",
+            str(repo_paths),
+            "--host",
+            "worker-a",
+            "--code-source",
+            str(REPO_ROOT),
+            "--dry-run",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert f"[code] {REPO_ROOT} -> worker-a:/srv/graphvae-a" in result.stdout
+    assert "worker-b:/srv/graphvae-b" not in result.stdout
+
+
+def test_code_distributor_rejects_unknown_selected_host(tmp_path):
+    repo_paths = tmp_path / "repo_paths.txt"
+    repo_paths.write_text("worker-a /srv/graphvae-a\n", encoding="utf-8")
+    result = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts" / "cluster_distribute_code.sh"),
+            "--repo-paths",
+            str(repo_paths),
+            "--host",
+            "missing-worker",
+            "--code-source",
+            str(REPO_ROOT),
+            "--dry-run",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 2
+    assert "No repo-path entry found for selected host: missing-worker" in result.stderr

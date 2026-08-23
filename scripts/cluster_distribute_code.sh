@@ -13,6 +13,7 @@ BO_CACHE_MANIFEST=""
 PYTHON_BIN="${PYTHON_BIN:-python}"
 REMOTE_PYTHON_BIN="${REMOTE_PYTHON_BIN:-python3}"
 DEPLOYMENT_MANIFEST_TMP=""
+SELECTED_HOST=""
 
 usage() {
   cat <<'EOF'
@@ -23,6 +24,7 @@ Usage:
 
 Options:
   --repo-paths FILE          Input file with rows: HOST REPO_PATH
+  --host HOST                Stage only the named host from --repo-paths
   --code-source DIR          Controller repo directory to sync; default: .
   --sync-inputs              Rsync data_raw and cache_motifs to workers.
                               When syncing cache_motifs, the remote cache_motifs
@@ -99,6 +101,10 @@ while (($#)); do
       ;;
     --code-source)
       CODE_SOURCE_DIR="$2"
+      shift 2
+      ;;
+    --host)
+      SELECTED_HOST="$2"
       shift 2
       ;;
     --remote-url)
@@ -207,6 +213,7 @@ if [[ "$SYNC_INPUTS" == true ]]; then
 fi
 
 failures=0
+matched_hosts=0
 SSH_OPTS=(-o "ConnectTimeout=$SSH_CONNECT_TIMEOUT" -o StrictHostKeyChecking=accept-new)
 RSYNC_SSH_CMD="ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT -o StrictHostKeyChecking=accept-new"
 CODE_RSYNC_EXCLUDES=(
@@ -233,6 +240,10 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     failures=$((failures + 1))
     continue
   fi
+  if [[ -n "$SELECTED_HOST" && "$host" != "$SELECTED_HOST" ]]; then
+    continue
+  fi
+  matched_hosts=$((matched_hosts + 1))
 
   echo
   echo "[code] $CODE_SOURCE_DIR_ABS -> $host:$repo_path"
@@ -329,6 +340,11 @@ EOF
     done
   fi
 done < "$REPO_PATHS_FILE"
+
+if [[ -n "$SELECTED_HOST" && "$matched_hosts" -eq 0 ]]; then
+  echo "No repo-path entry found for selected host: $SELECTED_HOST" >&2
+  exit 2
+fi
 
 echo
 echo "[summary] failures: $failures"
