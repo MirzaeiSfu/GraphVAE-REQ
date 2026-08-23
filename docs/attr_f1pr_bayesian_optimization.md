@@ -221,3 +221,23 @@ The localhost-only `--allow-insecure-local-postgres` switch exists strictly for
 a disposable Gate 2 endpoint. Production commands require
 `sslmode=verify-full`. PostgreSQL tests skip only when the explicit test URL is
 absent; a Gate 2 acceptance run must supply it and have no skips.
+
+## Gate 4 qualification dataset
+
+Gate 4 uses
+`configs/bayesian_optimization/lobster_graphvae_attr_f1pr_smoke.yaml` in a new,
+qualification-only study. LOBSTER has 100 deterministic graphs and meaningful
+node and edge feature channels, so its paper-style split contains 70 training,
+10 validation, and 20 held-out test graphs. The smoke budget is two epochs with
+batch size eight, and evaluation accepts at most eight validation graphs. The
+objective remains exactly
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`; held-out test access
+remains forbidden.
+
+This study qualifies PostgreSQL, remote execution, all three decoder outputs,
+artifact transport, and the attributed evaluator. It does not estimate QM9
+model quality and must never be resumed as a QM9 pilot or production study.
+PROTEINS is not a valid replacement for this gate because the repository loads
+it without edge attributes, and the required `decoded_node_edge` evaluator
+correctly rejects such a cache. Full-QM9 BO remains blocked until a separately
+reviewed staged or multi-fidelity budget is defined.

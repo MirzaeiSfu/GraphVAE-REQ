@@ -760,8 +760,8 @@ trial or alter the selected best trial.
 - `scripts/graphvae_attr_bo_fingerprints.py`;
 - `requirements-bo-py38.txt`;
 - `CLUSTER_GRAPHVAE_ATTR_BO_SLOTS_SAMPLE.txt`;
-- `configs/bayesian_optimization/qm9_graphvae_attr_f1pr_smoke.yaml` with an
-  explicit tiny epoch/batch/graph budget and subprocess timeouts;
+- `configs/bayesian_optimization/lobster_graphvae_attr_f1pr_smoke.yaml` with an
+  explicit tiny epoch/batch/graph budget and subprocess timeouts for Gates 4-5;
 - `tests/test_distributed_graphvae_attr_bo_unit.py`;
 - `tests/test_distributed_graphvae_attr_bo_postgres.py`;
 - `tests/test_distributed_graphvae_attr_bo_launcher.py`;
@@ -946,13 +946,18 @@ absent from artifacts, and collection is atomic/idempotent.
 
 ### Gate 4: one-worker qualification
 
-1. Use a new smoke study name and output root.
+1. Use a new LOBSTER-only smoke study name and output root. This qualification
+   dataset has 100 deterministic graphs with both node and edge attributes; it
+   is not a QM9 proxy or production study.
 2. Run R02 with a remote mock worker.
-3. Run R03 with one tiny real GraphVAE trial using only the committed smoke YAML.
+3. Run R03 with one tiny real GraphVAE trial using only the committed LOBSTER
+   smoke YAML. Preserve the exact
+   `evaluation.modes.decoded_node_edge.summary.f1_pr.mean` objective.
 4. Collect, audit, finalize, restore, and inspect the result.
 
 Exit condition: one worker completes the final end-to-end path using PostgreSQL,
-the real cache, checkpoint, and attributed evaluator.
+the real LOBSTER qualification cache, checkpoint, and attributed evaluator.
+This gate does not authorize or validate full-QM9 BO.
 
 ### Gate 5: two-worker concurrency qualification
 
@@ -1256,7 +1261,7 @@ One deterministic synthetic qualification cache and canonical manifest were
 built with `dataset-cache-v4` metadata, a fixed dataset-loader seed, 21 training
 graphs, 3 validation graphs, 6 test graphs, and 30 unique graph fingerprints.
 The fixture is restricted to local cache/transport qualification and does not
-replace Gate 4's real QM9 cache.
+replace Gate 4's real LOBSTER qualification cache.
 
 D01-D08 passed. Missing and byte-modified caches failed before PostgreSQL trial
 claim; two independently staged copies recomputed identical file, split,
@@ -1303,5 +1308,7 @@ design questions:
 
 Section 14 and Gates 1-3 are complete locally. The first remote worker
 acceptance test in Gate 4 still requires explicit credential-deployment
-authorization, authenticated `verify-full` preflight, a real canonical QM9
-cache, approved slots, and a new smoke study/output root.
+authorization, authenticated `verify-full` preflight, a real canonical LOBSTER
+qualification cache, approved slots, and a new smoke study/output root. Full
+QM9 BO remains blocked pending a separately reviewed staged or multi-fidelity
+budget.
