@@ -254,7 +254,10 @@ trial number, and phase to match the live Linux process. Only after reviewing a
 hard failure; unrelated process groups are never targeted. Process cleanup
 does not repair Optuna state: native heartbeat/stale-trial handling must move
 the original reservation to `FAIL`, after which finalization writes and audits
-its tombstone without replacement.
+its tombstone without replacement. If the killed worker left an identity-bound
+`trial_result.json` with `status=RUNNING`, finalization atomically retains it as
+`trial_result.interrupted.json`, records its hash in the tombstone, and verifies
+that the canonical terminal-result path is absent.
 
 ### Gate 1 and local Gate 2 tests
 

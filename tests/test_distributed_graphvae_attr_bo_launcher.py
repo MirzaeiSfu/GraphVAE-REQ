@@ -5,12 +5,19 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
+import optuna
 import pytest
 import yaml
 
 from scripts.graphvae_attr_bo_distributed import (
+    BUDGET_INDEX_ATTR,
+    DistributedContractError as GraphDistributedContractError,
+    RESERVED_ATTR,
+    TRIAL_CONTRACT_ATTR,
     atomic_write_json,
+    audit_trial_result,
     build_study_definition,
     canonical_contract_hash,
     sha256_file,
@@ -20,6 +27,7 @@ from scripts.run_distributed_graphvae_attr_bo import (
     _assert_prior_launches_reconciled,
     _classify_launch_probe,
     _preflight_inputs,
+    _reconcile_terminal_failures_without_results,
     _validate_test_faults,
     command_collect,
 )
@@ -517,3 +525,75 @@ def test_r06_launch_fault_injection_requires_explicit_test_environment(monkeypat
 
     monkeypatch.setenv("GRAPHVAE_BO_ENABLE_TEST_FAULTS", "1")
     _validate_test_faults(args, slots)
+
+
+def test_r07_interrupted_result_is_retained_and_bound_to_failure_tombstone(tmp_path):
+    definition = {"schema_version": "test-contract", "study_name": "r07"}
+    contract_hash = canonical_contract_hash(definition)
+    worker_run = "worker-run"
+    trial = SimpleNamespace(
+        number=0,
+        state=optuna.trial.TrialState.FAIL,
+        value=None,
+        params={},
+        user_attrs={
+            RESERVED_ATTR: True,
+            BUDGET_INDEX_ATTR: 0,
+            TRIAL_CONTRACT_ATTR: contract_hash,
+            "worker_id": "worker",
+            "worker_run_id": worker_run,
+        },
+    )
+
+    class Study:
+        def get_trials(self, deepcopy=False):
+            assert deepcopy is False
+            return [trial]
+
+    trial_dir = tmp_path / "trials" / "trial_00000"
+    worker_dir = tmp_path / "workers" / worker_run
+    worker_dir.mkdir(parents=True)
+    atomic_write_json(
+        trial_dir / "trial_result.json",
+        {
+            "schema_version": "graphvae-attr-f1pr-bo-trial-v2",
+            "status": "RUNNING",
+            "trial_number": 0,
+            "budget_index": 0,
+            "study_contract_sha256": contract_hash,
+            "worker_run_id": worker_run,
+            "sampled_weights": {},
+            "finished_at_unix": None,
+        },
+    )
+
+    _reconcile_terminal_failures_without_results(Study(), tmp_path, definition)
+    assert not (trial_dir / "trial_result.json").exists()
+    interrupted = trial_dir / "trial_result.interrupted.json"
+    tombstone_path = trial_dir / "trial_failure_tombstone.json"
+    marker_path = worker_dir / "RECONCILED_FAIL"
+    assert interrupted.is_file()
+    assert marker_path.is_file()
+    tombstone = json.loads(tombstone_path.read_text(encoding="utf-8"))
+    assert tombstone["failure_category"] == (
+        "postgresql_stale_worker_with_interrupted_result"
+    )
+    assert tombstone["retained_evidence"] == [
+        {
+            "kind": "interrupted_trial_result",
+            "path": "trials/trial_00000/trial_result.interrupted.json",
+            "recorded_status": "RUNNING",
+            "sha256": sha256_file(interrupted),
+        }
+    ]
+    assert audit_trial_result(
+        trial, study_root=tmp_path, definition=definition
+    ) == tombstone
+
+    before = tombstone_path.read_bytes()
+    _reconcile_terminal_failures_without_results(Study(), tmp_path, definition)
+    assert tombstone_path.read_bytes() == before
+
+    interrupted.write_bytes(interrupted.read_bytes() + b"tamper")
+    with pytest.raises(GraphDistributedContractError, match="retained evidence"):
+        audit_trial_result(trial, study_root=tmp_path, definition=definition)

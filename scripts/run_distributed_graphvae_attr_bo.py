@@ -1512,7 +1512,7 @@ def _reconcile_terminal_failures_without_results(
     output_dir: Path,
     definition: Mapping[str, Any],
 ) -> None:
-    """Publish tombstones only for DB-terminal reserved failures with no result."""
+    """Publish tombstones for DB-terminal failures without a terminal result."""
 
     contract_hash = canonical_contract_hash(definition)
     worker_root = output_dir / "workers"
@@ -1529,9 +1529,59 @@ def _reconcile_terminal_failures_without_results(
             attrs.get("failure_tombstone")
             or f"trials/trial_{trial.number:05d}/trial_failure_tombstone.json",
         )
-        if result_path.is_file() or tombstone_path.is_file():
+        if tombstone_path.is_file():
             continue
         budget_index = int(attrs[BUDGET_INDEX_ATTR])
+        retained_evidence = []
+        interrupted_path = result_path.with_name(
+            f"{result_path.stem}.interrupted{result_path.suffix}"
+        )
+        partial_path = result_path if result_path.is_file() else interrupted_path
+        if partial_path.is_file():
+            partial = json.loads(partial_path.read_text(encoding="utf-8"))
+            if partial.get("status") == "FAIL" and partial_path == result_path:
+                if interrupted_path.exists():
+                    raise DistributedContractError(
+                        f"Trial {trial.number} has conflicting terminal and interrupted results."
+                    )
+                continue
+            expected_partial = {
+                "schema_version": "graphvae-attr-f1pr-bo-trial-v2",
+                "status": "RUNNING",
+                "trial_number": trial.number,
+                "budget_index": budget_index,
+                "study_contract_sha256": contract_hash,
+                "worker_run_id": attrs.get("worker_run_id"),
+                "sampled_weights": dict(trial.params),
+            }
+            if any(
+                partial.get(field) != expected
+                for field, expected in expected_partial.items()
+            ) or partial.get("finished_at_unix") is not None:
+                raise DistributedContractError(
+                    f"Trial {trial.number} partial result identity is invalid."
+                )
+            if partial_path == result_path:
+                if interrupted_path.exists():
+                    raise DistributedContractError(
+                        f"Trial {trial.number} interrupted-result path already exists."
+                    )
+                os.replace(str(result_path), str(interrupted_path))
+                directory_descriptor = os.open(
+                    str(interrupted_path.parent), os.O_RDONLY
+                )
+                try:
+                    os.fsync(directory_descriptor)
+                finally:
+                    os.close(directory_descriptor)
+            retained_evidence.append(
+                {
+                    "kind": "interrupted_trial_result",
+                    "path": relative_artifact_path(output_dir, interrupted_path),
+                    "sha256": sha256_file(interrupted_path),
+                    "recorded_status": "RUNNING",
+                }
+            )
         tombstone_path = write_failure_tombstone(
             study_root=output_dir,
             trial_number=trial.number,
@@ -1539,7 +1589,11 @@ def _reconcile_terminal_failures_without_results(
             contract_hash=contract_hash,
             worker_id=attrs.get("worker_id"),
             worker_run_id_value=attrs.get("worker_run_id"),
-            failure_category="postgresql_terminal_fail_without_result_artifact",
+            failure_category=(
+                "postgresql_stale_worker_with_interrupted_result"
+                if retained_evidence
+                else "postgresql_terminal_fail_without_result_artifact"
+            ),
             missing_artifacts=(
                 {
                     "kind": "trial_result",
@@ -1547,6 +1601,7 @@ def _reconcile_terminal_failures_without_results(
                     "verified_absent": True,
                 },
             ),
+            retained_evidence=retained_evidence,
         )
         worker_run = attrs.get("worker_run_id")
         if not worker_run:

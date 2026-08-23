@@ -773,6 +773,26 @@ def audit_trial_result(
                 raise DistributedContractError(
                     "Failure tombstone names an artifact that now exists."
                 )
+        retained_evidence = tombstone.get("retained_evidence") or []
+        if not isinstance(retained_evidence, list):
+            raise DistributedContractError("Failure tombstone retained evidence is invalid.")
+        for retained in retained_evidence:
+            if (
+                not isinstance(retained, Mapping)
+                or not retained.get("path")
+                or not retained.get("sha256")
+            ):
+                raise DistributedContractError(
+                    "Failure tombstone retained evidence is invalid."
+                )
+            retained_path = resolve_artifact_path(study_root, str(retained["path"]))
+            if (
+                not retained_path.is_file()
+                or sha256_file(retained_path) != retained["sha256"]
+            ):
+                raise DistributedContractError(
+                    "Failure tombstone retained evidence hash mismatch."
+                )
         return tombstone
     result_relative = attrs.get("trial_result") or f"trials/trial_{trial.number:05d}/trial_result.json"
     result_path = resolve_artifact_path(study_root, result_relative)
@@ -879,6 +899,7 @@ def write_failure_tombstone(
     worker_run_id_value: str | None,
     failure_category: str,
     missing_artifacts: Sequence[Mapping[str, Any]],
+    retained_evidence: Sequence[Mapping[str, Any]] = (),
 ) -> Path:
     path = (
         Path(study_root).resolve()
@@ -899,6 +920,7 @@ def write_failure_tombstone(
             "reconciled_at_unix": time.time(),
             "failure_category": failure_category,
             "missing_artifacts": [dict(item) for item in missing_artifacts],
+            "retained_evidence": [dict(item) for item in retained_evidence],
         },
     )
     return path
