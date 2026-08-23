@@ -1588,6 +1588,56 @@ and generic storage-URL scans passed, optimization retained
 remain mode `0444`, size 59,295,793 bytes, with unchanged SHA-256
 `928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
 
+### Gate 5 R05 two-host real LOBSTER follow-up (2026-08-23)
+
+The different fresh real study
+`lobster_attr_f1pr_gate5_r05_real_20260823a` used committed source
+`912854e24f6cea8140807ada618a976ce629d117` and immutable contract SHA-256
+`a57a8e8d60e1f1da73234a7af7b77ead9e0f9f27ccbc7afff1fd6505d50592d1`.
+It reserved exactly two scientific slots with `max_parallel=2`, heartbeat 60,
+grace 600, and no failed-slot replacement. The committed LOBSTER smoke config
+retained two epochs, at most eight evaluation graphs, five evaluator repeats,
+600-second training and evaluation limits, and `skip_final_evaluation=true`.
+PostgreSQL reported exactly two reserved `WAITING` trials before the only
+bounded launch wave.
+
+The dedicated `cs-cl-13` and `cs-cl-17` GPU-0 workers used dispatch sequences
+1,000,000 and 1,000,001 and deterministic sampler seeds 3,729,395,558 and
+2,192,993,003. Their worker lifetimes overlapped for more than 222 seconds.
+PostgreSQL assigned distinct trial numbers and budget indexes 0 and 1 with no
+locking error, duplicate, guard row, or replacement. Both workers recorded
+logical `cuda:0`, NVIDIA TITAN RTX with 25,769,803,776 VRAM bytes, and the exact
+frozen runtime fingerprint.
+
+Trial 0 sampled `alpha_node_feat=45.91347191422007` and
+`alpha_edge_feat=20.220667075373278`; training took 210.80 seconds and
+evaluation took 8.21 seconds. Trial 1 sampled
+`alpha_node_feat=0.36294870524446543` and
+`alpha_edge_feat=0.01199297988354986`; training took 233.91 seconds and
+evaluation took 9.10 seconds. Both independently reached `COMPLETE` inside the
+fixed phase limits. Their checkpoints are distinct artifacts, as expected for
+different sampled parameters and hosts.
+
+Both structured evaluator payloads produce the same finite tiny-smoke value
+`0.000019999800003999925` at exactly
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`, with precision 0.0,
+recall 1.0, and eight accepted validation graphs. Each attests to validation
+split, `decoded_node_edge`, both GraphVAE attribute decoders, 14 node and 11
+edge channels, five repeats, and eight generated plus eight reference graphs.
+This tiny two-epoch result is qualification evidence only, not a model-quality
+claim.
+
+Checksum collection merged both host trees without a differing collision.
+Controller audit accepted both results and worker markers, froze the study, and
+atomically published the portable SQLite snapshot. Independent reopen preserved
+two `COMPLETE` reservations, best trial 0 under the tied objective, and semantic
+study fingerprint
+`9a7b70db1f284a51ae536d8e416c0abec1026acb166aa8c0971d9e885283f932`;
+the live PostgreSQL study matched it exactly. Credential-material and generic
+storage-URL scans passed, `test_access=false` remained frozen, and no final-test
+artifact exists. Both deployed caches remain mode `0444`, size 59,295,793
+bytes, with unchanged canonical SHA-256.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1614,7 +1664,7 @@ collection, audit, freeze, and restore all pass on the one approved Gate 4 slot.
 Gate 5 is authorized, its dedicated two-host mapping is frozen, and protected
 authentication plus source/cache/runtime/GPU qualification now pass on both
 workers. R04 now passes with its separate frozen two-reservation mock study;
-R05 is the next step and requires a different fresh real LOBSTER study. Gate 6
-and later gates remain unstarted, and credentials must be rotated before any
-pilot or production use. Full QM9 BO remains blocked pending a separately
-reviewed staged or multi-fidelity budget.
+R05 now passes with a different frozen two-reservation real LOBSTER study. R06
+is the next step. Gate 6 and later gates remain unstarted, and credentials must
+be rotated before any pilot or production use. Full QM9 BO remains blocked
+pending a separately reviewed staged or multi-fidelity budget.
