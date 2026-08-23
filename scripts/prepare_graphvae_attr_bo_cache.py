@@ -184,6 +184,40 @@ def verify_cache_manifest(
     return actual
 
 
+def validate_expected_total_graphs(
+    config: dict[str, Any], manifest: dict[str, Any]
+) -> None:
+    """Enforce an optional qualification-size contract before publication."""
+
+    raw_expected = config.get("expected_total_graphs")
+    if raw_expected is None:
+        return
+    if isinstance(raw_expected, bool):
+        raise DistributedContractError("expected_total_graphs must be a positive integer.")
+    try:
+        expected = int(raw_expected)
+    except (TypeError, ValueError) as exc:
+        raise DistributedContractError(
+            "expected_total_graphs must be a positive integer."
+        ) from exc
+    if expected <= 0 or str(raw_expected).strip() != str(expected):
+        raise DistributedContractError("expected_total_graphs must be a positive integer.")
+    splits = manifest.get("splits") or {}
+    try:
+        actual = sum(
+            int(splits[name]["graph_count"])
+            for name in ("train", "validation", "test")
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise DistributedContractError(
+            "Cache manifest has incomplete split graph counts."
+        ) from exc
+    if actual != expected:
+        raise DistributedContractError(
+            f"Cache graph count mismatch: expected {expected}, found {actual}."
+        )
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-config", type=Path, default=None)
@@ -239,6 +273,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest = build_cache_manifest(cache_path, cache, max_graphs=args.max_graphs)
     else:
         manifest = verify_cache_manifest(cache_path, cache, expected_manifest)
+    if config is not None:
+        validate_expected_total_graphs(config, manifest)
     after = (cache_path.stat().st_size, cache_path.stat().st_mtime_ns, sha256_file(cache_path))
     if before != after:
         raise RuntimeError("Dataset cache changed while its manifest was being built.")

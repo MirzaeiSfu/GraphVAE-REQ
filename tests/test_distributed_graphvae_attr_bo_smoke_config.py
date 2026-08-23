@@ -8,6 +8,10 @@ from scripts.tune_graphvae_attribute_weights import (
     resolve_trial_config,
     validate_base_config,
 )
+from scripts.prepare_graphvae_attr_bo_cache import (
+    DistributedContractError,
+    validate_expected_total_graphs,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -76,3 +80,19 @@ def test_gate4_smoke_config_renders_only_main_arguments(tmp_path):
     assert flat["require_existing_dataset_cache"] is True
     assert flat["skip_final_evaluation"] is True
     assert flat["third_party_eval"] is False
+
+
+def test_gate4_smoke_cache_size_contract_is_enforced():
+    config = flatten_config(load_yaml_mapping(SMOKE_CONFIG))
+    manifest = {
+        "splits": {
+            "train": {"graph_count": 70},
+            "validation": {"graph_count": 10},
+            "test": {"graph_count": 20},
+        }
+    }
+
+    validate_expected_total_graphs(config, manifest)
+    manifest["splits"]["train"]["graph_count"] = 69
+    with pytest.raises(DistributedContractError, match="expected 100, found 99"):
+        validate_expected_total_graphs(config, manifest)

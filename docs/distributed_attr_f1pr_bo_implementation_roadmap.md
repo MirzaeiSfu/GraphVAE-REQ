@@ -1287,6 +1287,25 @@ non-PostgreSQL/non-remote/non-GPU/non-slow suite and `17 passed` for the complet
 disposable-PostgreSQL suite. Gate 3 is complete locally. This does not authorize
 Gate 4's remote mock worker or tiny real GraphVAE trial.
 
+### Gate 4 qualification-cache preparation follow-up (2026-08-23)
+
+The committed Gate 4 smoke configuration now uses the deterministic LOBSTER
+qualification dataset instead of attempting an unbounded full-QM9 training
+split. Its normal data pipeline produced a 59,295,793-byte, read-only canonical
+cache with 70 training, 10 validation, and 20 held-out test graphs. The manifest
+accepts at most eight validation graphs and records 14 node-feature channels,
+11 edge-feature channels, every graph fingerprint, both schema fingerprints,
+and cache SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+Independent manifest verification passed without changing the cache. The cache
+publisher also enforces the smoke contract's exact 100-graph total so a loader
+or filtering change fails before study initialization.
+
+No model was constructed or trained while preparing this cache. No PostgreSQL
+study, remote worker, credential copy, held-out evaluation, pilot, or production
+run was started. The cache is a Gate 4 infrastructure and attributed-decoder
+qualification input only; it is not evidence about QM9 model quality.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1308,7 +1327,7 @@ design questions:
 
 Section 14 and Gates 1-3 are complete locally. The first remote worker
 acceptance test in Gate 4 still requires explicit credential-deployment
-authorization, authenticated `verify-full` preflight, a real canonical LOBSTER
-qualification cache, approved slots, and a new smoke study/output root. Full
-QM9 BO remains blocked pending a separately reviewed staged or multi-fidelity
-budget.
+authorization, authenticated `verify-full` preflight, staging the prepared
+canonical LOBSTER qualification cache to an approved slot, and initializing a
+new smoke study. Full QM9 BO remains blocked pending a separately reviewed
+staged or multi-fidelity budget.
