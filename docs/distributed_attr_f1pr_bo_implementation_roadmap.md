@@ -1396,6 +1396,31 @@ distributor now accepts an explicit `--local-python`, treats manifest-generation
 failure or an empty manifest as fatal before any transport, and checks remote
 cache-directory creation before copying cache bytes.
 
+### Gate 4 R02 remote mock qualification follow-up (2026-08-23)
+
+The fresh one-slot study
+`lobster_attr_f1pr_gate4_r02_mock_20260823b` passed R02 using committed source
+`f2b56bb8f291538be374bbb570e49ea0d866133f`. The controller staged and
+hash-verified the immutable study definition, deployment manifest, and LOBSTER
+cache manifest before launching one detached `cs-cl-13` tmux worker. The launch
+manifest records one acknowledged dispatch, fixed sampler seed, bounded
+synchronous execution, and `dry_run=false`.
+
+The remote `COMPLETED` marker and PostgreSQL agree on exactly one reserved
+`COMPLETE` trial, zero failures, zero WAITING/RUNNING trials, and zero unreserved
+guard rows. The structured evaluator used validation only, both GraphVAE
+attribute decoders, 14 node and 11 edge channels, five evaluator repeats, and
+eight generated plus eight reference accepted graphs. The value at the exact
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean` path was
+`0.7847403306199212`; this deterministic mock value qualifies orchestration and
+artifact integrity only and is not a model-quality result.
+
+Checksum collection, controller audit, finalization, and an independent reopen
+of `study_snapshot.sqlite3` all passed. The reopened snapshot preserves one
+`COMPLETE` trial, best trial 0, the same value and objective path, and a `FROZEN`
+lifecycle. No held-out artifact exists, optimization records `test_access=false`,
+and a credential-material scan of the collected study root passed.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1415,9 +1440,8 @@ design questions:
 - normalize the runtime environment and stage verified source/cache inputs
   before Gates 4-6.
 
-Section 14 and Gates 1-3 are complete locally. The first remote worker
-acceptance test in Gate 4 still requires initialization of new, separate R02
-mock and R03 real smoke studies. Protected
+Section 14 and Gates 1-3 are complete locally. R02 now passes with its separate
+remote mock study; Gate 4 still requires the new R03 real smoke study. Protected
 credential deployment and authenticated `verify-full` preflight now pass;
 source, cache, and the one approved GPU slot are staged and verified. Full QM9
 BO remains blocked pending a separately reviewed staged or multi-fidelity
