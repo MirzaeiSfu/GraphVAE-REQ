@@ -1327,6 +1327,23 @@ one-host mapping and reported zero failures.
 This step did not deploy credentials, access PostgreSQL, create a study, launch
 tmux or a worker, construct/train a model, or access held-out test data.
 
+### Gate 4 protected-credential preflight follow-up (2026-08-23)
+
+The controller and the single approved `cs-cl-13` worker now each have a
+host-local credential directory outside every repository. Directories are mode
+`0700`; the libpq passfile, trusted self-signed root certificate, and environment
+file are regular non-symlink files at mode `0600`. The environment files expose
+the storage URL and libpq paths only inside the worker process environment; the
+password is present only in the protected passfiles.
+
+Both hosts passed an authenticated Optuna storage connection using
+`sslmode=verify-full`, the `cs-cl-18` hostname certificate, role `graphvae_bo`,
+and database `graphvae_attr_bo`. Each server-side connection reported TLS
+enabled. No credential value, URL, passfile content, or passfile hash was
+printed or written to a command manifest, repository, or collected artifact.
+These credentials are authorized for Gate 4 qualification only and must be
+rotated before any later pilot or production gate.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1347,8 +1364,9 @@ design questions:
   before Gates 4-6.
 
 Section 14 and Gates 1-3 are complete locally. The first remote worker
-acceptance test in Gate 4 still requires explicit credential-deployment
-authorization, protected credential material, authenticated `verify-full`
-preflight, and initialization of a new smoke study. Source, cache, and the one
-approved GPU slot are staged and verified. Full QM9 BO remains blocked pending
-a separately reviewed staged or multi-fidelity budget.
+acceptance test in Gate 4 still requires initialization of new, separate R02
+mock and R03 real smoke studies. Protected
+credential deployment and authenticated `verify-full` preflight now pass;
+source, cache, and the one approved GPU slot are staged and verified. Full QM9
+BO remains blocked pending a separately reviewed staged or multi-fidelity
+budget.
