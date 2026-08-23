@@ -1365,6 +1365,30 @@ The controller and worker now produce the identical semantic runtime fingerprint
 `e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`.
 This exact fingerprint will be frozen into the R02 and R03 study contracts.
 
+### Gate 4 first R02 attempt and fail-closed remediation (2026-08-23)
+
+The first one-slot R02 mock study failed closed and was retained under its
+original immutable study name. Its initial worker attempt stopped before trial
+claim because the per-study definition had not yet been staged on the worker;
+the marker recorded `reservation_consumed=false`, PostgreSQL remained at one
+WAITING reservation, and the attempt was preserved before a deterministic retry
+with the same dispatch sequence and sampler seed. That retry consumed exactly
+one reservation and reached a reconciled `FAIL` because the synthetic evaluator
+still emitted its historical 4-node/3-edge fixture dimensions while the real
+LOBSTER cache contract requires 14 node and 11 edge channels.
+
+The failed study was collected, audited, and frozen without a false best trial.
+Its summary preserves the exact
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean` objective and records no
+test access; its portable SQLite snapshot reopens with one `FAIL` trial and a
+`FROZEN` lifecycle. A credential-material scan of its artifacts passed.
+
+The remediation makes mock evaluator dimensions follow the immutable cache
+contract, stages and verifies the three public per-study inputs before remote
+launch, records launch intent before SSH, and quotes the complete worker shell as
+tmux's single command argument. A new study name is required for the passing R02
+rerun; the consumed failed reservation is never replaced or rewritten.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.

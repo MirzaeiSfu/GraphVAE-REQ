@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -37,6 +38,7 @@ from scripts.graphvae_attr_bo_fingerprints import (
 )
 from scripts.run_distributed_graphvae_attr_bo import (
     render_remote_launch,
+    render_tmux_ssh_command,
     render_worker_command,
 )
 from scripts.tune_graphvae_attribute_weights import (
@@ -500,6 +502,28 @@ def test_launcher_sources_only_protected_credential_file_path():
         )
 
 
+def test_launcher_preserves_worker_shell_as_one_tmux_argument():
+    worker_shell = (
+        "set -a; . /protected/worker.env; set +a; "
+        "CUDA_VISIBLE_DEVICES=0 flock -n /tmp/slot.lock /env/bin/python worker.py"
+    )
+    command = render_tmux_ssh_command(
+        host="cs-cl-13",
+        tmux_name="graphvae-bo-worker-run",
+        remote_shell=worker_shell,
+    )
+
+    assert command[:3] == ["ssh", "-n", "cs-cl-13"]
+    assert shlex.split(command[3]) == [
+        "tmux",
+        "new-session",
+        "-d",
+        "-s",
+        "graphvae-bo-worker-run",
+        worker_shell,
+    ]
+
+
 def test_l06_timeout_kills_exact_child_group_and_unrelated_process_survives(tmp_path):
     unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
@@ -562,6 +586,8 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):
         mock=True,
         mock_fail_trial=[],
         expected_validation_graph_count=8,
+        expected_node_feature_dimension=14,
+        expected_edge_feature_dimension=11,
         integrity={
             "cache_sha256": "cache",
             "split_fingerprint": "split",
@@ -595,6 +621,23 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):
         ):
             record.pop(key, None)
         records.append(record)
+        evaluator = json.loads(
+            (
+                root
+                / "trials"
+                / "trial_00000"
+                / "validation_evaluation"
+                / "attributed_random_gin.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert evaluator["evaluation"]["feature_dimensions"] == {
+            "node": 14,
+            "edge": 11,
+        }
+        assert evaluator["evaluation"]["actual_decoder_output_dimensions"] == {
+            "node": 14,
+            "edge": 11,
+        }
         config = yaml.safe_load(
             (root / "trials" / "trial_00000" / "resolved_config.yaml").read_text(
                 encoding="utf-8"

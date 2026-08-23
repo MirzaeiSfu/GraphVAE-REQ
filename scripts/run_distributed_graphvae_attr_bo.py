@@ -78,6 +78,13 @@ from tune_graphvae_attribute_weights import (  # noqa: E402
 )
 
 
+REMOTE_STUDY_INPUTS = (
+    "study_definition.json",
+    "deployment_manifest.json",
+    "dataset_cache_manifest.json",
+)
+
+
 def _add_storage_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--study-name", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -480,6 +487,68 @@ def render_remote_launch(
     return inner
 
 
+def render_tmux_ssh_command(
+    *, host: str, tmux_name: str, remote_shell: str
+) -> list[str]:
+    """Keep the complete worker shell as tmux's single shell-command argument."""
+
+    validate_identifier(host, "SSH host")
+    validate_identifier(tmux_name, "tmux session")
+    return [
+        "ssh",
+        "-n",
+        host,
+        shlex.join(
+            ["tmux", "new-session", "-d", "-s", tmux_name, remote_shell]
+        ),
+    ]
+
+
+def _stage_remote_study_inputs(
+    *, host: str, remote_root: str, output_dir: Path
+) -> None:
+    """Stage immutable public study inputs and verify their remote hashes."""
+
+    local_paths = [output_dir / filename for filename in REMOTE_STUDY_INPUTS]
+    missing = [str(path) for path in local_paths if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "Remote study input staging is missing: " + ", ".join(missing)
+        )
+    subprocess.run(
+        ["ssh", "-n", host, shlex.join(["mkdir", "-p", remote_root])],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "rsync",
+            "-azc",
+            "--ignore-existing",
+            "--chmod=F444",
+            *(str(path) for path in local_paths),
+            f"{host}:{remote_root.rstrip('/')}/",
+        ],
+        check=True,
+    )
+    remote_paths = [str(Path(remote_root) / path.name) for path in local_paths]
+    result = subprocess.run(
+        ["ssh", "-n", host, shlex.join(["sha256sum", *remote_paths])],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    remote_hashes = [
+        line.split(maxsplit=1)[0]
+        for line in result.stdout.splitlines()
+        if line.strip()
+    ]
+    local_hashes = [sha256_file(path) for path in local_paths]
+    if remote_hashes != local_hashes:
+        raise DistributedContractError(
+            f"Remote immutable study inputs failed hash verification on {host}."
+        )
+
+
 def _preflight_inputs(args: argparse.Namespace):
     repositories = _load_mapping(args.repo_paths)
     pythons = _load_mapping(args.python_paths)
@@ -651,13 +720,9 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
             "worker_run_id": run_id,
             "tmux_session": tmux_name,
             "remote_command": remote_shell,
+            "launch_state": "PLANNED",
         }
         launches.append(launch)
-        if not args.dry_run:
-            subprocess.run(
-                ["ssh", "-n", slot["host"], "tmux", "new-session", "-d", "-s", tmux_name, remote_shell],
-                check=True,
-            )
     manifest = {
         "schema_version": "graphvae-attr-f1pr-launch-wave-v1",
         "wave_index": wave_index,
@@ -668,9 +733,42 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
         "usable_complete_observations_before_wave": usable_observations,
         "startup_target": startup_target,
     }
-    atomic_write_json(
-        args.output_dir / "launch_manifests" / f"wave_{wave_index:04d}.json", manifest
+    manifest_path = (
+        args.output_dir / "launch_manifests" / f"wave_{wave_index:04d}.json"
     )
+    atomic_write_json(manifest_path, manifest)
+    if not args.dry_run:
+        for host in sorted({slot["host"] for slot in wave_slots}):
+            remote_root = str(
+                Path(repositories[host])
+                / "runs"
+                / "bayesian_optimization"
+                / args.study_name
+            )
+            _stage_remote_study_inputs(
+                host=host,
+                remote_root=remote_root,
+                output_dir=args.output_dir.expanduser().resolve(),
+            )
+        for launch in launches:
+            launch["launch_state"] = "ATTEMPTING"
+            atomic_write_json(manifest_path, manifest)
+            try:
+                subprocess.run(
+                    render_tmux_ssh_command(
+                        host=launch["host"],
+                        tmux_name=launch["tmux_session"],
+                        remote_shell=launch["remote_command"],
+                    ),
+                    check=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                launch["launch_state"] = "SSH_ERROR"
+                launch["ssh_returncode"] = exc.returncode
+                atomic_write_json(manifest_path, manifest)
+                raise
+            launch["launch_state"] = "SSH_ACKNOWLEDGED"
+            atomic_write_json(manifest_path, manifest)
     print(json.dumps(manifest, sort_keys=True))
     return 0
 

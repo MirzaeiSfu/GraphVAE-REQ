@@ -795,6 +795,8 @@ def _mock_evaluator_payload(
     evaluator_seed: int | None = None,
     evaluator_repeats: int | None = None,
     integrity: Mapping[str, Any] | None = None,
+    node_feature_dimension: int = 4,
+    edge_feature_dimension: int = 3,
 ) -> dict[str, Any]:
     node_log = math.log10(parameters["alpha_node_feat"])
     edge_log = math.log10(parameters["alpha_edge_feat"])
@@ -822,8 +824,14 @@ def _mock_evaluator_payload(
             "hand_made_topology_features": False,
         },
         "evaluation": {
-            "feature_dimensions": {"node": 4, "edge": 3},
-            "actual_decoder_output_dimensions": {"node": 4, "edge": 3},
+            "feature_dimensions": {
+                "node": int(node_feature_dimension),
+                "edge": int(edge_feature_dimension),
+            },
+            "actual_decoder_output_dimensions": {
+                "node": int(node_feature_dimension),
+                "edge": int(edge_feature_dimension),
+            },
             "repeats": evaluator_repeats,
             "modes": {
                 PRIMARY_MODE: {
@@ -1002,6 +1010,12 @@ def execute_trial(
                     evaluator_seed=args.evaluator_seed,
                     evaluator_repeats=args.evaluator_repeats,
                     integrity=integrity,
+                    node_feature_dimension=int(
+                        getattr(args, "expected_node_feature_dimension", None) or 4
+                    ),
+                    edge_feature_dimension=int(
+                        getattr(args, "expected_edge_feature_dimension", None) or 3
+                    ),
                 ),
             )
             (trial_dir / "evaluation_subprocess.log").write_text(
