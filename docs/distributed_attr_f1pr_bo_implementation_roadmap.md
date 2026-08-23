@@ -1306,6 +1306,27 @@ study, remote worker, credential copy, held-out evaluation, pilot, or production
 run was started. The cache is a Gate 4 infrastructure and attributed-decoder
 qualification input only; it is not evidence about QM9 model quality.
 
+### Gate 4 single-host staging follow-up (2026-08-23)
+
+The clean committed source at `6db554484fd5f322aeccda8e3a6259fb05333142`
+was staged to the dedicated
+`cs-cl-13:/local-scratch/graphvae-req-work/GraphVAE-REQ-gate4-lobster`
+qualification directory. The remote deployment contains 939 source files and
+recomputed tree fingerprint
+`a9d860eb9d9d864c19352c7eee34233a707518a717772278113be7285f5f8c54`.
+Exact source-manifest verification passed after transport.
+
+The canonical LOBSTER cache and manifest were staged separately. Remote
+verification recomputed the cache, split, graph, node-schema, and edge-schema
+identities, matched cache SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`,
+and left the 59,295,793-byte cache read-only at mode `0444`. The approved GPU
+was re-probed as one NVIDIA TITAN RTX with 24,576 MiB. Staging used the committed
+one-host mapping and reported zero failures.
+
+This step did not deploy credentials, access PostgreSQL, create a study, launch
+tmux or a worker, construct/train a model, or access held-out test data.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1327,7 +1348,7 @@ design questions:
 
 Section 14 and Gates 1-3 are complete locally. The first remote worker
 acceptance test in Gate 4 still requires explicit credential-deployment
-authorization, authenticated `verify-full` preflight, staging the prepared
-canonical LOBSTER qualification cache to an approved slot, and initializing a
-new smoke study. Full QM9 BO remains blocked pending a separately reviewed
-staged or multi-fidelity budget.
+authorization, protected credential material, authenticated `verify-full`
+preflight, and initialization of a new smoke study. Source, cache, and the one
+approved GPU slot are staged and verified. Full QM9 BO remains blocked pending
+a separately reviewed staged or multi-fidelity budget.
