@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import optuna
 import pytest
 import yaml
 
@@ -22,6 +23,7 @@ from scripts.graphvae_attr_bo_distributed import (
     build_study_definition,
     canonical_contract_hash,
     create_postgresql_storage,
+    initialize_reserved_study,
     parse_slots,
     redact_secret,
     relative_artifact_path,
@@ -37,6 +39,8 @@ from scripts.graphvae_attr_bo_fingerprints import (
     split_fingerprint,
 )
 from scripts.run_distributed_graphvae_attr_bo import (
+    _search_space,
+    build_hardware_repeatability_report,
     render_remote_launch,
     render_tmux_ssh_command,
     render_worker_command,
@@ -753,3 +757,131 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):
         configs.append(config)
     assert records[0] == records[1]
     assert configs[0] == configs[1]
+
+
+def test_r08_fixed_parameters_are_contracted_and_enqueued_exactly(tmp_path):
+    args = argparse.Namespace(
+        alpha_node_feat_min=1e-3,
+        alpha_node_feat_max=1e2,
+        alpha_edge_feat_min=1e-3,
+        alpha_edge_feat_max=1e2,
+        tune_alpha_motif=False,
+        alpha_motif_min=1e-3,
+        alpha_motif_max=1e2,
+        fixed_alpha_node_feat=2.0,
+        fixed_alpha_edge_feat=3.0,
+    )
+    search_space = _search_space(args)
+    assert search_space["fixed_parameters"] == {
+        "alpha_node_feat": 2.0,
+        "alpha_edge_feat": 3.0,
+    }
+    definition = minimal_definition("fixed-r08")
+    definition["reserved_trials"] = 2
+    definition["search_space"] = search_space
+    study = optuna.create_study(study_name="fixed-r08", direction="maximize")
+    initialize_reserved_study(
+        study,
+        definition,
+        controller_uuid="controller",
+        output_root=tmp_path,
+    )
+    trials = study.get_trials(deepcopy=False)
+    assert len(trials) == 2
+    assert all(
+        trial.system_attrs["fixed_params"] == search_space["fixed_parameters"]
+        for trial in trials
+    )
+
+    args.fixed_alpha_edge_feat = None
+    with pytest.raises(ValueError, match="requires both"):
+        _search_space(args)
+    args.fixed_alpha_edge_feat = 3.0
+    args.fixed_alpha_node_feat = 1e4
+    with pytest.raises(ValueError, match="must be finite and within"):
+        _search_space(args)
+
+
+def test_r08_hardware_report_enforces_fixed_objective_tolerance(tmp_path):
+    definition = minimal_definition("hardware-r08")
+    definition["reserved_trials"] = 2
+    definition["search_space"]["fixed_parameters"] = {
+        "alpha_node_feat": 2.0,
+        "alpha_edge_feat": 3.0,
+    }
+    contract = canonical_contract_hash(definition)
+    atomic_write_json(tmp_path / "study_definition.json", definition)
+    atomic_write_json(
+        tmp_path / "FROZEN.json",
+        {
+            "lifecycle": "FROZEN",
+            "study_name": "hardware-r08",
+            "study_contract_sha256": contract,
+        },
+    )
+    result_paths = []
+    for index, (host, gpu, value) in enumerate(
+        (("host-a", 0, 0.50), ("host-b", 1, 0.51))
+    ):
+        trial_dir = tmp_path / "trials" / f"trial_{index:05d}"
+        trial_dir.mkdir(parents=True)
+        checkpoint = trial_dir / "checkpoint.pt"
+        checkpoint.write_bytes(f"checkpoint-{index}".encode())
+        evaluator = trial_dir / "evaluation.json"
+        atomic_write_json(
+            evaluator,
+            {
+                "split": "validation",
+                "primary_mode": "decoded_node_edge",
+                "feature_source": {
+                    "generated": "GraphVAE node_feature_decoder and edge_feature_decoder"
+                },
+            },
+        )
+        result_path = trial_dir / "trial_result.json"
+        atomic_write_json(
+            result_path,
+            {
+                "trial_number": index,
+                "budget_index": index,
+                "status": "COMPLETE",
+                "study_contract_sha256": contract,
+                "objective_json_path": (
+                    "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+                ),
+                "sampled_weights": {
+                    "alpha_node_feat": 2.0,
+                    "alpha_edge_feat": 3.0,
+                },
+                "validation_attr_f1pr": value,
+                "hostname": host,
+                "physical_gpu": gpu,
+                "gpu_model": "NVIDIA TITAN RTX",
+                "gpu_vram_bytes": 25769803776,
+                "checkpoint": checkpoint.relative_to(tmp_path).as_posix(),
+                "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                "evaluator_output": evaluator.relative_to(tmp_path).as_posix(),
+                "hashes": {
+                    "cache_sha256": "cache",
+                    "split_fingerprint": "split",
+                    "node_schema_fingerprint": "node",
+                    "edge_schema_fingerprint": "edge",
+                    "source_tree_sha256": "source",
+                    "environment_sha256": "environment",
+                },
+            },
+        )
+        result_paths.append(result_path)
+
+    report = build_hardware_repeatability_report(tmp_path)
+    assert report["passed"] is True
+    assert report["eligible_slots"] == ["host-a:gpu0", "host-b:gpu1"]
+    assert report["objective_comparison"]["pairs"][0]["absolute_difference"] == pytest.approx(0.01)
+    assert report["training_loss_comparison"]["status"] == "not_recorded"
+
+    changed = json.loads(result_paths[1].read_text(encoding="utf-8"))
+    changed["validation_attr_f1pr"] = 0.53
+    atomic_write_json(result_paths[1], changed)
+    report = build_hardware_repeatability_report(tmp_path)
+    assert report["passed"] is False
+    assert report["eligible_slots"] == []

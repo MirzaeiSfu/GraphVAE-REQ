@@ -128,6 +128,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     init.add_argument("--alpha-node-feat-max", type=float, default=1e2)
     init.add_argument("--alpha-edge-feat-min", type=float, default=1e-3)
     init.add_argument("--alpha-edge-feat-max", type=float, default=1e2)
+    init.add_argument("--fixed-alpha-node-feat", type=float, default=None)
+    init.add_argument("--fixed-alpha-edge-feat", type=float, default=None)
     init.add_argument("--tune-alpha-motif", action="store_true")
     init.add_argument("--alpha-motif-min", type=float, default=1e-3)
     init.add_argument("--alpha-motif-max", type=float, default=1e2)
@@ -205,6 +207,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         if name == "collect":
             command.add_argument("--source-root", type=Path, required=True)
 
+    hardware = subparsers.add_parser(
+        "hardware-audit",
+        help="Compare a frozen fixed-parameter study across recorded GPU slots.",
+    )
+    hardware.add_argument("--study-name", required=True)
+    hardware.add_argument("--output-dir", type=Path, required=True)
+
     return parser.parse_args(argv)
 
 
@@ -249,11 +258,32 @@ def _search_space(args: argparse.Namespace) -> dict[str, Any]:
     def entry(value):
         return None if value is None else {"low": value[0], "high": value[1], "log": True}
 
+    supplied_fixed = (
+        args.fixed_alpha_node_feat is not None,
+        args.fixed_alpha_edge_feat is not None,
+    )
+    if any(supplied_fixed) and not all(supplied_fixed):
+        raise ValueError(
+            "Fixed-parameter qualification requires both attribute-loss weights."
+        )
+    fixed_parameters = None
+    if all(supplied_fixed):
+        fixed_parameters = {
+            "alpha_node_feat": float(args.fixed_alpha_node_feat),
+            "alpha_edge_feat": float(args.fixed_alpha_edge_feat),
+        }
+        for name, value in fixed_parameters.items():
+            low, high = getattr(ranges, name)
+            if not math.isfinite(value) or not low <= value <= high:
+                raise ValueError(
+                    f"Fixed {name}={value!r} must be finite and within [{low}, {high}]."
+                )
     return {
         "alpha_node_feat": entry(ranges.alpha_node_feat),
         "alpha_edge_feat": entry(ranges.alpha_edge_feat),
         "alpha_motif_loss": entry(ranges.alpha_motif_loss),
         "motif_opt_in": bool(args.tune_alpha_motif),
+        "fixed_parameters": fixed_parameters,
     }
 
 
@@ -1693,6 +1723,201 @@ def command_finalize(args: argparse.Namespace) -> int:
     return 0 if best is not None else 2
 
 
+def build_hardware_repeatability_report(output_dir: Path) -> dict[str, Any]:
+    """Audit a frozen, fixed-parameter qualification across distinct GPU slots."""
+
+    root = output_dir.expanduser().resolve()
+    definition = json.loads((root / "study_definition.json").read_text(encoding="utf-8"))
+    frozen = json.loads((root / "FROZEN.json").read_text(encoding="utf-8"))
+    contract_hash = canonical_contract_hash(definition)
+    if (
+        frozen.get("lifecycle") != LIFECYCLE_FROZEN
+        or frozen.get("study_name") != definition.get("study_name")
+        or frozen.get("study_contract_sha256") != contract_hash
+    ):
+        raise DistributedContractError("Hardware audit requires the matching frozen contract.")
+    fixed = definition.get("search_space", {}).get("fixed_parameters")
+    if not isinstance(fixed, Mapping) or not {
+        "alpha_node_feat",
+        "alpha_edge_feat",
+    }.issubset(fixed):
+        raise DistributedContractError(
+            "Hardware audit requires contracted fixed attribute-loss parameters."
+        )
+    expected_trials = int(definition["reserved_trials"])
+    result_paths = sorted(root.glob("trials/trial_*/trial_result.json"))
+    if len(result_paths) != expected_trials:
+        raise DistributedContractError(
+            "Hardware audit requires one COMPLETE result for every reservation."
+        )
+
+    records = []
+    trial_numbers = set()
+    budget_indexes = set()
+    for path in result_paths:
+        result = json.loads(path.read_text(encoding="utf-8"))
+        trial_number = int(result["trial_number"])
+        budget_index = int(result["budget_index"])
+        trial_numbers.add(trial_number)
+        budget_indexes.add(budget_index)
+        if (
+            result.get("status") != "COMPLETE"
+            or result.get("study_contract_sha256") != contract_hash
+            or result.get("objective_json_path") != OBJECTIVE_JSON_PATH
+            or result.get("sampled_weights") != dict(fixed)
+        ):
+            raise DistributedContractError(
+                f"Trial {trial_number} does not match the fixed hardware contract."
+            )
+        value = float(result["validation_attr_f1pr"])
+        if not math.isfinite(value):
+            raise DistributedContractError("Hardware audit objective must be finite.")
+        expected_hashes = {
+            "cache_sha256": definition["dataset_cache"].get("sha256"),
+            "split_fingerprint": definition["dataset_cache"].get("split_fingerprint"),
+            "node_schema_fingerprint": definition["feature_schemas"].get("node_sha256"),
+            "edge_schema_fingerprint": definition["feature_schemas"].get("edge_sha256"),
+            "source_tree_sha256": definition["source"].get("tree_sha256"),
+            "environment_sha256": definition["environment"].get("sha256"),
+        }
+        for name, expected in expected_hashes.items():
+            if expected is not None and result.get("hashes", {}).get(name) != expected:
+                raise DistributedContractError(
+                    f"Trial {trial_number} hardware audit hash mismatch for {name}."
+                )
+        checkpoint = resolve_artifact_path(root, result["checkpoint"])
+        if sha256_file(checkpoint) != result.get("checkpoint_sha256"):
+            raise DistributedContractError("Hardware audit checkpoint hash mismatch.")
+        evaluator_path = resolve_artifact_path(root, result["evaluator_output"])
+        evaluator = json.loads(evaluator_path.read_text(encoding="utf-8"))
+        if (
+            evaluator.get("split") != "validation"
+            or evaluator.get("primary_mode") != "decoded_node_edge"
+            or evaluator.get("feature_source", {}).get("generated")
+            != "GraphVAE node_feature_decoder and edge_feature_decoder"
+        ):
+            raise DistributedContractError("Hardware audit evaluator contract mismatch.")
+        hostname = str(result.get("hostname") or "")
+        gpu_model = str(result.get("gpu_model") or "")
+        physical_gpu = result.get("physical_gpu")
+        gpu_vram_bytes = result.get("gpu_vram_bytes")
+        if (
+            not hostname
+            or not gpu_model
+            or not isinstance(physical_gpu, int)
+            or not isinstance(gpu_vram_bytes, int)
+            or gpu_vram_bytes <= 0
+        ):
+            raise DistributedContractError("Hardware audit GPU identity is incomplete.")
+        records.append(
+            {
+                "trial_number": trial_number,
+                "budget_index": budget_index,
+                "slot": f"{hostname}:gpu{physical_gpu}",
+                "hostname": hostname,
+                "physical_gpu": physical_gpu,
+                "gpu_model": gpu_model,
+                "gpu_vram_bytes": gpu_vram_bytes,
+                "validation_attr_f1pr": value,
+                "checkpoint_sha256": result["checkpoint_sha256"],
+                "final_training_loss": result.get("final_training_loss"),
+            }
+        )
+    if len(trial_numbers) != expected_trials or budget_indexes != set(range(expected_trials)):
+        raise DistributedContractError("Hardware audit trial identities are not exact.")
+    if len({record["slot"] for record in records}) < 2:
+        raise DistributedContractError("Hardware audit requires at least two distinct GPU slots.")
+
+    objective_tolerance = float(
+        definition["hardware_policy"]["attr_f1pr_abs_tolerance"]
+    )
+    objective_pairs = []
+    objective_passed = True
+    for left_index, left in enumerate(records):
+        for right in records[left_index + 1 :]:
+            difference = abs(
+                left["validation_attr_f1pr"] - right["validation_attr_f1pr"]
+            )
+            passed = difference <= objective_tolerance
+            objective_passed = objective_passed and passed
+            objective_pairs.append(
+                {
+                    "left_slot": left["slot"],
+                    "right_slot": right["slot"],
+                    "absolute_difference": difference,
+                    "tolerance": objective_tolerance,
+                    "passed": passed,
+                }
+            )
+
+    losses = [record["final_training_loss"] for record in records]
+    if all(value is None for value in losses):
+        training_loss = {"status": "not_recorded", "pairs": [], "passed": True}
+    elif any(value is None for value in losses):
+        raise DistributedContractError(
+            "Hardware audit final training loss is present for only some trials."
+        )
+    else:
+        loss_policy = definition["hardware_policy"]["training_loss_tolerance"]
+        floor = float(loss_policy["absolute_floor"])
+        relative = float(loss_policy["relative"])
+        loss_pairs = []
+        loss_passed = True
+        for left_index, left in enumerate(records):
+            for right in records[left_index + 1 :]:
+                left_loss = float(left["final_training_loss"])
+                right_loss = float(right["final_training_loss"])
+                tolerance = max(floor, relative * max(abs(left_loss), abs(right_loss)))
+                difference = abs(left_loss - right_loss)
+                passed = difference <= tolerance
+                loss_passed = loss_passed and passed
+                loss_pairs.append(
+                    {
+                        "left_slot": left["slot"],
+                        "right_slot": right["slot"],
+                        "absolute_difference": difference,
+                        "tolerance": tolerance,
+                        "passed": passed,
+                    }
+                )
+        training_loss = {"status": "compared", "pairs": loss_pairs, "passed": loss_passed}
+
+    passed = objective_passed and bool(training_loss["passed"])
+    return {
+        "schema_version": "graphvae-attr-f1pr-hardware-repeatability-v1",
+        "study_name": definition["study_name"],
+        "study_contract_sha256": contract_hash,
+        "lifecycle": LIFECYCLE_FROZEN,
+        "objective_json_path": OBJECTIVE_JSON_PATH,
+        "split": "validation",
+        "test_access": False,
+        "fixed_parameters": dict(fixed),
+        "checkpoint_byte_equality_expected": False,
+        "records": records,
+        "objective_comparison": {
+            "absolute_tolerance": objective_tolerance,
+            "pairs": objective_pairs,
+            "passed": objective_passed,
+        },
+        "training_loss_comparison": training_loss,
+        "passed": passed,
+        "eligible_slots": sorted({record["slot"] for record in records}) if passed else [],
+    }
+
+
+def command_hardware_audit(args: argparse.Namespace) -> int:
+    report = build_hardware_repeatability_report(args.output_dir)
+    if report["study_name"] != args.study_name:
+        raise DistributedContractError("Hardware audit study name mismatch.")
+    output = args.output_dir.expanduser().resolve() / "hardware_repeatability.json"
+    atomic_write_json(output, report)
+    print(
+        f"Hardware repeatability {'passed' if report['passed'] else 'failed'} for "
+        f"{len(report['records'])} fixed-parameter trials."
+    )
+    return 0 if report["passed"] else 2
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     validate_identifier(args.study_name, "study name")
@@ -1704,6 +1929,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "status": command_status,
         "collect": command_collect_with_locks,
         "finalize": command_finalize,
+        "hardware-audit": command_hardware_audit,
     }[args.command](args)
 
 

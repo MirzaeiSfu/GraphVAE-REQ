@@ -338,6 +338,40 @@ def test_p01_empty_reservation_is_claimed_and_samples_missing_parameters(postgre
         isolated.cleanup()
 
 
+def test_p01b_fixed_qualification_parameters_survive_postgres_claim(postgres_url, tmp_path):
+    name = f"graphvae_bo_pytest_{uuid.uuid4().hex}"
+    storage = _storage(postgres_url)
+    study = create_or_load_distributed_study(
+        storage, study_name=name, sampler_seed_value=9, create=True
+    )
+    definition = _definition(name, 2, max_parallel=2)
+    fixed = {"alpha_node_feat": 2.0, "alpha_edge_feat": 3.0}
+    definition["search_space"]["fixed_parameters"] = fixed
+    root = tmp_path / name
+    root.mkdir()
+    try:
+        contract = initialize_reserved_study(
+            study,
+            definition,
+            controller_uuid=str(uuid.uuid4()),
+            output_root=root,
+        )
+
+        def objective(trial):
+            guard_reserved_trial(trial, study, expected_contract_hash=contract)
+            node = trial.suggest_float("alpha_node_feat", 1e-3, 1e2, log=True)
+            edge = trial.suggest_float("alpha_edge_feat", 1e-4, 1e1, log=True)
+            return node + edge
+
+        study.optimize(objective, n_trials=2)
+        assert [trial.params for trial in study.trials] == [fixed, fixed]
+        assert all(trial.state.name == "COMPLETE" for trial in study.trials)
+    finally:
+        import optuna
+
+        optuna.delete_study(study_name=name, storage=storage)
+
+
 def test_p02_two_true_processes_claim_distinct_reservations(postgres_url, tmp_path):
     isolated = IsolatedStudy(postgres_url, 2, tmp_path)
     context = mp.get_context("spawn")

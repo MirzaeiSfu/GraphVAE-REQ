@@ -1819,6 +1819,30 @@ Gate 5 is complete. This qualification does not authorize Gate 6, R08, a
 held-out/test evaluation, production studies, or full-QM9 optimization. The
 qualification credentials must be rotated before Gate 6 or production use.
 
+### Gate 6 R08 implementation prerequisite (2026-08-23)
+
+The controller now accepts a fixed `alpha_node_feat` and `alpha_edge_feat` pair
+only when both finite values are supplied inside their contracted search
+ranges. The pair is part of the immutable study definition and is pre-enqueued
+through Optuna for every reserved R08 trial. Ordinary studies continue to
+enqueue empty fixed-parameter maps and use the unchanged TPE sampling path.
+
+The new `hardware-audit` command requires a matching `FROZEN.json`, one audited
+`COMPLETE` result per reservation, identical contracted weights, distinct
+host/GPU identities, intact checkpoint and source/cache/environment/schema
+hashes, validation-only `decoded_node_edge` evaluator evidence, and both
+attribute decoders. It compares every recorded slot pair against the frozen
+absolute Attr-F1PR tolerance `0.02`; the optional training-loss formula is used
+only when every result records that value. Checkpoint byte equality remains
+explicitly unnecessary. A failing comparison publishes no eligible slot list.
+
+The expanded non-PostgreSQL distributed suite passes 60 tests. A separate
+isolated PostgreSQL test proved that two fixed reservations retain exactly the
+same pre-enqueued parameters through native Optuna claims and then deleted its
+UUID-named study. This is interface qualification only: no Gate 6 study or GPU
+training has started, and the protected qualification credentials still must
+be rotated before R08.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.

@@ -589,10 +589,34 @@ def initialize_reserved_study(
             "A READY study is missing reserved indexes; ordinary resume may not append slots."
         )
 
+    fixed_parameters = definition.get("search_space", {}).get("fixed_parameters")
+    if fixed_parameters is None:
+        fixed_parameters = {}
+    if not isinstance(fixed_parameters, Mapping):
+        raise DistributedContractError("Fixed qualification parameters must be a mapping.")
+    allowed_fixed = {"alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss"}
+    if set(fixed_parameters) - allowed_fixed:
+        raise DistributedContractError("Fixed qualification parameters contain an unknown key.")
+    for name, value in fixed_parameters.items():
+        search_entry = definition["search_space"].get(name)
+        if not isinstance(search_entry, Mapping):
+            raise DistributedContractError(
+                f"Fixed qualification parameter {name} is outside the search contract."
+            )
+        numeric = float(value)
+        if (
+            not math.isfinite(numeric)
+            or numeric < float(search_entry["low"])
+            or numeric > float(search_entry["high"])
+        ):
+            raise DistributedContractError(
+                f"Fixed qualification parameter {name} is outside its contracted range."
+            )
+
     created = 0
     for index in audit["missing_indexes"]:
         study.enqueue_trial(
-            {},
+            dict(fixed_parameters),
             user_attrs={
                 RESERVED_ATTR: True,
                 BUDGET_INDEX_ATTR: index,
