@@ -1896,6 +1896,34 @@ temporary manifest exits immediately. The exact missing-parent case is covered
 by a bounded shell regression check. No remote Gate 6 source root or study was
 created by the failed attempt.
 
+### Gate 6 three-slot deployment qualification (2026-08-23)
+
+After the fail-closed fix was committed, both dedicated Gate 6 roots were
+staged from clean source commit
+`96da63dcbeb5e96af8aa57bd5079f4137a2ee1c5`. Each independently verifies
+source tree SHA-256
+`738d52ce5f05dc506b2dc7f434ee4c469eb511d2372ea33b65420012e32c3e75`;
+the two deployment-manifest files agree at SHA-256
+`3236e4cb86ceacd3775c18a2acc36ea0e4bd0eb03de79c3200f2a579fd81f877`.
+No Gate 4, Gate 5, or general-purpose source root was reused.
+
+Both pinned worker Pythons reproduce runtime fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`
+and authenticate with the rotated protected generation through the exact
+heartbeat 60/grace 600 verify-full storage constructor. Their cache manifests
+are mode `0444` and agree at SHA-256
+`ffe65e9ef38f10c4bd2390804c4db248834881263b2c3e06ca03cb7789fd3a46`.
+Both cache files remain mode `0444`, exactly 59,295,793 bytes, and canonical
+SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+
+Physical probing found `cs-cl-13` GPU 0 and `cs-cl-17` GPUs 0 and 1 each as an
+NVIDIA TITAN RTX with 24,576 MiB reported VRAM. Setting
+`CUDA_VISIBLE_DEVICES` separately to each selected physical index made the
+pinned Python see exactly one NVIDIA TITAN RTX at logical `cuda:0`. This step
+created no study or reservation, launched no worker, trained no model, and read
+no held-out data. R08 initialization is now permitted.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1929,5 +1957,6 @@ native stale reconciliation, and a verified tombstone. The final full-suite,
 isolated PostgreSQL, cross-study snapshot/artifact, cache, and redaction audits
 all pass, so Gate 5 is complete. Gate 6 preparation has begun: credentials are
 rotated, the three-slot mapping and bounded non-QM9 study contracts are frozen,
-and no Gate 6 study has yet been created. Gate 7/full-QM9 BO remains explicitly
-excluded. R08 source/cache/runtime deployment qualification is next.
+and the dedicated source/cache/runtime/auth/GPU deployment passes; no Gate 6
+study has yet been created. Gate 7/full-QM9 BO remains explicitly excluded.
+The fresh three-reservation R08 fixed-parameter study is next.
