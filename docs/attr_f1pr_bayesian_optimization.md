@@ -191,6 +191,26 @@ study renders only workers with `--mock`, a real study rejects mock workers,
 and controller/worker preflight rejects heartbeat/grace or maximum-concurrency
 settings that differ from the frozen contract.
 
+After any attempted SSH/tmux launch, reconcile that recorded identity before
+starting another wave:
+
+```bash
+python scripts/run_distributed_graphvae_attr_bo.py probe \
+  --study-name qm9_attr_f1pr \
+  --output-dir runs/bayesian_optimization/qm9_attr_f1pr \
+  --repo-paths CLUSTER_REPO_PATHS.txt \
+  --python-paths CLUSTER_MICRO_PYTHON_PATHS.txt \
+  --json runs/bayesian_optimization/qm9_attr_f1pr/launch_probe.json
+```
+
+`probe` records the exact tmux session, worker markers, and matching PostgreSQL
+trial state without launching work. A new `run` fails closed after
+`ATTEMPTING`, `SSH_ERROR`, or `SSH_ACKNOWLEDGED` until the latest probe proves a
+pretrial or terminal reconciliation. A launch that remains `PLANNED` after
+public-input staging fails is a definite prelaunch failure and is retryable
+because no SSH/tmux launch call occurred. Missing, active, conflicting, or
+unreachable attempted work remains ambiguous and is never blindly duplicated.
+
 Status, local staged collection, and freeze/finalization are explicit:
 
 ```bash

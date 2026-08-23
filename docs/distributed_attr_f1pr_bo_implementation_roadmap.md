@@ -623,6 +623,7 @@ Add `scripts/run_distributed_graphvae_attr_bo.py` with subcommands:
 init       validate contract, create/load PostgreSQL study, reserve N trials
 preflight  verify DB, workers, GPUs, deployment, environment, and cache
 run        dispatch/reconcile bounded one-trial waves and collect artifacts
+probe      record tmux/worker/DB state for prior launches without dispatch
 status     print status and optionally write stable JSON
 collect    idempotently collect and audit terminal artifacts
 finalize   freeze a quiescent study and write final study outputs/snapshot

@@ -83,6 +83,12 @@ REMOTE_STUDY_INPUTS = (
     "deployment_manifest.json",
     "dataset_cache_manifest.json",
 )
+RETRY_SAFE_LAUNCH_PROBE_STATES = {
+    "DEFINITE_PRELAUNCH",
+    "RECONCILED_PRETRIAL",
+    "RECONCILED_TERMINAL",
+}
+TEST_FAULT_ENV = "GRAPHVAE_BO_ENABLE_TEST_FAULTS"
 
 
 def _add_storage_options(parser: argparse.ArgumentParser) -> None:
@@ -172,6 +178,24 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Required safety acknowledgement before SSH/tmux dispatch.",
     )
+    run.add_argument(
+        "--test-inject-definite-prelaunch-host",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    run.add_argument(
+        "--test-inject-ambiguous-after-ack-host",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+
+    probe = subparsers.add_parser(
+        "probe", help="Reconcile recorded launch attempts without dispatching work."
+    )
+    _add_storage_options(probe)
+    probe.add_argument("--repo-paths", type=Path, required=True)
+    probe.add_argument("--python-paths", type=Path, required=True)
+    probe.add_argument("--json", type=Path, default=None)
 
     for name in ("status", "collect", "finalize"):
         command = subparsers.add_parser(name)
@@ -628,12 +652,362 @@ def command_preflight(args: argparse.Namespace) -> int:
         return result
 
 
+def _latest_launch_probe_records(output_dir: Path) -> dict[str, Mapping[str, Any]]:
+    latest: dict[str, Mapping[str, Any]] = {}
+    probe_root = output_dir / "launch_probes"
+    if not probe_root.is_dir():
+        return latest
+    for path in sorted(probe_root.glob("probe_*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for record in payload.get("launches", []):
+            worker_run = record.get("worker_run_id")
+            if worker_run:
+                latest[str(worker_run)] = record
+    return latest
+
+
+def _assert_prior_launches_reconciled(output_dir: Path) -> None:
+    """Refuse a new wave until every attempted prior launch has been probed."""
+
+    latest = _latest_launch_probe_records(output_dir)
+    launch_root = output_dir / "launch_manifests"
+    if not launch_root.is_dir():
+        return
+    unresolved = []
+    for path in sorted(launch_root.glob("wave_*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("dry_run") is True:
+            continue
+        for launch in payload.get("launches", []):
+            state = launch.get("launch_state")
+            if state == "PLANNED":
+                # All public inputs are staged before any SSH/tmux launch call.
+                # A PLANNED record therefore proves this identity was not started.
+                continue
+            worker_run = str(launch.get("worker_run_id"))
+            probe = latest.get(worker_run)
+            if (
+                not probe
+                or probe.get("retry_safe") is not True
+                or probe.get("probe_status") not in RETRY_SAFE_LAUNCH_PROBE_STATES
+            ):
+                unresolved.append(worker_run)
+    if unresolved:
+        raise DistributedContractError(
+            "Prior launch attempts require a safe probe before another wave: "
+            + ", ".join(sorted(set(unresolved)))
+        )
+
+
+def _classify_launch_probe(
+    *,
+    launch_state: str,
+    remote_reachable: bool,
+    tmux_active: bool,
+    markers: Sequence[str],
+    db_trials: Sequence[Mapping[str, Any]],
+    marker_payloads: Mapping[str, Mapping[str, Any]] | None = None,
+) -> tuple[str, bool]:
+    marker_set = set(markers)
+    if len(marker_set) > 1:
+        return "CONFLICT", False
+    db_states = [str(record.get("state")) for record in db_trials]
+    if launch_state == "PLANNED" and not db_trials:
+        return "DEFINITE_PRELAUNCH", True
+    if tmux_active or "RUNNING" in db_states:
+        return "ACTIVE_AMBIGUOUS", False
+    if not remote_reachable:
+        return "UNREACHABLE_AMBIGUOUS", False
+    marker = next(iter(marker_set), None)
+    marker_payload = (marker_payloads or {}).get(str(marker), {})
+    if marker and marker_payload.get("parse_ok") is not True:
+        return "CONFLICT", False
+    if (
+        marker == "FAILED_PRETRIAL"
+        and marker_payload.get("reservation_consumed") is False
+        and not db_trials
+    ):
+        return "RECONCILED_PRETRIAL", True
+    if (
+        marker == "COMPLETED"
+        and len(db_trials) == 1
+        and db_states[0] in {"COMPLETE", "FAIL"}
+        and db_trials[0].get("reserved") is True
+        and marker_payload.get("trial_number") == db_trials[0].get("trial_number")
+        and marker_payload.get("budget_index") == db_trials[0].get("budget_index")
+        and marker_payload.get("db_state") == db_states[0]
+    ):
+        return "RECONCILED_TERMINAL", True
+    if (
+        marker == "RECONCILED_FAIL"
+        and len(db_trials) == 1
+        and db_states == ["FAIL"]
+        and db_trials[0].get("reserved") is True
+        and marker_payload.get("trial_number") == db_trials[0].get("trial_number")
+        and marker_payload.get("budget_index") == db_trials[0].get("budget_index")
+        and marker_payload.get("db_state") == "FAIL"
+    ):
+        return "RECONCILED_TERMINAL", True
+    return "MISSING_AMBIGUOUS", False
+
+
+def _probe_remote_launch(
+    *,
+    host: str,
+    repo_path: str,
+    python_path: str,
+    study_name: str,
+    worker_run_id_value: str,
+    tmux_name: str,
+    connect_timeout: int,
+) -> dict[str, Any]:
+    remote_root = Path(repo_path) / "runs" / "bayesian_optimization" / study_name
+    run_dir = remote_root / "workers" / worker_run_id_value
+    probe_code = """\
+import json
+import pathlib
+import subprocess
+import sys
+
+run_dir = pathlib.Path(sys.argv[1])
+tmux_name = sys.argv[2]
+marker_payloads = {}
+for marker in ("COMPLETED", "FAILED_PRETRIAL", "RECONCILED_FAIL"):
+    path = run_dir / marker
+    if not path.is_file():
+        continue
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        marker_payloads[marker] = {"parse_ok": False}
+        continue
+    marker_payloads[marker] = {
+        "parse_ok": True,
+        "schema_version": value.get("schema_version"),
+        "reservation_consumed": value.get("reservation_consumed"),
+        "trial_number": value.get("trial_number"),
+        "budget_index": value.get("budget_index"),
+        "db_state": value.get("db_state"),
+    }
+payload = {
+    "tmux_active": subprocess.run(
+        ["tmux", "has-session", "-t", "=" + tmux_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ).returncode == 0,
+    "marker_payloads": marker_payloads,
+    "run_info": (run_dir / "RUN_INFO.json").is_file(),
+    "heartbeat": (run_dir / "HEARTBEAT.json").is_file(),
+}
+print(json.dumps(payload, sort_keys=True))
+"""
+    result = subprocess.run(
+        [
+            "ssh",
+            "-n",
+            "-o",
+            f"ConnectTimeout={int(connect_timeout)}",
+            host,
+            shlex.join([python_path, "-c", probe_code, str(run_dir), tmux_name]),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=max(5, int(connect_timeout) + 5),
+    )
+    if result.returncode != 0:
+        return {
+            "remote_reachable": False,
+            "ssh_returncode": result.returncode,
+            "tmux_active": False,
+            "markers": [],
+            "marker_payloads": {},
+            "run_info": False,
+            "heartbeat": False,
+        }
+    values = None
+    for line in reversed(result.stdout.splitlines()):
+        try:
+            candidate = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, Mapping):
+            values = candidate
+            break
+    if values is None:
+        return {
+            "remote_reachable": True,
+            "ssh_returncode": 0,
+            "probe_parse_error": True,
+            "tmux_active": False,
+            "markers": [],
+            "marker_payloads": {},
+            "run_info": False,
+            "heartbeat": False,
+        }
+    marker_payloads = dict(values.get("marker_payloads") or {})
+    return {
+        "remote_reachable": True,
+        "ssh_returncode": 0,
+        "tmux_active": values.get("tmux_active") is True,
+        "markers": sorted(marker_payloads),
+        "marker_payloads": marker_payloads,
+        "run_info": values.get("run_info") is True,
+        "heartbeat": values.get("heartbeat") is True,
+    }
+
+
+def _local_marker_probe_payload(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"parse_ok": False}
+    return {
+        "parse_ok": True,
+        "schema_version": value.get("schema_version"),
+        "reservation_consumed": value.get("reservation_consumed"),
+        "trial_number": value.get("trial_number"),
+        "budget_index": value.get("budget_index"),
+        "db_state": value.get("db_state"),
+    }
+
+
+def _command_probe_locked(args: argparse.Namespace, controller_uuid: str) -> int:
+    repositories = _load_mapping(args.repo_paths)
+    pythons = _load_mapping(args.python_paths)
+    if set(repositories) != set(pythons):
+        raise ValueError("Repository and Python host mappings differ.")
+    _url, _storage_instance, study, _definition, contract_hash = _load_ready_study(
+        args, require_ready=False
+    )
+    output_dir = args.output_dir.expanduser().resolve()
+    _assert_controller_owner(study, output_dir, controller_uuid)
+    records = []
+    launch_root = output_dir / "launch_manifests"
+    for path in sorted(launch_root.glob("wave_*.json")):
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if manifest.get("dry_run") is True:
+            continue
+        for launch in manifest.get("launches", []):
+            worker_run = str(launch["worker_run_id"])
+            host = str(launch["host"])
+            if host in repositories:
+                remote = _probe_remote_launch(
+                    host=host,
+                    repo_path=repositories[host],
+                    python_path=pythons[host],
+                    study_name=args.study_name,
+                    worker_run_id_value=worker_run,
+                    tmux_name=str(launch["tmux_session"]),
+                    connect_timeout=args.connect_timeout,
+                )
+            else:
+                remote = {
+                    "remote_reachable": False,
+                    "ssh_returncode": None,
+                    "tmux_active": False,
+                    "markers": [],
+                    "marker_payloads": {},
+                    "run_info": False,
+                    "heartbeat": False,
+                }
+            local_run_dir = output_dir / "workers" / worker_run
+            local_markers = [
+                marker
+                for marker in ("COMPLETED", "FAILED_PRETRIAL", "RECONCILED_FAIL")
+                if (local_run_dir / marker).is_file()
+            ]
+            marker_payloads = dict(remote["marker_payloads"])
+            for marker in local_markers:
+                local_payload = _local_marker_probe_payload(local_run_dir / marker)
+                if marker in marker_payloads and marker_payloads[marker] != local_payload:
+                    marker_payloads[marker] = {"parse_ok": False, "conflict": True}
+                else:
+                    marker_payloads[marker] = local_payload
+            markers = sorted(set(remote["markers"]) | set(local_markers))
+            db_trials = [
+                {
+                    "trial_number": trial.number,
+                    "budget_index": trial.user_attrs.get(BUDGET_INDEX_ATTR),
+                    "reserved": trial.user_attrs.get(RESERVED_ATTR) is True,
+                    "state": trial.state.name,
+                }
+                for trial in study.get_trials(deepcopy=False)
+                if trial.user_attrs.get("worker_run_id") == worker_run
+            ]
+            status, retry_safe = _classify_launch_probe(
+                launch_state=str(launch.get("launch_state")),
+                remote_reachable=bool(remote["remote_reachable"]),
+                tmux_active=bool(remote["tmux_active"]),
+                markers=markers,
+                db_trials=db_trials,
+                marker_payloads=marker_payloads,
+            )
+            records.append(
+                {
+                    "wave_index": manifest.get("wave_index"),
+                    "host": host,
+                    "worker_run_id": worker_run,
+                    "launch_state": launch.get("launch_state"),
+                    **remote,
+                    "markers": markers,
+                    "marker_payloads": marker_payloads,
+                    "db_trials": db_trials,
+                    "probe_status": status,
+                    "retry_safe": retry_safe,
+                }
+            )
+    probe_root = output_dir / "launch_probes"
+    probe_index = len(list(probe_root.glob("probe_*.json"))) + 1
+    payload = {
+        "schema_version": "graphvae-attr-f1pr-launch-probe-v1",
+        "study_name": args.study_name,
+        "study_contract_sha256": contract_hash,
+        "probe_index": probe_index,
+        "probed_at_unix": time.time(),
+        "test_access": False,
+        "launches": records,
+    }
+    path = probe_root / f"probe_{probe_index:04d}.json"
+    atomic_write_json(path, payload)
+    if args.json is not None and args.json.expanduser().resolve() != path.resolve():
+        atomic_write_json(args.json, payload)
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def command_probe(args: argparse.Namespace) -> int:
+    output_dir = args.output_dir.expanduser().resolve()
+    storage_url = storage_url_from_env(args.storage_env)
+    with ControllerLocks(output_dir, storage_url, args.study_name) as locks:
+        controller_uuid = _controller_uuid(output_dir)
+        result = _command_probe_locked(args, controller_uuid)
+        locks.assert_alive()
+        return result
+
+
+def _validate_test_faults(args: argparse.Namespace, wave_slots: Sequence[Mapping[str, Any]]) -> None:
+    definite = args.test_inject_definite_prelaunch_host
+    ambiguous = args.test_inject_ambiguous_after_ack_host
+    if definite and ambiguous:
+        raise ValueError("Only one launch fault may be injected per controller call.")
+    selected = definite or ambiguous
+    if selected is None:
+        return
+    validate_identifier(selected, "test fault host")
+    if os.environ.get(TEST_FAULT_ENV) != "1":
+        raise ValueError(f"Test launch faults require {TEST_FAULT_ENV}=1.")
+    if selected not in {str(slot["host"]) for slot in wave_slots}:
+        raise ValueError("Test launch fault host is not selected in this wave.")
+
+
 def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
     repositories, pythons, slots = _preflight_inputs(args)
     storage_url, _storage_instance, study, definition, contract_hash = _load_ready_study(args)
     _assert_controller_owner(
         study, args.output_dir.expanduser().resolve(), controller_uuid
     )
+    _assert_prior_launches_reconciled(args.output_dir.expanduser().resolve())
     contracted_parallelism = int(definition["scheduler"]["max_parallel"])
     if args.max_parallel != contracted_parallelism:
         raise DistributedContractError(
@@ -675,6 +1049,7 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
         else contracted_parallelism
     )
     wave_slots = slots[: min(wave_limit, len(waiting), len(slots))]
+    _validate_test_faults(args, wave_slots)
     wave_index = len(list((args.output_dir / "launch_manifests").glob("wave_*.json"))) + 1
     launches = []
     for offset, slot in enumerate(wave_slots):
@@ -732,6 +1107,11 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
         "dry_run": bool(args.dry_run),
         "usable_complete_observations_before_wave": usable_observations,
         "startup_target": startup_target,
+        "controller_attempt": {
+            "phase": "planned",
+            "state": "PLANNED",
+            "ambiguous": False,
+        },
     }
     manifest_path = (
         args.output_dir / "launch_manifests" / f"wave_{wave_index:04d}.json"
@@ -745,30 +1125,68 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
                 / "bayesian_optimization"
                 / args.study_name
             )
-            _stage_remote_study_inputs(
-                host=host,
-                remote_root=remote_root,
-                output_dir=args.output_dir.expanduser().resolve(),
-            )
+            try:
+                if args.test_inject_definite_prelaunch_host == host:
+                    raise DistributedContractError(
+                        "Injected definite host failure before remote input staging."
+                    )
+                _stage_remote_study_inputs(
+                    host=host,
+                    remote_root=remote_root,
+                    output_dir=args.output_dir.expanduser().resolve(),
+                )
+            except Exception as exc:
+                manifest["controller_attempt"] = {
+                    "phase": "remote_input_staging",
+                    "state": "DEFINITE_PRELAUNCH_ERROR",
+                    "host": host,
+                    "exception_type": type(exc).__name__,
+                    "ambiguous": False,
+                    "failed_at_unix": time.time(),
+                }
+                atomic_write_json(manifest_path, manifest)
+                raise
         for launch in launches:
             launch["launch_state"] = "ATTEMPTING"
             atomic_write_json(manifest_path, manifest)
             try:
-                subprocess.run(
-                    render_tmux_ssh_command(
-                        host=launch["host"],
-                        tmux_name=launch["tmux_session"],
-                        remote_shell=launch["remote_command"],
-                    ),
-                    check=True,
+                ssh_command = render_tmux_ssh_command(
+                    host=launch["host"],
+                    tmux_name=launch["tmux_session"],
+                    remote_shell=launch["remote_command"],
                 )
+                subprocess.run(ssh_command, check=True)
+                if args.test_inject_ambiguous_after_ack_host == launch["host"]:
+                    launch["remote_ack_observed_before_injected_fault"] = True
+                    raise subprocess.CalledProcessError(255, ssh_command)
             except subprocess.CalledProcessError as exc:
                 launch["launch_state"] = "SSH_ERROR"
                 launch["ssh_returncode"] = exc.returncode
+                launch["launch_ambiguity"] = True
+                manifest["controller_attempt"] = {
+                    "phase": "remote_launch",
+                    "state": "AMBIGUOUS_SSH_ERROR",
+                    "host": launch["host"],
+                    "worker_run_id": launch["worker_run_id"],
+                    "exception_type": type(exc).__name__,
+                    "ssh_returncode": exc.returncode,
+                    "injected_after_remote_ack": bool(
+                        launch.get("remote_ack_observed_before_injected_fault")
+                    ),
+                    "ambiguous": True,
+                    "failed_at_unix": time.time(),
+                }
                 atomic_write_json(manifest_path, manifest)
                 raise
             launch["launch_state"] = "SSH_ACKNOWLEDGED"
             atomic_write_json(manifest_path, manifest)
+        manifest["controller_attempt"] = {
+            "phase": "remote_launch",
+            "state": "SSH_ACKNOWLEDGED",
+            "ambiguous": False,
+            "finished_at_unix": time.time(),
+        }
+        atomic_write_json(manifest_path, manifest)
     print(json.dumps(manifest, sort_keys=True))
     return 0
 
@@ -1227,6 +1645,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "init": command_init,
         "preflight": command_preflight,
         "run": command_run,
+        "probe": command_probe,
         "status": command_status,
         "collect": command_collect_with_locks,
         "finalize": command_finalize,

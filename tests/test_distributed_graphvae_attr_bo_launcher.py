@@ -15,7 +15,14 @@ from scripts.graphvae_attr_bo_distributed import (
     canonical_contract_hash,
     sha256_file,
 )
-from scripts.run_distributed_graphvae_attr_bo import _preflight_inputs, command_collect
+from scripts.run_distributed_graphvae_attr_bo import (
+    DistributedContractError,
+    _assert_prior_launches_reconciled,
+    _classify_launch_probe,
+    _preflight_inputs,
+    _validate_test_faults,
+    command_collect,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -327,3 +334,186 @@ def test_gate5_mappings_select_exactly_two_cross_host_slots():
             "worker_id": "cs-cl-17-gate5-gpu0",
         },
     ]
+
+
+@pytest.mark.parametrize(
+    "launch_state,reachable,tmux_active,markers,db_trials,marker_payloads,expected",
+    [
+        ("PLANNED", False, False, [], [], {}, ("DEFINITE_PRELAUNCH", True)),
+        ("SSH_ERROR", True, True, [], [], {}, ("ACTIVE_AMBIGUOUS", False)),
+        (
+            "SSH_ERROR",
+            True,
+            False,
+            ["COMPLETED"],
+            [
+                {
+                    "trial_number": 0,
+                    "budget_index": 0,
+                    "reserved": True,
+                    "state": "COMPLETE",
+                }
+            ],
+            {
+                "COMPLETED": {
+                    "parse_ok": True,
+                    "trial_number": 0,
+                    "budget_index": 0,
+                    "db_state": "COMPLETE",
+                }
+            },
+            ("RECONCILED_TERMINAL", True),
+        ),
+        (
+            "SSH_ACKNOWLEDGED",
+            True,
+            False,
+            ["COMPLETED"],
+            [
+                {
+                    "trial_number": 0,
+                    "budget_index": 0,
+                    "reserved": True,
+                    "state": "FAIL",
+                }
+            ],
+            {
+                "COMPLETED": {
+                    "parse_ok": True,
+                    "trial_number": 0,
+                    "budget_index": 0,
+                    "db_state": "FAIL",
+                }
+            },
+            ("RECONCILED_TERMINAL", True),
+        ),
+        (
+            "SSH_ERROR",
+            True,
+            False,
+            ["FAILED_PRETRIAL"],
+            [],
+            {"FAILED_PRETRIAL": {"parse_ok": True, "reservation_consumed": False}},
+            ("RECONCILED_PRETRIAL", True),
+        ),
+        ("SSH_ERROR", False, False, [], [], {}, ("UNREACHABLE_AMBIGUOUS", False)),
+        ("SSH_ERROR", True, False, [], [], {}, ("MISSING_AMBIGUOUS", False)),
+    ],
+)
+def test_r06_launch_probe_classification_is_fail_closed(
+    launch_state, reachable, tmux_active, markers, db_trials, marker_payloads, expected
+):
+    assert _classify_launch_probe(
+        launch_state=launch_state,
+        remote_reachable=reachable,
+        tmux_active=tmux_active,
+        markers=markers,
+        db_trials=db_trials,
+        marker_payloads=marker_payloads,
+    ) == expected
+
+
+def test_r06_launch_probe_rejects_terminal_identity_mismatch():
+    status = _classify_launch_probe(
+        launch_state="SSH_ERROR",
+        remote_reachable=True,
+        tmux_active=False,
+        markers=["COMPLETED"],
+        db_trials=[
+            {
+                "trial_number": 0,
+                "budget_index": 0,
+                "reserved": True,
+                "state": "COMPLETE",
+            }
+        ],
+        marker_payloads={
+            "COMPLETED": {
+                "parse_ok": True,
+                "trial_number": 0,
+                "budget_index": 1,
+                "db_state": "COMPLETE",
+            }
+        },
+    )
+    assert status == ("MISSING_AMBIGUOUS", False)
+
+
+def test_r06_new_wave_requires_safe_probe_for_attempted_launch(tmp_path):
+    launch_root = tmp_path / "launch_manifests"
+    launch_root.mkdir()
+    worker_run = "worker-a-dispatch-1000000"
+    atomic_write_json(
+        launch_root / "wave_0001.json",
+        {
+            "dry_run": False,
+            "launches": [
+                {"worker_run_id": worker_run, "launch_state": "SSH_ERROR"}
+            ],
+        },
+    )
+
+    with pytest.raises(DistributedContractError, match="safe probe"):
+        _assert_prior_launches_reconciled(tmp_path)
+
+    probe_root = tmp_path / "launch_probes"
+    atomic_write_json(
+        probe_root / "probe_0001.json",
+        {
+            "launches": [
+                {
+                    "worker_run_id": worker_run,
+                    "probe_status": "ACTIVE_AMBIGUOUS",
+                    "retry_safe": False,
+                }
+            ]
+        },
+    )
+    with pytest.raises(DistributedContractError, match=worker_run):
+        _assert_prior_launches_reconciled(tmp_path)
+
+    atomic_write_json(
+        probe_root / "probe_0002.json",
+        {
+            "launches": [
+                {
+                    "worker_run_id": worker_run,
+                    "probe_status": "RECONCILED_TERMINAL",
+                    "retry_safe": True,
+                }
+            ]
+        },
+    )
+    _assert_prior_launches_reconciled(tmp_path)
+
+
+def test_r06_planned_prelaunch_identity_is_retryable_without_probe(tmp_path):
+    launch_root = tmp_path / "launch_manifests"
+    launch_root.mkdir()
+    atomic_write_json(
+        launch_root / "wave_0001.json",
+        {
+            "dry_run": False,
+            "launches": [
+                {
+                    "worker_run_id": "worker-a-dispatch-1000000",
+                    "launch_state": "PLANNED",
+                }
+            ],
+        },
+    )
+    _assert_prior_launches_reconciled(tmp_path)
+
+
+def test_r06_launch_fault_injection_requires_explicit_test_environment(monkeypatch):
+    args = argparse.Namespace(
+        test_inject_definite_prelaunch_host="worker-a",
+        test_inject_ambiguous_after_ack_host=None,
+    )
+    slots = [{"host": "worker-a"}]
+    monkeypatch.delenv("GRAPHVAE_BO_ENABLE_TEST_FAULTS", raising=False)
+    with pytest.raises(ValueError, match="GRAPHVAE_BO_ENABLE_TEST_FAULTS=1"):
+        _validate_test_faults(args, slots)
+
+    monkeypatch.setenv("GRAPHVAE_BO_ENABLE_TEST_FAULTS", "1")
+    _validate_test_faults(args, slots)
