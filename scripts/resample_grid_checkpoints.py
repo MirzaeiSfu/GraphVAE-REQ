@@ -47,7 +47,7 @@ from util import EdgeFeatureDecoder, NodeFeatureDecoder  # noqa: E402
 
 TABLE2_METRICS = ("degree", "clustering", "orbit", "spectral", "diameter")
 DENSE_DEFINITIONS = ("twice_mean", "mean_plus_3std", "max_reference")
-DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v3"
+DATASET_CACHE_SCHEMA_VERSION = "dataset-cache-v4"
 DEFAULT_SPLIT_SEED = 123
 DEFAULT_LEGACY_TRAIN_FRACTION = 0.8
 DEFAULT_PAPER_TRAIN_FRACTION = 0.7
@@ -170,6 +170,7 @@ def build_dataset_cache_metadata(config: dict) -> dict:
         "val_fraction": float(split_plan["val_fraction"]),
         "test_fraction": float(split_plan["test_fraction"]),
         "split_seed": int(split_plan["split_seed"]),
+        "dataset_loader_seed": config.get("dataset_loader_seed"),
         "feature_schema": feature_schema,
     }
 
@@ -182,7 +183,9 @@ def build_dataset_cache_name(cache_metadata: dict) -> str:
         f"_val{format_cache_float(cache_metadata['val_fraction'])}"
         f"_test{format_cache_float(cache_metadata['test_fraction'])}"
         f"_seed{cache_metadata['split_seed']}"
-        f"_bfs-{sanitize_cache_component(cache_metadata['bfs_strategy'])}.pkl"
+        f"_loaderseed-{sanitize_cache_component(cache_metadata['dataset_loader_seed'])}"
+        f"_bfs-{sanitize_cache_component(cache_metadata['bfs_strategy'])}"
+        f"_features-{sanitize_cache_component(cache_metadata['feature_schema'])}.pkl"
     )
 
 

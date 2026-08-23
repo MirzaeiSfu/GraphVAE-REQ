@@ -1,0 +1,157 @@
+{
+  "byte_length": 16863,
+  "cache_metadata": {
+    "bfs_strategy": "legacy_first_component",
+    "cache_schema_version": "dataset-cache-v4",
+    "dataset": "QM9",
+    "dataset_loader_seed": 0,
+    "feature_schema": "default",
+    "split_kind": "three_way",
+    "split_mode": "paper_70_10_20",
+    "split_seed": 123,
+    "test_fraction": 0.20000000000000004,
+    "train_fraction": 0.7,
+    "val_fraction": 0.1
+  },
+  "edge_feature_dimension": 3,
+  "edge_schema": {
+    "channels": [
+      {
+        "channel": 0,
+        "group": "bond_type",
+        "meaning": "single",
+        "metadata": {
+          "feature_name": "bond_type",
+          "value": "single"
+        }
+      },
+      {
+        "channel": 1,
+        "group": "bond_type",
+        "meaning": "double",
+        "metadata": {
+          "feature_name": "bond_type",
+          "value": "double"
+        }
+      },
+      {
+        "channel": 2,
+        "group": "bond_type",
+        "meaning": "triple",
+        "metadata": {
+          "feature_name": "bond_type",
+          "value": "triple"
+        }
+      }
+    ],
+    "dtype": "float32",
+    "encoding": "ordered-grouped-one-hot",
+    "schema_version": "graphvae-attr-bo-fingerprint-v1",
+    "total_dimension": 3
+  },
+  "edge_schema_fingerprint": "2537f0ef7697eb6110e1a85ee12217e6c3b1ba9e610c242cee2e6d7418826ad4",
+  "expected_validation_graphs": 3,
+  "filename": "qm9_tiny_cache.pkl",
+  "fingerprint_schema_version": "graphvae-attr-bo-fingerprint-v1",
+  "node_feature_dimension": 4,
+  "node_schema": {
+    "channels": [
+      {
+        "channel": 0,
+        "group": "atom_type",
+        "meaning": "C",
+        "metadata": {
+          "feature_name": "atom_type",
+          "value": "C"
+        }
+      },
+      {
+        "channel": 1,
+        "group": "atom_type",
+        "meaning": "N",
+        "metadata": {
+          "feature_name": "atom_type",
+          "value": "N"
+        }
+      },
+      {
+        "channel": 2,
+        "group": "atom_type",
+        "meaning": "O",
+        "metadata": {
+          "feature_name": "atom_type",
+          "value": "O"
+        }
+      },
+      {
+        "channel": 3,
+        "group": "atom_type",
+        "meaning": "F",
+        "metadata": {
+          "feature_name": "atom_type",
+          "value": "F"
+        }
+      }
+    ],
+    "dtype": "float32",
+    "encoding": "ordered-grouped-one-hot",
+    "schema_version": "graphvae-attr-bo-fingerprint-v1",
+    "total_dimension": 4
+  },
+  "node_schema_fingerprint": "5ec7b5a511b895cbb9e353130f61a97a085ad6dfb2ccf65ad2bdcc6725758933",
+  "relative_path": "tests/fixtures/distributed_attr_f1pr_bo/qm9_tiny_cache.pkl",
+  "schema_version": "graphvae-attr-f1pr-cache-manifest-v1",
+  "sha256": "e6c2e4825d5b3b1634de6a3c63d1bbdd110563dbb005ca3892f54630ca3463e0",
+  "split_fingerprint": "3a3c5a6554d5596056d51b37fc4c6c283c46ef6fb367d2dd4fc335f375bd2e9b",
+  "split_mode": "paper_70_10_20",
+  "splits": {
+    "test": {
+      "fingerprint": "d6aa37c39045ffab86995f853909d5d751c62e6ecbcf3e2bb87d73d8b47a4abf",
+      "graph_count": 6,
+      "graph_fingerprints": [
+        "d9e2a8c87a719f67a72922221ed72785c0b3d60452ee556b1ad6f0fd92ba283f",
+        "3e9a4347a88aec648b9128351e216f56b1f732db29aea1396a476940d0271821",
+        "686103540c806884ffda5131e54dfe7f0a08f6b413090896f66c5099d2f6b6e6",
+        "5ea82fb81f9112885742fc127a5d33ce65b6a3de34056291a1d6fd771a21ed15",
+        "1b9b4000aa8cd40cba4a84f2d8b1b1de9b619d9fbba63583d54c4e29ccf3f306",
+        "704375d7c276ba7a5155b2b0651a0633d17b7e1d768672880704467abfd262ad"
+      ]
+    },
+    "train": {
+      "fingerprint": "454f425cce325051df565641194ad7ebc3601048100aee22b97a5017b99c3acc",
+      "graph_count": 21,
+      "graph_fingerprints": [
+        "09176887118b281d3889cb618631b8cef7c05da542d7272afac10c1661a504a8",
+        "06d8cbd237d0bb0cf5a92cf8cd6616d596f3f33ad287a6f96e4ec4de0d362b90",
+        "dd1d602de91528004fa43d10ceead52aa4b952d6ec094facc69de66bcbb1ba93",
+        "8213f7550b466f6a6c3a5328e8050c89c2c1838fe2a09b0eec5bb8b226b80f42",
+        "7de8ff084aac8a97b7a16972f1b55513f7076c3441deb2c3a98908930df2310c",
+        "c85c666cead11b889bc353dca16b0cafe35cef0831874cf3e2722a4bcaa9e945",
+        "1b4876cdcba5a5696384531e850812d20c701987d7a9e2c81d398e2439846024",
+        "f9374e05595af3305d88059fa6400e6fd67bd57d3f5b1cff9c75d1e6fdf4ee03",
+        "4bd826a2dcf25cff8476ac43249f1cea1d95100dac118fd500912ff508efcaf8",
+        "5113cbfacc019297f4a2d695f08d46cd35e6a5f10e9174a507445f95901fd22f",
+        "b8d286376f6124294375eb7395156c7fe08eb0755a092bdab6e03792d933a6a5",
+        "e2e054229c33a5d014c5c6b5d4b1f55fe6c4d691e150d83d4dfa2cd9efeb6ed1",
+        "708fc9bbabc6318322a714f42ef3b4f6e23771163610a36660fe3f33a2d00113",
+        "e866da99f9ff0d6a643ce7b59a47022931fa52a45c4c054a305bb32871b55ed5",
+        "dc6000124c23fdaeaf47abcd8eeccd187ccb44e5ab981fa5206aff9285c3f869",
+        "843003cbced0cc9fb24fafc79b015ca93b4dc8351517021747729a18b2071da3",
+        "0aa914d7213a9a60463ce6e01d2883007cb826120595b66689b0e9c53983245e",
+        "ab516b39ce7df0a395839f5de280453c2dfb2a5a30316a841f607fe0c2eca129",
+        "1fc90de425da5a01cd2febd4a865a583b1434325ccf5ec029f4dcc6f60e51708",
+        "fc9d6d4d9a34e752895e9ebd1e51a9c20315d2f29625bd9bc2c0a203cd31fd38",
+        "2a5a9f0261ad40e0b03014d3c705504b6d472ec2bb5a0e5b8dc225a2acd6d019"
+      ]
+    },
+    "validation": {
+      "fingerprint": "3a3c5a6554d5596056d51b37fc4c6c283c46ef6fb367d2dd4fc335f375bd2e9b",
+      "graph_count": 3,
+      "graph_fingerprints": [
+        "f089ac81da757f6ec1d85ff36e78b1fb3bf87ecb20ec26b1dad211333f7ef343",
+        "b78376f36e350f5c720785a3841daf77e6baecf814113545e1c243d6afa34cb0",
+        "7165d0e3d0351013c3b176c3ea993bc6823040b6f19ffaccceb6843c1fbb0576"
+      ]
+    }
+  }
+}

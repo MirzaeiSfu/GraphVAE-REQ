@@ -9,6 +9,7 @@ data:
   graph_type: homogeneous
   split_mode: paper_70_10_20
   split_seed: 123
+  dataset_loader_seed: 0
   train_fraction: 0.7
   val_fraction: 0.1
   seed: 0
