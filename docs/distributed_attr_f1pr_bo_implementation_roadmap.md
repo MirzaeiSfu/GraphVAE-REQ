@@ -1446,6 +1446,47 @@ row cannot be verified, propagates both values through worker, trial, and Optuna
 metadata, and makes collection audit reject a GPU result with missing identity.
 A new one-slot R03 study is required; R03a is never rewritten or extended.
 
+### Gate 4 R03 remote real qualification follow-up (2026-08-23)
+
+The fresh one-slot study
+`lobster_attr_f1pr_gate4_r03_real_20260823b` passed R03 using committed source
+`24c103e17ce4210dddbada34dd8ea2660ebe184f`. Its one acknowledged bounded
+dispatch ran two real GraphVAE epochs on physical GPU 0/logical `cuda:0`. The
+preclaim worker record, trial result, and restored Optuna attributes all agree on
+`NVIDIA TITAN RTX` with 25,769,803,776 VRAM bytes and runtime fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`.
+
+PostgreSQL and the remote `COMPLETED` marker agree on one reserved `COMPLETE`
+trial, no failures, no WAITING/RUNNING trials, and no unreserved guard row. Real
+training finished in 209.71 seconds and validation evaluation in 6.05 seconds,
+inside both fixed 600-second phase caps. The sampled weights were
+`alpha_node_feat=66.3603784360122` and
+`alpha_edge_feat=26.984670498189587`.
+
+The finite value at the exact
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean` path was
+`0.000019999800003999925`, with precision `0.0`, recall `1.0`, and eight
+accepted validation graphs. The structured evaluator attests to
+`decoded_node_edge`, both GraphVAE attribute decoders, 14 node and 11 edge
+channels, five repeats, and eight generated plus eight reference graphs. Cache,
+validation-split, source, runtime, and both feature-schema fingerprints passed
+collection audit. The selected checkpoint SHA-256 is
+`fceb1311eac789dc4213d67388596e3a2639e4f8ae20342e16daf4fb24b9cdc3`.
+R03b exactly reproduced R03a's fixed-seed objective and checkpoint bytes; this
+same-slot observation does not substitute for the later R08 hardware test, and
+checkpoint byte equality remains non-required.
+
+Checksum collection, finalization, and independent SQLite reopen passed with a
+`FROZEN` lifecycle and the same best trial, value, objective, and GPU metadata.
+No final-test artifact exists, optimization records `test_access=false`, and a
+credential-material scan passed. After the run, the canonical 59,295,793-byte
+cache remained mode `0444` with unchanged SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+
+Gate 4 is complete. This qualification does not start or authorize Gate 5
+multi-worker tests, R08, a pilot, production, held-out evaluation, or full-QM9
+Bayesian optimization.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1465,9 +1506,10 @@ design questions:
 - normalize the runtime environment and stage verified source/cache inputs
   before Gates 4-6.
 
-Section 14 and Gates 1-3 are complete locally. R02 now passes with its separate
-remote mock study; Gate 4 still requires the new R03 real smoke study. Protected
-credential deployment and authenticated `verify-full` preflight now pass;
-source, cache, and the one approved GPU slot are staged and verified. Full QM9
-BO remains blocked pending a separately reviewed staged or multi-fidelity
-budget.
+Section 14 and Gates 1-3 are complete locally, and Gate 4 now passes with its
+separate R02 mock and R03 real LOBSTER studies. Protected credential deployment,
+authenticated `verify-full` preflight, source/cache staging, GPU isolation,
+collection, audit, freeze, and restore all pass on the one approved slot. Gate 5
+and later gates remain unstarted; credentials must be rotated before any pilot
+or production use. Full QM9 BO remains blocked pending a separately reviewed
+staged or multi-fidelity budget.
