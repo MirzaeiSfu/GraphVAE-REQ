@@ -2495,6 +2495,52 @@ report includes per-seed outcomes, paired differences, means, uncertainty,
 all failed attempts, portable restoration, cache/source integrity, lifecycle
 state, and credential/test-access scans.
 
+The matched confirmation is complete and its conclusion is now frozen. Fresh
+study `lobster_attr_f1pr_production_confirmation6_20260823a` consumed exactly
+its six reservations in two bounded waves on the three qualified TITAN RTX
+slots. All six reservations are `COMPLETE`; there is no waiting, running,
+failed, unreserved, replacement, or duplicate trial. Its immutable contract
+SHA-256 is
+`4149bc0d2803c796eaa16933e9a3e2aeee6174452c6399fa461debbaef174b4b`.
+Every trial retained the common 10,000-epoch budget, validation split, full ten
+validation graphs, ten evaluator repeats, both attribute decoders, exact
+objective `evaluation.modes.decoded_node_edge.summary.f1_pr.mean`, and
+`test_access=false`.
+
+The predeclared fail-closed analysis pairs selected and uniform results only at
+training seeds 0, 1, and 2. The paired differences (selected minus uniform)
+are respectively `0.022023487317682`, `-0.016559366357644767`, and
+`-0.04005272218086209`. Selected mean validation Attr-F1PR is
+`0.6589554373894496`; uniform mean is `0.6704849711297246`. The mean paired
+difference is `-0.011529533740274952`, and its two-sided 95% paired t interval
+with two degrees of freedom is
+`[-0.08938806723568428, 0.06632899975513439]`. The frozen conclusion is
+therefore `no_improvement`: the BO-selected weights
+`alpha_node_feat=5.229045672015893` and
+`alpha_edge_feat=0.05386414830134693` do not outperform uniform `(1,1)` under
+the matched confirmation contract. No alternate search trial was reranked or
+promoted.
+
+The atomic confirmation report SHA-256 is
+`557f1d7e5ae596cb243c427682a18558a6da69b4686aed4586639e507100c9a0`.
+A fresh PostgreSQL-independent restore reproduced all four aggregate hashes,
+the semantic fingerprint
+`c488c299cba7b791afcfeb9e8fcbc8588efed4433573d69c39644c978c723775`,
+and snapshot SHA-256
+`7a8354cbc8e101197b9aa681fb056941f665e70ba2318ef51fc783a14b46a35f`;
+its `RESTORED.json` SHA-256 is
+`5432a0d65f1d6c0b8b5765a388115ddc85ab676ba8fbf12f6bf05ab9845232f4`.
+Both hosts subsequently reverified the deployed source manifest, protected
+`verify-full` PostgreSQL authentication, credential mode `0600`, exact runtime
+fingerprint, and canonical mode-`0444` cache size/hash. A complete 388-file,
+21,240,130,994-byte study/restore scan tested eleven protected credential
+materials and found zero credential-file copy, storage URL, password
+assignment, test split, or true test-access flag. Seventy focused
+non-PostgreSQL distributed tests pass, including the exact analysis policy and
+fail-closed rejection of uncontracted result rows. The validation conclusion
+is frozen before any held-out access; a later explicit held-out result is
+secondary evidence only and cannot change it.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
