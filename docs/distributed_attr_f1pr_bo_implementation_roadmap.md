@@ -2470,6 +2470,21 @@ directional evidence from no improvement. Held-out access remains false until
 the confirmation study and conclusion are frozen. Sixty-seven non-PostgreSQL
 distributed unit, launcher, and integrity tests pass with this contract.
 
+Clean confirmation source commit `cc9497637159aa230a6f2b9c0e8d340cb3d2b312`
+is deployed to both qualified roots at source-tree SHA-256
+`b68e301d1e3ff142aa19f40374089d4fce1a297766c1db0360a84890c1a66e9d`.
+The deployment preserves the qualified runtime overlays, immutable cache, and
+all earlier run evidence. Remote manifest verification, protected verify-full
+PostgreSQL authentication, exact runtime fingerprint, and read-only cache
+size/hash checks pass on both hosts. The confirmation config, reservation plan,
+and analysis policy reproduce controller SHA-256 values
+`a89f112d48b229fa92a679065d8a24051e9d73ac005596dff59b63f294fcb134`,
+`e946111f5f976d7c4904d07e55cfac2d32e3974df1d320338c5533180f17e168`,
+and `9a8e71f4f053440fbd0f32e390cee30ca9a5f0b519cd867db6bb0a0c16b1fa18`
+respectively on each host. The complete local deployment/cache manifests are
+read-only ignored operational evidence; no credential or storage URL is part
+of either manifest.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical
