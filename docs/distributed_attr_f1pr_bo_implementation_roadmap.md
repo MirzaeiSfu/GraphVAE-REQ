@@ -2347,8 +2347,51 @@ represent cs-cl-19's protected scratch fallback and the other five hosts'
 credential-environment mapping, requires its host set to equal the repository
 mapping, and rejects relative/control-character paths before dispatch. The
 committed mapping contains paths only, never credential contents. Sixty-two
-focused unit and launcher tests pass. Study B remains entirely unlaunched and
-all nine reservations remain `WAITING` while this interface is committed.
+focused unit and launcher tests pass. At that commit checkpoint study B was
+entirely unlaunched and all nine reservations remained `WAITING`.
+
+The nine-slot launch qualification for study B is now complete and frozen.
+Wave 1 failed definitely before any SSH/tmux launch or PostgreSQL claim because
+the controller output root was missing its public deployment and cache
+manifests; its evidence is retained and all nine reservations remained
+`WAITING`. After those immutable public inputs were installed, wave 2 launched
+all nine slots simultaneously with dispatch sequences `2000000..2000008` and
+nine unique deterministic sampler seeds. The immediate audit found exactly nine
+`RUNNING` reservations, no waiting reservation, no unreserved guard row, and no
+retry-safe launch. The terminal audit found exactly nine `COMPLETE`
+reservations, nine unique worker-run identities and atomic completion markers,
+zero failures, and no replacement or duplicate dispatch.
+
+Study `lobster_attr_f1pr_production_hw_signal_20260823b` is `FROZEN` at contract
+SHA-256 `f1dd8d355c93d8e65ce1b4bc3cadd54d1ded2260f61ef12db028ee9dd9def424`.
+All nine fixed uniform `(1,1)` trials produced a finite full-validation
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`, so the 2,000-epoch
+signal budget is scientifically usable and is far above the previous numerical
+floor. The exact observed values were `0.5604518010256058` on the GTX TITAN X,
+`0.6452243612592389` on the Quadro RTX 4000, `0.682776942562006` on all three
+TITAN RTX slots, and `0.6017607207239262` on the GTX 1080 Ti and TITAN X Pascal
+slots. The nine-slot objective range `0.12232514153640028` exceeds the frozen
+absolute tolerance `0.02`; consequently the heterogeneous nine-slot hardware
+audit correctly fails and publishes no eligible slot set. This is a scientific
+pool-qualification failure, not a concurrency failure. The three TITAN RTX
+slots agree exactly, but a fresh hardware-homogeneous qualification must freeze
+that pool before the 30-reservation search; the failed all-hardware study is
+never rewritten or used to rank weights.
+
+Collection from all six dedicated roots completed with zero manifest or
+collision failures. Finalization verified every checkpoint and evaluator
+artifact, the exact validation objective path, both feature decoders, and
+`test_access=false`. A PostgreSQL-independent restore reproduced all aggregate
+outputs under runtime fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`.
+Post-trial checks on all six hosts reverified source tree
+`1fdaa75ccbac2d6cb78c75631f47aba0515cb0cd3c86991e1c7e111509be4db9`,
+the read-only 59,295,793-byte cache at SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`,
+and read-only deployment/cache manifests. Text artifact scans found no storage
+URL, password/private-key material, held-out split, or true test-access flag.
+The frozen study, restore tree, checkpoints, and generated trial artifacts
+remain ignored operational evidence and are not committed.
 
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
