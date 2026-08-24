@@ -1,0 +1,76 @@
+# Bounded AIDS Attr-F1PR cache/timing qualification. The max-40-node filter
+# retains 1,849/2,000 source graphs while bounding the FC decoder shape. This
+# configuration is not a search or confirmation budget; those are frozen only
+# after the qualified timing trial.
+data:
+  dataset: AIDS
+  use_feature: true
+  bfsOrdering: true
+  bfs_strategy: all_components
+  directed: true
+  database_name: aids_experiment
+  graph_type: homogeneous
+  graph_index_start: null
+  graph_index_end: null
+  data_dir: null
+  tu_attribute_bins: 8
+  tu_max_nodes: 40
+  split_mode: paper_70_10_20
+  split_seed: 123
+  dataset_loader_seed: 0
+  train_fraction: 0.7
+  val_fraction: 0.1
+  seed: 0
+  deterministic: true
+  deterministic_warn_only: false
+
+model:
+  model: GraphVAE
+  encoder_type: AvePool
+  decoder: FC
+  graphEmDim: 1024
+  beta: null
+
+experiment:
+  epoch_number: 250
+  Vis_step: 50
+  redraw: false
+  lr: 0.0003
+  train_batch_size: 200
+  task: graphGeneration
+
+motif:
+  motif_loss: false
+
+loss:
+  alpha_kernel_cost: 1.0
+  alpha_node_feat: 1.0
+  alpha_edge_feat: 1.0
+  alpha_motif_loss: 0.0
+  use_graphvae_mm_bce_kl_weights: false
+  alpha_adj_recon: 0.0
+
+runtime:
+  graph_save_path: null
+  dataset_cache_dir: cache_datasets
+  disable_dataset_cache: false
+  require_existing_dataset_cache: true
+  UseGPU: true
+  device: cuda:0
+  plot_testGraphs: false
+  ideal_Evalaution: false
+  keep_best_validation_mmd: false
+  save_validation_checkpoints: false
+  third_party_eval: false
+  skip_final_evaluation: true
+  tiny_overfit: false
+  sanity_check: false
+  sanity_check_only: false
+
+bayesian_optimization_qualification:
+  expected_total_graphs: 1849
+  max_graphs: 0
+  generation_batch_size: 20
+  training_timeout_seconds: 7200
+  evaluation_timeout_seconds: 1800
+  termination_grace_seconds: 10

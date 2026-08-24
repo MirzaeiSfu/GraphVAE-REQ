@@ -496,3 +496,36 @@ and a predeclared paired confirmation. If that design passes the superiority
 rule, the answer becomes “yes” for the qualified dataset and contract. If it
 does not, the correct final answer remains “no improvement demonstrated,” and
 uniform weights remain the default.
+
+## AIDS execution checkpoint (2026-08-24)
+
+The user authorized the bounded non-QM9 weight study, and AIDS is selected for
+qualification. The max-40-node contract retains 1,849 of the 2,000 official
+graphs while bounding the fully connected decoder shape. It leaves 1,294
+training, 184 validation, and 371 held-out test graphs. The loader audit found
+118 disconnected retained source graphs, so `all_components` BFS is frozen to
+preserve rather than silently discard their non-root components.
+
+The source archive and all six relevant raw files have committed SHA-256
+provenance. Every retained graph has node attributes and a real edge label;
+the three observed edge states are `0`, `1`, and `2`. The canonical cache is
+73,822,456 bytes with SHA-256
+`6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb`.
+Its validated node/edge dimensions are 56/3 and its split, graph, and schema
+fingerprints are frozen in
+`configs/bayesian_optimization/aids_attr_f1pr_cache_manifest.json`. The cache
+is mode `0444`.
+
+The cache bootstrap saved the cache atomically before its intentionally tiny
+debug continuation enabled the legacy motif preset and failed against an
+unavailable local MySQL service. It created no Optuna study or reservation.
+The cache was subsequently loaded and fully re-fingerprinted by the dedicated
+manifest verifier, so the unrelated post-save bootstrap failure is not hidden
+or treated as model evidence.
+
+The BO-safe 250-epoch timing configuration and four focused AIDS/config/cache
+tests pass as part of a 22-test focused run. No training qualification, BO
+reservation, validation objective, or held-out access has occurred. The next
+step is a dedicated two-host deployment followed by one bounded uniform timing
+and hardware-equivalence study; its measurement will freeze the search and
+confirmation budgets.

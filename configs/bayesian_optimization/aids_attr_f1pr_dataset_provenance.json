@@ -1,0 +1,44 @@
+{
+  "archive": {
+    "filename": "AIDS_official.zip",
+    "sha256": "ef65a8095846588ffd6e17f95c1968a247d8ada7295a61209c401bda23d19ab9"
+  },
+  "expected_contract": {
+    "edge_feature_fields": {
+      "edge_label": [
+        0,
+        1,
+        2
+      ]
+    },
+    "retained_graphs": 1849,
+    "source_graphs": 2000,
+    "split_counts": {
+      "test": 371,
+      "train": 1294,
+      "validation": 184
+    },
+    "tu_attribute_bins": 8,
+    "tu_max_nodes": 40
+  },
+  "files": {
+    "AIDS_A.txt": "9da8e3f787d1dbdc80a35f205707bd0bec0778261fb7e54355c061912f8d8380",
+    "AIDS_edge_labels.txt": "47e3eac0bf8c6196af7d5532fba3d2c9b29014740d471bd4696149a5ef2bf7d7",
+    "AIDS_graph_indicator.txt": "8a1ede4f84bcba1f5a7f49fe7e89cdc74466645b62175603710b80300fb68be4",
+    "AIDS_graph_labels.txt": "da9c413b24b0a808b497a4567f57dce975d0eb9dc69c5db82aec6a172c88e28f",
+    "AIDS_node_attributes.txt": "e47595d48fa329d84183fd68f8b4a6b327fd05690e3d335ffcdc6b7c110f081c",
+    "AIDS_node_labels.txt": "d90cda6258c58f4c3facaa2e6a71e1b589da13f0162af59881400a3c8f0c514a"
+  },
+  "loader": {
+    "bfs_strategy": "all_components",
+    "dataset_loader_seed": 0,
+    "implementation": "factorbase_motif_pipeline.tu_dataset_to_db",
+    "split_mode": "paper_70_10_20",
+    "split_seed": 123
+  },
+  "schema_version": "graphvae-aids-attr-f1pr-provenance-v1",
+  "source": {
+    "dataset": "AIDS",
+    "inventory_url": "https://chrsmrrs.github.io/datasets/docs/datasets/"
+  }
+}
