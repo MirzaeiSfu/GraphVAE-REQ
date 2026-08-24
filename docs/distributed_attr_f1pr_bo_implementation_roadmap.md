@@ -2393,6 +2393,15 @@ URL, password/private-key material, held-out split, or true test-access flag.
 The frozen study, restore tree, checkpoints, and generated trial artifacts
 remain ignored operational evidence and are not committed.
 
+The repository inventory contains no additional TITAN RTX slot: the only other
+mapped hosts expose two GTX 1080 Ti GPUs (`cs-cl-18`) and one RTX 2080
+(`cs-cl-36`). The committed production slot file therefore freezes the
+hardware-homogeneous pool by model identity as `cs-cl-13:gpu0`,
+`cs-cl-17:gpu0`, and `cs-cl-17:gpu1`. Its separate immutable hardware policy
+retains the same `0.02` objective tolerance, training-loss tolerance, and exact
+runtime fingerprint. A fresh three-reservation fixed-uniform study must pass
+that policy before these slots can run the 30-reservation LOBSTER search.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical

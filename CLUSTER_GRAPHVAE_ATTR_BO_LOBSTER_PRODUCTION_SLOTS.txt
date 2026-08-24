@@ -1,0 +1,6 @@
+# HOST GPU WORKER_ID
+# Hardware-homogeneous pool selected by model identity after the heterogeneous
+# candidate qualification failed its frozen cross-hardware tolerance.
+cs-cl-13 0 cs-cl-13-lobster-prod-gpu0
+cs-cl-17 0 cs-cl-17-lobster-prod-gpu0
+cs-cl-17 1 cs-cl-17-lobster-prod-gpu1

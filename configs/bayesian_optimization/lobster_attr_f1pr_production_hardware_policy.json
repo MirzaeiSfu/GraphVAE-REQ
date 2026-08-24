@@ -1,0 +1,17 @@
+{
+  "schema_version": "graphvae-attr-f1pr-hardware-policy-v1",
+  "qualification_scope": "homogeneous-titan-rtx-lobster-production",
+  "attr_f1pr_abs_tolerance": 0.02,
+  "training_loss_tolerance": {
+    "absolute_floor": 0.001,
+    "relative": 0.05,
+    "formula": "abs(a-b) <= max(1e-3, 0.05*max(abs(a),abs(b)))"
+  },
+  "checkpoint_byte_equality_expected": false,
+  "required_runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+  "candidate_pool": [
+    "cs-cl-13:cuda:0",
+    "cs-cl-17:cuda:0",
+    "cs-cl-17:cuda:1"
+  ]
+}
