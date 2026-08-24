@@ -2036,7 +2036,10 @@ functions.append("KL-D")
 # ========================================================================
 
 
-pltr = plotter.Plotter(save_to_filepath="kernelVGAE_Log", functions=functions)
+pltr = plotter.Plotter(
+    save_to_filepath=graph_save_path + "kernelVGAE_Log",
+    functions=functions,
+)
 
 synthesis_graphs = {"wheel_graph", "star", "TRIANGULAR_GRID", "DD", "ogbg-molbbbp", "GRID", "small_lobster",
                     "small_grid", "community", "LOBSTER", "ego", "one_grid", "IMDBBINARY", ""}

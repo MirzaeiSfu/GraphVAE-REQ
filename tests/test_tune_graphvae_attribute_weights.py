@@ -1,5 +1,7 @@
+import ast
 import copy
 import csv
+from pathlib import Path
 
 import pytest
 import yaml
@@ -23,6 +25,33 @@ from scripts.tune_graphvae_attribute_weights import (
     validate_feature_head_keys,
     write_study_outputs,
 )
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_main_training_plot_is_scoped_to_graph_artifact_directory():
+    tree = ast.parse((REPO_ROOT / "main.py").read_text(encoding="utf-8"))
+    plotter_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "plotter"
+        and node.func.attr == "Plotter"
+    ]
+    assert len(plotter_calls) == 1
+    save_keyword = next(
+        keyword
+        for keyword in plotter_calls[0].keywords
+        if keyword.arg == "save_to_filepath"
+    )
+    assert isinstance(save_keyword.value, ast.BinOp)
+    assert isinstance(save_keyword.value.left, ast.Name)
+    assert save_keyword.value.left.id == "graph_save_path"
+    assert isinstance(save_keyword.value.right, ast.Constant)
+    assert save_keyword.value.right.value == "kernelVGAE_Log"
 
 
 def base_config():
