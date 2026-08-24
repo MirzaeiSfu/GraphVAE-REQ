@@ -1,0 +1,3 @@
+# HOST PYTHON_PATH
+cs-cl-13 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-17 /localhome/mirzaei/miniconda3/envs/micro/bin/python

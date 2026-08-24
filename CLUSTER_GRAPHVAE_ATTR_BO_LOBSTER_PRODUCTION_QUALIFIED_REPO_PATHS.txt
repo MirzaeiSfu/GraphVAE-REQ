@@ -1,0 +1,3 @@
+# HOST REPO_PATH
+cs-cl-13 /local-scratch/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo
+cs-cl-17 /local-scratch/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo

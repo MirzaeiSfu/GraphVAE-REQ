@@ -2402,6 +2402,28 @@ retains the same `0.02` objective tolerance, training-loss tolerance, and exact
 runtime fingerprint. A fresh three-reservation fixed-uniform study must pass
 that policy before these slots can run the 30-reservation LOBSTER search.
 
+That homogeneous qualification now passes. Fresh study
+`lobster_attr_f1pr_production_hw_titanrtx_20260823a` froze exactly three
+uniform `(1,1)` reservations at contract SHA-256
+`bf61e72c7283c9ac4df72213a50e543e94428c78288a49de4d60f3a0cb49a4cc`.
+One simultaneous worker ran on each frozen slot with unique dispatch sequence,
+sampler seed, worker-run identity, trial identity, and atomic terminal marker.
+All three reservations completed; no waiting, failed, unreserved, replacement,
+or duplicate trial exists. Each independently reproduced validation Attr-F1PR
+`0.682776942562006`, so the objective range and every pairwise difference are
+exactly zero against the immutable `0.02` tolerance. The hardware audit marks
+all three slots eligible.
+
+The two-host collection completed without collision or manifest failure, the
+study is `FROZEN`, and its PostgreSQL-independent restore reproduced all
+aggregate hashes under the exact runtime fingerprint. Every evaluator used the
+validation split, `decoded_node_edge`, and both GraphVAE feature decoders; no
+test split was accessed. Credential/storage/test-access scans are clean. Final
+source verification and the read-only cache SHA-256/size check pass on both
+hosts. Dedicated qualified repository, Python, and protected-environment path
+mappings now constrain subsequent production search dispatch and collection to
+these two hosts; the mappings contain paths only.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical
