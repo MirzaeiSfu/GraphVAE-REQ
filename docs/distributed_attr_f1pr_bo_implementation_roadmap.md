@@ -2056,6 +2056,52 @@ SHA-256
 The pilot is complete and frozen. R09 clean-snapshot restoration is next; R10
 remains prohibited until R09 passes.
 
+### Gate 6 R09 clean-snapshot restoration (2026-08-23)
+
+Commit `a3c53f3` added the fail-closed `restore` controller command. It accepts
+only a frozen source tree and a fresh, separate destination: it copies the
+portable SQLite snapshot into an atomic staging directory, verifies the exact
+study contract and runtime fingerprint, and performs no PostgreSQL access. The
+copied study must be quiescent and semantically identical before the command
+regenerates `trials.csv`, `best_trial.json`, `best_config.yaml`, and
+`SUMMARY.md` from the copied snapshot. Every regenerated aggregate is then
+byte-compared with the frozen source, both snapshot copies are rehashed, and
+the destination is atomically published with `RESTORED.json`. Equal, nested,
+or already-existing destinations are rejected. Fifty-nine focused controller
+and integrity tests passed.
+
+R09 ran from a fresh controller process with all `GRAPHVAE_BO_*`,
+`PGPASSFILE`, `PGPASSWORD`, and PostgreSQL environment variables explicitly
+absent. It restored `lobster_attr_f1pr_gate6_pilot_20260823b` into the new root
+`lobster_attr_f1pr_gate6_pilot_20260823b_r09_restore_20260823a` without opening
+PostgreSQL. The copied snapshot retained SHA-256
+`add5bdddc0222e5299319c4296001a720c5b55f0848b0816bc6f71e2b2a94221` and
+reopened with the exact semantic fingerprint
+`310f27b80fd2029ed1d2e568b8d04a36b0d407ef42aebfca3d1bf853d9f19518`.
+It contains exactly five `COMPLETE` reservations with budget indexes `0..4`
+and no other trial state.
+
+The regenerated aggregate SHA-256 values are
+`1c771503e16eac3c7e613fe6dca8ca820a1f2a15395d35eaf361b83b8b107d1e`
+for `trials.csv`,
+`c26bb1fac4de03f58653484b27c7c35ddcaf37ed6c5315c0431b2edb92f3fb68`
+for `best_trial.json`,
+`2f38001e94a19abfe2b675be992ab6751f1b9b3edcc9b12bbfbbd4ac55469fb8`
+for `best_config.yaml`, and
+`d3c7fa4774a85aec37f7bc3c9612898f0c73afa3fd19267534fb8234f41f5bbc`
+for `SUMMARY.md`; each matches the original frozen byte stream. Best trial 0
+and its value `0.000019999800003999925` are unchanged. Selection remains
+validation-only at exactly
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`, with
+`test_access=false`.
+
+An independent eight-file, 574,791-byte restore-tree audit tested eleven pieces
+of protected Gate 4-6 credential material and found zero credential or
+unredacted-storage-URL match and zero test-access, test-split, or held-out
+evaluation indicator. A deliberate second restore to the now-existing
+destination was rejected before mutation. R09 passes; the separate explicit
+post-freeze LOBSTER R10 evaluation may now begin.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -2092,6 +2138,7 @@ rotated, the three-slot mapping and bounded non-QM9 study contracts are frozen,
 and the dedicated source/cache/runtime/auth/GPU deployment passes. R08 passes on
 all three intended slots. The first pilot attempt was safely retired preclaim
 after exposing source-tree plot mutation; the corrected replacement pilot is
-frozen with exactly five `COMPLETE` reservations and all audits passing. Gate
-7/full-QM9 BO remains explicitly excluded. R09 clean-snapshot restoration is
-next.
+frozen with exactly five `COMPLETE` reservations and all audits passing. R09
+reopens that portable snapshot without PostgreSQL and byte-reproduces every
+aggregate output. Gate 7/full-QM9 BO remains explicitly excluded. The separate
+post-freeze LOBSTER R10 held-out evaluation is next.
