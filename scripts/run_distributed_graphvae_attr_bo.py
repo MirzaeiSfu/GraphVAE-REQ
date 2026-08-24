@@ -185,6 +185,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "launch. Its contents are never copied into commands or manifests."
         ),
     )
+    run.add_argument(
+        "--credential-env-paths",
+        type=Path,
+        default=None,
+        help=(
+            "Host-to-absolute-protected-environment mapping. Mutually exclusive "
+            "with --credential-env-file."
+        ),
+    )
     run.add_argument("--dry-run", action="store_true")
     run.add_argument(
         "--execute-remote",
@@ -659,6 +668,42 @@ def _preflight_inputs(args: argparse.Namespace):
         raise ValueError("Repository and Python host mappings differ.")
     slots = parse_slots(args.slots, known_hosts=sorted(repositories))
     return repositories, pythons, slots
+
+
+def _credential_environment_paths(
+    args: argparse.Namespace,
+    repositories: Mapping[str, str],
+    *,
+    required: bool,
+) -> dict[str, str]:
+    single = getattr(args, "credential_env_file", None)
+    mapping_path = getattr(args, "credential_env_paths", None)
+    if single and mapping_path is not None:
+        raise ValueError(
+            "Use either --credential-env-file or --credential-env-paths, not both."
+        )
+    if mapping_path is not None:
+        mapped = _load_mapping(mapping_path)
+        if set(mapped) != set(repositories):
+            raise ValueError(
+                "Credential environment mapping hosts differ from repository hosts."
+            )
+    elif single:
+        mapped = {host: str(single) for host in repositories}
+    else:
+        if required:
+            raise ValueError(
+                "Remote dispatch requires a protected credential environment file or mapping."
+            )
+        return {}
+    for host, value in mapped.items():
+        if not Path(value).is_absolute() or any(
+            character in value for character in ("\n", "\r", "\x00")
+        ):
+            raise ValueError(
+                f"Credential environment path for {host} must be absolute and safe."
+            )
+    return mapped
 
 
 def _load_ready_study(args: argparse.Namespace, *, require_ready: bool = True):
@@ -1185,6 +1230,9 @@ def _validate_test_faults(args: argparse.Namespace, wave_slots: Sequence[Mapping
 
 def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
     repositories, pythons, slots = _preflight_inputs(args)
+    credential_paths = _credential_environment_paths(
+        args, repositories, required=not args.dry_run
+    )
     storage_url, _storage_instance, study, definition, contract_hash = _load_ready_study(args)
     _assert_controller_owner(
         study, args.output_dir.expanduser().resolve(), controller_uuid
@@ -1206,11 +1254,6 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
         )
     if not args.dry_run and not args.execute_remote:
         raise ValueError("Remote dispatch requires the explicit --execute-remote acknowledgement.")
-    if not args.dry_run and not args.credential_env_file:
-        raise ValueError(
-            "Remote dispatch requires --credential-env-file so tmux receives "
-            "protected PostgreSQL settings."
-        )
     waiting = [
         trial
         for trial in study.get_trials(deepcopy=False)
@@ -1267,7 +1310,7 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
             worker_command,
             physical_gpu=slot["physical_gpu"],
             lock_path=f"/tmp/graphvae-bo-{slot['worker_id']}.lock",
-            credential_env_file=args.credential_env_file,
+            credential_env_file=credential_paths.get(slot["host"]),
         )
         tmux_name = f"graphvae-bo-{run_id}"
         launch = {

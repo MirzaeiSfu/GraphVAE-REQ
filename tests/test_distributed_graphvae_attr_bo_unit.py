@@ -44,6 +44,7 @@ from scripts.graphvae_attr_bo_fingerprints import (
     split_fingerprint,
 )
 from scripts.run_distributed_graphvae_attr_bo import (
+    _credential_environment_paths,
     _search_space,
     build_hardware_repeatability_report,
     render_remote_launch,
@@ -880,6 +881,36 @@ def test_mixed_reservation_plan_enqueues_exact_parameters_and_seeds(tmp_path):
     assert [
         trial.user_attrs[PLANNED_TRAINING_SEED_ATTR] for trial in trials
     ] == [0, 0, 2]
+
+
+def test_per_host_credential_environment_paths_are_exact_and_fail_closed(tmp_path):
+    repositories = {"worker-a": "/repo/a", "worker-b": "/repo/b"}
+    mapping = tmp_path / "credential_paths.txt"
+    mapping.write_text(
+        "worker-a /protected/a.env\nworker-b /protected/b.env\n",
+        encoding="utf-8",
+    )
+    args = argparse.Namespace(
+        credential_env_file=None,
+        credential_env_paths=mapping,
+    )
+    assert _credential_environment_paths(args, repositories, required=True) == {
+        "worker-a": "/protected/a.env",
+        "worker-b": "/protected/b.env",
+    }
+
+    args.credential_env_file = "/protected/all.env"
+    with pytest.raises(ValueError, match="either"):
+        _credential_environment_paths(args, repositories, required=True)
+    args.credential_env_file = None
+    mapping.write_text("worker-a /protected/a.env\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="hosts differ"):
+        _credential_environment_paths(args, repositories, required=True)
+    mapping.write_text(
+        "worker-a relative.env\nworker-b /protected/b.env\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="absolute and safe"):
+        _credential_environment_paths(args, repositories, required=True)
 
 
 @pytest.mark.parametrize(

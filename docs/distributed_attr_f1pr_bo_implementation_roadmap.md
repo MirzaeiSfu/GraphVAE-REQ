@@ -2330,6 +2330,26 @@ and no held-out access. Every reservation is consumed exactly once. The
 completes and meets the 0.02 Attr-F1PR tolerance and the resulting uniform
 objective is finite and strictly above the previous numerical floor.
 
+Initialization of that study correctly created nine fixed `(1,1)` `WAITING`
+reservations, but prelaunch audit showed that startup count five would cap its
+first synchronous wave at five workers. With no launch attempt or claim, study
+A was preserved and moved through the supported `RETIRED_PRECLAIM` lifecycle;
+all nine reservations remain unconsumed `WAITING`. Replacement study
+`lobster_attr_f1pr_production_hw_signal_20260823b` has the same scientific
+contract and exact budget but freezes startup count nine, so all nine fixed
+reservations can launch in one wave. It is `READY` with indexes `0..8`, contract
+SHA-256 `f1dd8d355c93d8e65ce1b4bc3cadd54d1ded2260f61ef12db028ee9dd9def424`,
+and its six-host/nine-slot preflight passes.
+
+That preflight also exposed that one global remote credential path cannot
+represent cs-cl-19's protected scratch fallback and the other five hosts'
+`/localhome` paths. The controller now accepts a mutually exclusive per-host
+credential-environment mapping, requires its host set to equal the repository
+mapping, and rejects relative/control-character paths before dispatch. The
+committed mapping contains paths only, never credential contents. Sixty-two
+focused unit and launcher tests pass. Study B remains entirely unlaunched and
+all nine reservations remain `WAITING` while this interface is committed.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical
