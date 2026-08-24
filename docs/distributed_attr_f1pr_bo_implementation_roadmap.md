@@ -1924,6 +1924,48 @@ pinned Python see exactly one NVIDIA TITAN RTX at logical `cuda:0`. This step
 created no study or reservation, launched no worker, trained no model, and read
 no held-out data. R08 initialization is now permitted.
 
+### Gate 6 R08 fixed-parameter qualification (2026-08-23)
+
+The fresh real study `lobster_attr_f1pr_gate6_r08_fixed_20260823a` used source
+commit `96da63dcbeb5e96af8aa57bd5079f4137a2ee1c5`, immutable contract SHA-256
+`c6a0e7d53bda12670edb35ce87332f3ef7a02bcd56ca3f9b344e9b4935bfa345`,
+exactly three reserved trials, and `max_parallel=3`. Before launch, all three
+PostgreSQL rows were uniquely indexed `WAITING` reservations whose native
+Optuna fixed maps were exactly `alpha_node_feat=2.0` and
+`alpha_edge_feat=3.0`; no other row existed.
+
+One bounded wave launched each qualified slot once. Dispatch sequences
+1,000,000, 1,000,001, and 1,000,002 reproduced derived sampler seeds
+2,329,217,710, 1,290,239,270, and 1,865,563,458. The three worker lifetimes
+overlapped for 215.643 seconds. Every worker independently reached `COMPLETE`
+with the identical contracted parameters and validation Attr-F1PR
+`0.000019999800003999925`. There was no `FAIL`, `WAITING`, `RUNNING`, guard,
+duplicate, missing, or replacement row.
+
+All results attest to exactly
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`, validation split,
+`decoded_node_edge`, both GraphVAE attribute decoders, five repeats, eight
+generated plus eight reference graphs, and the immutable 14-node/11-edge
+LOBSTER schemas. The automated report compared all three slot pairs; its
+maximum absolute Attr-F1PR difference is `0.0` against the frozen `0.02`
+tolerance, so all three TITAN RTX slots are eligible for the pilot. Final
+training loss was not a structured trial-result field and was therefore
+truthfully marked `not_recorded` rather than inferred from logs. All three
+checkpoint hashes happened to match, but checkpoint byte equality was not an
+acceptance condition.
+
+A clean controller process audited the merged host trees, froze the study, and
+published its portable snapshot. Independent reopen matched live PostgreSQL at
+semantic fingerprint
+`66c09bc84ec4b84fced6a9a2850a5d52905389e7efe4b97293593793b8239260`;
+the snapshot SHA-256 is
+`badba66977f81c9f5fa2b2a8b6635c4a780ec44ed2f0306a72e4498f3d62bbda`.
+A 271-file, 3,241,538,596-byte scan found no Gate 5 or Gate 6 credential
+material, unredacted storage URL, `test_access=true`, or final-test artifact.
+All exact worker sessions are absent. Both deployed caches remain mode `0444`,
+size 59,295,793 bytes, and canonical SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1958,5 +2000,6 @@ isolated PostgreSQL, cross-study snapshot/artifact, cache, and redaction audits
 all pass, so Gate 5 is complete. Gate 6 preparation has begun: credentials are
 rotated, the three-slot mapping and bounded non-QM9 study contracts are frozen,
 and the dedicated source/cache/runtime/auth/GPU deployment passes; no Gate 6
-study has yet been created. Gate 7/full-QM9 BO remains explicitly excluded.
-The fresh three-reservation R08 fixed-parameter study is next.
+pilot study has yet been created. R08 passes on all three intended slots. Gate
+7/full-QM9 BO remains explicitly excluded. The fresh five-reservation LOBSTER
+pilot is next.
