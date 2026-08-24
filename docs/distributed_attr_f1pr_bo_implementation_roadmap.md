@@ -2424,6 +2424,39 @@ hosts. Dedicated qualified repository, Python, and protected-environment path
 mappings now constrain subsequent production search dispatch and collection to
 these two hosts; the mappings contain paths only.
 
+The bounded production LOBSTER search is complete and frozen. Study
+`lobster_attr_f1pr_production_search30_20260823a` used sampler seed `61`, TPE
+startup count `5`, exact log ranges `[0.01,10]`, the committed 30-entry
+reservation plan, and `max_parallel=3`. Its contract SHA-256 is
+`63c767f1accbb324695c7cc95f582ae093527111d22a7af489fc0d974ade3599`.
+Reservation zero was the predetermined uniform `(1,1)` pair and reservations
+1--29 followed the contracted TPE path, all at training seed zero. Eleven
+bounded synchronous waves consumed exactly all 30 reservations. Every trial is
+`COMPLETE`; no waiting, running, failed, unreserved, replacement, or duplicate
+trial exists. The 30 launches have unique worker-run identities, dispatch
+sequences, deterministic sampler seeds, trial identities, and atomic terminal
+markers.
+
+The frozen validation winner is trial/budget index `7`, with
+`alpha_node_feat=5.229045672015893` and
+`alpha_edge_feat=0.05386414830134693`. Its exact validation objective is
+`0.8012845288401216`, compared with `0.682776942562006` for reservation-zero
+uniform weights under the same 2,000-epoch seed-zero search budget. The
+observed objective range across all 30 trials is
+`[0.5216515747341461, 0.8012845288401216]`. This ranking is now immutable; the
+selected weights are not yet declared superior until the predetermined matched
+10,000-epoch multi-seed confirmation is complete.
+
+Two-host collection verified all 33 GiB of trial evidence with zero collision
+or manifest failures. Finalization verified all checkpoints and evaluator
+outputs and created the portable snapshot. PostgreSQL-independent restore
+reproduced the aggregate hashes under the exact runtime fingerprint. All 30
+evaluators used the validation split, `decoded_node_edge`, and both GraphVAE
+feature decoders. Source/runtime/read-only-cache checks pass after the search,
+and storage-URL, credential, private-key, held-out/test-split, and true
+test-access scans are clean. Generated study/checkpoint/snapshot artifacts stay
+ignored and are not committed.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical
