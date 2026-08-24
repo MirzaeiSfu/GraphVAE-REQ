@@ -235,6 +235,7 @@ RSYNC_SSH_CMD="ssh -o ConnectTimeout=$SSH_CONNECT_TIMEOUT -o StrictHostKeyChecki
 CODE_RSYNC_EXCLUDES=(
   --exclude .git/
   --exclude .graphcl_deps/
+  --exclude .runtime/
   --exclude __pycache__/
   --exclude .pytest_cache/
   --exclude cache_datasets/

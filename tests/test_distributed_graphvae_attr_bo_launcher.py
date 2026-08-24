@@ -194,6 +194,10 @@ def test_shell_launchers_parse_and_offer_safe_staging_modes():
     assert "--host HOST" in distribute_help
     assert "--local-python PATH" in distribute_help
     assert "--exact-destination" in collect_help
+    distribute_source = (
+        REPO_ROOT / "scripts" / "cluster_distribute_code.sh"
+    ).read_text(encoding="utf-8")
+    assert "--exclude .runtime/" in distribute_source
 
 
 def test_code_distributor_dry_run_can_target_one_host(tmp_path):
