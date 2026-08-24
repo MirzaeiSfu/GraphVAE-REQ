@@ -584,9 +584,13 @@ match. No held-out graph has been accessed.
 
 The next step may now freeze a fresh 100-epoch adaptive search. Based on the
 near-balanced final uniform reconstruction components and the measured timing,
-the bounded design should use log ranges `[0.25,4]` for both attribute weights,
+the bounded design uses log ranges `[0.25,4]` for both attribute weights and
 five structured anchors—uniform, weak/strong common scale, node emphasis, and
-edge emphasis—then ten TPE proposals. This is exactly 15 reservations in at
-most five three-worker waves. Candidate selection remains validation-only and
-must be followed by a separately frozen 250-epoch, matched-seed comparison of
-the single selected candidate against uniform before held-out access.
+edge emphasis. The controller's five-observation TPE startup barrier makes the
+first two wave sizes three and two. Nine subsequent TPE proposals therefore
+produce exactly 14 reservations in five bounded waves (`3+2+3+3+3`); the
+earlier provisional ten-proposal/15-reservation wording would require six
+waves and is superseded before study creation. Candidate selection remains
+validation-only and must be followed by a separately frozen 250-epoch,
+matched-seed comparison of the single selected candidate against uniform
+before held-out access.

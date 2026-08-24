@@ -1,0 +1,52 @@
+{
+  "confirmation_required": {
+    "alternate_candidate_fallback": false,
+    "comparison": "single selected candidate versus uniform",
+    "epochs": 250,
+    "matched_training_seeds": [0, 1, 2]
+  },
+  "objective": {
+    "direction": "maximize",
+    "evaluator_repeats": 5,
+    "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "max_graphs": 0,
+    "selection_split": "validation",
+    "test_access": false
+  },
+  "sampler": {
+    "name": "TPESampler",
+    "seed": 83,
+    "startup_trials": 5
+  },
+  "scheduler": {
+    "exact_wave_sizes": [3, 2, 3, 3, 3],
+    "max_parallel": 3,
+    "mode": "bounded_synchronous_waves"
+  },
+  "schema_version": "graphvae-attr-f1pr-search-policy-v1",
+  "search": {
+    "adaptive_reservations": 9,
+    "anchor_reservations": 5,
+    "config": "configs/bayesian_optimization/aids_graphvae_attr_f1pr_search.yaml",
+    "epoch_number": 100,
+    "reservation_plan": "configs/bayesian_optimization/aids_attr_f1pr_search_reservations_14.json",
+    "total_reservations": 14,
+    "training_seed": 0,
+    "weight_ranges": {
+      "alpha_edge_feat": {"high": 4.0, "log": true, "low": 0.25},
+      "alpha_node_feat": {"high": 4.0, "log": true, "low": 0.25}
+    }
+  },
+  "selection": {
+    "eligible_states": ["COMPLETE"],
+    "rule": "maximum exact validation objective",
+    "selected_candidates": 1,
+    "selection_occurs_after_freeze": true
+  },
+  "study_name": "aids_attr_f1pr_search14_20260824a",
+  "timing_basis": {
+    "projected_minutes_per_trial": [20.0, 22.0],
+    "projected_wave_count": 5,
+    "qualification_study": "aids_attr_f1pr_hw_timing_20260824a"
+  }
+}
