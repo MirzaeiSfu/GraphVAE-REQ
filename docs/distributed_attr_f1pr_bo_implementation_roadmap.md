@@ -2102,6 +2102,60 @@ evaluation indicator. A deliberate second restore to the now-existing
 destination was rejected before mutation. R09 passes; the separate explicit
 post-freeze LOBSTER R10 evaluation may now begin.
 
+### Gate 6 R10 explicit post-freeze LOBSTER evaluation (2026-08-23)
+
+R10 used the existing explicit `--evaluate-best-on-test` interface only after
+the pilot freeze and successful R09 restore. To leave the canonical pilot tree
+immutable, the controller created the fresh sibling root
+`lobster_attr_f1pr_gate6_pilot_20260823b_r10_heldout_20260823a` on cs-cl-13
+and staged read-only copies of only `FROZEN.json`, `best_trial.json`,
+`best_config.yaml`, the portable snapshot, and selected trial 0 checkpoint.
+Every staged input matched the frozen controller copy before launch. In
+particular, the snapshot SHA-256 remained
+`add5bdddc0222e5299319c4296001a720c5b55f0848b0816bc6f71e2b2a94221`
+and the selected checkpoint SHA-256 was
+`e50bfa1bc3f8caf6348b706cbb03800ac7e458e8b95e69a1db797469a0f64fa0`.
+
+The first and only explicit evaluation ran on cs-cl-13 physical GPU 0 with
+`CUDA_VISIBLE_DEVICES=0` and logical `cuda:0`. All PostgreSQL and protected BO
+credential environment variables were absent. The exact deployed evaluator
+source from the frozen pilot contract was retained, its deployment manifest
+verified before and after, and its `tune_graphvae_attribute_weights.py` hash was
+`6c0fcb91fc3e152908646c11c360e168a649e61ad313280455c746fe2ffb4f64`.
+The run was bounded to eight held-out reference/generated graphs, generation
+batch size four, five evaluator repeats with seeds `0..4`, and a 600-second
+phase limit. No optimization or training command ran.
+
+The result explicitly records split `test` and primary mode
+`decoded_node_edge`. It used both `node_feature_decoder` and
+`edge_feature_decoder`, exact node/edge dimensions 14/11, cache SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`,
+and held-out split fingerprint
+`c327e6e90ebd3dd76608387907ac3b5536e1a9dd4049fcba221ec13bcc188229`.
+The tiny qualification result is Attr-F1PR
+`0.000019999800003999925`, precision `0.0`, and recall `1.0`; this is bounded
+mechanism evidence, not a model-quality claim. Its evaluator JSON SHA-256 is
+`d1f71c066ee0d9b9a5d9634ee8aa0c385ee0c6fa2d05c2f1c9cf63377929934f`
+and its selection-record SHA-256 is
+`eeeee0d0392e5a707f43364ac1aa142ec823f265839b7fcaa34d01f5d3d9cec5`.
+
+Post-run reopen still reports exactly five `COMPLETE` reservations, no other
+state, best trial 0, and semantic fingerprint
+`310f27b80fd2029ed1d2e568b8d04a36b0d407ef42aebfca3d1bf853d9f19518`.
+Thus R10 created zero trial and could not change the validation ranking or its
+exact selection objective
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`;
+`test_access_during_optimization` remains false. A six-file, 16,301-byte
+evaluation-output scan tested eleven protected credential materials and found
+zero credential, password-assignment, storage-URL, or `test_access=true`
+finding. The evaluator child is reaped, the LOBSTER cache remains mode `0444`
+with its exact size and hash, and both the remote and collected R10 evidence
+trees are sealed read-only. Audit SHA-256 is
+`f7282def0fa2ef770d6615328ccc5ae8bf8eea865bca3e250405338639ee6652`;
+the R10 freeze-manifest SHA-256 is
+`ebd559cdaba8e84e1119d98de3fdd5d22131a11daed4d4c515daa071ab46cc28`.
+R10 passes.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -2140,5 +2194,7 @@ all three intended slots. The first pilot attempt was safely retired preclaim
 after exposing source-tree plot mutation; the corrected replacement pilot is
 frozen with exactly five `COMPLETE` reservations and all audits passing. R09
 reopens that portable snapshot without PostgreSQL and byte-reproduces every
-aggregate output. Gate 7/full-QM9 BO remains explicitly excluded. The separate
-post-freeze LOBSTER R10 held-out evaluation is next.
+aggregate output. R10 evaluates only its frozen selected checkpoint on bounded
+LOBSTER held-out data, creates no trial, and leaves the validation ranking
+unchanged. Gate 7/full-QM9 BO remains explicitly excluded. The final non-QM9
+Gate 6 suites and cross-study audits are next.
