@@ -2156,6 +2156,57 @@ the R10 freeze-manifest SHA-256 is
 `ebd559cdaba8e84e1119d98de3fdd5d22131a11daed4d4c515daa071ab46cc28`.
 R10 passes.
 
+### Gate 6 final non-QM9 acceptance audit (2026-08-23)
+
+The complete non-PostgreSQL distributed BO suite passed all 62 current tests
+across the unit, integrity, launcher, and smoke-configuration files. The
+separately marked PostgreSQL suite passed all 18 current tests through the
+rotated protected Gate 6 controller connection. It created and removed only
+UUID-named `graphvae_bo_pytest_*` studies; a post-suite query found zero such
+study remaining and no qualification study changed.
+
+The final read-only live/snapshot audit found exactly the three intended Gate 6
+PostgreSQL study names. R08 remains `FROZEN` with exactly three `COMPLETE`
+reservations, the superseded pilot remains `RETIRED_PRECLAIM` with its exact
+five unconsumed `WAITING` reservations, and replacement pilot B remains
+`FROZEN` with exactly five `COMPLETE` reservations. There are zero guard or
+replacement rows. All eight completed trial artifacts have unique
+contract-scoped worker-run and checkpoint-path identities, reproduce their
+derived dispatch seeds, and match their recorded checkpoint and evaluator
+hashes. Both live/snapshot semantic fingerprints and portable snapshot hashes
+remain exactly those recorded in the R08 and pilot sections.
+
+Every completed optimization artifact revalidates validation split,
+`decoded_node_edge`, both attribute decoders, five repeats, eight generated and
+reference graphs, 14 node and 11 edge channels, the canonical cache, and exact
+objective
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`. R09 still matches all
+four aggregates without PostgreSQL. R10 still records zero created trial and an
+unchanged validation ranking before its separate test-only result. The final
+778-file, 8,646,105,843-byte scan tested eleven protected credential materials
+and found zero credential, password-assignment, storage-URL,
+`test_access=true`, or premature-held-out indicator.
+
+Both cs-cl-13 and cs-cl-17 finally reverified protected `verify-full`
+authentication, runtime fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`,
+current deployment source tree
+`c96b0060529bbefe28af24127f69bdebb6d054e5e398e30c7460e8fb16b9d098`,
+and deployment-manifest SHA-256
+`09a3c92c82c4565e3ab8885f748f7be6d56972268c91bbce88b710344996d6cb`.
+Their caches remain mode `0444`, exactly 59,295,793 bytes, and canonical hash;
+their Gate 6 credential directories/files remain `0700`/`0600`. No Gate 6 tmux
+session remains, and the qualified TITAN RTX pool is still cs-cl-13 GPU 0 plus
+cs-cl-17 GPUs 0 and 1.
+
+The ignored canonical closure tree is sealed read-only at
+`gate6_non_qm9_final_audit_20260823a`. Its final audit SHA-256 is
+`2f387696fac88b759ba02fc1e42644e34a6888d1220323291ca8b7eed883101f` and
+its `GATE6_COMPLETE.json` SHA-256 is
+`579b3c88f5c1e9a7808c101d112f4afee1a451a76ad390d8f62f29e8750dc7fb`.
+Gate 6 is complete within the authorized non-QM9 scope. Gate 7 and full-QM9
+Bayesian optimization were not executed.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -2196,5 +2247,6 @@ frozen with exactly five `COMPLETE` reservations and all audits passing. R09
 reopens that portable snapshot without PostgreSQL and byte-reproduces every
 aggregate output. R10 evaluates only its frozen selected checkpoint on bounded
 LOBSTER held-out data, creates no trial, and leaves the validation ranking
-unchanged. Gate 7/full-QM9 BO remains explicitly excluded. The final non-QM9
-Gate 6 suites and cross-study audits are next.
+unchanged. The final suites, cross-study audit, redaction pass, and two-host
+integrity checks all pass, so Gate 6 is complete in the authorized non-QM9
+scope. Gate 7/full-QM9 BO remains explicitly excluded and was not executed.
