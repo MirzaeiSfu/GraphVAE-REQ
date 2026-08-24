@@ -529,3 +529,21 @@ reservation, validation objective, or held-out access has occurred. The next
 step is a dedicated two-host deployment followed by one bounded uniform timing
 and hardware-equivalence study; its measurement will freeze the search and
 confirmation budgets.
+
+The dedicated deployment is now qualified on three physical TITAN RTX slots:
+cs-cl-13 GPU 0 and cs-cl-17 GPUs 0 and 1. Each 24,576 MiB physical device maps
+to exactly one logical `cuda:0`, and no compute process was active during the
+qualification check. The controller and both hosts reproduce runtime
+fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`.
+The clean `7fd1fec` source tree and canonical mode-`0444` cache were deployed
+to new AIDS-only roots and independently verified on both hosts.
+
+Separate protected AIDS controller/worker bundles exist outside every source,
+cache, artifact, and repository root. Their directories are mode `0700` and
+files mode `0600`; the controller and both workers authenticated to PostgreSQL
+through the protected CA/password files under the mandatory `verify-full`
+policy. No credential value or storage URL enters the committed qualification
+record. Real training and held-out access still have not occurred. The next
+irreversible action is the fresh, exact three-reservation uniform timing and
+hardware-equivalence study.

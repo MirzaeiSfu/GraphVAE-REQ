@@ -34,6 +34,12 @@ CACHE_MANIFEST_PATH = (
     / "bayesian_optimization"
     / "aids_attr_f1pr_cache_manifest.json"
 )
+DEPLOYMENT_QUALIFICATION_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_attr_f1pr_deployment_qualification.json"
+)
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt"
 CREDENTIAL_PATHS = (
@@ -170,3 +176,44 @@ def test_aids_deployment_mappings_are_dedicated_and_homogeneous():
         ("cs-cl-17", 1),
     ]
     assert all("aids-prod" in slot["worker_id"] for slot in slots)
+
+
+def test_aids_deployment_qualification_matches_frozen_contract():
+    qualification = json.loads(
+        DEPLOYMENT_QUALIFICATION_PATH.read_text(encoding="utf-8")
+    )
+
+    assert qualification["controller"] == {
+        "protected_postgresql_authentication": "verify-full",
+        "runtime_fingerprint": (
+            "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1"
+        ),
+    }
+    assert qualification["cache"] == {
+        "byte_length": 73822456,
+        "mode": "0444",
+        "sha256": (
+            "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb"
+        ),
+        "verified_after_deployment": True,
+    }
+    assert qualification["source"]["clean_worktree"] is True
+    assert qualification["source"]["git_commit"] == (
+        "7fd1fec871c47a398135ad5cc4fbe4abbbd18c87"
+    )
+    assert qualification["source"]["verified_on_every_host"] is True
+    assert len(qualification["source"]["tree_sha256"]) == 64
+    workers = qualification["workers"]
+    assert len(workers) == 3
+    assert {worker["worker_id"] for worker in workers} == {
+        "cs-cl-13-aids-prod-gpu0",
+        "cs-cl-17-aids-prod-gpu0",
+        "cs-cl-17-aids-prod-gpu1",
+    }
+    assert all(worker["model"] == "NVIDIA TITAN RTX" for worker in workers)
+    assert all(worker["reported_vram_mib"] == 24576 for worker in workers)
+    assert all(worker["logical_device_count"] == 1 for worker in workers)
+    assert all(
+        worker["protected_postgresql_authentication"] == "verify-full"
+        for worker in workers
+    )

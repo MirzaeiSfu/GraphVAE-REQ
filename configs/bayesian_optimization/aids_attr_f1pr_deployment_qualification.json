@@ -1,0 +1,52 @@
+{
+  "cache": {
+    "byte_length": 73822456,
+    "mode": "0444",
+    "sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "verified_after_deployment": true
+  },
+  "controller": {
+    "protected_postgresql_authentication": "verify-full",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1"
+  },
+  "date": "2026-08-24",
+  "schema_version": "graphvae-attr-f1pr-deployment-qualification-v1",
+  "source": {
+    "clean_worktree": true,
+    "git_commit": "7fd1fec871c47a398135ad5cc4fbe4abbbd18c87",
+    "tree_sha256": "42349036fa21f31deb0b46f44d630a7a1e3813b51ac8fd09609332dbe63cadb6",
+    "verified_on_every_host": true
+  },
+  "workers": [
+    {
+      "host": "cs-cl-13",
+      "logical_device_count": 1,
+      "model": "NVIDIA TITAN RTX",
+      "physical_gpu": 0,
+      "protected_postgresql_authentication": "verify-full",
+      "reported_vram_mib": 24576,
+      "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+      "worker_id": "cs-cl-13-aids-prod-gpu0"
+    },
+    {
+      "host": "cs-cl-17",
+      "logical_device_count": 1,
+      "model": "NVIDIA TITAN RTX",
+      "physical_gpu": 0,
+      "protected_postgresql_authentication": "verify-full",
+      "reported_vram_mib": 24576,
+      "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+      "worker_id": "cs-cl-17-aids-prod-gpu0"
+    },
+    {
+      "host": "cs-cl-17",
+      "logical_device_count": 1,
+      "model": "NVIDIA TITAN RTX",
+      "physical_gpu": 1,
+      "protected_postgresql_authentication": "verify-full",
+      "reported_vram_mib": 24576,
+      "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+      "worker_id": "cs-cl-17-aids-prod-gpu1"
+    }
+  ]
+}
