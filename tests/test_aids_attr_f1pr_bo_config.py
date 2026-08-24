@@ -2,10 +2,12 @@ import json
 from pathlib import Path
 
 from factorbase_motif_pipeline.tu_dataset_to_db import TU_DATASET_SPECS
+from scripts.graphvae_attr_bo_distributed import parse_slots
 from scripts.resample_grid_checkpoints import (
     build_dataset_cache_metadata,
     build_dataset_cache_name,
 )
+from scripts.run_distributed_graphvae_attr_bo import _load_mapping
 from scripts.tune_graphvae_attribute_weights import (
     flatten_config,
     load_yaml_mapping,
@@ -32,6 +34,12 @@ CACHE_MANIFEST_PATH = (
     / "bayesian_optimization"
     / "aids_attr_f1pr_cache_manifest.json"
 )
+REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt"
+PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt"
+CREDENTIAL_PATHS = (
+    REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_CREDENTIAL_ENV_PATHS.txt"
+)
+SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_SLOTS.txt"
 
 
 def test_aids_calibration_config_is_validation_only_and_bounded():
@@ -136,3 +144,29 @@ def test_aids_cache_manifest_freezes_full_attributed_validation_contract():
         "1fee16532276d512d7143669f2d3c80a0140ee3c2ded035fa206c323320bf772"
     )
     assert len(manifest["splits"]["validation"]["graph_fingerprints"]) == 184
+
+
+def test_aids_deployment_mappings_are_dedicated_and_homogeneous():
+    repositories = _load_mapping(REPO_PATHS)
+    pythons = _load_mapping(PYTHON_PATHS)
+    credentials = _load_mapping(CREDENTIAL_PATHS)
+    slots = parse_slots(SLOTS, known_hosts=sorted(repositories))
+
+    assert set(repositories) == {"cs-cl-13", "cs-cl-17"}
+    assert set(repositories) == set(pythons) == set(credentials)
+    assert all(
+        path.endswith("GraphVAE-REQ-aids-attr-bo")
+        for path in repositories.values()
+    )
+    assert all("lobster" not in path.lower() for path in repositories.values())
+    assert all(path.endswith("/envs/micro/bin/python") for path in pythons.values())
+    assert all(
+        path.endswith("/aids-production/worker.env")
+        for path in credentials.values()
+    )
+    assert [(slot["host"], slot["physical_gpu"]) for slot in slots] == [
+        ("cs-cl-13", 0),
+        ("cs-cl-17", 0),
+        ("cs-cl-17", 1),
+    ]
+    assert all("aids-prod" in slot["worker_id"] for slot in slots)

@@ -1,0 +1,4 @@
+# HOST REPO_PATH
+# Dedicated AIDS roots; never reuse LOBSTER or Gate 4/5/6 study roots.
+cs-cl-13 /local-scratch/graphvae-req-work/GraphVAE-REQ-aids-attr-bo
+cs-cl-17 /local-scratch/graphvae-req-work/GraphVAE-REQ-aids-attr-bo

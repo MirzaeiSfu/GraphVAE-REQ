@@ -1,0 +1,6 @@
+# HOST GPU WORKER_ID
+# Reuse only the three hardware-homogeneous TITAN RTX physical slots; AIDS
+# receives dedicated worker IDs and study/artifact roots.
+cs-cl-13 0 cs-cl-13-aids-prod-gpu0
+cs-cl-17 0 cs-cl-17-aids-prod-gpu0
+cs-cl-17 1 cs-cl-17-aids-prod-gpu1
