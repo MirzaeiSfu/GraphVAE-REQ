@@ -62,6 +62,7 @@ from graphvae_attr_bo_distributed import (  # noqa: E402
     sampler_seed,
     sha256_file,
     storage_url_from_env,
+    trial_semantic_fingerprint,
     validate_guard_rows,
     validate_identifier,
     validate_study_contract,
@@ -225,6 +226,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     hardware.add_argument("--study-name", required=True)
     hardware.add_argument("--output-dir", type=Path, required=True)
+
+    restore = subparsers.add_parser(
+        "restore",
+        help="Regenerate aggregate outputs from a frozen portable SQLite snapshot.",
+    )
+    restore.add_argument("--study-name", required=True)
+    restore.add_argument("--source-output-dir", type=Path, required=True)
+    restore.add_argument("--restore-output-dir", type=Path, required=True)
 
     return parser.parse_args(argv)
 
@@ -1507,7 +1516,14 @@ FINAL_CSV_FIELDS = (
 )
 
 
-def _final_outputs(study: Any, definition: Mapping[str, Any], output_dir: Path) -> Any | None:
+def _final_outputs(
+    study: Any,
+    definition: Mapping[str, Any],
+    output_dir: Path,
+    *,
+    artifact_root: Path | None = None,
+) -> Any | None:
+    artifact_root = output_dir if artifact_root is None else artifact_root
     audit = reservation_audit(study, int(definition["reserved_trials"]))
     rows = []
     selectable = []
@@ -1526,7 +1542,11 @@ def _final_outputs(study: Any, definition: Mapping[str, Any], output_dir: Path) 
         attrs = trial.user_attrs
         reserved = attrs.get(RESERVED_ATTR) is True
         if reserved:
-            result = audit_trial_result(trial, study_root=output_dir, definition=definition)
+            result = audit_trial_result(
+                trial,
+                study_root=artifact_root,
+                definition=definition,
+            )
             if trial.state.name == "COMPLETE":
                 selectable.append((trial, result))
         rows.append(
@@ -1569,7 +1589,7 @@ def _final_outputs(study: Any, definition: Mapping[str, Any], output_dir: Path) 
         )
         return None
     best_trial, best_result = max(selectable, key=lambda item: float(item[0].value))
-    config_path = resolve_artifact_path(output_dir, best_result["resolved_config"])
+    config_path = resolve_artifact_path(artifact_root, best_result["resolved_config"])
     config = load_yaml_mapping(config_path)
     atomic_write_yaml(output_dir / "best_config.yaml", config)
     best_payload = {
@@ -2033,6 +2053,149 @@ def command_hardware_audit(args: argparse.Namespace) -> int:
     return 0 if report["passed"] else 2
 
 
+def restore_frozen_study(
+    source_output_dir: Path,
+    restore_output_dir: Path,
+    *,
+    study_name: str,
+) -> dict[str, Any]:
+    """Restore aggregate outputs without PostgreSQL access or source mutation."""
+
+    import shutil
+
+    source = source_output_dir.expanduser().resolve()
+    destination = restore_output_dir.expanduser().resolve()
+    if not source.is_dir():
+        raise FileNotFoundError(f"Frozen source output directory not found: {source}")
+    if destination == source:
+        raise DistributedContractError("Restore output must differ from the frozen source.")
+    try:
+        destination.relative_to(source)
+    except ValueError:
+        pass
+    else:
+        raise DistributedContractError("Restore output may not be nested in the frozen source.")
+    if destination.exists():
+        raise DistributedContractError("Restore output must be a fresh absent path.")
+
+    definition_path = source / "study_definition.json"
+    frozen_path = source / "FROZEN.json"
+    definition = json.loads(definition_path.read_text(encoding="utf-8"))
+    frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
+    contract_hash = canonical_contract_hash(definition)
+    if (
+        definition.get("study_name") != study_name
+        or frozen.get("study_name") != study_name
+        or frozen.get("lifecycle") != LIFECYCLE_FROZEN
+        or frozen.get("study_contract_sha256") != contract_hash
+    ):
+        raise DistributedContractError("Restore source is not the matching frozen study.")
+    environment = runtime_dependency_fingerprint()
+    if environment.get("sha256") != definition.get("environment", {}).get("sha256"):
+        raise DistributedContractError(
+            "Restore runtime fingerprint differs from the frozen contract."
+        )
+    snapshot_path = source / str(frozen.get("snapshot"))
+    if not snapshot_path.is_file():
+        raise FileNotFoundError("Frozen portable SQLite snapshot is missing.")
+    source_snapshot_sha = sha256_file(snapshot_path)
+
+    aggregate_names = ("trials.csv", "best_trial.json", "best_config.yaml", "SUMMARY.md")
+    for name in aggregate_names:
+        if not (source / name).is_file():
+            raise FileNotFoundError(f"Frozen aggregate output is missing: {name}")
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = destination.parent / f".{destination.name}.staging-{uuid.uuid4()}"
+    staging.mkdir()
+    try:
+        shutil.copy2(definition_path, staging / definition_path.name)
+        shutil.copy2(frozen_path, staging / frozen_path.name)
+        restored_snapshot_path = staging / snapshot_path.name
+        shutil.copy2(snapshot_path, restored_snapshot_path)
+        import optuna
+
+        restored = optuna.load_study(
+            study_name=study_name,
+            storage="sqlite:///" + restored_snapshot_path.as_posix(),
+        )
+        validate_study_contract(
+            restored,
+            expected_contract_hash=contract_hash,
+            local_definition=definition,
+            require_ready=False,
+        )
+        if restored.user_attrs.get(LIFECYCLE_ATTR) != LIFECYCLE_FROZEN:
+            raise DistributedContractError("Restored snapshot lifecycle is not FROZEN.")
+        assert_quiescent_reserved_study(restored)
+        best = _final_outputs(
+            restored,
+            definition,
+            staging,
+            artifact_root=source,
+        )
+        if best is None:
+            raise DistributedContractError("R09 restoration requires a selected best trial.")
+        aggregate_hashes = {}
+        for name in aggregate_names:
+            original_sha = sha256_file(source / name)
+            restored_sha = sha256_file(staging / name)
+            if restored_sha != original_sha:
+                raise DistributedContractError(
+                    f"Restored aggregate differs from frozen source: {name}"
+                )
+            aggregate_hashes[name] = restored_sha
+        if sha256_file(restored_snapshot_path) != source_snapshot_sha:
+            raise DistributedContractError("Reopened snapshot bytes changed during restore.")
+        if sha256_file(snapshot_path) != source_snapshot_sha:
+            raise DistributedContractError("Frozen source snapshot changed during restore.")
+        best_payload = json.loads((staging / "best_trial.json").read_text(encoding="utf-8"))
+        report = {
+            "schema_version": "graphvae-attr-f1pr-restored-v1",
+            "study_name": study_name,
+            "study_contract_sha256": contract_hash,
+            "source_lifecycle": LIFECYCLE_FROZEN,
+            "restored_snapshot": snapshot_path.name,
+            "snapshot_sha256": source_snapshot_sha,
+            "semantic_fingerprint": trial_semantic_fingerprint(restored),
+            "aggregate_sha256": aggregate_hashes,
+            "aggregate_outputs_match": True,
+            "best_trial_number": best.number,
+            "best_validation_attr_f1pr": best_payload["validation_attr_f1pr"],
+            "objective_json_path": OBJECTIVE_JSON_PATH,
+            "selection_split": "validation",
+            "runtime_fingerprint": environment["sha256"],
+            "postgresql_access": False,
+            "test_access": False,
+        }
+        atomic_write_json(staging / "RESTORED.json", report)
+        directory_fd = os.open(str(staging), os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        os.replace(str(staging), str(destination))
+        parent_fd = os.open(str(destination.parent), os.O_RDONLY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+        return report
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+
+
+def command_restore(args: argparse.Namespace) -> int:
+    report = restore_frozen_study(
+        args.source_output_dir,
+        args.restore_output_dir,
+        study_name=args.study_name,
+    )
+    print(json.dumps(report, sort_keys=True))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     validate_identifier(args.study_name, "study name")
@@ -2046,6 +2209,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "collect": command_collect_with_locks,
         "finalize": command_finalize,
         "hardware-audit": command_hardware_audit,
+        "restore": command_restore,
     }[args.command](args)
 
 

@@ -31,6 +31,7 @@ from scripts.graphvae_attr_bo_distributed import (
     relative_artifact_path,
     resolve_artifact_path,
     sampler_seed,
+    trial_semantic_fingerprint,
     validate_identifier,
 )
 from scripts.graphvae_attr_bo_fingerprints import (
@@ -47,6 +48,8 @@ from scripts.run_distributed_graphvae_attr_bo import (
     render_tmux_ssh_command,
     render_worker_command,
     retire_preclaim_study,
+    restore_frozen_study,
+    _final_outputs,
 )
 from scripts.run_graphvae_attr_bo_worker import _probe_gpu_identity
 from scripts.tune_graphvae_attribute_weights import (
@@ -868,6 +871,127 @@ def test_preclaim_retirement_requires_safe_probe_and_consumes_no_reservation(tmp
         contract_hash=contract,
         reason_code="source-contract-superseded",
     ) == marker
+
+
+def test_r09_clean_snapshot_restore_regenerates_identical_aggregates(
+    tmp_path,
+    monkeypatch,
+):
+    source = tmp_path / "frozen"
+    source.mkdir()
+    definition = minimal_definition("restore-r09")
+    definition["reserved_trials"] = 1
+    definition["dataset_cache"]["expected_validation_graphs"] = 8
+    definition["seeds"].update(
+        {
+            "training_seed": 0,
+            "generation_seed": 123,
+            "evaluator_seed": 0,
+        }
+    )
+    definition["evaluator"]["repeat_count"] = 5
+    contract = canonical_contract_hash(definition)
+    atomic_write_json(source / "study_definition.json", definition)
+    snapshot_path = source / "study_snapshot.sqlite3"
+    study = optuna.create_study(
+        study_name="restore-r09",
+        direction="maximize",
+        storage="sqlite:///" + snapshot_path.as_posix(),
+    )
+    initialize_reserved_study(
+        study,
+        definition,
+        controller_uuid="controller",
+        output_root=source,
+    )
+    claimed = study.ask()
+    sampled = {
+        "alpha_node_feat": claimed.suggest_float("alpha_node_feat", 1e-3, 1e2, log=True),
+        "alpha_edge_feat": claimed.suggest_float("alpha_edge_feat", 1e-3, 1e2, log=True),
+    }
+    trial_dir = source / "trials" / "trial_00000"
+    trial_dir.mkdir(parents=True)
+    config = trial_dir / "resolved_config.yaml"
+    checkpoint = trial_dir / "checkpoint"
+    evaluator = trial_dir / "attributed_random_gin.json"
+    config.write_text("epoch_number: 2\n", encoding="utf-8")
+    checkpoint.write_bytes(b"checkpoint")
+    atomic_write_json(evaluator, evaluator_payload())
+    result = {
+        "trial_number": 0,
+        "budget_index": 0,
+        "study_contract_sha256": contract,
+        "sampled_weights": sampled,
+        "status": "COMPLETE",
+        "validation_attr_f1pr": 0.75,
+        "validation_precision": 0.8,
+        "validation_recall": 0.7,
+        "accepted_validation_graphs": 8,
+        "training_seed": 0,
+        "split_seed": 123,
+        "generation_seed": 123,
+        "evaluator_seed": 0,
+        "evaluator_repeats": 5,
+        "resolved_config": "trials/trial_00000/resolved_config.yaml",
+        "resolved_config_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
+        "checkpoint": "trials/trial_00000/checkpoint",
+        "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+        "evaluator_output": "trials/trial_00000/attributed_random_gin.json",
+        "evaluator_output_sha256": hashlib.sha256(evaluator.read_bytes()).hexdigest(),
+        "hashes": {
+            "cache_sha256": "cache",
+            "split_fingerprint": "split",
+            "node_schema_fingerprint": "node",
+            "edge_schema_fingerprint": "edge",
+            "source_tree_sha256": "source",
+            "environment_sha256": "environment",
+        },
+    }
+    atomic_write_json(trial_dir / "trial_result.json", result)
+    for key, value in {
+        "trial_result": "trials/trial_00000/trial_result.json",
+        "validation_precision": 0.8,
+        "validation_recall": 0.7,
+        "accepted_validation_graphs": 8,
+    }.items():
+        claimed.set_user_attr(key, value)
+    study.tell(claimed, 0.75)
+    study.set_user_attr(LIFECYCLE_ATTR, "FROZEN")
+    atomic_write_json(
+        source / "FROZEN.json",
+        {
+            "study_name": "restore-r09",
+            "study_contract_sha256": contract,
+            "lifecycle": "FROZEN",
+            "snapshot": snapshot_path.name,
+            "best_trial_number": 0,
+        },
+    )
+    _final_outputs(study, definition, source)
+    monkeypatch.setattr(
+        "scripts.run_distributed_graphvae_attr_bo.runtime_dependency_fingerprint",
+        lambda: {"sha256": "environment"},
+    )
+    source_snapshot_sha = hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+    source_semantic = trial_semantic_fingerprint(study)
+    destination = tmp_path / "restored"
+    report = restore_frozen_study(
+        source,
+        destination,
+        study_name="restore-r09",
+    )
+    assert report["postgresql_access"] is False
+    assert report["test_access"] is False
+    assert report["semantic_fingerprint"] == source_semantic
+    assert report["snapshot_sha256"] == source_snapshot_sha
+    for name in ("trials.csv", "best_trial.json", "best_config.yaml", "SUMMARY.md"):
+        assert (destination / name).read_bytes() == (source / name).read_bytes()
+    with pytest.raises(RuntimeError, match="fresh absent"):
+        restore_frozen_study(
+            source,
+            destination,
+            study_name="restore-r09",
+        )
 
 
 def test_r08_hardware_report_enforces_fixed_objective_tolerance(tmp_path):
