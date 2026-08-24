@@ -1,0 +1,7 @@
+# Pinned Python environment to requalify on every candidate worker host.
+cs-cl-09 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-13 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-16 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-17 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-19 /localhome/mirzaei/miniconda3/envs/micro/bin/python
+cs-cl-26 /localhome/mirzaei/miniconda3/envs/micro/bin/python

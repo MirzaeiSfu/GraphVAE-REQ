@@ -1,0 +1,12 @@
+# HOST GPU WORKER_ID
+# Candidate slots only. The production slots file will contain solely the
+# subset that passes the immutable fixed-parameter hardware qualification.
+cs-cl-09 1 cs-cl-09-lobster-prod-gpu1
+cs-cl-13 0 cs-cl-13-lobster-prod-gpu0
+cs-cl-16 0 cs-cl-16-lobster-prod-gpu0
+cs-cl-17 0 cs-cl-17-lobster-prod-gpu0
+cs-cl-17 1 cs-cl-17-lobster-prod-gpu1
+cs-cl-19 0 cs-cl-19-lobster-prod-gpu0
+cs-cl-19 1 cs-cl-19-lobster-prod-gpu1
+cs-cl-26 0 cs-cl-26-lobster-prod-gpu0
+cs-cl-26 1 cs-cl-26-lobster-prod-gpu1

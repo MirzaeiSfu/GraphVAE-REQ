@@ -2207,6 +2207,58 @@ its `GATE6_COMPLETE.json` SHA-256 is
 Gate 6 is complete within the authorized non-QM9 scope. Gate 7 and full-QM9
 Bayesian optimization were not executed.
 
+### User-authorized LOBSTER production-equivalent extension (2026-08-23)
+
+The user authorized broader distributed and scientific qualification on
+LOBSTER while continuing to exclude full-QM9 Bayesian optimization. This
+extension exercises the production machinery and seeks meaningful LOBSTER
+attribute-loss weights; it is neither a substitute for QM9 data nor evidence
+about QM9 model quality.
+
+The two-epoch Gate 6 pilot is mechanism evidence only. All five objective
+values were tied at the numerical floor, so those trials do not establish a
+useful weight choice. The next campaign therefore uses the production GraphVAE
+architecture (`graphEmDim=1024`, full-batch training) with the immutable
+`optimal_v2` LOBSTER cache and a bounded 2,000-epoch signal/search budget.
+Validation uses all ten graphs, ten generation/evaluator repeats, and the exact
+selection objective
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`. Optimization retains
+`skip_final_evaluation=true`, validation selection, `test_access=false`, and
+both attribute decoders.
+
+Capacity qualification begins with nine candidate physical GPUs on six hosts:
+cs-cl-09 GPU 1; cs-cl-13 GPU 0; cs-cl-16 GPU 0; cs-cl-17 GPUs 0 and 1;
+cs-cl-19 GPUs 0 and 1; and cs-cl-26 GPUs 0 and 1. Inclusion in the candidate
+mapping is not eligibility. A slot enters the final pool only after protected
+verify-full authentication, exact source/runtime/cache/schema checks, logical
+GPU isolation, sufficient local retention space, and a fresh real
+fixed-parameter hardware study. Heterogeneous hardware must meet the existing
+absolute Attr-F1PR tolerance of 0.02; failures consume their reservations and
+are never replaced. cs-cl-36 is excluded because its available scratch space
+is insufficient for retained campaign artifacts, and the occupied cs-cl-09
+GPU 0 is excluded.
+
+Before the 30-reservation search, one fresh fixed uniform-weight calibration
+must prove that 2,000 epochs produces a finite, non-floor validation signal. If
+it does not, the search must not launch: a higher bounded LOBSTER budget is
+frozen and calibrated instead. The eventual search uses exactly 30
+reservations, TPE startup count five, log ranges `[0.01, 10]` for
+`alpha_node_feat` and `alpha_edge_feat`, and no more concurrent workers than
+the eligible pool. Reservation zero is the predetermined uniform pair `(1,1)`;
+the other 29 reservations use the contracted TPE path. This mixed reservation
+schedule requires a fail-closed, immutable interface and isolated PostgreSQL
+tests before study creation.
+
+The BO ranking is frozen before confirmation. The selected pair and the
+predetermined uniform pair are then refit under identical 10,000-epoch budgets
+and training seeds 0, 1, and 2. Their validation evaluations use identical
+generation and evaluator seed schedules. Only after those candidates and the
+comparison rule are frozen may an explicit held-out LOBSTER evaluation run;
+held-out results cannot select, rerank, or trigger more training. The final
+report includes per-seed outcomes, paired differences, means, uncertainty,
+all failed attempts, portable restoration, cache/source integrity, lifecycle
+state, and credential/test-access scans.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.

@@ -1,0 +1,9 @@
+# Dedicated non-QM9 LOBSTER production-equivalent candidate deployment.
+# Eligibility is not implied by inclusion; every host must pass staging,
+# authentication, runtime, cache, GPU, and real fixed-parameter qualification.
+cs-cl-09 /local-scratch2/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo
+cs-cl-13 /local-scratch/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo
+cs-cl-16 /local-scratch/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo
+cs-cl-17 /local-scratch/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo
+cs-cl-19 /local-scratch2/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo
+cs-cl-26 /local-scratch/graphvae-req-work/GraphVAE-REQ-lobster-attr-bo
