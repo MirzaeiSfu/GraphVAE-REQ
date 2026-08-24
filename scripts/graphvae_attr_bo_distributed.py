@@ -79,6 +79,7 @@ UNRESERVED_GUARD_ATTR = "unreserved_guard"
 LIFECYCLE_INITIALIZING = "INITIALIZING"
 LIFECYCLE_READY = "READY"
 LIFECYCLE_FROZEN = "FROZEN"
+LIFECYCLE_RETIRED_PRECLAIM = "RETIRED_PRECLAIM"
 DEFAULT_HEARTBEAT_INTERVAL = 60
 DEFAULT_GRACE_PERIOD = 600
 DEFAULT_CONNECT_TIMEOUT = 15
@@ -574,8 +575,13 @@ def initialize_reserved_study(
         study.set_user_attr(UUID_ATTR, definition["study_uuid"])
         study.set_user_attr(CONTROLLER_ATTR, controller_uuid)
         study.set_user_attr(OUTPUT_ROOT_ATTR, output_root_fingerprint(output_root))
-    elif attrs.get(LIFECYCLE_ATTR) == LIFECYCLE_FROZEN:
-        raise DistributedContractError("A frozen study cannot be initialized or extended.")
+    elif attrs.get(LIFECYCLE_ATTR) in {
+        LIFECYCLE_FROZEN,
+        LIFECYCLE_RETIRED_PRECLAIM,
+    }:
+        raise DistributedContractError(
+            "A frozen or preclaim-retired study cannot be initialized or extended."
+        )
 
     audit = reservation_audit(study, expected_count)
     if audit["duplicate_indexes"] or audit["invalid_trial_numbers"]:

@@ -17,6 +17,8 @@ import yaml
 
 from scripts.graphvae_attr_bo_distributed import (
     DistributedContractError,
+    LIFECYCLE_ATTR,
+    LIFECYCLE_RETIRED_PRECLAIM,
     atomic_write_json,
     assert_quiescent_reserved_study,
     audit_trial_result,
@@ -44,6 +46,7 @@ from scripts.run_distributed_graphvae_attr_bo import (
     render_remote_launch,
     render_tmux_ssh_command,
     render_worker_command,
+    retire_preclaim_study,
 )
 from scripts.run_graphvae_attr_bo_worker import _probe_gpu_identity
 from scripts.tune_graphvae_attribute_weights import (
@@ -800,6 +803,71 @@ def test_r08_fixed_parameters_are_contracted_and_enqueued_exactly(tmp_path):
     args.fixed_alpha_node_feat = 1e4
     with pytest.raises(ValueError, match="must be finite and within"):
         _search_space(args)
+
+
+def test_preclaim_retirement_requires_safe_probe_and_consumes_no_reservation(tmp_path):
+    definition = minimal_definition("retire-preclaim")
+    definition["reserved_trials"] = 1
+    study = optuna.create_study(study_name="retire-preclaim", direction="maximize")
+    contract = initialize_reserved_study(
+        study,
+        definition,
+        controller_uuid="controller",
+        output_root=tmp_path,
+    )
+    launch = {
+        "dry_run": False,
+        "launches": [
+            {
+                "launch_state": "SSH_ACKNOWLEDGED",
+                "worker_run_id": "worker-dispatch-1000000",
+            }
+        ],
+    }
+    atomic_write_json(tmp_path / "launch_manifests" / "wave_0001.json", launch)
+    with pytest.raises(RuntimeError, match="probe before"):
+        retire_preclaim_study(
+            study,
+            tmp_path,
+            contract_hash=contract,
+            reason_code="source-contract-superseded",
+        )
+    probe = {
+        "launches": [
+            {
+                "worker_run_id": "worker-dispatch-1000000",
+                "probe_status": "RECONCILED_PRETRIAL",
+                "retry_safe": True,
+                "tmux_active": False,
+                "db_trials": [],
+            }
+        ]
+    }
+    atomic_write_json(tmp_path / "launch_probes" / "probe_0001.json", probe)
+    marker = retire_preclaim_study(
+        study,
+        tmp_path,
+        contract_hash=contract,
+        reason_code="source-contract-superseded",
+    )
+    assert marker["reservation_consumed"] is False
+    assert marker["reserved_waiting"] == 1
+    assert study.user_attrs[LIFECYCLE_ATTR] == LIFECYCLE_RETIRED_PRECLAIM
+    trial = study.get_trials(deepcopy=False)[0]
+    assert trial.state.name == "WAITING"
+    with pytest.raises(DistributedContractError, match="cannot be initialized"):
+        initialize_reserved_study(
+            study,
+            definition,
+            controller_uuid="controller",
+            output_root=tmp_path,
+        )
+    assert retire_preclaim_study(
+        study,
+        tmp_path,
+        contract_hash=contract,
+        reason_code="source-contract-superseded",
+    ) == marker
 
 
 def test_r08_hardware_report_enforces_fixed_objective_tolerance(tmp_path):

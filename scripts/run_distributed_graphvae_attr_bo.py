@@ -33,6 +33,7 @@ from graphvae_attr_bo_distributed import (  # noqa: E402
     LIFECYCLE_ATTR,
     LIFECYCLE_FROZEN,
     LIFECYCLE_READY,
+    LIFECYCLE_RETIRED_PRECLAIM,
     RESERVED_ATTR,
     UNRESERVED_GUARD_ATTR,
     ControllerLocks,
@@ -198,6 +199,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     probe.add_argument("--repo-paths", type=Path, required=True)
     probe.add_argument("--python-paths", type=Path, required=True)
     probe.add_argument("--json", type=Path, default=None)
+
+    retire = subparsers.add_parser(
+        "retire-preclaim",
+        help="Permanently retire a study only when no reservation was claimed.",
+    )
+    _add_storage_options(retire)
+    retire.add_argument(
+        "--reason-code",
+        required=True,
+        choices=("source-contract-superseded", "operator-cancelled-before-claim"),
+    )
 
     for name in ("status", "collect", "finalize"):
         command = subparsers.add_parser(name)
@@ -727,6 +739,109 @@ def _assert_prior_launches_reconciled(output_dir: Path) -> None:
             "Prior launch attempts require a safe probe before another wave: "
             + ", ".join(sorted(set(unresolved)))
         )
+
+
+def retire_preclaim_study(
+    study: Any,
+    output_dir: Path,
+    *,
+    contract_hash: str,
+    reason_code: str,
+) -> dict[str, Any]:
+    """Make an unused immutable study permanently non-dispatchable."""
+
+    output_dir = output_dir.expanduser().resolve()
+    definition = study.user_attrs.get(DEFINITION_ATTR) or {}
+    expected_count = int(definition.get("reserved_trials", 0))
+    audit = reservation_audit(study, expected_count)
+    states = reserved_trial_states(study)
+    if (
+        expected_count <= 0
+        or audit["missing_indexes"]
+        or audit["duplicate_indexes"]
+        or audit["invalid_trial_numbers"]
+        or audit["unreserved_trials"]
+        or states.get("RESERVED_TOTAL") != expected_count
+        or states.get("UNRESERVED_GUARD") != 0
+        or states.get("WAITING") != expected_count
+        or any(states.get(name) != 0 for name in ("RUNNING", "COMPLETE", "FAIL", "OTHER"))
+    ):
+        raise DistributedContractError(
+            "Preclaim retirement requires every exact reservation to remain WAITING."
+        )
+    if canonical_contract_hash(definition) != contract_hash:
+        raise DistributedContractError("Preclaim retirement contract hash mismatch.")
+
+    _assert_prior_launches_reconciled(output_dir)
+    latest = _latest_launch_probe_records(output_dir)
+    attempted = []
+    for path in sorted((output_dir / "launch_manifests").glob("wave_*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("dry_run") is True:
+            continue
+        for launch in payload.get("launches", []):
+            if launch.get("launch_state") == "PLANNED":
+                continue
+            worker_run = str(launch.get("worker_run_id"))
+            probe = latest.get(worker_run)
+            if (
+                not probe
+                or probe.get("probe_status") != "RECONCILED_PRETRIAL"
+                or probe.get("retry_safe") is not True
+                or probe.get("tmux_active") is not False
+                or probe.get("db_trials") != []
+            ):
+                raise DistributedContractError(
+                    f"Launch {worker_run} is not proven unclaimed and pretrial-terminal."
+                )
+            attempted.append(worker_run)
+
+    lifecycle = study.user_attrs.get(LIFECYCLE_ATTR)
+    if lifecycle not in {LIFECYCLE_READY, LIFECYCLE_RETIRED_PRECLAIM}:
+        raise DistributedContractError(
+            "Preclaim retirement requires READY or already RETIRED_PRECLAIM lifecycle."
+        )
+    marker = {
+        "schema_version": "graphvae-attr-f1pr-retired-preclaim-v1",
+        "study_name": study.study_name,
+        "study_contract_sha256": contract_hash,
+        "lifecycle": LIFECYCLE_RETIRED_PRECLAIM,
+        "reason_code": reason_code,
+        "reserved_waiting": expected_count,
+        "reservation_consumed": False,
+        "attempted_worker_runs": sorted(attempted),
+    }
+    marker_path = output_dir / "RETIRED_PRECLAIM.json"
+    if marker_path.is_file():
+        existing = json.loads(marker_path.read_text(encoding="utf-8"))
+        if existing != marker:
+            raise DistributedContractError("Preclaim retirement marker differs.")
+    else:
+        study.set_user_attr(LIFECYCLE_ATTR, LIFECYCLE_RETIRED_PRECLAIM)
+        atomic_write_json(marker_path, marker)
+    if study.user_attrs.get(LIFECYCLE_ATTR) != LIFECYCLE_RETIRED_PRECLAIM:
+        study.set_user_attr(LIFECYCLE_ATTR, LIFECYCLE_RETIRED_PRECLAIM)
+    return marker
+
+
+def command_retire_preclaim(args: argparse.Namespace) -> int:
+    output_dir = args.output_dir.expanduser().resolve()
+    storage_url = storage_url_from_env(args.storage_env)
+    with ControllerLocks(output_dir, storage_url, args.study_name) as locks:
+        controller_uuid = _controller_uuid(output_dir)
+        _url, _storage, study, _definition, contract_hash = _load_ready_study(
+            args, require_ready=False
+        )
+        _assert_controller_owner(study, output_dir, controller_uuid)
+        marker = retire_preclaim_study(
+            study,
+            output_dir,
+            contract_hash=contract_hash,
+            reason_code=args.reason_code,
+        )
+        locks.assert_alive()
+    print(json.dumps(marker, sort_keys=True))
+    return 0
 
 
 def _classify_launch_probe(
@@ -1926,6 +2041,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "preflight": command_preflight,
         "run": command_run,
         "probe": command_probe,
+        "retire-preclaim": command_retire_preclaim,
         "status": command_status,
         "collect": command_collect_with_locks,
         "finalize": command_finalize,
