@@ -36,6 +36,12 @@ SEARCH_PLAN = (
     / "bayesian_optimization"
     / "lobster_attr_f1pr_search_reservations_30.json"
 )
+HARDWARE_POLICY = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "lobster_attr_f1pr_candidate_hardware_policy.json"
+)
 
 
 def test_gate4_smoke_config_is_bounded_and_feature_complete():
@@ -190,3 +196,24 @@ def test_lobster_search_plan_has_one_uniform_and_29_tpe_reservations():
     assert all(entry["parameters"] == {} for entry in plan[1:])
     assert [entry["budget_index"] for entry in plan] == list(range(30))
     assert {entry["training_seed"] for entry in plan} == {0}
+
+
+def test_lobster_candidate_hardware_policy_is_exact():
+    policy = json.loads(HARDWARE_POLICY.read_text(encoding="utf-8"))
+    assert policy["schema_version"] == "graphvae-attr-f1pr-hardware-policy-v1"
+    assert policy["attr_f1pr_abs_tolerance"] == 0.02
+    assert policy["checkpoint_byte_equality_expected"] is False
+    assert policy["required_runtime_fingerprint"] == (
+        "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1"
+    )
+    assert policy["candidate_pool"] == [
+        "cs-cl-09:cuda:1",
+        "cs-cl-13:cuda:0",
+        "cs-cl-16:cuda:0",
+        "cs-cl-17:cuda:0",
+        "cs-cl-17:cuda:1",
+        "cs-cl-19:cuda:0",
+        "cs-cl-19:cuda:1",
+        "cs-cl-26:cuda:0",
+        "cs-cl-26:cuda:1",
+    ]

@@ -2294,6 +2294,42 @@ PostgreSQL tests pass, including preservation of mixed fixed/empty maps and
 per-reservation seeds through native claims; the post-suite check found zero
 residual `graphvae_bo_pytest_*` study.
 
+Staging found two byte-distinct NumPy 1.24.3 builds: cs-cl-13, cs-cl-17, and
+the controller reproduced the previously qualified runtime fingerprint
+`e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1`,
+while cs-cl-09, cs-cl-16, cs-cl-19, and cs-cl-26 initially produced
+`1cde83f9ca07f35c1492bd26d15ce3a29eb924e57e3bab9d31820111d9179572`.
+The fingerprint requirement was not weakened. Instead, the exact qualified
+NumPy package and native-library directories were staged read-only beneath
+each dedicated source root's `.runtime/python_overlay`, with user-site loading
+and bytecode writes disabled. Source synchronization now excludes `.runtime/`
+so a later clean deployment cannot silently remove the qualified overlay. All
+six hosts subsequently reproduced the exact `e142...` fingerprint without
+modifying their shared Conda environments.
+
+Clean source commit `174a844` is staged in the six dedicated roots at tree
+SHA-256 `1fdaa75ccbac2d6cb78c75631f47aba0515cb0cd3c86991e1c7e111509be4db9`.
+Every host verifies that source, the exact runtime, protected storage
+construction, and the canonical read-only cache: 59,295,793 bytes, SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`,
+70/10/20 splits, all ten validation graphs, and 14/11 node/edge dimensions.
+Deployment and cache manifests are read-only. All nine candidate GPUs were
+idle and each physical index mapped to exactly one logical `cuda:0`; their
+models and reported MiB are GTX TITAN X 12,288 (cs-cl-09), TITAN RTX 24,576
+(cs-cl-13 and both cs-cl-17 slots), Quadro RTX 4000 8,192 (cs-cl-16), GTX
+1080 Ti 11,264 (both cs-cl-19 slots and cs-cl-26 GPU 0), and TITAN X Pascal
+12,288 (cs-cl-26 GPU 1).
+
+The fresh study `lobster_attr_f1pr_production_hw_signal_20260823a` will combine
+the real fixed-parameter hardware check and the pre-search signal calibration:
+exactly nine reservations, `max_parallel=9`, sampler seed 53, fixed uniform
+weights `(1,1)`, and one 2,000-epoch trial on every candidate slot. It uses the
+committed candidate hardware policy, full ten-graph validation, ten repeats,
+and no held-out access. Every reservation is consumed exactly once. The
+30-reservation search remains blocked unless every eventual production slot
+completes and meets the 0.02 Attr-F1PR tolerance and the resulting uniform
+objective is finite and strictly above the previous numerical floor.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical
