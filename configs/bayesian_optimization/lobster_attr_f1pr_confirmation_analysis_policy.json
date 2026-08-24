@@ -1,0 +1,25 @@
+{
+  "schema_version": "graphvae-attr-f1pr-confirmation-analysis-v1",
+  "selection_source_study": "lobster_attr_f1pr_production_search30_20260823a",
+  "selection_source_contract_sha256": "63c767f1accbb324695c7cc95f582ae093527111d22a7af489fc0d974ade3599",
+  "selection_split": "validation",
+  "objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+  "test_access_during_confirmation": false,
+  "training_epoch_number": 10000,
+  "paired_training_seeds": [0, 1, 2],
+  "selected_weights": {
+    "alpha_node_feat": 5.229045672015893,
+    "alpha_edge_feat": 0.05386414830134693
+  },
+  "uniform_weights": {
+    "alpha_node_feat": 1.0,
+    "alpha_edge_feat": 1.0
+  },
+  "paired_difference": "selected_validation_attr_f1pr - uniform_validation_attr_f1pr",
+  "primary_summary": "mean paired difference",
+  "uncertainty": "two-sided 95% paired t interval with 2 degrees of freedom",
+  "superiority_rule": "all three paired differences are positive and the 95% paired t interval lower bound is greater than zero",
+  "directional_rule": "mean paired difference is positive but the superiority rule is not met",
+  "no_reranking": true,
+  "held_out_access_before_freeze": false
+}

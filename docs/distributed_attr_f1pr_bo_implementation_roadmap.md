@@ -2457,6 +2457,19 @@ and storage-URL, credential, private-key, held-out/test-split, and true
 test-access scans are clean. Generated study/checkpoint/snapshot artifacts stay
 ignored and are not committed.
 
+The matched confirmation contract is committed before study creation. It fixes
+the common LOBSTER budget at 10,000 epochs, full ten-graph validation, ten
+evaluator repeats, and `skip_final_evaluation=true`. Its exact six-entry
+reservation plan compares the frozen selected pair with uniform `(1,1)` at
+training seeds `0`, `1`, and `2`; no alternate candidate or fallback ranking is
+permitted. The predeclared primary summary is the mean of the three paired
+validation differences. It reports a two-sided 95% paired t interval with two
+degrees of freedom, calls superiority only when all three paired differences
+and the interval lower bound are positive, and otherwise distinguishes merely
+directional evidence from no improvement. Held-out access remains false until
+the confirmation study and conclusion are frozen. Sixty-seven non-PostgreSQL
+distributed unit, launcher, and integrity tests pass with this contract.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical
