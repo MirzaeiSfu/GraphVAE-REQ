@@ -1,0 +1,95 @@
+{
+  "artifact_audit": {
+    "aggregate_outputs_match_after_restore": true,
+    "bytes_scanned": 1116829591,
+    "credential_matches": 0,
+    "files_scanned": 849,
+    "forbidden_storage_or_test_access_matches": 0,
+    "protected_materials_tested": 34,
+    "restore_semantic_fingerprint": "114139022fc769c066a1d4251206cc4de9b36a8d563a6345808cc1dd84b246e1",
+    "snapshot_sha256": "2f45b9711aac115df1ecafe3c1e5933d3849f730a434334e13836f3afd46a441"
+  },
+  "cache": {
+    "byte_length": 73822456,
+    "post_trial_mode": "0444",
+    "post_trial_sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "verified_on_controller_and_both_hosts": true
+  },
+  "date": "2026-08-24",
+  "dispatch_audit": {
+    "initial_attempt": "DEFINITE_PRELAUNCH_ERROR",
+    "initial_attempt_claimed_reservations": 0,
+    "initial_worker_identities_reused": false,
+    "probe_status": "DEFINITE_PRELAUNCH",
+    "retry_safe": true,
+    "successful_wave": 2
+  },
+  "hardware_repeatability": {
+    "absolute_tolerance": 0.02,
+    "eligible_slots": [
+      "cs-cl-13:gpu0",
+      "cs-cl-17:gpu0",
+      "cs-cl-17:gpu1"
+    ],
+    "maximum_objective_difference": 0.0,
+    "passed": true
+  },
+  "objective": {
+    "accepted_validation_graphs": 184,
+    "edge_decoder_required": true,
+    "evaluator_repeats": 5,
+    "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "node_decoder_required": true,
+    "precision": 0.5826086956521739,
+    "recall": 0.9423913043478261,
+    "selection_split": "validation",
+    "test_access": false,
+    "validation_attr_f1pr": 0.718249786584885
+  },
+  "reservations": {
+    "complete": 3,
+    "fail": 0,
+    "max_parallel": 3,
+    "reserved_total": 3,
+    "running": 0,
+    "unreserved_guard": 0,
+    "waiting": 0
+  },
+  "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+  "schema_version": "graphvae-attr-f1pr-timing-qualification-v1",
+  "source": {
+    "git_commit": "9ce2cf27bc2e93f72c8ae9eb9713cda29d39410d",
+    "tree_sha256": "9b87cb9f040eeb40d30bfedbd6a4be8ba8a483ea43c4656fa8d75d39a6eb3887"
+  },
+  "study": {
+    "contract_sha256": "76e42209b65ea492334234369c6c39237ced9f03e1656ae684b35a41fe74390a",
+    "lifecycle": "FROZEN",
+    "name": "aids_attr_f1pr_hw_timing_20260824a",
+    "training_epochs": 250,
+    "training_seed": 0,
+    "weights": {
+      "alpha_edge_feat": 1.0,
+      "alpha_node_feat": 1.0
+    }
+  },
+  "timing_seconds": [
+    {
+      "evaluation": 7.366685522254556,
+      "total": 3071.158133463934,
+      "training": 3063.4464776441455,
+      "trial_number": 0
+    },
+    {
+      "evaluation": 8.751979162916541,
+      "total": 3136.767736949958,
+      "training": 3127.5984947988763,
+      "trial_number": 1
+    },
+    {
+      "evaluation": 8.349954962730408,
+      "total": 3224.099559418857,
+      "training": 3215.3404353959486,
+      "trial_number": 2
+    }
+  ]
+}

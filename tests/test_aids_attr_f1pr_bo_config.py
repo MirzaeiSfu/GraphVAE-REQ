@@ -40,6 +40,12 @@ DEPLOYMENT_QUALIFICATION_PATH = (
     / "bayesian_optimization"
     / "aids_attr_f1pr_deployment_qualification.json"
 )
+TIMING_QUALIFICATION_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_attr_f1pr_timing_qualification.json"
+)
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt"
 CREDENTIAL_PATHS = (
@@ -217,3 +223,66 @@ def test_aids_deployment_qualification_matches_frozen_contract():
         worker["protected_postgresql_authentication"] == "verify-full"
         for worker in workers
     )
+
+
+def test_aids_timing_qualification_is_exact_and_validation_only():
+    qualification = json.loads(
+        TIMING_QUALIFICATION_PATH.read_text(encoding="utf-8")
+    )
+
+    assert qualification["study"] == {
+        "contract_sha256": (
+            "76e42209b65ea492334234369c6c39237ced9f03e1656ae684b35a41fe74390a"
+        ),
+        "lifecycle": "FROZEN",
+        "name": "aids_attr_f1pr_hw_timing_20260824a",
+        "training_epochs": 250,
+        "training_seed": 0,
+        "weights": {"alpha_edge_feat": 1.0, "alpha_node_feat": 1.0},
+    }
+    assert qualification["reservations"] == {
+        "complete": 3,
+        "fail": 0,
+        "max_parallel": 3,
+        "reserved_total": 3,
+        "running": 0,
+        "unreserved_guard": 0,
+        "waiting": 0,
+    }
+    objective = qualification["objective"]
+    assert objective["json_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert objective["selection_split"] == "validation"
+    assert objective["test_access"] is False
+    assert objective["node_decoder_required"] is True
+    assert objective["edge_decoder_required"] is True
+    assert objective["accepted_validation_graphs"] == 184
+    assert objective["evaluator_repeats"] == 5
+    assert objective["validation_attr_f1pr"] == 0.718249786584885
+    assert qualification["hardware_repeatability"]["passed"] is True
+    assert qualification["hardware_repeatability"][
+        "maximum_objective_difference"
+    ] == 0.0
+    assert qualification["dispatch_audit"] == {
+        "initial_attempt": "DEFINITE_PRELAUNCH_ERROR",
+        "initial_attempt_claimed_reservations": 0,
+        "initial_worker_identities_reused": False,
+        "probe_status": "DEFINITE_PRELAUNCH",
+        "retry_safe": True,
+        "successful_wave": 2,
+    }
+    assert qualification["artifact_audit"]["credential_matches"] == 0
+    assert qualification["artifact_audit"][
+        "forbidden_storage_or_test_access_matches"
+    ] == 0
+    assert qualification["artifact_audit"][
+        "aggregate_outputs_match_after_restore"
+    ] is True
+    assert qualification["cache"]["verified_on_controller_and_both_hosts"] is True
+    assert [row["trial_number"] for row in qualification["timing_seconds"]] == [
+        0,
+        1,
+        2,
+    ]
+    assert all(row["total"] < 7200 for row in qualification["timing_seconds"])

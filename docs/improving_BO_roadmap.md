@@ -547,3 +547,46 @@ policy. No credential value or storage URL enters the committed qualification
 record. Real training and held-out access still have not occurred. The next
 irreversible action is the fresh, exact three-reservation uniform timing and
 hardware-equivalence study.
+
+That timing gate is complete and frozen as
+`aids_attr_f1pr_hw_timing_20260824a`. Exactly three uniform `(1,1)`
+reservations ran concurrently at 250 epochs and training seed zero. All three
+are `COMPLETE`; none is waiting, running, failed, unreserved, duplicated, or
+replaced. Each physical TITAN RTX slot independently returned validation
+Attr-F1PR `0.718249786584885`, precision `0.5826086956521739`, and recall
+`0.9423913043478261` from all 184 validation graphs and five fixed evaluator
+repeats. The exact cross-slot objective range is zero, so the frozen hardware
+repeatability policy passes.
+
+Training took 3,063.45--3,215.34 seconds per slot; the separate evaluator took
+7.37--8.75 seconds, and total trial time was 3,071.16--3,224.10 seconds. The
+signal is finite, far from the metric floor, and exactly reproducible under
+the fixed training/generation/evaluator seeds. A 100-epoch search trial is
+therefore projected at roughly 20--22 minutes before scheduler overhead,
+making five three-worker waves a bounded search of about two hours.
+
+The first controller launch attempt is retained as truthful non-scientific
+failure evidence: missing public deployment/cache manifests caused a definite
+error before remote staging or reservation claim. A probe found no DB trial,
+process, marker, heartbeat, or tmux session for any planned identity and marked
+all three `DEFINITE_PRELAUNCH` and retry-safe. The successful second wave used
+new worker-run identities; no ambiguous work was duplicated.
+
+Two-host collection had zero collision/manifest failures. The study is
+`FROZEN`, its PostgreSQL-independent restore reproduced every aggregate hash,
+and the hardware audit passed. Post-trial cache verification reproduced mode
+`0444`, 73,822,456 bytes, and SHA-256
+`6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb`
+on the controller and both hosts. A complete 849-file, 1,116,829,591-byte
+study/restore scan tested 34 protected credential materials and found no
+credential, unredacted storage URL, test-split evaluation, or true test-access
+match. No held-out graph has been accessed.
+
+The next step may now freeze a fresh 100-epoch adaptive search. Based on the
+near-balanced final uniform reconstruction components and the measured timing,
+the bounded design should use log ranges `[0.25,4]` for both attribute weights,
+five structured anchors—uniform, weak/strong common scale, node emphasis, and
+edge emphasis—then ten TPE proposals. This is exactly 15 reservations in at
+most five three-worker waves. Candidate selection remains validation-only and
+must be followed by a separately frozen 250-epoch, matched-seed comparison of
+the single selected candidate against uniform before held-out access.
