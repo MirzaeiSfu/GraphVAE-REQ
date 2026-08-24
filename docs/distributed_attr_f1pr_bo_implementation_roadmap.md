@@ -2238,6 +2238,34 @@ are never replaced. cs-cl-36 is excluded because its available scratch space
 is insufficient for retained campaign artifacts, and the occupied cs-cl-09
 GPU 0 is excluded.
 
+The pinned Python is `/localhome/mirzaei/miniconda3/envs/micro/bin/python` on
+all candidate hosts except cs-cl-19, whose qualified environment is
+`/local-scratch2/mirzaei/miniconda3/envs/micro/bin/python`.
+
+Before staging or study creation, the dedicated PostgreSQL role was rotated to
+a newly generated protected `lobster-production` credential generation. The
+new controller authenticated through `sslmode=verify-full`, and the Gate 6
+generation was explicitly rejected. The six host-specific worker environments,
+passfiles, CA files, and rotation metadata remain outside repository/source/
+cache/artifact roots; credential directories are mode `0700` and files mode
+`0600`. cs-cl-09, cs-cl-13, cs-cl-16, cs-cl-17, and cs-cl-26 use protected
+directories beneath `/localhome`. Because cs-cl-19 had zero free bytes there,
+its protected directory uses `/local-scratch2/mirzaei`, separate from its
+deployment and artifact roots.
+
+The first remote authentication probe revealed that the password-free storage
+URL still embedded the controller CA path, overriding each worker's
+`PGSSLROOTCERT`; it also exposed the incorrect initially committed cs-cl-19
+Python path. The probe reached no authenticated database session. Its
+connection exception unfortunately printed the password-free database endpoint
+to transient controller output, violating the URL-redaction rule, although it
+contained no password, passfile content, or credential hash and was not saved
+to a repository or study artifact. Host-specific protected URLs were corrected
+to their actual CA paths, the cs-cl-19 Python mapping was fixed, and subsequent
+exception-suppressed probes passed verify-full authentication and permission
+checks on all six hosts. No source/cache deployment, study, reservation, or
+training occurred in this credential step.
+
 Before the 30-reservation search, one fresh fixed uniform-weight calibration
 must prove that 2,000 epochs produces a finite, non-floor validation signal. If
 it does not, the search must not launch: a higher bounded LOBSTER budget is
