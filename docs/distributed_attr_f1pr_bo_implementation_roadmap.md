@@ -1966,6 +1966,96 @@ All exact worker sessions are absent. Both deployed caches remain mode `0444`,
 size 59,295,793 bytes, and canonical SHA-256
 `928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
 
+### Gate 6 bounded five-reservation LOBSTER pilot (2026-08-23)
+
+The first pilot study, `lobster_attr_f1pr_gate6_pilot_20260823a`, used immutable
+contract SHA-256
+`9b9837146ec92a07c9720e97b063cfbbeb6edba820af7e23e0ee400200a0f00b`.
+Its first bounded wave received three SSH/tmux acknowledgements, but each worker
+failed local preflight before claiming a reservation because real R08 training
+had overwritten the tracked source file `kernelVGAE_Log.png`. All three
+structured markers recorded `reservation_consumed=false`; the launch probe
+matched no PostgreSQL trial or active tmux session and classified every attempt
+`RECONCILED_PRETRIAL`. PostgreSQL retained exactly five `WAITING` reservations,
+zero `RUNNING`, `COMPLETE`, `FAIL`, other, or guard rows. No blind redispatch
+occurred.
+
+The root cause was fixed in commit
+`e94443d8b0161639d03eb5d529fac254ab748f98`: the live Plotter now writes beneath
+the trial's configured `graph_save_path` instead of the immutable source root.
+An AST regression test pins that destination, and 38 focused tuning and
+distributed-integrity tests passed. Both dedicated roots were refreshed without
+deleting their excluded run or cache trees. They then independently verified
+commit `e94443d8b0161639d03eb5d529fac254ab748f98`, source tree SHA-256
+`c96b0060529bbefe28af24127f69bdebb6d054e5e398e30c7460e8fb16b9d098`, and
+deployment-manifest SHA-256
+`09a3c92c82c4565e3ab8885f748f7be6d56972268c91bbce88b710344996d6cb`.
+
+Because the corrected source differs from the first immutable contract, the
+original study was not reused. Commit
+`1eced03` added a fail-closed `RETIRED_PRECLAIM` lifecycle. Retirement requires
+every exact reservation to remain `WAITING` and every attempted launch to have
+a retry-safe `RECONCILED_PRETRIAL` probe with no tmux session or database trial;
+it consumes no reservation, is idempotent, and blocks initialization and worker
+dispatch. After checksum collection preserved all three worker failure trees,
+the original study was retired with reason `source-contract-superseded`.
+A deliberate dry-run dispatch was rejected before creating a wave: the launch
+manifest count remained one. Its audit covers 30 files and 991,247 bytes with
+zero protected-credential, storage-URL, test-access, test-split, or held-out
+evaluation finding.
+
+The replacement study `lobster_attr_f1pr_gate6_pilot_20260823b` binds the
+corrected source under immutable contract SHA-256
+`88e4032f8a708cd2520e76c0ae271cff373ece406836fd8e647f0224a6af952c`.
+It reserved exactly five scientific trials with `max_parallel=3`, sampler seed
+47, TPE startup target five, heartbeat 60, grace 600, and no replacement.
+Preflight reported exactly five `WAITING` rows and no other trial. The committed
+LOBSTER smoke configuration retained two epochs, at most eight validation
+graphs, five evaluator repeats, 600-second training and evaluation limits, and
+`skip_final_evaluation=true`.
+
+Wave 1 launched the three qualified slots with dispatch sequences 1,000,000,
+1,000,001, and 1,000,002 and reproduced sampler seeds 2,095,308,481,
+499,541,639, and 2,412,751,057. It reached exactly three `COMPLETE` plus two
+`WAITING` reservations and was terminal-probed and checksum-collected before
+wave 2 began. Wave 2 launched only cs-cl-13 GPU 0 and cs-cl-17 GPU 0 with
+dispatch sequences 2,000,000 and 2,000,001 and reproduced seeds 608,841,255 and
+2,224,220,736. The within-wave worker intervals overlap by 212.036 and 213.198
+seconds respectively, proving bounded real concurrency. Final PostgreSQL state
+is exactly five `COMPLETE`, zero `FAIL`, `WAITING`, `RUNNING`, other, or guard
+rows, with five unique worker, trial, budget, checkpoint, and artifact
+identities.
+
+All five real two-epoch trials produce the finite tiny-smoke value
+`0.000019999800003999925` at exactly
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean`. Each structured
+evaluator uses validation split only, `decoded_node_edge`, both
+`node_feature_decoder` and `edge_feature_decoder`, 14 node and 11 edge channels,
+five repeats, and eight generated plus eight reference accepted graphs. Best
+trial 0 is the deterministic first choice under the five-way tied validation
+objective. These results qualify the bounded machinery only and are not a
+model-quality claim.
+
+Final terminal probes match all five worker markers one-to-one with reserved
+PostgreSQL `COMPLETE` rows. Checksum collection and atomic controller merge
+passed; a separate finalizer published the best trial/config, CSV/SUMMARY,
+portable SQLite snapshot, and `FROZEN.json`. Independent reopen matches live
+PostgreSQL at semantic fingerprint
+`310f27b80fd2029ed1d2e568b8d04a36b0d407ef42aebfca3d1bf853d9f19518`;
+the snapshot SHA-256 is
+`add5bdddc0222e5299319c4296001a720c5b55f0848b0816bc6f71e2b2a94221`.
+All five checkpoints pass explicit feature-head validation.
+
+An exhaustive 458-file, 5,402,977,806-byte scan found no Gate 4, Gate 5, or
+Gate 6 credential material, unredacted storage URL, `test_access=true`, test
+split, or held-out/final-test evaluation indicator. Both remote source
+manifests reverify after training, all exact study sessions are absent, and both
+deployed caches remain mode `0444`, size 59,295,793 bytes, and canonical
+SHA-256
+`928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`.
+The pilot is complete and frozen. R09 clean-snapshot restoration is next; R10
+remains prohibited until R09 passes.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -1999,7 +2089,9 @@ native stale reconciliation, and a verified tombstone. The final full-suite,
 isolated PostgreSQL, cross-study snapshot/artifact, cache, and redaction audits
 all pass, so Gate 5 is complete. Gate 6 preparation has begun: credentials are
 rotated, the three-slot mapping and bounded non-QM9 study contracts are frozen,
-and the dedicated source/cache/runtime/auth/GPU deployment passes; no Gate 6
-pilot study has yet been created. R08 passes on all three intended slots. Gate
-7/full-QM9 BO remains explicitly excluded. The fresh five-reservation LOBSTER
-pilot is next.
+and the dedicated source/cache/runtime/auth/GPU deployment passes. R08 passes on
+all three intended slots. The first pilot attempt was safely retired preclaim
+after exposing source-tree plot mutation; the corrected replacement pilot is
+frozen with exactly five `COMPLETE` reservations and all audits passing. Gate
+7/full-QM9 BO remains explicitly excluded. R09 clean-snapshot restoration is
+next.
