@@ -2541,6 +2541,78 @@ fail-closed rejection of uncontracted result rows. The validation conclusion
 is frozen before any held-out access; a later explicit held-out result is
 secondary evidence only and cannot change it.
 
+After the user explicitly reconfirmed held-out LOBSTER authorization, the
+six-checkpoint secondary comparison ran from a committed immutable plan. The
+plan SHA-256 is
+`831b1c35169cb48bb8c1b06d03b800bf0ed07119b21ebfd7f07689d1d272d881`;
+it fixes all six confirmation checkpoint/config/host/GPU identities, full
+20-graph test evaluation, generation seed 123, evaluator seeds `0..9`, both
+attribute decoders, `decoded_node_edge`, two waves with `max_parallel=3`, and
+no training, new trial, selection, or reranking. Clean source commit `1037f73`
+was deployed to both qualified roots at source-tree SHA-256
+`6bb7cfa79be92cb8b667db1169af9c0ac9ec1ceaec956516216c6d983234e38d`
+and deployment-manifest SHA-256
+`9191e1d084af4034d103fb1c2f462b2821af6419fa91ac95905c24065278fee3`.
+The frozen confirmation marker/report were staged atomically before launch;
+the exact runtime, plan, source, checkpoint, config, cache, physical GPU, and
+logical `cuda:0` identities passed before held-out data were opened.
+
+All six test-only evaluations completed. At training seed 0, selected and
+uniform Attr-F1PR are `0.6069668366990282` and `0.5074371584529394`, a paired
+difference of `0.09952967824608883`. At seed 1 they are
+`0.43638441567970937` and `0.5240760168585773`, a difference of
+`-0.08769160117886793`. At seed 2 they are `0.5255151063455086` and
+`0.4872250319876502`, a difference of `0.03829007435785836`. The selected
+mean is `0.522955452908082`, the uniform mean is `0.5062460690997223`, and
+the descriptive mean paired difference is `0.016709383808359752`, with two
+positive differences and one negative. These held-out values are explicitly
+secondary descriptive evidence: they were not used for inference, selection,
+reranking, or further training and do not change the frozen validation
+conclusion `no_improvement`.
+
+The fail-closed held-out analyzer reverified every evaluator's test split,
+20/20 accepted generated/reference graphs, exact objective, 14/11 feature
+dimensions, both decoder sources, cache/test-split/schema fingerprints, seed
+schedule, result/evaluator hashes, and all negative training/new-trial/
+selection flags. Its report SHA-256 is
+`42524944c19a889e433b6b0fd0496472302f516bc35102afc0c781347130bee0`.
+Collection reproduced every remote file checksum. The 37-file, 116,810-byte
+tree tested eleven protected credential materials and found zero credential
+copy, storage URL, or password assignment. No evaluator process remains; both
+hosts still verify the deployed source and the canonical mode-`0444`,
+59,295,793-byte cache. Controller and host result trees are sealed read-only.
+The controller freeze-manifest SHA-256 is
+`d49153efd60bf6c5d06e9859c239b46b8333f800a0031a2b5e900190b15c01c1`;
+the cs-cl-13 and cs-cl-17 host freeze hashes are respectively
+`7c60d7cfe455c654251c7b474b8a960860c59f136a4a10ac9aa1c23241ce33c5`
+and `1a3dc2c36b75e8fe0047878f68562df7924ad2b8a134c09c698edddf7e60c10f`.
+
+Post-held-out PostgreSQL audit proves that confirmation remains `FROZEN` with
+exactly six `COMPLETE` trials, contract SHA-256
+`4149bc0d2803c796eaa16933e9a3e2aeee6174452c6399fa461debbaef174b4b`,
+and unchanged semantic fingerprint
+`c488c299cba7b791afcfeb9e8fcbc8588efed4433573d69c39644c978c723775`.
+The other production-extension studies also retain their exact states: the
+superseded hardware study has nine unconsumed `WAITING` reservations under
+`RETIRED_PRECLAIM`; the heterogeneous qualification, TITAN RTX qualification,
+and search are `FROZEN` with respectively 9, 3, and 30 `COMPLETE` trials.
+Every production-extension portable restore still byte-matches its aggregate
+outputs without PostgreSQL and records validation selection with
+`test_access=false`.
+
+The final cross-gate audit also reopens every R04--R07 snapshot without
+PostgreSQL and matches each frozen contract. R04 and R05 remain two
+`COMPLETE` trials each; the definite-prelaunch and ambiguous-postlaunch R06
+studies remain one `COMPLETE` trial each; R07 remains exactly one consumed
+`FAIL`, with tombstone SHA-256
+`86db20a23904c32b0a66245850d31d1ae43a4cc8b2a1df546fdf28b877ec070d`
+and no replacement. The complete non-PostgreSQL distributed suite passes all
+83 current tests. The isolated protected PostgreSQL suite passes all 19 tests
+and leaves zero `graphvae_bo_pytest_*` study. Thus the scientifically supported
+default remains uniform `(1,1)`: the nonuniform BO pair is meaningful as a
+bounded validation-search result, but it is not a confirmed improvement.
+No full-QM9 BO, Gate 7 study, additional training, or production reranking ran.
+
 ### Current execution checkpoint
 
 The roadmap is design-ready and may be used as the implementation authority.
@@ -2583,4 +2655,7 @@ aggregate output. R10 evaluates only its frozen selected checkpoint on bounded
 LOBSTER held-out data, creates no trial, and leaves the validation ranking
 unchanged. The final suites, cross-study audit, redaction pass, and two-host
 integrity checks all pass, so Gate 6 is complete in the authorized non-QM9
-scope. Gate 7/full-QM9 BO remains explicitly excluded and was not executed.
+scope. The user-authorized LOBSTER production-equivalent search, matched
+confirmation, and secondary held-out comparison are also complete and frozen;
+uniform weights remain the supported default. Gate 7/full-QM9 BO remains
+explicitly excluded and was not executed.
