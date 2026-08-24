@@ -2249,6 +2249,23 @@ the other 29 reservations use the contracted TPE path. This mixed reservation
 schedule requires a fail-closed, immutable interface and isolated PostgreSQL
 tests before study creation.
 
+The controller now accepts that interface as a versioned JSON reservation
+plan. The plan must contain exactly one entry for every budget index, cover
+`0..N-1` without gaps or duplicates, contain only contracted finite parameters,
+and assign an unsigned 32-bit training seed. It is embedded in the study hash.
+Initialization pre-enqueues each exact fixed map (including an empty map for a
+TPE reservation) and records its seed on the reservation. The worker verifies
+both fields before suggesting any parameter and resolves its training seed from
+the matching entry. Study-wide fixed parameters and a reservation plan are
+mutually exclusive.
+
+The exact 30-entry search plan is committed at
+`configs/bayesian_optimization/lobster_attr_f1pr_search_reservations_30.json`.
+Seventy-two non-PostgreSQL distributed tests pass. Nineteen isolated
+PostgreSQL tests pass, including preservation of mixed fixed/empty maps and
+per-reservation seeds through native claims; the post-suite check found zero
+residual `graphvae_bo_pytest_*` study.
+
 The BO ranking is frozen before confirmation. The selected pair and the
 predetermined uniform pair are then refit under identical 10,000-epoch budgets
 and training seeds 0, 1, and 2. Their validation evaluations use identical

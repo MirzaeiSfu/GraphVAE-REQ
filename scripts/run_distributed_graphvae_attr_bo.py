@@ -132,6 +132,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     init.add_argument("--alpha-edge-feat-max", type=float, default=1e2)
     init.add_argument("--fixed-alpha-node-feat", type=float, default=None)
     init.add_argument("--fixed-alpha-edge-feat", type=float, default=None)
+    init.add_argument(
+        "--reservation-plan",
+        type=Path,
+        default=None,
+        help=(
+            "Immutable JSON plan with exactly one parameter/seed entry per reservation. "
+            "Cannot be combined with study-wide fixed parameters."
+        ),
+    )
     init.add_argument("--tune-alpha-motif", action="store_true")
     init.add_argument("--alpha-motif-min", type=float, default=1e-3)
     init.add_argument("--alpha-motif-max", type=float, default=1e2)
@@ -379,12 +388,30 @@ def _definition_for_init(
         raise ValueError("Cache manifest must contain both feature-schema fingerprints.")
     hardware = _read_json(args.hardware_policy, _default_hardware_policy())
     evaluator_seeds = [args.evaluator_seed + index for index in range(args.evaluator_repeats)]
+    search_space = _search_space(args)
+    reservation_plan = None
+    if args.reservation_plan is not None:
+        payload = _read_json(args.reservation_plan)
+        if not isinstance(payload, Mapping) or set(payload) != {
+            "schema_version",
+            "reservations",
+        }:
+            raise ValueError(
+                "Reservation-plan JSON requires only schema_version and reservations."
+            )
+        if payload["schema_version"] != "graphvae-attr-f1pr-reservation-plan-v1":
+            raise ValueError("Unsupported reservation-plan schema version.")
+        reservation_plan = payload["reservations"]
+        if search_space.get("fixed_parameters"):
+            raise ValueError(
+                "--reservation-plan cannot be combined with study-wide fixed parameters."
+            )
     definition = build_study_definition(
         study_name=args.study_name,
         study_uuid=(None if existing_definition is None else existing_definition["study_uuid"]),
         base_config=base_config,
         base_config_sha256=sha256_file(config_path),
-        ranges=_search_space(args),
+        ranges=search_space,
         reserved_trials=args.trials,
         seeds={
             "study_seed": args.sampler_seed,
@@ -421,6 +448,7 @@ def _definition_for_init(
         heartbeat_interval=args.heartbeat_interval,
         grace_period=args.grace_period,
         max_parallel=args.max_parallel,
+        reservation_plan=reservation_plan,
     )
     definition["storage"]["tls_policy"] = (
         "localhost-test-exception"
@@ -1511,7 +1539,7 @@ FINAL_CSV_FIELDS = (
     "trial_number", "budget_index", "reserved", "unreserved_guard", "state",
     "validation_attr_f1pr", "alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss",
     "validation_precision", "validation_recall", "accepted_validation_graphs",
-    "worker_run_id", "sampler_seed", "failure_phase", "failure_reason",
+    "worker_run_id", "sampler_seed", "training_seed", "failure_phase", "failure_reason",
     "completion_order", "datetime_complete",
 )
 
@@ -1565,6 +1593,7 @@ def _final_outputs(
                 "accepted_validation_graphs": attrs.get("accepted_validation_graphs"),
                 "worker_run_id": attrs.get("worker_run_id"),
                 "sampler_seed": attrs.get("sampler_seed"),
+                "training_seed": attrs.get("training_seed"),
                 "failure_phase": attrs.get("failure_phase"),
                 "failure_reason": attrs.get("failure_reason"),
                 "completion_order": completion_order.get(trial.number),

@@ -74,6 +74,7 @@ CONTROLLER_ATTR = "graphvae_bo_controller_uuid"
 OUTPUT_ROOT_ATTR = "graphvae_bo_output_root_sha256"
 RESERVED_ATTR = "graphvae_bo_reserved"
 BUDGET_INDEX_ATTR = "budget_index"
+PLANNED_TRAINING_SEED_ATTR = "planned_training_seed"
 TRIAL_CONTRACT_ATTR = "study_contract_sha256"
 UNRESERVED_GUARD_ATTR = "unreserved_guard"
 LIFECYCLE_INITIALIZING = "INITIALIZING"
@@ -436,13 +437,14 @@ def build_study_definition(
     heartbeat_interval: int,
     grace_period: int,
     max_parallel: int,
+    reservation_plan: Sequence[Mapping[str, Any]] | None = None,
     study_uuid: str | None = None,
 ) -> dict[str, Any]:
     if reserved_trials < 1:
         raise ValueError("The reserved scientific trial count must be positive.")
     if max_parallel < 1 or max_parallel > reserved_trials:
         raise ValueError("Maximum concurrency must be between one and the trial budget.")
-    return {
+    definition = {
         "schema_version": SCHEMA_VERSION,
         "study_name": validate_identifier(study_name, "study name"),
         "study_uuid": study_uuid or str(uuid.uuid4()),
@@ -489,6 +491,107 @@ def build_study_definition(
             "failed_slots_replaced": False,
         },
     }
+    if reservation_plan is not None:
+        definition["reservation_plan"] = validate_reservation_plan(
+            reservation_plan,
+            expected_count=reserved_trials,
+            search_space=ranges,
+        )
+    return definition
+
+
+def validate_reservation_plan(
+    plan: Sequence[Mapping[str, Any]],
+    *,
+    expected_count: int,
+    search_space: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Normalize an exact immutable per-reservation parameter/seed plan."""
+
+    if isinstance(plan, (str, bytes)) or not isinstance(plan, Sequence):
+        raise DistributedContractError("Reservation plan must be a sequence.")
+    if len(plan) != expected_count:
+        raise DistributedContractError(
+            "Reservation plan must contain exactly one entry per reserved trial."
+        )
+    allowed_parameters = {"alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss"}
+    normalized: dict[int, dict[str, Any]] = {}
+    for raw in plan:
+        if not isinstance(raw, Mapping):
+            raise DistributedContractError("Every reservation-plan entry must be a mapping.")
+        if set(raw) != {"budget_index", "parameters", "training_seed"}:
+            raise DistributedContractError(
+                "Reservation-plan entries require only budget_index, parameters, and training_seed."
+            )
+        if isinstance(raw["budget_index"], bool) or not isinstance(
+            raw["budget_index"], int
+        ):
+            raise DistributedContractError("Reservation-plan budget index must be an integer.")
+        index = raw["budget_index"]
+        if index < 0 or index >= expected_count or index in normalized:
+            raise DistributedContractError(
+                "Reservation-plan indexes must be unique and exactly cover 0..N-1."
+            )
+        parameters = raw["parameters"]
+        if not isinstance(parameters, Mapping):
+            raise DistributedContractError("Reservation-plan parameters must be a mapping.")
+        if set(parameters) - allowed_parameters:
+            raise DistributedContractError("Reservation plan contains an unknown parameter.")
+        normalized_parameters: dict[str, float] = {}
+        for name, value in parameters.items():
+            entry = search_space.get(name)
+            if not isinstance(entry, Mapping):
+                raise DistributedContractError(
+                    f"Reservation-plan parameter {name} is outside the search contract."
+                )
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError) as exc:
+                raise DistributedContractError(
+                    f"Reservation-plan parameter {name} must be numeric."
+                ) from exc
+            if (
+                isinstance(value, bool)
+                or not math.isfinite(numeric)
+                or numeric < float(entry["low"])
+                or numeric > float(entry["high"])
+            ):
+                raise DistributedContractError(
+                    f"Reservation-plan parameter {name} is outside its contracted range."
+                )
+            normalized_parameters[name] = numeric
+        seed = raw["training_seed"]
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise DistributedContractError("Reservation-plan training seed must be an integer.")
+        normalized_seed = seed
+        if not 0 <= normalized_seed <= 0xFFFFFFFF:
+            raise DistributedContractError(
+                "Reservation-plan training seed must be an integer in [0, 2^32-1]."
+            )
+        normalized[index] = {
+            "budget_index": index,
+            "parameters": normalized_parameters,
+            "training_seed": normalized_seed,
+        }
+    if set(normalized) != set(range(expected_count)):
+        raise DistributedContractError(
+            "Reservation-plan indexes must be unique and exactly cover 0..N-1."
+        )
+    return [normalized[index] for index in range(expected_count)]
+
+
+def reservation_plan_entry(
+    definition: Mapping[str, Any], budget_index: int
+) -> Mapping[str, Any] | None:
+    plan = definition.get("reservation_plan")
+    if plan is None:
+        return None
+    normalized = validate_reservation_plan(
+        plan,
+        expected_count=int(definition["reserved_trials"]),
+        search_space=definition["search_space"],
+    )
+    return normalized[int(budget_index)]
 
 
 def _study_attrs(study: Any) -> Mapping[str, Any]:
@@ -619,15 +722,38 @@ def initialize_reserved_study(
                 f"Fixed qualification parameter {name} is outside its contracted range."
             )
 
+    plan = definition.get("reservation_plan")
+    if plan is not None and fixed_parameters:
+        raise DistributedContractError(
+            "A reservation plan cannot be combined with study-wide fixed parameters."
+        )
+    normalized_plan = None
+    if plan is not None:
+        normalized_plan = validate_reservation_plan(
+            plan,
+            expected_count=expected_count,
+            search_space=definition["search_space"],
+        )
+
     created = 0
     for index in audit["missing_indexes"]:
+        parameters = (
+            dict(fixed_parameters)
+            if normalized_plan is None
+            else dict(normalized_plan[index]["parameters"])
+        )
+        user_attrs = {
+            RESERVED_ATTR: True,
+            BUDGET_INDEX_ATTR: index,
+            TRIAL_CONTRACT_ATTR: contract_hash,
+        }
+        if normalized_plan is not None:
+            user_attrs[PLANNED_TRAINING_SEED_ATTR] = normalized_plan[index][
+                "training_seed"
+            ]
         study.enqueue_trial(
-            dict(fixed_parameters),
-            user_attrs={
-                RESERVED_ATTR: True,
-                BUDGET_INDEX_ATTR: index,
-                TRIAL_CONTRACT_ATTR: contract_hash,
-            },
+            parameters,
+            user_attrs=user_attrs,
         )
         created += 1
         if interrupt_after is not None and created >= interrupt_after:
@@ -697,6 +823,18 @@ def guard_reserved_trial(
     expected_count = int(study.user_attrs[DEFINITION_ATTR]["reserved_trials"])
     if not 0 <= budget_index < expected_count:
         raise DistributedContractError("Reserved trial budget index is out of range.")
+    definition = study.user_attrs[DEFINITION_ATTR]
+    planned = reservation_plan_entry(definition, budget_index)
+    if planned is not None:
+        if attrs.get(PLANNED_TRAINING_SEED_ATTR) != planned["training_seed"]:
+            raise DistributedContractError(
+                "Reserved trial training seed differs from its immutable plan."
+            )
+        fixed = trial.system_attrs.get("fixed_params")
+        if fixed != planned["parameters"]:
+            raise DistributedContractError(
+                "Reserved trial parameters differ from its immutable plan."
+            )
     trial.set_user_attr("objective_name", OBJECTIVE_NAME)
     trial.set_user_attr("objective_json_path", OBJECTIVE_JSON_PATH)
     return budget_index
@@ -836,6 +974,17 @@ def audit_trial_result(
     for field, expected in expected_pairs.items():
         if result.get(field) != expected:
             raise DistributedContractError(f"Trial result mismatch for {field}.")
+    planned = reservation_plan_entry(definition, budget_index)
+    if planned is not None:
+        if trial.user_attrs.get(PLANNED_TRAINING_SEED_ATTR) != planned["training_seed"]:
+            raise DistributedContractError(
+                "Trial training seed differs from its immutable reservation plan."
+            )
+        for name, expected in planned["parameters"].items():
+            if trial.params.get(name) != expected:
+                raise DistributedContractError(
+                    f"Trial parameter {name} differs from its immutable reservation plan."
+                )
     expected_status = "COMPLETE" if trial.state == TrialState.COMPLETE else "FAIL"
     if result.get("status") != expected_status:
         raise DistributedContractError("Trial result status differs from PostgreSQL.")
@@ -869,7 +1018,11 @@ def audit_trial_result(
                     "GPU trial result is missing verified model or VRAM metadata."
                 )
         expected_metadata = {
-            "training_seed": definition["seeds"].get("training_seed"),
+            "training_seed": (
+                reservation_plan_entry(definition, budget_index)["training_seed"]
+                if definition.get("reservation_plan") is not None
+                else definition["seeds"].get("training_seed")
+            ),
             "split_seed": definition["seeds"].get("split_seed"),
             "generation_seed": definition["seeds"].get("generation_seed"),
             "evaluator_seed": definition["seeds"].get("evaluator_seed"),

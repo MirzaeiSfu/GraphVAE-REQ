@@ -372,6 +372,56 @@ def test_p01b_fixed_qualification_parameters_survive_postgres_claim(postgres_url
         optuna.delete_study(study_name=name, storage=storage)
 
 
+def test_p01c_mixed_reservation_plan_survives_postgres_claim(postgres_url, tmp_path):
+    name = f"graphvae_bo_pytest_{uuid.uuid4().hex}"
+    storage = _storage(postgres_url)
+    study = create_or_load_distributed_study(
+        storage, study_name=name, sampler_seed_value=9, create=True
+    )
+    definition = _definition(name, 3, max_parallel=3)
+    uniform = {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0}
+    definition["reservation_plan"] = [
+        {"budget_index": 0, "parameters": uniform, "training_seed": 0},
+        {"budget_index": 1, "parameters": {}, "training_seed": 1},
+        {
+            "budget_index": 2,
+            "parameters": {"alpha_node_feat": 0.25, "alpha_edge_feat": 4.0},
+            "training_seed": 2,
+        },
+    ]
+    root = tmp_path / name
+    root.mkdir()
+    try:
+        contract = initialize_reserved_study(
+            study,
+            definition,
+            controller_uuid=str(uuid.uuid4()),
+            output_root=root,
+        )
+
+        def objective(trial):
+            guard_reserved_trial(trial, study, expected_contract_hash=contract)
+            node = trial.suggest_float("alpha_node_feat", 1e-3, 1e2, log=True)
+            edge = trial.suggest_float("alpha_edge_feat", 1e-4, 1e1, log=True)
+            return node + edge
+
+        study.optimize(objective, n_trials=3)
+        assert study.trials[0].params == uniform
+        assert set(study.trials[1].params) == {"alpha_node_feat", "alpha_edge_feat"}
+        assert study.trials[2].params == {
+            "alpha_node_feat": 0.25,
+            "alpha_edge_feat": 4.0,
+        }
+        assert [
+            trial.user_attrs["planned_training_seed"] for trial in study.trials
+        ] == [0, 1, 2]
+        assert all(trial.state.name == "COMPLETE" for trial in study.trials)
+    finally:
+        import optuna
+
+        optuna.delete_study(study_name=name, storage=storage)
+
+
 def test_p02_two_true_processes_claim_distinct_reservations(postgres_url, tmp_path):
     isolated = IsolatedStudy(postgres_url, 2, tmp_path)
     context = mp.get_context("spawn")

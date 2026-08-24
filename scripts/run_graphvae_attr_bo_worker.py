@@ -37,6 +37,7 @@ from graphvae_attr_bo_distributed import (  # noqa: E402
     enforce_pinned_versions,
     guard_reserved_trial,
     runtime_dependency_fingerprint,
+    reservation_plan_entry,
     sampler_seed,
     redact_secret,
     sha256_file,
@@ -245,6 +246,12 @@ def _execution_args(
     import optuna
     import psycopg2
     expected_count = cache.get("expected_validation_graphs")
+    planned = reservation_plan_entry(definition, budget_index)
+    training_seed = (
+        int(planned["training_seed"])
+        if planned is not None
+        else int(seeds["training_seed"])
+    )
     return argparse.Namespace(
         distributed=True,
         study_contract_sha256=cli.study_contract_sha256,
@@ -261,7 +268,7 @@ def _execution_args(
         optuna_version=optuna.__version__,
         db_driver_version=str(psycopg2.__version__).split()[0],
         tpe_startup_trials=cli.tpe_startup_trials,
-        training_seed=int(seeds["training_seed"]),
+        training_seed=training_seed,
         generation_seed=int(seeds["generation_seed"]),
         evaluator_seed=int(seeds["evaluator_seed"]),
         evaluator_repeats=int(evaluator.get("repeat_count", DEFAULT_EVALUATOR_REPEATS)),

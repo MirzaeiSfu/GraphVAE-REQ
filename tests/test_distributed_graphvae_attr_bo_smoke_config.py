@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from scripts.prepare_graphvae_attr_bo_cache import (
     DistributedContractError,
     validate_expected_total_graphs,
 )
+from scripts.graphvae_attr_bo_distributed import validate_reservation_plan
 
 
 pytestmark = pytest.mark.unit
@@ -27,6 +29,12 @@ SIGNAL_CONFIG = (
     / "configs"
     / "bayesian_optimization"
     / "lobster_graphvae_attr_f1pr_signal.yaml"
+)
+SEARCH_PLAN = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "lobster_attr_f1pr_search_reservations_30.json"
 )
 
 
@@ -157,3 +165,28 @@ def test_lobster_signal_config_renders_validation_only_trial(tmp_path):
     assert flat["split_seed"] == 123
     assert flat["skip_final_evaluation"] is True
     assert flat["third_party_eval"] is False
+
+
+def test_lobster_search_plan_has_one_uniform_and_29_tpe_reservations():
+    payload = json.loads(SEARCH_PLAN.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "graphvae-attr-f1pr-reservation-plan-v1"
+    config = flatten_config(load_yaml_mapping(SIGNAL_CONFIG))
+    search_space = {
+        "alpha_node_feat": {"low": 0.01, "high": 10.0, "log": True},
+        "alpha_edge_feat": {"low": 0.01, "high": 10.0, "log": True},
+        "alpha_motif_loss": None,
+    }
+    plan = validate_reservation_plan(
+        payload["reservations"],
+        expected_count=30,
+        search_space=search_space,
+    )
+
+    assert config["dataset"] == "LOBSTER"
+    assert plan[0]["parameters"] == {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0,
+    }
+    assert all(entry["parameters"] == {} for entry in plan[1:])
+    assert [entry["budget_index"] for entry in plan] == list(range(30))
+    assert {entry["training_seed"] for entry in plan} == {0}

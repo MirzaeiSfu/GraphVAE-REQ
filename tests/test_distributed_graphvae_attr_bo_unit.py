@@ -19,6 +19,7 @@ from scripts.graphvae_attr_bo_distributed import (
     DistributedContractError,
     LIFECYCLE_ATTR,
     LIFECYCLE_RETIRED_PRECLAIM,
+    PLANNED_TRAINING_SEED_ATTR,
     atomic_write_json,
     assert_quiescent_reserved_study,
     audit_trial_result,
@@ -32,6 +33,7 @@ from scripts.graphvae_attr_bo_distributed import (
     resolve_artifact_path,
     sampler_seed,
     trial_semantic_fingerprint,
+    validate_reservation_plan,
     validate_identifier,
 )
 from scripts.graphvae_attr_bo_fingerprints import (
@@ -51,7 +53,7 @@ from scripts.run_distributed_graphvae_attr_bo import (
     restore_frozen_study,
     _final_outputs,
 )
-from scripts.run_graphvae_attr_bo_worker import _probe_gpu_identity
+from scripts.run_graphvae_attr_bo_worker import _execution_args, _probe_gpu_identity
 from scripts.tune_graphvae_attribute_weights import (
     PRIMARY_MODE,
     SearchRanges,
@@ -339,6 +341,44 @@ def test_u06_collected_trial_tree_is_portable_after_root_move(tmp_path):
     assert audit_trial_result(trial, study_root=second_root, definition=definition)[
         "status"
     ] == "COMPLETE"
+
+
+def test_audit_enforces_planned_parameters_and_training_seed(tmp_path):
+    definition = minimal_definition("planned-audit")
+    definition["dataset_cache"]["expected_validation_graphs"] = 8
+    definition["seeds"].update(
+        {"training_seed": 99, "generation_seed": 123, "evaluator_seed": 0}
+    )
+    definition["evaluator"]["repeat_count"] = 5
+    definition["reservation_plan"] = [
+        {
+            "budget_index": 0,
+            "parameters": {"alpha_node_feat": 2.0, "alpha_edge_feat": 3.0},
+            "training_seed": 7,
+        },
+        *[
+            {"budget_index": index, "parameters": {}, "training_seed": index + 7}
+            for index in range(1, 4)
+        ],
+    ]
+    trial, result = _auditable_tree(tmp_path, definition)
+    trial.user_attrs[PLANNED_TRAINING_SEED_ATTR] = 7
+    result["training_seed"] = 7
+    result_path = tmp_path / trial.user_attrs["trial_result"]
+    atomic_write_json(result_path, result)
+    assert audit_trial_result(trial, study_root=tmp_path, definition=definition)[
+        "training_seed"
+    ] == 7
+
+    trial.user_attrs[PLANNED_TRAINING_SEED_ATTR] = 8
+    with pytest.raises(DistributedContractError, match="immutable reservation plan"):
+        audit_trial_result(trial, study_root=tmp_path, definition=definition)
+    trial.user_attrs[PLANNED_TRAINING_SEED_ATTR] = 7
+    trial.params["alpha_node_feat"] = 9.0
+    result["sampled_weights"] = dict(trial.params)
+    atomic_write_json(result_path, result)
+    with pytest.raises(DistributedContractError, match="parameter alpha_node_feat"):
+        audit_trial_result(trial, study_root=tmp_path, definition=definition)
 
 
 def test_u07_atomic_json_never_publishes_partial_file(tmp_path, monkeypatch):
@@ -806,6 +846,99 @@ def test_r08_fixed_parameters_are_contracted_and_enqueued_exactly(tmp_path):
     args.fixed_alpha_node_feat = 1e4
     with pytest.raises(ValueError, match="must be finite and within"):
         _search_space(args)
+
+
+def test_mixed_reservation_plan_enqueues_exact_parameters_and_seeds(tmp_path):
+    definition = minimal_definition("mixed-plan")
+    definition["reserved_trials"] = 3
+    definition["reservation_plan"] = [
+        {
+            "budget_index": 0,
+            "parameters": {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0},
+            "training_seed": 0,
+        },
+        {"budget_index": 1, "parameters": {}, "training_seed": 0},
+        {
+            "budget_index": 2,
+            "parameters": {"alpha_node_feat": 0.25, "alpha_edge_feat": 4.0},
+            "training_seed": 2,
+        },
+    ]
+    study = optuna.create_study(study_name="mixed-plan", direction="maximize")
+    initialize_reserved_study(
+        study,
+        definition,
+        controller_uuid="controller",
+        output_root=tmp_path,
+    )
+    trials = study.get_trials(deepcopy=False)
+    assert [trial.system_attrs["fixed_params"] for trial in trials] == [
+        {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0},
+        {},
+        {"alpha_node_feat": 0.25, "alpha_edge_feat": 4.0},
+    ]
+    assert [
+        trial.user_attrs[PLANNED_TRAINING_SEED_ATTR] for trial in trials
+    ] == [0, 0, 2]
+
+
+@pytest.mark.parametrize(
+    "mutation, message",
+    [
+        (lambda plan: plan.pop(), "exactly one entry"),
+        (lambda plan: plan[1].update(budget_index=0), "unique and exactly cover"),
+        (
+            lambda plan: plan[0]["parameters"].update(alpha_node_feat=1e9),
+            "outside its contracted range",
+        ),
+        (lambda plan: plan[0].update(training_seed=-1), r"in \[0, 2\^32-1\]"),
+    ],
+)
+def test_reservation_plan_fails_closed(mutation, message):
+    definition = minimal_definition("bad-plan")
+    plan = [
+        {"budget_index": index, "parameters": {}, "training_seed": 0}
+        for index in range(4)
+    ]
+    mutation(plan)
+    with pytest.raises(DistributedContractError, match=message):
+        validate_reservation_plan(
+            plan,
+            expected_count=4,
+            search_space=definition["search_space"],
+        )
+
+
+def test_worker_execution_uses_planned_training_seed():
+    definition = minimal_definition("planned-worker-seed")
+    definition["seeds"].update(
+        {
+            "training_seed": 99,
+            "generation_seed": 123,
+            "evaluator_seed": 0,
+        }
+    )
+    definition["reservation_plan"] = [
+        {"budget_index": index, "parameters": {}, "training_seed": index + 7}
+        for index in range(4)
+    ]
+    cli = argparse.Namespace(
+        study_contract_sha256="contract",
+        worker_id="worker",
+        worker_run_id="run",
+        physical_gpu=0,
+        gpu_model="GPU",
+        gpu_vram_bytes=1,
+        dispatch_sequence=1,
+        sampler_seed=2,
+        tpe_startup_trials=5,
+        device="cuda:0",
+        python_bin="python",
+        mock=True,
+        mock_fail_trial=[],
+        storage_env="GRAPHVAE_BO_STORAGE_URL",
+    )
+    assert _execution_args(cli, definition, budget_index=2).training_seed == 9
 
 
 def test_preclaim_retirement_requires_safe_probe_and_consumes_no_reservation(tmp_path):
