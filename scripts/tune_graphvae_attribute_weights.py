@@ -1321,6 +1321,11 @@ def execute_trial(
     phase_started = time.monotonic()
     try:
         if args.mock:
+            mock_hold_seconds = float(getattr(args, "mock_hold_seconds", 0.0))
+            if not 0.0 <= mock_hold_seconds <= 30.0:
+                raise TrialExecutionError("Mock hold must be between 0 and 30 seconds.")
+            if mock_hold_seconds:
+                time.sleep(mock_hold_seconds)
             if trial.number in set(args.mock_fail_trial) or args.training_seed in set(
                 getattr(args, "mock_fail_training_seed", [])
             ):

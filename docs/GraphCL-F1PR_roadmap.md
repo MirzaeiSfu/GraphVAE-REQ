@@ -588,5 +588,33 @@ cpu`. Multiple lifecycle-only worker identities may therefore share
 slot representation is unchanged, and 72 focused unit, launcher, and grouped
 GraphCL backend tests pass. The next action is to commit and deploy this
 support, then initialize and run a fresh exact-three-reservation mock study.
+
+Study `lobster_graphcl_f1pr_mock3_20260825a` is preserved as a complete but
+non-qualifying concurrency attempt. Contract
+`ed8c6de2cc483c8b38fb7b8b55cebe2ab1fe80fd8decff2ae0c9cf047db68198`
+reserved exactly three trials at `max_parallel=3`; one launch wave recorded
+three distinct worker-run identities, dispatch sequences, deterministic seeds,
+CPU devices, and SSH acknowledgements. All three reservations completed with
+no failed, waiting, running, or unreserved row, and strict finalize plus offline
+restore passed. The snapshot SHA-256 is
+`2b740fa5464730bc8b6bbc28bce9ff6abe902a7647c6cae6a44cb1158a977d66`
+and restored semantic fingerprint is
+`e9c41d7cf4f41188f6f5f9e0289cdc79801a000c885265fb3e6102143ba056c8`.
+The cache remained mode `0444` with its frozen hash, the reference and encoder
+manifest hashes remained exact, and URL, credential-assignment, password, and
+`test_access=true` scans each found zero files.
+
+This attempt does not satisfy the concurrency exit condition: its grouped
+trial intervals were `[1787678609.313, 1787678609.611]`,
+`[1787678609.619, 1787678609.992]`, and
+`[1787678610.032, 1787678610.397]`, so the ultra-short mock bodies ran
+sequentially despite simultaneous launch acknowledgement. No consumed
+reservation will be rerun or replaced. A bounded mock-only hold is now
+implemented as an immutable training-contract field. It is limited to 0--30
+seconds, forbidden for real studies, and occurs only after a mock reservation
+has been claimed. Eighty-one focused tests pass, including hold execution and
+the real-study fail-closed guard. The next action is to commit and deploy this
+change, then use a new study name with a two-second hold per grouped replicate
+to produce an auditable three-way overlap.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

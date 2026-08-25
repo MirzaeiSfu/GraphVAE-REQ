@@ -171,6 +171,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     init.add_argument("--deployment-manifest", type=Path, default=None)
     init.add_argument("--hardware-policy", type=Path, default=None)
     init.add_argument("--mock", action="store_true")
+    init.add_argument(
+        "--mock-hold-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Mock-only bounded hold after a reservation is claimed; used to prove "
+            "worker overlap and forbidden for real studies."
+        ),
+    )
     init.add_argument("--interrupt-after-reservations", type=int, default=None, help=argparse.SUPPRESS)
 
     preflight = subparsers.add_parser("preflight", help="Validate local and worker inputs.")
@@ -354,6 +363,15 @@ def _default_hardware_policy() -> dict[str, Any]:
     }
 
 
+def _validated_mock_hold_seconds(args: argparse.Namespace) -> float:
+    value = float(args.mock_hold_seconds)
+    if not 0.0 <= value <= 30.0:
+        raise ValueError("--mock-hold-seconds must be between 0 and 30 seconds.")
+    if value and not args.mock:
+        raise ValueError("--mock-hold-seconds is forbidden for real studies.")
+    return value
+
+
 def _definition_for_init(
     args: argparse.Namespace,
     *,
@@ -380,6 +398,7 @@ def _definition_for_init(
     termination_grace = float(
         qualification.get("termination_grace_seconds", args.termination_grace)
     )
+    mock_hold_seconds = _validated_mock_hold_seconds(args)
     split_seed_value = int(flat.get("split_seed", 123) if args.split_seed is None else args.split_seed)
 
     cache_manifest = _read_json(args.dataset_cache_manifest)
@@ -515,6 +534,7 @@ def _definition_for_init(
             "evaluation_timeout_seconds": None if evaluation_timeout <= 0 else evaluation_timeout,
             "termination_grace_seconds": termination_grace,
             "mock": bool(args.mock),
+            "mock_hold_seconds": mock_hold_seconds,
         },
         source=source_manifest,
         environment=environment,

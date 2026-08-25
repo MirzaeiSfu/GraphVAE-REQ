@@ -87,9 +87,14 @@ roadmap's Current checkpoint and qualification JSON files for exact hashes,
 metrics, and preserved failed attempts. The next step is the fresh
 three-reservation CPU/mock concurrency qualification using
 `CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_MOCK3_SLOTS.txt`, followed by Gate 4's
-remaining ambiguous-launch and stale-worker/recovery cases. CPU/mock slots are
-for immutable mock studies only and do not authorize or claim a third GPU. Do
-not regenerate a split, retrain an encoder, treat any mock metric as BO
+remaining ambiguous-launch and stale-worker/recovery cases. The first
+three-reservation attempt `lobster_graphcl_f1pr_mock3_20260825a` is frozen and
+restored but did not show interval overlap because its mock bodies were too
+short; preserve it and never rerun its consumed reservations. A bounded,
+immutable mock-only hold has been implemented locally and must be committed and
+deployed before a fresh-name retry with `--mock-hold-seconds 2`. CPU/mock slots
+are for immutable mock studies only and do not authorize or claim a third GPU.
+Do not regenerate a split, retrain an encoder, treat any mock metric as BO
 evidence, or access held-out/test data.
 
 ---

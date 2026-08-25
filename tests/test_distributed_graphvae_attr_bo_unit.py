@@ -46,6 +46,7 @@ from scripts.graphvae_attr_bo_fingerprints import (
 from scripts.run_distributed_graphvae_attr_bo import (
     _credential_environment_paths,
     _search_space,
+    _validated_mock_hold_seconds,
     _validate_mock_cpu_slots,
     build_hardware_repeatability_report,
     render_remote_launch,
@@ -463,6 +464,21 @@ def test_mock_cpu_slots_are_fail_closed_for_real_studies():
     _validate_mock_cpu_slots(definition, slots)
 
 
+def test_mock_hold_is_bounded_and_forbidden_for_real_studies():
+    assert _validated_mock_hold_seconds(
+        argparse.Namespace(mock=True, mock_hold_seconds=2.0)
+    ) == 2.0
+    for value in (-0.01, 30.01):
+        with pytest.raises(ValueError, match="between 0 and 30"):
+            _validated_mock_hold_seconds(
+                argparse.Namespace(mock=True, mock_hold_seconds=value)
+            )
+    with pytest.raises(ValueError, match="forbidden for real studies"):
+        _validated_mock_hold_seconds(
+            argparse.Namespace(mock=False, mock_hold_seconds=2.0)
+        )
+
+
 def test_u11_finalization_refuses_waiting_or_running_reservations():
     from optuna.trial import TrialState
 
@@ -749,7 +765,7 @@ def test_r07_recorded_process_recovery_checks_identity_and_spares_unrelated(tmp_
             unrelated.wait(timeout=5)
 
 
-def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):
+def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path, monkeypatch):
     class FixedTrial:
         number = 0
 
@@ -792,6 +808,7 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):
         evaluation_timeout=5,
         process_termination_grace=1,
         mock=True,
+        mock_hold_seconds=0.25,
         mock_fail_trial=[],
         expected_validation_graph_count=8,
         expected_node_feature_dimension=14,
@@ -804,6 +821,10 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):
         },
     )
     base = {"experiment": {"epoch_number": 1}, "loss": {}}
+    held = []
+    monkeypatch.setattr(
+        "scripts.tune_graphvae_attribute_weights.time.sleep", held.append
+    )
     records = []
     configs = []
     for name in ("first", "second"):
@@ -855,6 +876,7 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path):
         configs.append(config)
     assert records[0] == records[1]
     assert configs[0] == configs[1]
+    assert held == [0.25, 0.25]
 
 
 def test_r08_fixed_parameters_are_contracted_and_enqueued_exactly(tmp_path):

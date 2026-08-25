@@ -325,6 +325,7 @@ def _execution_args(
         evaluation_timeout=training.get("evaluation_timeout_seconds"),
         process_termination_grace=training.get("termination_grace_seconds", 10.0),
         mock=cli.mock,
+        mock_hold_seconds=float(training.get("mock_hold_seconds", 0.0)),
         mock_fail_trial=list(cli.mock_fail_trial),
         mock_fail_training_seed=[],
         expected_validation_graph_count=(
