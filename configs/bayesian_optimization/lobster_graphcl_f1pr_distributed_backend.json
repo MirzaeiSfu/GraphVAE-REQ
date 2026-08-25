@@ -1,0 +1,31 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-distributed-backend-v1",
+  "backend": "graphcl_f1pr",
+  "objective_json_path": "summary.f1_pr.mean",
+  "compatibility_objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+  "encoder_bundle_sha256": "4cf22a9b204b3638ce6f63fc691ff9556986af1334b64b0994411f5bfd7ac8be",
+  "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+  "encoder_checkpoints": [
+    {"seed": 101, "sha256": "f590aaee82df9de994f42c59156bc6a9fbaf8ada04b53188c3c6bd88b1c2452c"},
+    {"seed": 202, "sha256": "9013b1d9d1210ed89d99b7eb560210a195b46cfc4ad8a8d531ac8ef6a0c3ea20"},
+    {"seed": 303, "sha256": "e43ac144efbd6012dc2f865a2d44f023b5bc3d2182c1d9fc75d744945b0cd5d8"},
+    {"seed": 404, "sha256": "908d43acdfa4d3c1c504dbb2e1c778bf4e3aadc7b6c7f7f15be214436495e721"},
+    {"seed": 505, "sha256": "62218c958464f736d948807d4da7d4198ae4c215ed787a8c318a56fb163dc6e6"}
+  ],
+  "graphcl_runtime_sha256": "980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7",
+  "upstream_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+  "validation_collection_sha256": "0a5ad40ab717440f1739f0b203df3df253a6318089202aa467dd4fc6ee5c1832",
+  "validation_reference_file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+  "validation_split_fingerprint": "2c1853642157f09f68bc4950e0c5e0074dc207f7565f6bedca2dc2126dd33d62",
+  "paths": {
+    "reference": "runs/graphcl_f1pr_lobster_20260825/inputs/real_validation_graphs.pt",
+    "encoder_bundle_manifest": "runs/graphcl_f1pr_lobster_20260825/encoder_bundle_manifest.json",
+    "campaign_root": "runs/graphcl_f1pr_lobster_20260825",
+    "dependency_root": ".graphcl_deps",
+    "upstream_repo": "/local-scratch2/graphvae-req-work/Self-Supervised-Models-for-GGM-Evaluation"
+  },
+  "training_seeds": [0, 1],
+  "checkpoint_count": 5,
+  "nearest_k": 5,
+  "test_access": false
+}

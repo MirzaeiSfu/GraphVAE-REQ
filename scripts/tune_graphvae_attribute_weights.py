@@ -54,6 +54,9 @@ DEFAULT_GENERATION_SEED = 123
 DEFAULT_EVALUATOR_SEED = 0
 DEFAULT_EVALUATOR_REPEATS = 5
 DEFAULT_CHECKPOINT_PATTERN = re.compile(r"^model_(\d+)_(\d+)$")
+GRAPHCL_BACKEND = "graphcl_f1pr"
+GRAPHCL_OUTPUT_FILENAME = "graphcl_f1pr.json"
+GRAPHCL_OBJECTIVE_JSON_PATH = "summary.f1_pr.mean"
 
 
 class TrialExecutionError(RuntimeError):
@@ -739,6 +742,165 @@ def build_evaluator_command(
     ]
 
 
+def build_graphcl_evaluator_command(
+    *,
+    python_bin: str,
+    run_dir: Path,
+    config_path: Path,
+    checkpoint_path: Path,
+    output_dir: Path,
+    cache_path: Path,
+    reference_path: Path,
+    encoder_bundle_manifest: Path,
+    encoder_bundle_manifest_sha256: str,
+    campaign_root: Path,
+    dependency_root: Path,
+    graphcl_runtime_sha256: str,
+    upstream_repo: Path,
+    generation_seed: int,
+    max_graphs: int,
+    generation_batch_size: int,
+    nearest_k: int,
+    adjacency_threshold: float,
+    device: str,
+) -> list[str]:
+    """Build the validation-only frozen GraphCL evaluator invocation."""
+
+    return [
+        python_bin,
+        str(REPO_ROOT / "scripts" / "evaluate_lobster_graphcl_f1pr_checkpoint.py"),
+        "--run-dir", str(run_dir),
+        "--config", str(config_path),
+        "--checkpoint", str(checkpoint_path),
+        "--cache-path", str(cache_path),
+        "--reference", str(reference_path),
+        "--encoder-bundle-manifest", str(encoder_bundle_manifest),
+        "--encoder-bundle-manifest-sha256", encoder_bundle_manifest_sha256,
+        "--campaign-root", str(campaign_root),
+        "--dependency-root", str(dependency_root),
+        "--graphcl-runtime-sha256", graphcl_runtime_sha256,
+        "--upstream-repo", str(upstream_repo),
+        "--python", python_bin,
+        "--generation-seed", str(generation_seed),
+        "--max-graphs", str(max_graphs),
+        "--generation-batch-size", str(generation_batch_size),
+        "--nearest-k", str(nearest_k),
+        "--adjacency-threshold", str(adjacency_threshold),
+        "--device", device,
+        "--output-dir", str(output_dir),
+    ]
+
+
+def _graphcl_summary_mean(
+    payload: Mapping[str, Any], metric: str, per_checkpoint: Sequence[Mapping[str, Any]]
+) -> float:
+    try:
+        value = float(payload["summary"][metric]["mean"])
+        values = [float(entry["metrics"][metric]) for entry in per_checkpoint]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TrialExecutionError(f"GraphCL output is missing {metric} diagnostics.") from exc
+    upper = 1.00001 + 1e-12 if metric == "f1_pr" else 1.0
+    if not math.isfinite(value) or not 0.0 <= value <= upper:
+        raise TrialExecutionError(f"GraphCL {metric} mean is invalid.")
+    if not all(math.isfinite(item) and 0.0 <= item <= upper for item in values):
+        raise TrialExecutionError(f"GraphCL per-encoder {metric} is invalid.")
+    if not math.isclose(value, sum(values) / len(values), rel_tol=0.0, abs_tol=1e-12):
+        raise TrialExecutionError(f"GraphCL {metric} mean differs from its encoders.")
+    return value
+
+
+def parse_graphcl_f1pr_payload(
+    payload: Mapping[str, Any],
+    *,
+    expected_generation_seed: int,
+    expected_bundle_sha256: str,
+    expected_runtime_sha256: str,
+    expected_encoder_checkpoints: Sequence[Mapping[str, Any]],
+    expected_cache_sha256: str,
+    expected_split_fingerprint: str,
+    expected_validation_collection_sha256: str,
+) -> AttrF1PRMetrics:
+    """Audit the exact frozen LOBSTER GraphCL-F1PR artifact without fallback."""
+
+    exact = {
+        "schema_version": "lobster-graphcl-f1pr-evaluation-v1",
+        "engine": "contrastive-pyg-upstream",
+        "encoder": "graphcl",
+        "feature_mode": PRIMARY_MODE,
+        "checkpoint_count": 5,
+        "split": "validation",
+        "test_access": False,
+        "skip_final_evaluation": True,
+        "generation_seed": int(expected_generation_seed),
+        "nearest_k": 5,
+        "objective_json_path": GRAPHCL_OBJECTIVE_JSON_PATH,
+        "compatibility_objective_json_path": OBJECTIVE_JSON_PATH,
+        "encoder_bundle_sha256": expected_bundle_sha256,
+        "graphcl_runtime_sha256": expected_runtime_sha256,
+    }
+    for field, expected in exact.items():
+        if payload.get(field) != expected:
+            raise TrialExecutionError(f"GraphCL evaluator mismatch for {field}.")
+    counts = payload.get("graph_counts") or {}
+    if any(
+        int(counts.get(name, -1)) != 10
+        for name in ("generated_accepted", "reference_accepted", "validation_cache_count")
+    ) or int(counts.get("generation_attempts", -1)) < 10:
+        raise TrialExecutionError("GraphCL evaluator did not use exactly ten graphs.")
+    if payload.get("feature_dimensions") != {"node": 14, "edge": 11}:
+        raise TrialExecutionError("GraphCL evaluator feature dimensions differ.")
+    if payload.get("feature_source") != {
+        "generated": "GraphVAE node_feature_decoder and edge_feature_decoder",
+        "reference": "frozen LOBSTER validation node and edge one-hot attributes",
+        "same_latent_decoding": True,
+        "hand_made_topology_features": False,
+    }:
+        raise TrialExecutionError("GraphCL evaluator feature provenance differs.")
+    integrity = payload.get("integrity") or {}
+    expected_integrity = {
+        "cache_sha256": expected_cache_sha256,
+        "validation_split_fingerprint": expected_split_fingerprint,
+        "validation_collection_sha256": expected_validation_collection_sha256,
+    }
+    for field, expected in expected_integrity.items():
+        if integrity.get(field) != expected:
+            raise TrialExecutionError(f"GraphCL evaluator integrity mismatch for {field}.")
+    per_checkpoint = payload.get("per_checkpoint") or []
+    expected_pairs = [
+        (int(entry["seed"]), str(entry["sha256"]))
+        for entry in expected_encoder_checkpoints
+    ]
+    actual_pairs = [
+        (entry.get("seed"), entry.get("checkpoint_sha256"))
+        for entry in per_checkpoint
+    ]
+    if len(expected_pairs) != 5 or actual_pairs != expected_pairs:
+        raise TrialExecutionError("GraphCL evaluator checkpoint order or digest differs.")
+    f1_pr = _graphcl_summary_mean(payload, "f1_pr", per_checkpoint)
+    precision = _graphcl_summary_mean(payload, "precision", per_checkpoint)
+    recall = _graphcl_summary_mean(payload, "recall", per_checkpoint)
+    try:
+        compatibility = float(
+            payload["evaluation"]["modes"][PRIMARY_MODE]["summary"]["f1_pr"]["mean"]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TrialExecutionError("GraphCL compatibility objective is missing.") from exc
+    if compatibility != f1_pr:
+        raise TrialExecutionError("GraphCL objective views differ.")
+    return AttrF1PRMetrics(
+        f1_pr=f1_pr,
+        precision=precision,
+        recall=recall,
+        graph_count=10,
+    )
+
+
+def parse_graphcl_f1pr_file(path: Path, **expected: Any) -> AttrF1PRMetrics:
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return parse_graphcl_f1pr_payload(payload, **expected)
+
+
 def _finite_metric(summary: Mapping[str, Any], metric_name: str) -> float:
     try:
         value = float(summary[metric_name]["mean"])
@@ -947,6 +1109,80 @@ def _mock_evaluator_payload(
     return payload
 
 
+def _mock_graphcl_payload(
+    parameters: Mapping[str, float],
+    *,
+    generation_seed: int,
+    bundle_sha256: str,
+    runtime_sha256: str,
+    encoder_checkpoints: Sequence[Mapping[str, Any]],
+    cache_sha256: str,
+    split_fingerprint: str,
+    validation_collection_sha256: str,
+) -> dict[str, Any]:
+    node_log = math.log10(parameters["alpha_node_feat"])
+    edge_log = math.log10(parameters["alpha_edge_feat"])
+    center = max(0.05, min(0.95, 0.85 - 0.03 * node_log**2 - 0.04 * edge_log**2))
+    offsets = (-0.04, -0.02, 0.0, 0.02, 0.04)
+    if len(encoder_checkpoints) != len(offsets):
+        raise TrialExecutionError("GraphCL mock requires exactly five encoders.")
+    per_checkpoint = []
+    for entry, offset in zip(encoder_checkpoints, offsets):
+        per_checkpoint.append(
+            {
+                "seed": int(entry["seed"]),
+                "checkpoint_sha256": str(entry["sha256"]),
+                "metrics": {
+                    "f1_pr": center + offset,
+                    "precision": center + offset,
+                    "recall": center + offset,
+                },
+            }
+        )
+    mean = sum(entry["metrics"]["f1_pr"] for entry in per_checkpoint) / 5
+    summary = {
+        metric: {"mean": mean}
+        for metric in ("f1_pr", "precision", "recall")
+    }
+    return {
+        "schema_version": "lobster-graphcl-f1pr-evaluation-v1",
+        "engine": "contrastive-pyg-upstream",
+        "encoder": "graphcl",
+        "feature_mode": PRIMARY_MODE,
+        "checkpoint_count": 5,
+        "split": "validation",
+        "test_access": False,
+        "skip_final_evaluation": True,
+        "generation_seed": int(generation_seed),
+        "nearest_k": 5,
+        "objective_json_path": GRAPHCL_OBJECTIVE_JSON_PATH,
+        "compatibility_objective_json_path": OBJECTIVE_JSON_PATH,
+        "encoder_bundle_sha256": bundle_sha256,
+        "graphcl_runtime_sha256": runtime_sha256,
+        "graph_counts": {
+            "generated_accepted": 10,
+            "reference_accepted": 10,
+            "validation_cache_count": 10,
+            "generation_attempts": 10,
+        },
+        "feature_dimensions": {"node": 14, "edge": 11},
+        "feature_source": {
+            "generated": "GraphVAE node_feature_decoder and edge_feature_decoder",
+            "reference": "frozen LOBSTER validation node and edge one-hot attributes",
+            "same_latent_decoding": True,
+            "hand_made_topology_features": False,
+        },
+        "summary": summary,
+        "per_checkpoint": per_checkpoint,
+        "evaluation": {"modes": {PRIMARY_MODE: {"summary": copy.deepcopy(summary)}}},
+        "integrity": {
+            "cache_sha256": cache_sha256,
+            "validation_split_fingerprint": split_fingerprint,
+            "validation_collection_sha256": validation_collection_sha256,
+        },
+    }
+
+
 def _portable_path(path: Path, output_dir: Path, distributed: bool) -> str:
     if not distributed:
         return str(path.resolve())
@@ -974,11 +1210,21 @@ def execute_trial(
 ) -> float:
     sampled_parameters = sample_search_space(trial, ranges)
     distributed = bool(getattr(args, "distributed", False))
+    evaluator_backend = str(getattr(args, "evaluator_backend", "random_gin"))
+    if evaluator_backend not in {"random_gin", GRAPHCL_BACKEND}:
+        raise TrialExecutionError(f"Unsupported evaluator backend: {evaluator_backend}")
+    publish_trial_attrs = bool(getattr(args, "publish_trial_attrs", True))
     study_contract_sha256 = getattr(args, "study_contract_sha256", None)
     budget_index = getattr(args, "budget_index", trial.user_attrs.get("budget_index"))
     expected_graph_count = getattr(args, "expected_validation_graph_count", None)
     integrity = dict(getattr(args, "integrity", {}) or {})
-    trial_dir = create_trial_directory(output_dir, trial.number)
+    portable_root = Path(getattr(args, "portable_artifact_root", output_dir)).resolve()
+    trial_override = getattr(args, "trial_directory_override", None)
+    if trial_override is None:
+        trial_dir = create_trial_directory(output_dir, trial.number)
+    else:
+        trial_dir = Path(trial_override).resolve()
+        trial_dir.mkdir(parents=True, exist_ok=False)
     distributed_training_path = None
     if distributed:
         training_path = (trial_dir / "training").resolve()
@@ -1013,15 +1259,21 @@ def execute_trial(
     started = time.monotonic()
     started_at_unix = time.time()
     record: dict[str, Any] = {
-        "schema_version": "graphvae-attr-f1pr-bo-trial-v2",
+        "schema_version": "graphvae-attr-f1pr-bo-trial-v3",
         "objective": OBJECTIVE_NAME,
-        "objective_json_path": OBJECTIVE_JSON_PATH,
+        "objective_json_path": (
+            GRAPHCL_OBJECTIVE_JSON_PATH
+            if evaluator_backend == GRAPHCL_BACKEND
+            else OBJECTIVE_JSON_PATH
+        ),
+        "compatibility_objective_json_path": OBJECTIVE_JSON_PATH,
+        "evaluator_backend": evaluator_backend,
         "trial_number": trial.number,
         "budget_index": budget_index,
         "study_contract_sha256": study_contract_sha256,
         "status": "RUNNING",
         "sampled_weights": sampled_parameters,
-        "resolved_config": _portable_path(config_path, output_dir, distributed),
+        "resolved_config": _portable_path(config_path, portable_root, distributed),
         "resolved_config_sha256": sha256_file(config_path),
         "host_local_trial_directory": str(trial_dir.resolve()),
         "worker_id": getattr(args, "worker_id", None),
@@ -1069,7 +1321,9 @@ def execute_trial(
     phase_started = time.monotonic()
     try:
         if args.mock:
-            if trial.number in set(args.mock_fail_trial):
+            if trial.number in set(args.mock_fail_trial) or args.training_seed in set(
+                getattr(args, "mock_fail_training_seed", [])
+            ):
                 raise TrialExecutionError(f"Mock failure requested for trial {trial.number}.")
             run_dir.mkdir(parents=True, exist_ok=True)
             checkpoint_path = run_dir / f"model_{epoch_number - 1}_0"
@@ -1083,7 +1337,7 @@ def execute_trial(
             record.update(
                 {
                     "checkpoint": _portable_path(
-                        checkpoint_path, output_dir, distributed
+                        checkpoint_path, portable_root, distributed
                     ),
                     "checkpoint_sha256": sha256_file(checkpoint_path),
                     "training_elapsed_seconds": training_elapsed,
@@ -1093,29 +1347,47 @@ def execute_trial(
             phase = "evaluation"
             phase_started = time.monotonic()
             evaluator_output_dir.mkdir(parents=True, exist_ok=True)
-            evaluator_json_path = evaluator_output_dir / "attributed_random_gin.json"
-            write_json(
-                evaluator_json_path,
-                _mock_evaluator_payload(
-                    sampled_parameters,
-                    split="validation",
-                    graph_count=(
-                        int(expected_graph_count)
-                        if expected_graph_count is not None
-                        else 8
+            if evaluator_backend == GRAPHCL_BACKEND:
+                evaluator_json_path = evaluator_output_dir / GRAPHCL_OUTPUT_FILENAME
+                write_json(
+                    evaluator_json_path,
+                    _mock_graphcl_payload(
+                        sampled_parameters,
+                        generation_seed=args.generation_seed,
+                        bundle_sha256=args.graphcl_bundle_sha256,
+                        runtime_sha256=args.graphcl_runtime_sha256,
+                        encoder_checkpoints=args.graphcl_encoder_checkpoints,
+                        cache_sha256=integrity["cache_sha256"],
+                        split_fingerprint=integrity["split_fingerprint"],
+                        validation_collection_sha256=(
+                            args.graphcl_validation_collection_sha256
+                        ),
                     ),
-                    generation_seed=args.generation_seed,
-                    evaluator_seed=args.evaluator_seed,
-                    evaluator_repeats=args.evaluator_repeats,
-                    integrity=integrity,
-                    node_feature_dimension=int(
-                        getattr(args, "expected_node_feature_dimension", None) or 4
+                )
+            else:
+                evaluator_json_path = evaluator_output_dir / "attributed_random_gin.json"
+                write_json(
+                    evaluator_json_path,
+                    _mock_evaluator_payload(
+                        sampled_parameters,
+                        split="validation",
+                        graph_count=(
+                            int(expected_graph_count)
+                            if expected_graph_count is not None
+                            else 8
+                        ),
+                        generation_seed=args.generation_seed,
+                        evaluator_seed=args.evaluator_seed,
+                        evaluator_repeats=args.evaluator_repeats,
+                        integrity=integrity,
+                        node_feature_dimension=int(
+                            getattr(args, "expected_node_feature_dimension", None) or 4
+                        ),
+                        edge_feature_dimension=int(
+                            getattr(args, "expected_edge_feature_dimension", None) or 3
+                        ),
                     ),
-                    edge_feature_dimension=int(
-                        getattr(args, "expected_edge_feature_dimension", None) or 3
-                    ),
-                ),
-            )
+                )
             (trial_dir / "evaluation_subprocess.log").write_text(
                 "Mock decoded_node_edge evaluation completed.\n", encoding="utf-8"
             )
@@ -1160,7 +1432,7 @@ def execute_trial(
             record.update(
                 {
                     "checkpoint": _portable_path(
-                        checkpoint_path, output_dir, distributed
+                        checkpoint_path, portable_root, distributed
                     ),
                     "checkpoint_sha256": sha256_file(checkpoint_path),
                     "training_elapsed_seconds": training_elapsed,
@@ -1169,22 +1441,58 @@ def execute_trial(
             write_json(result_path, record)
             phase = "evaluation"
             phase_started = time.monotonic()
-            evaluator_command = build_evaluator_command(
-                python_bin=args.python_bin,
-                run_dir=run_dir,
-                config_path=config_path.resolve(),
-                checkpoint_path=checkpoint_path,
-                output_dir=evaluator_output_dir,
-                split="validation",
-                generation_seed=args.generation_seed,
-                evaluator_seed=args.evaluator_seed,
-                evaluator_repeats=args.evaluator_repeats,
-                max_graphs=args.max_graphs,
-                generation_batch_size=args.generation_batch_size,
-                nearest_k=args.nearest_k,
-                adjacency_threshold=args.adjacency_threshold,
-                device=args.device,
-            )
+            if evaluator_backend == GRAPHCL_BACKEND:
+                dependency_root = Path(args.graphcl_dependency_root).resolve()
+                current_pythonpath = environment.get("PYTHONPATH", "")
+                required_pythonpath = [
+                    str(dependency_root),
+                    str(REPO_ROOT / "graph_evaluation" / "src"),
+                ]
+                if current_pythonpath:
+                    required_pythonpath.append(current_pythonpath)
+                environment["PYTHONPATH"] = os.pathsep.join(required_pythonpath)
+                evaluator_command = build_graphcl_evaluator_command(
+                    python_bin=args.python_bin,
+                    run_dir=run_dir,
+                    config_path=config_path.resolve(),
+                    checkpoint_path=checkpoint_path,
+                    output_dir=evaluator_output_dir,
+                    cache_path=Path(args.graphcl_cache_path).resolve(),
+                    reference_path=Path(args.graphcl_reference_path).resolve(),
+                    encoder_bundle_manifest=Path(
+                        args.graphcl_encoder_bundle_manifest
+                    ).resolve(),
+                    encoder_bundle_manifest_sha256=(
+                        args.graphcl_encoder_bundle_manifest_sha256
+                    ),
+                    campaign_root=Path(args.graphcl_campaign_root).resolve(),
+                    dependency_root=dependency_root,
+                    graphcl_runtime_sha256=args.graphcl_runtime_sha256,
+                    upstream_repo=Path(args.graphcl_upstream_repo).resolve(),
+                    generation_seed=args.generation_seed,
+                    max_graphs=args.max_graphs,
+                    generation_batch_size=args.generation_batch_size,
+                    nearest_k=args.nearest_k,
+                    adjacency_threshold=args.adjacency_threshold,
+                    device=args.device,
+                )
+            else:
+                evaluator_command = build_evaluator_command(
+                    python_bin=args.python_bin,
+                    run_dir=run_dir,
+                    config_path=config_path.resolve(),
+                    checkpoint_path=checkpoint_path,
+                    output_dir=evaluator_output_dir,
+                    split="validation",
+                    generation_seed=args.generation_seed,
+                    evaluator_seed=args.evaluator_seed,
+                    evaluator_repeats=args.evaluator_repeats,
+                    max_graphs=args.max_graphs,
+                    generation_batch_size=args.generation_batch_size,
+                    nearest_k=args.nearest_k,
+                    adjacency_threshold=args.adjacency_threshold,
+                    device=args.device,
+                )
             evaluation_elapsed = run_logged_command(
                 evaluator_command,
                 log_path=trial_dir / "evaluation_subprocess.log",
@@ -1200,50 +1508,68 @@ def execute_trial(
                     "trial_number": trial.number,
                 },
             )
-            evaluator_json_path = evaluator_output_dir / "attributed_random_gin.json"
+            evaluator_json_path = evaluator_output_dir / (
+                GRAPHCL_OUTPUT_FILENAME
+                if evaluator_backend == GRAPHCL_BACKEND
+                else "attributed_random_gin.json"
+            )
         record["evaluation_elapsed_seconds"] = evaluation_elapsed
         record["evaluator_output"] = _portable_path(
-            evaluator_json_path, output_dir, distributed
+            evaluator_json_path, portable_root, distributed
         )
         record["evaluator_output_sha256"] = sha256_file(evaluator_json_path)
         write_json(result_path, record)
 
-        metrics = parse_attr_f1pr_file(
-            evaluator_json_path,
-            expected_split="validation",
-            expected_graph_count=expected_graph_count,
-            expected_cache_sha256=integrity.get("cache_sha256") if distributed else None,
-            expected_split_fingerprint=(
-                integrity.get("split_fingerprint") if distributed else None
-            ),
-            expected_node_schema_fingerprint=(
-                integrity.get("node_schema_fingerprint") if distributed else None
-            ),
-            expected_edge_schema_fingerprint=(
-                integrity.get("edge_schema_fingerprint") if distributed else None
-            ),
-            expected_node_feature_dimension=(
-                getattr(args, "expected_node_feature_dimension", None)
-                if distributed
-                else None
-            ),
-            expected_edge_feature_dimension=(
-                getattr(args, "expected_edge_feature_dimension", None)
-                if distributed
-                else None
-            ),
-            expected_generation_seed=args.generation_seed if distributed else None,
-            expected_evaluator_seed=args.evaluator_seed if distributed else None,
-            expected_repeats=args.evaluator_repeats if distributed else None,
-        )
+        if evaluator_backend == GRAPHCL_BACKEND:
+            metrics = parse_graphcl_f1pr_file(
+                evaluator_json_path,
+                expected_generation_seed=args.generation_seed,
+                expected_bundle_sha256=args.graphcl_bundle_sha256,
+                expected_runtime_sha256=args.graphcl_runtime_sha256,
+                expected_encoder_checkpoints=args.graphcl_encoder_checkpoints,
+                expected_cache_sha256=integrity["cache_sha256"],
+                expected_split_fingerprint=integrity["split_fingerprint"],
+                expected_validation_collection_sha256=(
+                    args.graphcl_validation_collection_sha256
+                ),
+            )
+        else:
+            metrics = parse_attr_f1pr_file(
+                evaluator_json_path,
+                expected_split="validation",
+                expected_graph_count=expected_graph_count,
+                expected_cache_sha256=integrity.get("cache_sha256") if distributed else None,
+                expected_split_fingerprint=(
+                    integrity.get("split_fingerprint") if distributed else None
+                ),
+                expected_node_schema_fingerprint=(
+                    integrity.get("node_schema_fingerprint") if distributed else None
+                ),
+                expected_edge_schema_fingerprint=(
+                    integrity.get("edge_schema_fingerprint") if distributed else None
+                ),
+                expected_node_feature_dimension=(
+                    getattr(args, "expected_node_feature_dimension", None)
+                    if distributed
+                    else None
+                ),
+                expected_edge_feature_dimension=(
+                    getattr(args, "expected_edge_feature_dimension", None)
+                    if distributed
+                    else None
+                ),
+                expected_generation_seed=args.generation_seed if distributed else None,
+                expected_evaluator_seed=args.evaluator_seed if distributed else None,
+                expected_repeats=args.evaluator_repeats if distributed else None,
+            )
         checkpoint_hash = sha256_file(checkpoint_path)
         record.update(
             {
                 "status": "COMPLETE",
-                "checkpoint": _portable_path(checkpoint_path, output_dir, distributed),
+                "checkpoint": _portable_path(checkpoint_path, portable_root, distributed),
                 "checkpoint_sha256": checkpoint_hash,
                 "evaluator_output": _portable_path(
-                    evaluator_json_path, output_dir, distributed
+                    evaluator_json_path, portable_root, distributed
                 ),
                 "evaluator_output_sha256": sha256_file(evaluator_json_path),
                 "validation_attr_f1pr": metrics.f1_pr,
@@ -1268,18 +1594,20 @@ def execute_trial(
             "validation_recall",
             "accepted_validation_graphs",
         ):
-            trial.set_user_attr(key, record[key])
-        trial.set_user_attr("objective_name", OBJECTIVE_NAME)
-        trial.set_user_attr("training_seed", args.training_seed)
-        trial.set_user_attr("split_seed", split_seed)
-        trial.set_user_attr("generation_seed", args.generation_seed)
-        trial.set_user_attr("evaluator_seed", args.evaluator_seed)
-        trial.set_user_attr("evaluator_repeats", args.evaluator_repeats)
-        trial.set_user_attr(
-            "trial_result", _portable_path(result_path, output_dir, distributed)
-        )
-        if study_contract_sha256 is not None:
-            trial.set_user_attr("study_contract_sha256", study_contract_sha256)
+            if publish_trial_attrs:
+                trial.set_user_attr(key, record[key])
+        if publish_trial_attrs:
+            trial.set_user_attr("objective_name", OBJECTIVE_NAME)
+            trial.set_user_attr("training_seed", args.training_seed)
+            trial.set_user_attr("split_seed", split_seed)
+            trial.set_user_attr("generation_seed", args.generation_seed)
+            trial.set_user_attr("evaluator_seed", args.evaluator_seed)
+            trial.set_user_attr("evaluator_repeats", args.evaluator_repeats)
+            trial.set_user_attr(
+                "trial_result", _portable_path(result_path, portable_root, distributed)
+            )
+            if study_contract_sha256 is not None:
+                trial.set_user_attr("study_contract_sha256", study_contract_sha256)
         write_json(result_path, record)
         return metrics.f1_pr
     except Exception as exc:
@@ -1300,25 +1628,199 @@ def execute_trial(
                 "finished_at_unix": time.time(),
             }
         )
+        if publish_trial_attrs:
+            trial.set_user_attr("failure_reason", record["failure_reason"])
+            trial.set_user_attr("failure_phase", phase)
+            trial.set_user_attr(
+                "resolved_config", _portable_path(config_path, portable_root, distributed)
+            )
+            trial.set_user_attr(
+                "trial_result", _portable_path(result_path, portable_root, distributed)
+            )
+            trial.set_user_attr(
+                "training_elapsed_seconds", record["training_elapsed_seconds"]
+            )
+            trial.set_user_attr(
+                "evaluation_elapsed_seconds", record["evaluation_elapsed_seconds"]
+            )
+            if record["checkpoint"] is not None:
+                trial.set_user_attr("checkpoint", record["checkpoint"])
+                trial.set_user_attr("checkpoint_sha256", record["checkpoint_sha256"])
+            if record.get("evaluator_output") is not None:
+                trial.set_user_attr("evaluator_output", record["evaluator_output"])
+        write_json(result_path, record)
+        raise
+
+
+def execute_grouped_graphcl_trial(
+    trial,
+    *,
+    args: argparse.Namespace,
+    base_config: Mapping[str, Any],
+    ranges: SearchRanges,
+    output_dir: Path,
+    split_seed: int,
+) -> float:
+    """Evaluate both GraphVAE seeds as one indivisible GraphCL reservation."""
+
+    if getattr(args, "evaluator_backend", None) != GRAPHCL_BACKEND:
+        raise TrialExecutionError("Grouped execution is restricted to GraphCL-F1PR.")
+    training_seeds = tuple(int(seed) for seed in args.training_seeds)
+    if training_seeds != (0, 1):
+        raise TrialExecutionError("LOBSTER candidate reservations require seeds 0 and 1.")
+    study_root = Path(output_dir).resolve()
+    trial_dir = create_trial_directory(study_root, trial.number)
+    result_path = trial_dir / "trial_result.json"
+    started = time.monotonic()
+    record: dict[str, Any] = {
+        "schema_version": "lobster-graphcl-f1pr-grouped-trial-v1",
+        "objective": OBJECTIVE_NAME,
+        "objective_json_path": GRAPHCL_OBJECTIVE_JSON_PATH,
+        "compatibility_objective_json_path": OBJECTIVE_JSON_PATH,
+        "evaluator_backend": GRAPHCL_BACKEND,
+        "aggregation": "arithmetic_mean_of_complete_graphvae_seeds",
+        "trial_number": trial.number,
+        "budget_index": getattr(args, "budget_index", None),
+        "study_contract_sha256": getattr(args, "study_contract_sha256", None),
+        "status": "RUNNING",
+        "sampled_weights": None,
+        "training_seeds": list(training_seeds),
+        "replicates": [],
+        "validation_attr_f1pr": None,
+        "worker_id": getattr(args, "worker_id", None),
+        "worker_run_id": getattr(args, "worker_run_id", None),
+        "hostname": getattr(args, "hostname", None),
+        "physical_gpu": getattr(args, "physical_gpu", None),
+        "logical_device": args.device,
+        "gpu_model": getattr(args, "gpu_model", None),
+        "gpu_vram_bytes": getattr(args, "gpu_vram_bytes", None),
+        "split_seed": split_seed,
+        "generation_seed": args.generation_seed,
+        "fixed_generated_graph_limit": args.max_graphs,
+        "hashes": dict(getattr(args, "integrity", {}) or {}),
+        "failure_reason": None,
+        "failure_phase": None,
+        "started_at_unix": time.time(),
+        "finished_at_unix": None,
+        "total_elapsed_seconds": None,
+    }
+    write_json(result_path, record)
+    active_training_seed: int | None = None
+    try:
+        for training_seed in training_seeds:
+            active_training_seed = training_seed
+            replicate_args = copy.copy(args)
+            replicate_args.training_seed = training_seed
+            replicate_args.training_seeds = training_seeds
+            replicate_args.publish_trial_attrs = False
+            replicate_args.portable_artifact_root = study_root
+            replicate_dir = trial_dir / "replicates" / f"seed_{training_seed}"
+            replicate_args.trial_directory_override = replicate_dir
+            value = execute_trial(
+                trial,
+                args=replicate_args,
+                base_config=base_config,
+                ranges=ranges,
+                output_dir=study_root,
+                split_seed=split_seed,
+            )
+            replicate_result_path = replicate_dir / "trial_result.json"
+            replicate_result = json.loads(
+                replicate_result_path.read_text(encoding="utf-8")
+            )
+            record["sampled_weights"] = dict(replicate_result["sampled_weights"])
+            record["replicates"].append(
+                {
+                    "training_seed": training_seed,
+                    "status": "COMPLETE",
+                    "value": value,
+                    "trial_result": _portable_path(
+                        replicate_result_path, study_root, True
+                    ),
+                    "trial_result_sha256": sha256_file(replicate_result_path),
+                    "resolved_config": replicate_result["resolved_config"],
+                    "resolved_config_sha256": replicate_result[
+                        "resolved_config_sha256"
+                    ],
+                    "checkpoint": replicate_result["checkpoint"],
+                    "checkpoint_sha256": replicate_result["checkpoint_sha256"],
+                    "evaluator_output": replicate_result["evaluator_output"],
+                    "evaluator_output_sha256": replicate_result[
+                        "evaluator_output_sha256"
+                    ],
+                }
+            )
+            write_json(result_path, record)
+        values = [float(item["value"]) for item in record["replicates"]]
+        if len(values) != 2 or not all(math.isfinite(value) for value in values):
+            raise TrialExecutionError("Both GraphCL seed replicates must be finite.")
+        objective = sum(values) / 2.0
+        record.update(
+            {
+                "status": "COMPLETE",
+                "validation_attr_f1pr": objective,
+                "total_elapsed_seconds": time.monotonic() - started,
+                "finished_at_unix": time.time(),
+            }
+        )
+        portable_result = _portable_path(result_path, study_root, True)
+        trial.set_user_attr("objective_name", OBJECTIVE_NAME)
+        trial.set_user_attr("objective_json_path", GRAPHCL_OBJECTIVE_JSON_PATH)
+        trial.set_user_attr("compatibility_objective_json_path", OBJECTIVE_JSON_PATH)
+        trial.set_user_attr("evaluator_backend", GRAPHCL_BACKEND)
+        trial.set_user_attr("training_seeds", list(training_seeds))
+        trial.set_user_attr("split_seed", split_seed)
+        trial.set_user_attr("generation_seed", args.generation_seed)
+        trial.set_user_attr("replicate_values", values)
+        trial.set_user_attr("trial_result", portable_result)
+        write_json(result_path, record)
+        return objective
+    except Exception as exc:
+        if active_training_seed is not None and not any(
+            item.get("training_seed") == active_training_seed
+            for item in record["replicates"]
+        ):
+            failed_result_path = (
+                trial_dir
+                / "replicates"
+                / f"seed_{active_training_seed}"
+                / "trial_result.json"
+            )
+            if failed_result_path.is_file():
+                failed_result = json.loads(
+                    failed_result_path.read_text(encoding="utf-8")
+                )
+                record["replicates"].append(
+                    {
+                        "training_seed": active_training_seed,
+                        "status": "FAIL",
+                        "trial_result": _portable_path(
+                            failed_result_path, study_root, True
+                        ),
+                        "trial_result_sha256": sha256_file(failed_result_path),
+                        "failure_reason": failed_result.get("failure_reason"),
+                    }
+                )
+        record["sampled_weights"] = dict(trial.params)
+        record.update(
+            {
+                "status": "FAIL",
+                "failure_reason": f"{type(exc).__name__}: {exc}",
+                "failure_phase": "grouped_replicates",
+                "exception_type": type(exc).__name__,
+                "exception_message": str(exc),
+                "failure_traceback": traceback.format_exc(),
+                "total_elapsed_seconds": time.monotonic() - started,
+                "finished_at_unix": time.time(),
+            }
+        )
         trial.set_user_attr("failure_reason", record["failure_reason"])
-        trial.set_user_attr("failure_phase", phase)
+        trial.set_user_attr("failure_phase", record["failure_phase"])
+        trial.set_user_attr("evaluator_backend", GRAPHCL_BACKEND)
+        trial.set_user_attr("training_seeds", list(training_seeds))
         trial.set_user_attr(
-            "resolved_config", _portable_path(config_path, output_dir, distributed)
+            "trial_result", _portable_path(result_path, study_root, True)
         )
-        trial.set_user_attr(
-            "trial_result", _portable_path(result_path, output_dir, distributed)
-        )
-        trial.set_user_attr(
-            "training_elapsed_seconds", record["training_elapsed_seconds"]
-        )
-        trial.set_user_attr(
-            "evaluation_elapsed_seconds", record["evaluation_elapsed_seconds"]
-        )
-        if record["checkpoint"] is not None:
-            trial.set_user_attr("checkpoint", record["checkpoint"])
-            trial.set_user_attr("checkpoint_sha256", record["checkpoint_sha256"])
-        if record.get("evaluator_output") is not None:
-            trial.set_user_attr("evaluator_output", record["evaluator_output"])
         write_json(result_path, record)
         raise
 

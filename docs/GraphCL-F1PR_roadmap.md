@@ -503,9 +503,21 @@ weights. The exact per-encoder metrics and hashes are frozen in
 runtime tree has digest
 `49445a987c05184efcfe557de0edb87095ee4ab05cff96925faa3c4daa8bd4c9`.
 
-The next action is Gate 4: integrate the versioned GraphCL backend into the
-distributed study/controller/worker contract, including portable artifact
-audit and multi-seed candidate grouping, then run bounded mock concurrency and
-failure/recovery qualifications before any fixed real anchors.
+Gate 4 implementation is now complete locally, pending its bounded PostgreSQL
+qualification. The immutable backend contract binds the exact validation
+reference, five ordered encoder seeds/checkpoint digests, bundle/runtime/source
+identities, two GraphVAE training seeds, nearest-k five, and both objective
+views. One Optuna reservation now owns sequential GraphVAE seeds 0 and 1; it
+publishes only their arithmetic mean after both GraphCL artifacts pass strict
+portable audit. Either replicate failure consumes the reservation, preserves
+both completed and failed attempt evidence, and cannot publish a partial score.
+The legacy Random-GIN backend remains the default and its tests remain green.
+
+Eighty-four focused backend and distributed tests pass, including successful
+two-seed grouping, tampered-objective rejection, and a deliberate seed-1
+failure with no partial score. The next action is to commit and deploy this
+implementation, verify the real frozen inputs on `cs-cl-09`, then run the fresh
+two-worker and three-worker bounded mock PostgreSQL studies plus the required
+failure/recovery/restore qualifications before any fixed real anchors.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

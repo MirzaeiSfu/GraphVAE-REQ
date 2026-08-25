@@ -50,6 +50,7 @@ from graphvae_attr_bo_distributed import (  # noqa: E402
 from tune_graphvae_attribute_weights import (  # noqa: E402
     DEFAULT_EVALUATOR_REPEATS,
     SearchRanges,
+    execute_grouped_graphcl_trial,
     execute_trial,
     flatten_config,
     load_yaml_mapping,
@@ -211,6 +212,36 @@ def local_preflight(
             raise DistributedContractError("Dataset cache SHA-256 mismatch.")
     elif not args.mock:
         raise DistributedContractError("Distributed study definition has no cache path.")
+    evaluator = definition.get("evaluator") or {}
+    if evaluator.get("backend") == "graphcl_f1pr" and not args.mock:
+        graphcl = evaluator.get("backend_contract") or {}
+        paths = graphcl.get("paths") or {}
+        if set(paths) != {
+            "reference",
+            "encoder_bundle_manifest",
+            "campaign_root",
+            "dependency_root",
+            "upstream_repo",
+        }:
+            raise DistributedContractError("GraphCL backend paths differ from contract.")
+
+        def resolved_path(name: str) -> Path:
+            path = Path(str(paths[name])).expanduser()
+            return path.resolve() if path.is_absolute() else (REPO_ROOT / path).resolve()
+
+        reference_path = resolved_path("reference")
+        manifest_path = resolved_path("encoder_bundle_manifest")
+        if not reference_path.is_file() or sha256_file(reference_path) != graphcl.get(
+            "validation_reference_file_sha256"
+        ):
+            raise DistributedContractError("Frozen GraphCL validation reference differs.")
+        if not manifest_path.is_file() or sha256_file(manifest_path) != graphcl.get(
+            "encoder_bundle_manifest_sha256"
+        ):
+            raise DistributedContractError("Frozen GraphCL bundle manifest differs.")
+        for name in ("campaign_root", "dependency_root", "upstream_repo"):
+            if not resolved_path(name).is_dir():
+                raise DistributedContractError(f"GraphCL {name} directory is missing.")
     return base_config, cache_path
 
 
@@ -252,6 +283,16 @@ def _execution_args(
         if planned is not None
         else int(seeds["training_seed"])
     )
+    graphcl = evaluator.get("backend_contract") or {}
+    graphcl_paths = graphcl.get("paths") or {}
+
+    def graphcl_path(name: str) -> str | None:
+        value = graphcl_paths.get(name)
+        if value is None:
+            return None
+        path = Path(str(value)).expanduser()
+        return str(path.resolve() if path.is_absolute() else (REPO_ROOT / path).resolve())
+
     return argparse.Namespace(
         distributed=True,
         study_contract_sha256=cli.study_contract_sha256,
@@ -269,9 +310,11 @@ def _execution_args(
         db_driver_version=str(psycopg2.__version__).split()[0],
         tpe_startup_trials=cli.tpe_startup_trials,
         training_seed=training_seed,
+        training_seeds=tuple(int(seed) for seed in seeds.get("training_seeds", [training_seed])),
         generation_seed=int(seeds["generation_seed"]),
         evaluator_seed=int(seeds["evaluator_seed"]),
         evaluator_repeats=int(evaluator.get("repeat_count", DEFAULT_EVALUATOR_REPEATS)),
+        evaluator_backend=evaluator.get("backend", "random_gin"),
         max_graphs=int(evaluator.get("max_graphs", 0)),
         generation_batch_size=int(evaluator.get("generation_batch_size", 16)),
         nearest_k=int(evaluator.get("nearest_k", 5)),
@@ -283,6 +326,7 @@ def _execution_args(
         process_termination_grace=training.get("termination_grace_seconds", 10.0),
         mock=cli.mock,
         mock_fail_trial=list(cli.mock_fail_trial),
+        mock_fail_training_seed=[],
         expected_validation_graph_count=(
             None if expected_count is None else int(expected_count)
         ),
@@ -296,6 +340,17 @@ def _execution_args(
             "source_tree_sha256": definition.get("source", {}).get("tree_sha256"),
             "environment_sha256": definition.get("environment", {}).get("sha256"),
         },
+        graphcl_cache_path=(None if cache.get("relative_path") is None else str((REPO_ROOT / cache["relative_path"]).resolve())),
+        graphcl_reference_path=graphcl_path("reference"),
+        graphcl_encoder_bundle_manifest=graphcl_path("encoder_bundle_manifest"),
+        graphcl_encoder_bundle_manifest_sha256=graphcl.get("encoder_bundle_manifest_sha256"),
+        graphcl_campaign_root=graphcl_path("campaign_root"),
+        graphcl_dependency_root=graphcl_path("dependency_root"),
+        graphcl_runtime_sha256=graphcl.get("graphcl_runtime_sha256"),
+        graphcl_upstream_repo=graphcl_path("upstream_repo"),
+        graphcl_bundle_sha256=graphcl.get("encoder_bundle_sha256"),
+        graphcl_encoder_checkpoints=graphcl.get("encoder_checkpoints"),
+        graphcl_validation_collection_sha256=graphcl.get("validation_collection_sha256"),
         secret_environment_names=(
             cli.storage_env,
             "GRAPHVAE_BO_STORAGE_URL",
@@ -472,7 +527,12 @@ def run_worker(args: argparse.Namespace) -> int:
         )
         claimed.append((trial.number, budget_index))
         execution_args = _execution_args(args, definition, budget_index=budget_index)
-        return execute_trial(
+        runner = (
+            execute_grouped_graphcl_trial
+            if definition["evaluator"].get("backend") == "graphcl_f1pr"
+            else execute_trial
+        )
+        return runner(
             trial,
             args=execution_args,
             base_config=base_config,

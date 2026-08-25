@@ -895,6 +895,102 @@ def resolve_artifact_path(root: Path, relative: str) -> Path:
     return candidate
 
 
+def _audit_grouped_graphcl_result(
+    trial: Any,
+    *,
+    study_root: Path,
+    definition: Mapping[str, Any],
+    result: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Audit one indivisible two-seed GraphCL candidate reservation."""
+
+    graphcl = definition["evaluator"].get("backend_contract") or {}
+    if (
+        result.get("schema_version") != "lobster-graphcl-f1pr-grouped-trial-v1"
+        or result.get("evaluator_backend") != "graphcl_f1pr"
+        or result.get("objective_json_path") != "summary.f1_pr.mean"
+        or result.get("compatibility_objective_json_path") != OBJECTIVE_JSON_PATH
+        or result.get("training_seeds") != [0, 1]
+        or trial.user_attrs.get("training_seeds") != [0, 1]
+    ):
+        raise DistributedContractError("Grouped GraphCL trial contract differs.")
+    replicates = result.get("replicates") or []
+    if not isinstance(replicates, list) or len(replicates) > 2:
+        raise DistributedContractError("Grouped GraphCL replicate records are invalid.")
+    for replicate in replicates:
+        path = resolve_artifact_path(study_root, replicate["trial_result"])
+        if sha256_file(path) != replicate["trial_result_sha256"]:
+            raise DistributedContractError("Grouped GraphCL replicate result hash differs.")
+        nested = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            nested.get("training_seed") != replicate.get("training_seed")
+            or nested.get("status") != replicate.get("status")
+            or nested.get("evaluator_backend") != "graphcl_f1pr"
+            or nested.get("sampled_weights") != dict(trial.params)
+            or nested.get("study_contract_sha256")
+            != canonical_contract_hash(definition)
+        ):
+            raise DistributedContractError("Grouped GraphCL nested result differs.")
+    if trial.state != TrialState.COMPLETE:
+        if any(item.get("status") != "COMPLETE" for item in replicates) is False:
+            raise DistributedContractError(
+                "Failed grouped GraphCL trial lacks truthful partial failure evidence."
+            )
+        return dict(result)
+    if len(replicates) != 2 or [item.get("training_seed") for item in replicates] != [0, 1]:
+        raise DistributedContractError("Complete GraphCL candidate lacks both seeds.")
+    if any(item.get("status") != "COMPLETE" for item in replicates):
+        raise DistributedContractError("Complete GraphCL candidate has a failed replicate.")
+    try:
+        try:
+            from tune_graphvae_attribute_weights import parse_graphcl_f1pr_file
+        except ImportError:
+            from scripts.tune_graphvae_attribute_weights import parse_graphcl_f1pr_file
+        values = []
+        for replicate in replicates:
+            nested_path = resolve_artifact_path(study_root, replicate["trial_result"])
+            nested = json.loads(nested_path.read_text(encoding="utf-8"))
+            for path_field, hash_field in (
+                ("resolved_config", "resolved_config_sha256"),
+                ("checkpoint", "checkpoint_sha256"),
+                ("evaluator_output", "evaluator_output_sha256"),
+            ):
+                artifact = resolve_artifact_path(study_root, nested[path_field])
+                if sha256_file(artifact) != nested[hash_field]:
+                    raise DistributedContractError(
+                        f"GraphCL replicate artifact differs for {path_field}."
+                    )
+            evaluator_path = resolve_artifact_path(study_root, nested["evaluator_output"])
+            metrics = parse_graphcl_f1pr_file(
+                evaluator_path,
+                expected_generation_seed=definition["seeds"]["generation_seed"],
+                expected_bundle_sha256=graphcl["encoder_bundle_sha256"],
+                expected_runtime_sha256=graphcl["graphcl_runtime_sha256"],
+                expected_encoder_checkpoints=graphcl["encoder_checkpoints"],
+                expected_cache_sha256=definition["dataset_cache"]["sha256"],
+                expected_split_fingerprint=graphcl["validation_split_fingerprint"],
+                expected_validation_collection_sha256=graphcl[
+                    "validation_collection_sha256"
+                ],
+            )
+            if float(replicate["value"]) != metrics.f1_pr:
+                raise DistributedContractError("GraphCL replicate objective differs.")
+            values.append(metrics.f1_pr)
+    except DistributedContractError:
+        raise
+    except Exception as exc:
+        raise DistributedContractError(f"GraphCL grouped audit failed: {exc}") from exc
+    expected_value = sum(values) / 2.0
+    if (
+        trial.value is None
+        or float(trial.value) != expected_value
+        or float(result.get("validation_attr_f1pr")) != expected_value
+        or trial.user_attrs.get("replicate_values") != values
+    ):
+        raise DistributedContractError("Grouped GraphCL arithmetic mean differs.")
+    return dict(result)
+
+
 def audit_trial_result(
     trial: Any,
     *,
@@ -1000,6 +1096,13 @@ def audit_trial_result(
     for field, expected in contract_hashes.items():
         if expected is not None and hashes.get(field) != expected:
             raise DistributedContractError(f"Trial integrity mismatch for {field}.")
+    if definition.get("evaluator", {}).get("backend") == "graphcl_f1pr":
+        return _audit_grouped_graphcl_result(
+            trial,
+            study_root=study_root,
+            definition=definition,
+            result=result,
+        )
     if trial.state == TrialState.COMPLETE:
         if trial.value is None or not math.isfinite(float(trial.value)):
             raise DistributedContractError("COMPLETE trial objective is non-finite.")

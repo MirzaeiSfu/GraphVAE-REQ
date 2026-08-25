@@ -149,6 +149,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     init.add_argument("--generation-seed", type=int, default=123)
     init.add_argument("--evaluator-seed", type=int, default=0)
     init.add_argument("--evaluator-repeats", type=int, default=5)
+    init.add_argument(
+        "--evaluator-backend",
+        choices=("random_gin", "graphcl_f1pr"),
+        default="random_gin",
+    )
+    init.add_argument(
+        "--graphcl-contract",
+        type=Path,
+        default=None,
+        help="Immutable LOBSTER GraphCL evaluator backend contract JSON.",
+    )
     init.add_argument("--max-graphs", type=int, default=0)
     init.add_argument("--generation-batch-size", type=int, default=16)
     init.add_argument("--nearest-k", type=int, default=5)
@@ -397,6 +408,55 @@ def _definition_for_init(
         raise ValueError("Cache manifest must contain both feature-schema fingerprints.")
     hardware = _read_json(args.hardware_policy, _default_hardware_policy())
     evaluator_seeds = [args.evaluator_seed + index for index in range(args.evaluator_repeats)]
+    graphcl_contract = _read_json(args.graphcl_contract)
+    if args.evaluator_backend == "graphcl_f1pr":
+        if not isinstance(graphcl_contract, Mapping):
+            raise ValueError("--graphcl-contract is required for GraphCL-F1PR.")
+        required_graphcl = {
+            "schema_version",
+            "backend",
+            "objective_json_path",
+            "compatibility_objective_json_path",
+            "encoder_bundle_sha256",
+            "encoder_bundle_manifest_sha256",
+            "encoder_checkpoints",
+            "graphcl_runtime_sha256",
+            "upstream_revision",
+            "validation_collection_sha256",
+            "validation_reference_file_sha256",
+            "validation_split_fingerprint",
+            "paths",
+            "training_seeds",
+            "checkpoint_count",
+            "nearest_k",
+            "test_access",
+        }
+        if set(graphcl_contract) != required_graphcl:
+            raise ValueError("GraphCL backend contract fields differ from the frozen schema.")
+        expected_exact = {
+            "schema_version": "lobster-graphcl-f1pr-distributed-backend-v1",
+            "backend": "graphcl_f1pr",
+            "objective_json_path": "summary.f1_pr.mean",
+            "compatibility_objective_json_path": OBJECTIVE_JSON_PATH,
+            "training_seeds": [0, 1],
+            "checkpoint_count": 5,
+            "nearest_k": 5,
+            "test_access": False,
+        }
+        for field, expected in expected_exact.items():
+            if graphcl_contract.get(field) != expected:
+                raise ValueError(f"GraphCL backend contract differs for {field}.")
+        encoders = graphcl_contract["encoder_checkpoints"]
+        if (
+            not isinstance(encoders, list)
+            or [item.get("seed") for item in encoders] != [101, 202, 303, 404, 505]
+            or len({item.get("sha256") for item in encoders}) != 5
+        ):
+            raise ValueError("GraphCL backend encoder order or hashes differ.")
+        if max_graphs != 10 or args.nearest_k != 5:
+            raise ValueError("GraphCL-F1PR requires exactly 10 graphs and nearest-k 5.")
+    elif graphcl_contract is not None:
+        raise ValueError("--graphcl-contract is valid only with GraphCL-F1PR.")
     search_space = _search_space(args)
     reservation_plan = None
     if args.reservation_plan is not None:
@@ -431,8 +491,14 @@ def _definition_for_init(
             "generation_seed": args.generation_seed,
             "evaluator_seed": args.evaluator_seed,
             "evaluator_repeat_seeds": evaluator_seeds,
+            "training_seeds": (
+                [0, 1]
+                if args.evaluator_backend == "graphcl_f1pr"
+                else [args.training_seed]
+            ),
         },
         evaluator={
+            "backend": args.evaluator_backend,
             "mode": "decoded_node_edge",
             "split": "validation",
             "test_access": False,
@@ -441,6 +507,7 @@ def _definition_for_init(
             "generation_batch_size": generation_batch_size,
             "nearest_k": args.nearest_k,
             "adjacency_threshold": args.adjacency_threshold,
+            "backend_contract": graphcl_contract,
         },
         training={
             "epoch_number": int(flat["epoch_number"]),
