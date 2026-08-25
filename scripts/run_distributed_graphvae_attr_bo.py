@@ -1798,34 +1798,66 @@ def _final_outputs(
         )
         return None
     best_trial, best_result = max(selectable, key=lambda item: float(item[0].value))
-    config_path = resolve_artifact_path(artifact_root, best_result["resolved_config"])
-    config = load_yaml_mapping(config_path)
-    atomic_write_yaml(output_dir / "best_config.yaml", config)
-    best_payload = {
+    grouped_graphcl = definition.get("evaluator", {}).get("backend") == "graphcl_f1pr"
+    common_best = {
         "schema_version": "graphvae-attr-f1pr-bo-best-v2",
         "distributed": True,
         "study_name": study.study_name,
         "study_contract_sha256": canonical_contract_hash(definition),
         "objective": OBJECTIVE_NAME,
-        "objective_json_path": OBJECTIVE_JSON_PATH,
+        "objective_json_path": (
+            "summary.f1_pr.mean" if grouped_graphcl else OBJECTIVE_JSON_PATH
+        ),
+        "compatibility_objective_json_path": OBJECTIVE_JSON_PATH,
         "selection_split": "validation",
         "test_access_during_optimization": False,
         "trial_number": best_trial.number,
         "budget_index": best_trial.user_attrs[BUDGET_INDEX_ATTR],
         "sampled_weights": dict(best_trial.params),
         "validation_attr_f1pr": float(best_trial.value),
-        "validation_precision": best_result["validation_precision"],
-        "validation_recall": best_result["validation_recall"],
-        "accepted_validation_graphs": best_result["accepted_validation_graphs"],
-        "resolved_config": best_result["resolved_config"],
         "best_config": "best_config.yaml",
-        "checkpoint": best_result["checkpoint"],
-        "checkpoint_sha256": best_result["checkpoint_sha256"],
-        "training_seed": best_result["training_seed"],
         "generation_seed": best_result["generation_seed"],
-        "evaluator_seed": best_result["evaluator_seed"],
-        "evaluator_repeats": best_result["evaluator_repeats"],
     }
+    if grouped_graphcl:
+        descriptor = {
+            "schema_version": "lobster-graphcl-f1pr-selected-candidate-v1",
+            "sampled_weights": dict(best_trial.params),
+            "training_seeds": best_result["training_seeds"],
+            "aggregation": best_result["aggregation"],
+            "replicate_resolved_configs": [
+                replicate["resolved_config"]
+                for replicate in best_result["replicates"]
+            ],
+            "selection_split": "validation",
+            "test_access": False,
+        }
+        atomic_write_yaml(output_dir / "best_config.yaml", descriptor)
+        best_payload = {
+            **common_best,
+            "schema_version": "lobster-graphcl-f1pr-grouped-best-v1",
+            "evaluator_backend": "graphcl_f1pr",
+            "aggregation": best_result["aggregation"],
+            "training_seeds": best_result["training_seeds"],
+            "replicates": best_result["replicates"],
+        }
+    else:
+        config_path = resolve_artifact_path(
+            artifact_root, best_result["resolved_config"]
+        )
+        config = load_yaml_mapping(config_path)
+        atomic_write_yaml(output_dir / "best_config.yaml", config)
+        best_payload = {
+            **common_best,
+            "validation_precision": best_result["validation_precision"],
+            "validation_recall": best_result["validation_recall"],
+            "accepted_validation_graphs": best_result["accepted_validation_graphs"],
+            "resolved_config": best_result["resolved_config"],
+            "checkpoint": best_result["checkpoint"],
+            "checkpoint_sha256": best_result["checkpoint_sha256"],
+            "training_seed": best_result["training_seed"],
+            "evaluator_seed": best_result["evaluator_seed"],
+            "evaluator_repeats": best_result["evaluator_repeats"],
+        }
     atomic_write_json(output_dir / "best_trial.json", best_payload)
     guard_count = len(audit["unreserved_trials"])
     atomic_write_text(
@@ -1834,7 +1866,8 @@ def _final_outputs(
         f"- Study: `{study.study_name}`\n"
         f"- Best reserved trial: `{best_trial.number}`\n"
         f"- Validation Attr-F1PR: `{float(best_trial.value):.6f}`\n"
-        f"- Objective path: `{OBJECTIVE_JSON_PATH}`\n"
+        f"- Objective path: `{'summary.f1_pr.mean' if grouped_graphcl else OBJECTIVE_JSON_PATH}`\n"
+        f"- Compatibility objective path: `{OBJECTIVE_JSON_PATH}`\n"
         f"- Reserved scientific slots: `{definition['reserved_trials']}`\n"
         f"- Audited unreserved guard rows: `{guard_count}`\n"
         "- Test split evaluated during optimization: `no`\n",

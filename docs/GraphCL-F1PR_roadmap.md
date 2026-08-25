@@ -539,5 +539,22 @@ preclaim interface retired it with both reservations WAITING and
 publishes the exact source and cache mappings already bound into its immutable
 definition and rejects differing pre-existing files. Forty-two focused
 launcher/backend/integrity tests pass. A fresh name must be used after deploy.
+
+Fresh study `lobster_graphcl_f1pr_mock2_20260825c` reserved exactly two slots.
+Its first wave remained PLANNED because `cs-cl-09` had not yet accepted its own
+SSH host key; PostgreSQL showed two WAITING slots, and the recorded launch probe
+proved both attempts `DEFINITE_PRELAUNCH` and `retry_safe=true` with no DB trial
+claim. After host-key staging, wave 2 launched both GPU-isolated mock workers
+with distinct dispatch sequences and sampler seeds. Both reservations reached
+COMPLETE, each with GraphVAE seeds 0 and 1, and collection succeeded.
+
+The first finalize attempt audited the grouped trial artifacts but stopped
+before freezing because legacy aggregate generation expected one root-level
+resolved config. Grouped final output now emits a candidate descriptor with
+both seed configs, both replicate artifact records, the arithmetic-mean
+objective, and both objective paths; it never treats one seed as canonical.
+Sixty-nine focused backend/controller/launcher tests pass. The existing study
+remains READY and terminal for a post-deploy finalize retry; no reservation may
+be added or rerun.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

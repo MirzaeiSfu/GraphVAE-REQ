@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import json
 import sys
 
@@ -13,6 +14,7 @@ from scripts.graphvae_attr_bo_distributed import (
     build_study_definition,
     canonical_contract_hash,
 )
+from scripts.run_distributed_graphvae_attr_bo import _final_outputs
 from scripts.tune_graphvae_attribute_weights import (
     SearchRanges,
     TrialExecutionError,
@@ -226,12 +228,28 @@ def test_grouped_graphcl_trial_requires_both_seeds_and_audits(tmp_path):
     )
     trial.value = value
     trial.state = optuna.trial.TrialState.COMPLETE
+    trial.datetime_complete = datetime.datetime.now()
     audited = audit_trial_result(
         trial, study_root=tmp_path, definition=study_definition
     )
     assert audited["status"] == "COMPLETE"
     assert [item["training_seed"] for item in audited["replicates"]] == [0, 1]
     assert value == pytest.approx(sum(trial.user_attrs["replicate_values"]) / 2)
+
+    class Study:
+        study_name = "graphcl-unit"
+
+        def get_trials(self, deepcopy=False):
+            assert deepcopy is False
+            return [trial]
+
+    assert _final_outputs(Study(), study_definition, tmp_path) is trial
+    selected = json.loads((tmp_path / "best_trial.json").read_text(encoding="utf-8"))
+    descriptor = (tmp_path / "best_config.yaml").read_text(encoding="utf-8")
+    assert selected["schema_version"] == "lobster-graphcl-f1pr-grouped-best-v1"
+    assert selected["training_seeds"] == [0, 1]
+    assert len(selected["replicates"]) == 2
+    assert "test_access: false" in descriptor
 
 
 def test_second_seed_failure_consumes_group_without_partial_score(tmp_path):
