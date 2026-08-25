@@ -23,6 +23,7 @@ from scripts.graphvae_attr_bo_distributed import (
     sha256_file,
 )
 from scripts.run_distributed_graphvae_attr_bo import (
+    _publish_remote_study_inputs,
     DistributedContractError,
     _assert_prior_launches_reconciled,
     _classify_launch_probe,
@@ -86,6 +87,26 @@ def _definition(name, config, config_path):
         grace_period=600,
         max_parallel=1,
     )
+
+
+def test_init_publishes_exact_remote_study_inputs_idempotently(tmp_path):
+    definition = {
+        "source": {"schema_version": "deployment", "tree_sha256": "source"},
+        "dataset_cache": {"schema_version": "cache", "sha256": "cache"},
+    }
+    _publish_remote_study_inputs(tmp_path, definition)
+    _publish_remote_study_inputs(tmp_path, definition)
+
+    assert json.loads(
+        (tmp_path / "deployment_manifest.json").read_text(encoding="utf-8")
+    ) == definition["source"]
+    assert json.loads(
+        (tmp_path / "dataset_cache_manifest.json").read_text(encoding="utf-8")
+    ) == definition["dataset_cache"]
+
+    atomic_write_json(tmp_path / "dataset_cache_manifest.json", {"sha256": "changed"})
+    with pytest.raises(DistributedContractError, match="differs"):
+        _publish_remote_study_inputs(tmp_path, definition)
 
 
 def test_fixed_waiting_reservations_do_not_require_tpe_startup_gating(tmp_path):

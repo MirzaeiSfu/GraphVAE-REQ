@@ -538,6 +538,27 @@ def _definition_for_init(
     return definition
 
 
+def _publish_remote_study_inputs(
+    output_dir: Path, definition: Mapping[str, Any]
+) -> None:
+    """Publish exact public manifests required by remote worker staging."""
+
+    payloads = {
+        "deployment_manifest.json": definition["source"],
+        "dataset_cache_manifest.json": definition["dataset_cache"],
+    }
+    for filename, payload in payloads.items():
+        path = output_dir / filename
+        if path.is_file():
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            if existing != payload:
+                raise DistributedContractError(
+                    f"Existing remote study input differs: {filename}"
+                )
+            continue
+        atomic_write_json(path, payload)
+
+
 def command_init(args: argparse.Namespace) -> int:
     enforce_pinned_versions()
     output_dir = args.output_dir.expanduser().resolve()
@@ -565,6 +586,7 @@ def command_init(args: argparse.Namespace) -> int:
         )
         locks.assert_alive()
         atomic_write_json(output_dir / "study_definition.json", definition)
+        _publish_remote_study_inputs(output_dir, definition)
     print(
         f"Initialized {args.trials} reserved Attr-F1PR slots for {args.study_name!r}; "
         f"contract {contract_hash}."

@@ -526,5 +526,18 @@ Prelaunch review also separates the lifecycle mock cache fingerprint from the
 real frozen GraphCL validation-split fingerprint. The worker and auditor now
 bind each to its correct contract field; 43 focused tests pass with deliberately
 different synthetic-cache and real-evaluator split identities.
+
+Two definite prelaunch attempts are preserved. Study name
+`lobster_graphcl_f1pr_mock2_20260825a` was created before definition assembly
+failed because the rsync root has no `.git`; a direct read-only Optuna probe
+verified zero trials and zero study attributes. Replacement name
+`lobster_graphcl_f1pr_mock2_20260825b` initialized two WAITING reservations, but
+dispatch stopped before any launch because the embedded deployment/cache
+manifests had not been published as launcher staging files. The supported
+preclaim interface retired it with both reservations WAITING and
+`reservation_consumed=false`. Controller initialization now atomically
+publishes the exact source and cache mappings already bound into its immutable
+definition and rejects differing pre-existing files. Forty-two focused
+launcher/backend/integrity tests pass. A fresh name must be used after deploy.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
