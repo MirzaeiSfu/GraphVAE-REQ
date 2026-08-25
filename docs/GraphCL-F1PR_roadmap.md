@@ -723,5 +723,16 @@ action is the Gate 4 exit suite: run the complete non-PostgreSQL distributed BO
 tests and the protected isolated PostgreSQL tests, record the exact results,
 and only then begin Gate 5's fixed real LOBSTER anchors. No mock objective is a
 scientific result.
+
+Gate 4 now passes its exit condition. The complete current non-PostgreSQL
+distributed, attribute-BO, and GraphCL set passed `151/151`; all `19/19`
+protected isolated PostgreSQL tests passed, and the closing catalog check found
+zero residual `graphvae_bo_pytest_*` studies. The exact two-worker,
+three-worker, ambiguous-launch, and stale-worker studies are all frozen and
+restored, while definite prelaunch behavior remains unconsumed and retry-safe.
+The machine-checked result is recorded in
+`lobster_graphcl_f1pr_gate4_exit_qualification.json`. Gate 5 may now begin with
+the six predeclared fixed real LOBSTER anchors at 2,000 epochs and GraphVAE
+training seeds 0 and 1. Adaptive BO is not yet authorized.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

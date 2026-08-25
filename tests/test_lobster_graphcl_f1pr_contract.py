@@ -13,6 +13,9 @@ QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_prerequisite_qualification.j
 SPLIT_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_split_qualification.json"
 ENCODER_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_encoder_qualification.json"
 EVALUATOR_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_evaluator_qualification.json"
+GATE4_EXIT_QUALIFICATION = (
+    CONFIG_ROOT / "lobster_graphcl_f1pr_gate4_exit_qualification.json"
+)
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_PYTHON_PATHS.txt"
 SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_SLOTS.txt"
@@ -242,3 +245,51 @@ def test_real_graphcl_evaluator_qualification_is_validation_only():
     assert qualification["integrity"]["independent_parse_and_reopen"] is True
     assert qualification["verification"]["postgresql_access"] is False
     assert qualification["verification"]["held_out_evaluation"] is False
+
+
+def test_gate4_exit_is_complete_test_free_and_non_scientific():
+    qualification = json.loads(
+        GATE4_EXIT_QUALIFICATION.read_text(encoding="utf-8")
+    )
+
+    assert qualification["objective_contract"] == {
+        "primary_path": "summary.f1_pr.mean",
+        "compatibility_path": (
+            "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+        ),
+        "aggregation": (
+            "arithmetic_mean_only_after_graphvae_training_seeds_0_and_1_complete"
+        ),
+        "selection_split": "validation",
+        "test_access": False,
+        "node_feature_decoder_required": True,
+        "edge_feature_decoder_required": True,
+    }
+    studies = qualification["lifecycle_studies"]
+    assert set(studies) == {
+        "two_worker",
+        "three_worker",
+        "ambiguous_after_ack",
+        "stale_worker",
+    }
+    assert all(item["lifecycle"] == "FROZEN" for item in studies.values())
+    assert studies["three_worker"]["postgresql_running_peak"] == 3
+    assert studies["ambiguous_after_ack"]["duplicate_dispatch_count"] == 0
+    assert studies["stale_worker"]["failed"] == 1
+    assert studies["stale_worker"]["replacement_count"] == 0
+    assert qualification["tests"] == {
+        "non_postgresql_distributed_attribute_and_graphcl": 151,
+        "isolated_postgresql": 19,
+        "failed": 0,
+        "skipped": 0,
+        "residual_isolated_postgresql_studies": 0,
+    }
+    assert qualification["conclusion"] == {
+        "gate4_passed": True,
+        "scientific_weight_claim": (
+            "none; all Gate 4 objective values are synthetic lifecycle mocks"
+        ),
+        "next_authorized_gate": "Gate 5 fixed real LOBSTER anchors",
+        "adaptive_bo_authorized": False,
+        "held_out_or_test_evaluation_authorized": False,
+    }

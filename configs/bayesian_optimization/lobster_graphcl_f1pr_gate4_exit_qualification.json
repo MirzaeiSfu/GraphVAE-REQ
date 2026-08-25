@@ -1,0 +1,82 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate4-exit-qualification-v1",
+  "date": "2026-08-25",
+  "code_head_before_evidence": "422dda8708aa27ee9b4a282ca2e46563978822e8",
+  "purpose": "distributed GraphCL-F1PR lifecycle and test-suite qualification; no scientific model-quality claim",
+  "lifecycle_studies": {
+    "two_worker": {
+      "name": "lobster_graphcl_f1pr_mock2_20260825c",
+      "contract_sha256": "0881081edcae63902ae492f030f65425fef6da0197e99839f9b00552d66df2a7",
+      "lifecycle": "FROZEN",
+      "reserved_trials": 2,
+      "complete": 2,
+      "failed": 0
+    },
+    "three_worker": {
+      "name": "lobster_graphcl_f1pr_mock3_20260825b",
+      "contract_sha256": "0363d1e053adac9f320bf74c0769c029b58a06c1e796f70d0eb96762b074ed66",
+      "lifecycle": "FROZEN",
+      "reserved_trials": 3,
+      "complete": 3,
+      "failed": 0,
+      "postgresql_running_peak": 3
+    },
+    "ambiguous_after_ack": {
+      "name": "lobster_graphcl_f1pr_ambiguous_20260825a",
+      "contract_sha256": "9577c15a7faf05e0381e04480c460f78865bf87a99aa7309e4c6bacd198af667",
+      "lifecycle": "FROZEN",
+      "reserved_trials": 1,
+      "complete": 1,
+      "failed": 0,
+      "duplicate_dispatch_count": 0
+    },
+    "stale_worker": {
+      "name": "lobster_graphcl_f1pr_stale_20260825a",
+      "contract_sha256": "45cd9b48619809d96cd9a2ea9a091f6d635cb30e06822e3e1d35fe75e1662a91",
+      "lifecycle": "FROZEN",
+      "reserved_trials": 1,
+      "complete": 0,
+      "failed": 1,
+      "replacement_count": 0
+    }
+  },
+  "prelaunch": {
+    "definite_unreachable_before_claim_qualified": true,
+    "reservation_consumed": false,
+    "retry_safe": true
+  },
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "aggregation": "arithmetic_mean_only_after_graphvae_training_seeds_0_and_1_complete",
+    "selection_split": "validation",
+    "test_access": false,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true
+  },
+  "tests": {
+    "non_postgresql_distributed_attribute_and_graphcl": 151,
+    "isolated_postgresql": 19,
+    "failed": 0,
+    "skipped": 0,
+    "residual_isolated_postgresql_studies": 0
+  },
+  "integrity": {
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "cache_mode": "0444",
+    "cache_size_bytes": 59295793,
+    "validation_reference_file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+    "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "credential_assignment_scan_clean": true,
+    "storage_url_scan_clean": true,
+    "password_assignment_scan_clean": true,
+    "test_access_true_scan_clean": true
+  },
+  "conclusion": {
+    "gate4_passed": true,
+    "scientific_weight_claim": "none; all Gate 4 objective values are synthetic lifecycle mocks",
+    "next_authorized_gate": "Gate 5 fixed real LOBSTER anchors",
+    "adaptive_bo_authorized": false,
+    "held_out_or_test_evaluation_authorized": false
+  }
+}

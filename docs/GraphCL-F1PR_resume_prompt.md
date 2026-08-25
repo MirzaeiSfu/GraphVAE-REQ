@@ -95,11 +95,17 @@ interrupted result layers in the tombstone, the final probe is
 `RECONCILED_TERMINAL`, and an all-failed portable restore passed. Exact evidence
 is in `lobster_graphcl_f1pr_stale_qualification.json`; 77 focused tests pass.
 
-Next run the complete non-PostgreSQL distributed BO suite and the protected,
-isolated PostgreSQL suite as Gate 4's exit check. Document, commit, and push the
-exact result. Only after that may Gate 5 begin with the fixed real LOBSTER
-anchors. CPU/mock slots do not authorize a third physical GPU. Do not
-regenerate a split, retrain an encoder, treat any mock metric as BO evidence,
-or access held-out/test data.
+Gate 4 now passes its exit check: `151/151` current non-PostgreSQL distributed,
+attribute-BO, and GraphCL tests plus all `19/19` protected isolated PostgreSQL
+tests passed, with zero residual test studies. Exact evidence is in
+`lobster_graphcl_f1pr_gate4_exit_qualification.json`.
+
+Next begin Gate 5 with a fresh fixed-plan real LOBSTER study containing exactly
+the six predeclared anchors at 2,000 epochs and GraphVAE seeds 0 and 1. First
+inspect GPU availability and freeze the exact study contract, timing limits,
+thresholds, and two physical-slot schedule before study creation. Adaptive BO
+is not yet authorized. CPU/mock slots do not authorize a third physical GPU.
+Do not regenerate a split, retrain an encoder, treat any mock metric as BO
+evidence, or access held-out/test data.
 
 ---
