@@ -1,0 +1,108 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-encoder-qualification-v1",
+  "date": "2026-08-25",
+  "source": {
+    "commit": "21bb0fbc3c3ab5040d06db597aaa05fc6c9a08a5",
+    "deployment_manifest_sha256": "b13951992e856b30386de13ff2809430bdba70a489fcc6e6175b2b3c49b2c9d1",
+    "remote_manifest_verified": true
+  },
+  "host": {
+    "name": "cs-cl-09",
+    "gpu_model": "NVIDIA GeForce GTX TITAN X",
+    "physical_gpu": 1,
+    "logical_device": "cuda:0",
+    "reported_vram_mib": 12288,
+    "logical_isolation_verified": true
+  },
+  "protected_postgresql": {
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "authentication_verified": true,
+    "sslmode": "verify-full",
+    "credential_contents_inspected": false
+  },
+  "training_input": {
+    "split": "train",
+    "graph_count": 70,
+    "node_feature_dimension": 14,
+    "edge_feature_dimension": 11,
+    "collection_sha256": "8de6ccf86bb2ae994f0a7401217d57a814d5e71c6e49732e345ae2b242f569e4",
+    "split_fingerprint": "e780866699dc333924a131b03472fd769dc1d63c82cabcb70f0101dca0f61068",
+    "feature_schema": "lobster-optimal_v2|export=decoded_node_edge",
+    "test_access": false
+  },
+  "dependency_resolution": {
+    "initial_attempt_preserved": true,
+    "initial_attempt_result": "failed_before_encoder_training",
+    "initial_attempt_failure": "incomplete bytecode-only PyGCL namespace lacked GCL.models.DualBranchContrast",
+    "initial_failure_log_sha256": "31be27a8daf2da3f2efa69447da0f846ceef47bf09a4a346fbc265b611f9b0ad",
+    "replacement_or_retraining_after_candidate_metric": false,
+    "qualified_dependency_file_count": 125,
+    "qualified_dependency_tree_sha256": "f1ce500ac0f9e3faa426be8ea564c7d036dced212006320a8da57442aba512ca",
+    "runtime_sha256": "980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7"
+  },
+  "encoder_contract": {
+    "encoder": "graphcl",
+    "feature_mode": "decoded_node_edge",
+    "seeds": [101, 202, 303, 404, 505],
+    "epochs": 100,
+    "layers": 3,
+    "hidden_dimension": 32,
+    "initialization": "orthogonal",
+    "limit_lipschitz": true,
+    "lipschitz_factor": 1.0,
+    "upstream_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95"
+  },
+  "encoders": [
+    {
+      "seed": 101,
+      "elapsed_seconds": 10.291355609893799,
+      "training_loss": 0.6429265026934445,
+      "checkpoint_sha256": "f590aaee82df9de994f42c59156bc6a9fbaf8ada04b53188c3c6bd88b1c2452c"
+    },
+    {
+      "seed": 202,
+      "elapsed_seconds": 10.744897603988647,
+      "training_loss": 0.6136734241619706,
+      "checkpoint_sha256": "9013b1d9d1210ed89d99b7eb560210a195b46cfc4ad8a8d531ac8ef6a0c3ea20"
+    },
+    {
+      "seed": 303,
+      "elapsed_seconds": 9.97147512435913,
+      "training_loss": 0.5706022687256336,
+      "checkpoint_sha256": "e43ac144efbd6012dc2f865a2d44f023b5bc3d2182c1d9fc75d744945b0cd5d8"
+    },
+    {
+      "seed": 404,
+      "elapsed_seconds": 9.997560977935791,
+      "training_loss": 0.6719179358333349,
+      "checkpoint_sha256": "908d43acdfa4d3c1c504dbb2e1c778bf4e3aadc7b6c7f7f15be214436495e721"
+    },
+    {
+      "seed": 505,
+      "elapsed_seconds": 9.628618478775024,
+      "training_loss": 0.5368443999439478,
+      "checkpoint_sha256": "62218c958464f736d948807d4da7d4198ae4c215ed787a8c318a56fb163dc6e6"
+    }
+  ],
+  "frozen_bundle": {
+    "checkpoint_count": 5,
+    "bundle_sha256": "4cf22a9b204b3638ce6f63fc691ff9556986af1334b64b0994411f5bfd7ac8be",
+    "manifest_byte_length": 4477,
+    "manifest_file_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "manifest_mode": "0444",
+    "checkpoint_modes": "0444",
+    "directory_modes": "0555",
+    "independent_restore_verified": true
+  },
+  "verification": {
+    "cache_unchanged": true,
+    "successful_training_logs_clean": true,
+    "credential_and_storage_url_scan_clean": true,
+    "test_access_scan_clean": true,
+    "focused_tests_passed": 12,
+    "failed_tests": 0,
+    "binary_checkpoints_committed": false,
+    "runtime_artifacts_committed": false
+  }
+}

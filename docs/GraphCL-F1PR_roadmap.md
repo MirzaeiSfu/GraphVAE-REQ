@@ -108,8 +108,8 @@ Train five independent GraphCL-GIN encoders with:
 - initialization: `orthogonal`;
 - released Lipschitz limiter: enabled, factor `1.0`;
 - training collection: exact 70-graph PyG training artifact;
-- training device class: qualified TITAN RTX, or CPU if a deterministic timing
-  qualification explicitly selects CPU before training begins.
+- training device class: the campaign-qualified homogeneous GTX TITAN X slot
+  class on `cs-cl-09`.
 
 The five checkpoints, training JSON files, stdout/stderr logs, environment
 fingerprint, source revision, input collection digest, sizes, and SHA-256
@@ -465,8 +465,27 @@ unchanged. Seven focused tests pass, including a guard that rejects test export
 before cache access and a hash guard that precedes pickle loading. Generated
 PyG inputs remain ignored runtime artifacts and are not committed.
 
-The next action is to commit Gate 1, stage the dedicated source/cache/input
-deployment on `cs-cl-09`, run an encoder timing seed on physical GPU 1, and
-train/freeze all five encoders only if the timing and integrity checks pass.
+Gate 2 is complete on the dedicated `cs-cl-09` root. Source commit `21bb0fb`
+and its deployment manifest verified; protected PostgreSQL authentication used
+`sslmode=verify-full`; physical GPU 1 was isolated as logical `cuda:0`. The
+first launch is preserved as a pre-training failure because the inventoried
+dependency directory contained only orphaned bytecode and could not export
+`GCL.models.DualBranchContrast`. A complete existing PyGCL `0.1.2`, scatter
+`2.1.2+pt21cu121`, and sparse `0.6.18+pt21cu121` bundle was checksum-staged into
+the dedicated root; its 125-file dependency identity and exact model imports
+then qualified.
+
+The five 100-epoch seeds `101/202/303/404/505` completed in 9.63--10.74 seconds
+each with finite losses. Their exact checkpoint hashes are recorded in
+`lobster_graphcl_f1pr_encoder_qualification.json`. The train-only bundle is
+mode-frozen, independently reopened, and has semantic SHA-256
+`4cf22a9b204b3638ce6f63fc691ff9556986af1334b64b0994411f5bfd7ac8be`
+under GraphCL runtime fingerprint
+`980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7`.
+The cache remained unchanged and credential/storage-URL/test-access scans pass.
+
+The next action is Gate 3: implement the validation-only GraphVAE-to-PyG
+GraphCL evaluator and its adversarial parser/integrity tests, deploy the
+committed implementation, and run one bounded real checkpoint evaluation.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

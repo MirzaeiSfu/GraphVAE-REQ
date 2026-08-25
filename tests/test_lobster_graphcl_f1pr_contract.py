@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_ROOT = REPO_ROOT / "configs" / "bayesian_optimization"
 QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_prerequisite_qualification.json"
 SPLIT_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_split_qualification.json"
+ENCODER_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_encoder_qualification.json"
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_PYTHON_PATHS.txt"
 SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_SLOTS.txt"
@@ -192,3 +193,28 @@ def test_frozen_split_qualification_records_exact_collections():
         "failed_tests": 0,
     }
     assert qualification["generated_artifacts_committed"] is False
+
+
+def test_frozen_encoder_qualification_records_exact_train_only_bundle():
+    qualification = json.loads(ENCODER_QUALIFICATION.read_text(encoding="utf-8"))
+
+    assert qualification["training_input"]["split"] == "train"
+    assert qualification["training_input"]["test_access"] is False
+    assert qualification["encoder_contract"]["seeds"] == [101, 202, 303, 404, 505]
+    assert qualification["frozen_bundle"] == {
+        "checkpoint_count": 5,
+        "bundle_sha256": (
+            "4cf22a9b204b3638ce6f63fc691ff9556986af1334b64b0994411f5bfd7ac8be"
+        ),
+        "manifest_byte_length": 4477,
+        "manifest_file_sha256": (
+            "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451"
+        ),
+        "manifest_mode": "0444",
+        "checkpoint_modes": "0444",
+        "directory_modes": "0555",
+        "independent_restore_verified": True,
+    }
+    assert qualification["dependency_resolution"]["initial_attempt_preserved"] is True
+    assert qualification["verification"]["cache_unchanged"] is True
+    assert qualification["verification"]["binary_checkpoints_committed"] is False

@@ -79,9 +79,12 @@ least once per minute during long training, remote, or test operations. If a
 qualification gate fails, preserve the evidence, report
 `qualification_failed`, commit it, and do not force the BO run.
 
-Current execution checkpoint: Gate 1 exact cache-backed train/validation export
-is implemented and qualified. Read the roadmap's Current checkpoint for exact
-digests. The next step is the dedicated `cs-cl-09` deployment and bounded
-encoder timing/training gate; do not regenerate a raw-data split.
+Current execution checkpoint: Gates 1 and 2 are complete. The exact split
+export and five immutable LOBSTER GraphCL encoders are qualified on `cs-cl-09`;
+read the roadmap's Current checkpoint and the two qualification JSON files for
+exact hashes and the preserved initial dependency failure. The next step is
+Gate 3 validation-only GraphVAE-to-PyG GraphCL evaluator implementation and a
+bounded real checkpoint evaluation. Do not regenerate a raw-data split,
+retrain an encoder, or access held-out/test data.
 
 ---
