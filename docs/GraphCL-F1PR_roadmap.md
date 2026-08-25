@@ -679,5 +679,30 @@ environment redaction, and grouped tombstone audit. The next action is to
 commit and deploy this interface, then run one fresh short-heartbeat/grace mock
 study and follow the process identity exactly; no live worker has yet been
 killed for this GraphCL case.
+
+The live study is now preserved at the pre-finalize checkpoint under name
+`lobster_graphcl_f1pr_stale_20260825a`, contract
+`45cd9b48619809d96cd9a2ea9a091f6d635cb30e06822e3e1d35fe75e1662a91`.
+Its one reservation was RUNNING when seed-0 child PID/PGID `2374013`, start
+ticks `976445956`, command hash
+`bb42b449779249563f6ca9e69a7bae25fbc53431bfb758b32ff34b5d48b03601`,
+cwd, contract, worker-run, trial, phase, and seed were verified. Worker Python
+PID `2373995` was killed only after that probe. The child remained
+`MATCHING_LIVE`; the recovery interface then moved only that group to `ABSENT`.
+Unrelated sentinel PID/PGID `2374223`, start ticks `976451789`, and command
+`sleep 180` remained unchanged through both actions and was then removed
+separately. Native Optuna stale handling changed the sole reservation to FAIL
+under heartbeat/grace `1/5`, with no waiting, running, complete, or guard row
+and no replacement.
+
+Collection retained both RUNNING results and all process evidence, but
+pre-finalize inspection stopped progression before mutation because current
+replicate schema `graphvae-attr-f1pr-bo-trial-v3` differed from the initially
+tested
+legacy `v2`. The reconciler now accepts legacy root `v2` or current `v3` but
+requires grouped replicate `v3` exactly; 76 focused tests pass. The study is
+still READY/FAIL, collected, and has no tombstone or freeze marker. The next
+action is to commit/deploy this schema correction and finalize the same consumed
+reservation without dispatching or replacing it.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

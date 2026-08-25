@@ -112,4 +112,13 @@ studies only and do not authorize or claim a third GPU. Do not regenerate a
 split, retrain an encoder, treat any mock metric as BO evidence, or access
 held-out/test data.
 
+The live stale study has now reached READY/FAIL with its exact child recovered
+and unrelated sentinel proven unchanged; see the roadmap's final checkpoint for
+PIDs and hashes. Collection then exposed current replicate schema `v3` versus
+the initially tested legacy `v2`, so finalization has not been attempted and no
+tombstone/FROZEN marker exists. A local correction now accepts legacy root
+`v2`/`v3` and requires grouped replicate `v3`; 76 tests pass. Commit/deploy that
+two-file correction plus these checkpoint updates, then finalize the same study
+without any dispatch or replacement.
+
 ---

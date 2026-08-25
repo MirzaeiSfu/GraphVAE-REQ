@@ -2031,7 +2031,11 @@ def _reconcile_terminal_failures_without_results(
             ) or (
                 not grouped_graphcl
                 and (
-                    partial.get("schema_version") != "graphvae-attr-f1pr-bo-trial-v2"
+                    partial.get("schema_version")
+                    not in {
+                        "graphvae-attr-f1pr-bo-trial-v2",
+                        "graphvae-attr-f1pr-bo-trial-v3",
+                    }
                     or partial.get("sampled_weights") != dict(trial.params)
                 )
             ):
@@ -2081,7 +2085,7 @@ def _reconcile_terminal_failures_without_results(
                     if (
                         training_seed not in contracted_seeds
                         or replicate.get("schema_version")
-                        != "graphvae-attr-f1pr-bo-trial-v2"
+                        != "graphvae-attr-f1pr-bo-trial-v3"
                         or replicate.get("status") != "RUNNING"
                         or replicate.get("trial_number") != trial.number
                         or replicate.get("budget_index") != budget_index

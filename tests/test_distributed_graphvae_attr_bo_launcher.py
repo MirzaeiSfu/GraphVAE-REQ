@@ -734,7 +734,7 @@ def test_r07_grouped_graphcl_partial_and_active_replicate_are_retained(tmp_path)
     atomic_write_json(
         trial_dir / "replicates" / "seed_0" / "trial_result.json",
         {
-            "schema_version": "graphvae-attr-f1pr-bo-trial-v2",
+            "schema_version": "graphvae-attr-f1pr-bo-trial-v3",
             "status": "RUNNING",
             "trial_number": 0,
             "budget_index": 0,
