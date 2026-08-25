@@ -743,6 +743,10 @@ not be disturbed. The fixed phase-A plan therefore uses one physical slot and
 candidate, five-encoder GraphCL objective, promotion rule, generation seeds
 `[123,124,125]`, and all go/no-go thresholds are frozen in the Gate 5 policy,
 reservation, hardware, configuration, and slot files before study creation.
+The same policy explicitly freezes study seed `13034`, TPE startup count `6`,
+heartbeat/grace `60/600`, both nominal ranges `[0.001,100]`, evaluator repeat
+count `5`, nearest-k `5`, and adjacency threshold `0.5`; no launcher default is
+left implicit.
 The next action is to test and commit these contracts, deploy the clean commit,
 preflight the one real slot and immutable inputs, and only then initialize
 `lobster_graphcl_f1pr_anchors2000_20260825a` with exactly six reservations.

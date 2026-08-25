@@ -113,7 +113,9 @@ user owns a long-lived compute context there. GPU 1 is the sole frozen real
 slot, so phase A uses `max_parallel=1` without changing its six candidates or
 two-seed grouping. The exact reservation list, 2,000-epoch config, hardware
 policy, promotion/stability rules, generation seeds, thresholds, and slot file
-are added locally but not yet committed. Test and commit/push these files, then
+are committed. A follow-up local correction explicitly freezes the study seed,
+startup count, heartbeat/grace, search ranges, evaluator repeats, nearest-k,
+and adjacency threshold; test and commit/push that correction, then
 deploy the clean commit, preflight the immutable real inputs on GPU 1, and only
 then create `lobster_graphcl_f1pr_anchors2000_20260825a`. Do not use or kill the
 GPU-0 process.

@@ -347,6 +347,15 @@ def test_gate5_fixed_anchor_plan_is_exact_and_validation_only():
     policy = json.loads(GATE5_POLICY.read_text(encoding="utf-8"))
     assert policy["phase_a"]["reserved_candidates"] == 6
     assert policy["phase_a"]["graphvae_training_seeds_per_candidate"] == [0, 1]
+    assert policy["phase_a"]["study_seed"] == 13034
+    assert policy["phase_a"]["tpe_startup_trials"] == 6
+    assert policy["phase_a"]["heartbeat_interval_seconds"] == 60
+    assert policy["phase_a"]["grace_period_seconds"] == 600
+    assert policy["phase_a"]["alpha_node_feat_range"] == [0.001, 100.0]
+    assert policy["phase_a"]["alpha_edge_feat_range"] == [0.001, 100.0]
+    assert policy["phase_a"]["evaluator_repeat_count"] == 5
+    assert policy["phase_a"]["nearest_k"] == 5
+    assert policy["phase_a"]["adjacency_threshold"] == 0.5
     assert policy["phase_a"]["max_parallel"] == 1
     assert policy["phase_b"]["epoch_number"] == 10000
     assert policy["phase_b"]["promoted_candidates"] == 3
