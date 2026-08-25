@@ -70,6 +70,24 @@ SEARCH_QUALIFICATION_PATH = (
     / "bayesian_optimization"
     / "aids_attr_f1pr_search_qualification.json"
 )
+CONFIRMATION_CONFIG_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_graphvae_attr_f1pr_confirmation.yaml"
+)
+CONFIRMATION_RESERVATIONS_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_attr_f1pr_confirmation_reservations_6.json"
+)
+CONFIRMATION_POLICY_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_attr_f1pr_confirmation_analysis_policy.json"
+)
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt"
 CREDENTIAL_PATHS = (
@@ -438,3 +456,61 @@ def test_aids_search_qualification_freezes_validation_only_winner():
         "unredacted_storage_url_matches"
     ] == 0
     assert qualification["artifact_audit"]["test_access_matches"] == 0
+
+
+def test_aids_confirmation_contract_is_paired_and_test_free():
+    config = load_yaml_mapping(CONFIRMATION_CONFIG_PATH)
+    validate_base_config(config, tune_alpha_motif=False)
+    flat = flatten_config(config)
+    plan = json.loads(CONFIRMATION_RESERVATIONS_PATH.read_text(encoding="utf-8"))
+    policy = json.loads(CONFIRMATION_POLICY_PATH.read_text(encoding="utf-8"))
+
+    assert flat["dataset"] == "AIDS"
+    assert flat["epoch_number"] == 250
+    assert flat["expected_total_graphs"] == 1849
+    assert flat["max_graphs"] == 0
+    assert flat["require_existing_dataset_cache"] is True
+    assert flat["skip_final_evaluation"] is True
+    assert flat["third_party_eval"] is False
+    assert flat["ideal_Evalaution"] is False
+    assert flat["training_timeout_seconds"] == 7200
+    assert flat["evaluation_timeout_seconds"] == 1800
+
+    selected = {
+        "alpha_node_feat": 1.4240488736039931,
+        "alpha_edge_feat": 2.468932652132638,
+    }
+    uniform = {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0}
+    reservations = plan["reservations"]
+    assert [entry["budget_index"] for entry in reservations] == list(range(6))
+    assert [entry["training_seed"] for entry in reservations] == [0, 0, 1, 1, 2, 2]
+    assert [entry["parameters"] for entry in reservations] == [
+        selected,
+        uniform,
+        selected,
+        uniform,
+        selected,
+        uniform,
+    ]
+
+    assert policy["study_name"] == "aids_attr_f1pr_confirmation6_20260824a"
+    assert policy["selection_source_study"] == (
+        "aids_attr_f1pr_search14_20260824a"
+    )
+    assert policy["selection_source_trial_number"] == 12
+    assert policy["selection_split"] == "validation"
+    assert policy["objective_json_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert policy["test_access_during_confirmation"] is False
+    assert policy["training_epoch_number"] == 250
+    assert policy["paired_training_seeds"] == [0, 1, 2]
+    assert policy["selected_weights"] == selected
+    assert policy["uniform_weights"] == uniform
+    assert policy["scheduler"] == {
+        "max_parallel": 3,
+        "exact_wave_sizes": [3, 3],
+    }
+    assert policy["no_reranking"] is True
+    assert policy["alternate_candidate_fallback"] is False
+    assert policy["held_out_access_before_freeze"] is False

@@ -1,0 +1,32 @@
+{
+  "schema_version": "graphvae-attr-f1pr-confirmation-analysis-v1",
+  "study_name": "aids_attr_f1pr_confirmation6_20260824a",
+  "selection_source_study": "aids_attr_f1pr_search14_20260824a",
+  "selection_source_contract_sha256": "5d4d8c8157916f4e29610d1e9aebadc7fc7079f7b5fe077e118f95d8390e5221",
+  "selection_source_trial_number": 12,
+  "selection_split": "validation",
+  "objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+  "test_access_during_confirmation": false,
+  "training_epoch_number": 250,
+  "paired_training_seeds": [0, 1, 2],
+  "selected_weights": {
+    "alpha_node_feat": 1.4240488736039931,
+    "alpha_edge_feat": 2.468932652132638
+  },
+  "uniform_weights": {
+    "alpha_node_feat": 1.0,
+    "alpha_edge_feat": 1.0
+  },
+  "scheduler": {
+    "max_parallel": 3,
+    "exact_wave_sizes": [3, 3]
+  },
+  "paired_difference": "selected_validation_attr_f1pr - uniform_validation_attr_f1pr",
+  "primary_summary": "mean paired difference",
+  "uncertainty": "two-sided 95% paired t interval with 2 degrees of freedom",
+  "superiority_rule": "all three paired differences are positive and the 95% paired t interval lower bound is greater than zero",
+  "directional_rule": "mean paired difference is positive but the superiority rule is not met",
+  "no_reranking": true,
+  "alternate_candidate_fallback": false,
+  "held_out_access_before_freeze": false
+}

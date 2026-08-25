@@ -623,3 +623,18 @@ frozen SHA-256 on the controller and both hosts. An exhaustive 3,376-file,
 URL, or test-access matches. The next required step is therefore the separately
 frozen 250-epoch comparison of this single selected pair against uniform at
 matched training seeds 0, 1, and 2, with no alternate-candidate fallback.
+
+That confirmation contract is now frozen before study creation. Study
+`aids_attr_f1pr_confirmation6_20260824a` has exactly six planned reservations:
+the single frozen trial-12 pair and uniform `(1,1)`, paired at training seeds
+0, 1, and 2 in the fixed order selected/uniform for each seed. It will run as
+two bounded waves of three on the qualified slots. Every trial uses 250 epochs,
+the full 184-graph validation split, five evaluator repeats, 7,200/1,800-second
+phase limits, both attribute decoders, and `skip_final_evaluation=true`.
+
+The predeclared primary estimate is the mean of the three paired differences
+`selected - uniform`. Superiority requires all three differences to be positive
+and the lower endpoint of the two-sided 95% paired t interval to exceed zero;
+a positive mean that misses this rule is reported only as directional evidence.
+There is no reranking or alternate-candidate fallback, and no held-out/test
+graph may be accessed during this confirmation.
