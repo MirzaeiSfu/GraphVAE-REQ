@@ -28,7 +28,9 @@ from scripts.run_distributed_graphvae_attr_bo import (
     _classify_launch_probe,
     _preflight_inputs,
     _reconcile_terminal_failures_without_results,
+    _startup_aware_wave_limit,
     _validate_test_faults,
+    _waiting_reservations_require_adaptive_sampling,
     command_collect,
 )
 
@@ -84,6 +86,66 @@ def _definition(name, config, config_path):
         grace_period=600,
         max_parallel=1,
     )
+
+
+def test_fixed_waiting_reservations_do_not_require_tpe_startup_gating(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    definition = _definition("fixed-wave", _base_config(config_path), config_path)
+    fixed = {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0}
+    waiting = [
+        SimpleNamespace(system_attrs={"fixed_params": fixed}),
+        SimpleNamespace(system_attrs={"fixed_params": fixed}),
+        SimpleNamespace(system_attrs={"fixed_params": fixed}),
+    ]
+
+    assert not _waiting_reservations_require_adaptive_sampling(definition, waiting)
+    assert _startup_aware_wave_limit(
+        definition,
+        waiting,
+        usable_observations=3,
+        contracted_parallelism=3,
+    ) == (3, False, 2)
+
+
+def test_mixed_waiting_reservations_preserve_tpe_startup_gating(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    definition = _definition("mixed-wave", _base_config(config_path), config_path)
+    waiting = [
+        SimpleNamespace(
+            system_attrs={
+                "fixed_params": {
+                    "alpha_node_feat": 1.0,
+                    "alpha_edge_feat": 1.0,
+                }
+            }
+        ),
+        SimpleNamespace(system_attrs={"fixed_params": {}}),
+    ]
+
+    assert _waiting_reservations_require_adaptive_sampling(definition, waiting)
+    assert _startup_aware_wave_limit(
+        definition,
+        waiting,
+        usable_observations=3,
+        contracted_parallelism=3,
+    ) == (2, True, 2)
+
+    assert _startup_aware_wave_limit(
+        definition,
+        waiting,
+        usable_observations=5,
+        contracted_parallelism=3,
+    ) == (3, True, 0)
+
+
+def test_partially_fixed_waiting_reservation_still_requires_sampling(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    definition = _definition("partial-wave", _base_config(config_path), config_path)
+    waiting = [
+        SimpleNamespace(system_attrs={"fixed_params": {"alpha_node_feat": 1.0}})
+    ]
+
+    assert _waiting_reservations_require_adaptive_sampling(definition, waiting)
 
 
 def test_l03_actual_worker_preflight_failure_creates_marker_without_database(tmp_path):

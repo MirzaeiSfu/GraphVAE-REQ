@@ -671,3 +671,13 @@ only throughput: the same six fixed weights/seeds ran at the same fidelity and
 the paired analysis remains valid. The controller must nevertheless be fixed
 and regression-tested so startup gating applies only when a waiting reservation
 still requires adaptive sampling.
+
+That controller defect is now repaired and covered by regression tests. Wave
+planning inspects the queued reservations' fixed parameters: a fully fixed
+confirmation wave uses the entire immutable `max_parallel` allowance, whereas
+a mixed or adaptive wave keeps the TPE startup barrier until the contracted
+number of usable observations exists. The focused distributed-controller,
+integrity, and AIDS-contract suite passes 81 tests. The historical `3+2+1`
+launch record remains unchanged, and the confirmation was not rerun because
+the deviation affected elapsed time only, not any scientific input, reservation,
+objective, or paired result.

@@ -1228,6 +1228,48 @@ def _validate_test_faults(args: argparse.Namespace, wave_slots: Sequence[Mapping
         raise ValueError("Test launch fault host is not selected in this wave.")
 
 
+def _waiting_reservations_require_adaptive_sampling(
+    definition: Mapping[str, Any], waiting: Sequence[Any]
+) -> bool:
+    """Return whether any waiting reservation still needs a sampler decision."""
+
+    search_space = definition.get("search_space") or {}
+    sampled_names = {
+        name
+        for name in ("alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss")
+        if isinstance(search_space.get(name), Mapping)
+    }
+    for trial in waiting:
+        fixed_parameters = trial.system_attrs.get("fixed_params") or {}
+        if not isinstance(fixed_parameters, Mapping):
+            return True
+        if not sampled_names.issubset(fixed_parameters):
+            return True
+    return False
+
+
+def _startup_aware_wave_limit(
+    definition: Mapping[str, Any],
+    waiting: Sequence[Any],
+    *,
+    usable_observations: int,
+    contracted_parallelism: int,
+) -> tuple[int, bool, int]:
+    """Apply the startup barrier only while a waiting trial needs sampling."""
+
+    startup_target = int(definition["sampler"]["n_startup_trials"])
+    startup_remaining = max(0, startup_target - usable_observations)
+    adaptive_sampling_waiting = _waiting_reservations_require_adaptive_sampling(
+        definition, waiting
+    )
+    wave_limit = (
+        min(contracted_parallelism, startup_remaining)
+        if adaptive_sampling_waiting and startup_remaining
+        else contracted_parallelism
+    )
+    return wave_limit, adaptive_sampling_waiting, startup_remaining
+
+
 def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
     repositories, pythons, slots = _preflight_inputs(args)
     credential_paths = _credential_environment_paths(
@@ -1266,13 +1308,15 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
         for trial in study.get_trials(deepcopy=False)
         if trial.user_attrs.get(RESERVED_ATTR) is True
     )
-    startup_target = int(definition["sampler"]["n_startup_trials"])
-    startup_remaining = max(0, startup_target - usable_observations)
-    wave_limit = (
-        min(contracted_parallelism, startup_remaining)
-        if startup_remaining
-        else contracted_parallelism
+    wave_limit, adaptive_sampling_waiting, startup_remaining = (
+        _startup_aware_wave_limit(
+            definition,
+            waiting,
+            usable_observations=usable_observations,
+            contracted_parallelism=contracted_parallelism,
+        )
     )
+    startup_target = int(definition["sampler"]["n_startup_trials"])
     wave_slots = slots[: min(wave_limit, len(waiting), len(slots))]
     _validate_test_faults(args, wave_slots)
     wave_index = len(list((args.output_dir / "launch_manifests").glob("wave_*.json"))) + 1
@@ -1332,6 +1376,10 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
         "dry_run": bool(args.dry_run),
         "usable_complete_observations_before_wave": usable_observations,
         "startup_target": startup_target,
+        "adaptive_sampling_waiting": adaptive_sampling_waiting,
+        "startup_gating_applied": bool(
+            adaptive_sampling_waiting and startup_remaining
+        ),
         "controller_attempt": {
             "phase": "planned",
             "state": "PLANNED",
