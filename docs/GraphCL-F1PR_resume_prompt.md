@@ -79,12 +79,14 @@ least once per minute during long training, remote, or test operations. If a
 qualification gate fails, preserve the evidence, report
 `qualification_failed`, commit it, and do not force the BO run.
 
-Current execution checkpoint: Gates 1 and 2 are complete. The exact split
-export and five immutable LOBSTER GraphCL encoders are qualified on `cs-cl-09`;
-read the roadmap's Current checkpoint and the two qualification JSON files for
-exact hashes and the preserved initial dependency failure. The next step is
-Gate 3 validation-only GraphVAE-to-PyG GraphCL evaluator implementation and a
-bounded real checkpoint evaluation. Do not regenerate a raw-data split,
-retrain an encoder, or access held-out/test data.
+Current execution checkpoint: Gates 1--3 are complete. The exact split export,
+five immutable LOBSTER GraphCL encoders, and validation-only same-latent
+GraphVAE evaluator are qualified on `cs-cl-09`; read the roadmap's Current
+checkpoint and the three qualification JSON files for exact hashes, metrics,
+and the preserved initial dependency failure. The next step is Gate 4
+distributed controller/worker integration, including grouped GraphVAE seeds
+and bounded mock concurrency/failure/recovery tests. Do not regenerate a split,
+retrain an encoder, treat the integration metric as BO evidence, or access
+held-out/test data.
 
 ---

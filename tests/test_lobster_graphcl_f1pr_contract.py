@@ -12,6 +12,7 @@ CONFIG_ROOT = REPO_ROOT / "configs" / "bayesian_optimization"
 QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_prerequisite_qualification.json"
 SPLIT_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_split_qualification.json"
 ENCODER_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_encoder_qualification.json"
+EVALUATOR_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_evaluator_qualification.json"
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_PYTHON_PATHS.txt"
 SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_SLOTS.txt"
@@ -218,3 +219,26 @@ def test_frozen_encoder_qualification_records_exact_train_only_bundle():
     assert qualification["dependency_resolution"]["initial_attempt_preserved"] is True
     assert qualification["verification"]["cache_unchanged"] is True
     assert qualification["verification"]["binary_checkpoints_committed"] is False
+
+
+def test_real_graphcl_evaluator_qualification_is_validation_only():
+    qualification = json.loads(EVALUATOR_QUALIFICATION.read_text(encoding="utf-8"))
+
+    assert qualification["qualification_source_checkpoint"]["new_training_performed"] is False
+    assert qualification["qualification_source_checkpoint"]["search_or_selection_evidence"] is False
+    assert qualification["evaluator_contract"]["split"] == "validation"
+    assert qualification["evaluator_contract"]["test_access"] is False
+    assert qualification["evaluator_contract"]["checkpoint_count"] == 5
+    assert qualification["result"]["objective_json_path"] == "summary.f1_pr.mean"
+    assert qualification["result"]["objective"] == 0.6968191868090722
+    assert [row["seed"] for row in qualification["result"]["per_encoder"]] == [
+        101,
+        202,
+        303,
+        404,
+        505,
+    ]
+    assert qualification["integrity"]["frozen_file_count"] == 20
+    assert qualification["integrity"]["independent_parse_and_reopen"] is True
+    assert qualification["verification"]["postgresql_access"] is False
+    assert qualification["verification"]["held_out_evaluation"] is False

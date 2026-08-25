@@ -1,0 +1,83 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-evaluator-qualification-v1",
+  "date": "2026-08-25",
+  "source": {
+    "commit": "8aad9e97cbb881f0320923b97b152bfc2b389724",
+    "deployment_manifest_sha256": "1802d836d0f6f3aa9329bd682894e2e253f69609531719358930bc1df0d79783",
+    "remote_manifest_verified": true
+  },
+  "qualification_source_checkpoint": {
+    "purpose": "bounded evaluator integration only",
+    "prior_study": "lobster_attr_f1pr_production_search30_20260823a",
+    "prior_trial": 0,
+    "training_seed": 0,
+    "epochs": 2000,
+    "alpha_node_feat": 1.0,
+    "alpha_edge_feat": 1.0,
+    "checkpoint_sha256": "36207f7bf74d6f781e41aec8b740710ee1910a5dd833ea6d12a7e6b7b7b094ed",
+    "config_sha256": "51f5584d6785f2dadf3993748949ec8443b1afe156d6be02269e61f7c193bc37",
+    "source_files_mode": "0444",
+    "new_training_performed": false,
+    "search_or_selection_evidence": false
+  },
+  "evaluator_contract": {
+    "engine": "contrastive-pyg-upstream",
+    "encoder": "graphcl",
+    "feature_mode": "decoded_node_edge",
+    "checkpoint_count": 5,
+    "encoder_seeds": [101, 202, 303, 404, 505],
+    "encoder_bundle_sha256": "4cf22a9b204b3638ce6f63fc691ff9556986af1334b64b0994411f5bfd7ac8be",
+    "graphcl_runtime_sha256": "980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7",
+    "upstream_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+    "split": "validation",
+    "generation_seed": 123,
+    "nearest_k": 5,
+    "graph_count": 10,
+    "node_feature_dimension": 14,
+    "edge_feature_dimension": 11,
+    "same_latent_decoding": true,
+    "both_feature_decoders_required": true,
+    "skip_final_evaluation": true,
+    "test_access": false
+  },
+  "result": {
+    "objective_json_path": "summary.f1_pr.mean",
+    "compatibility_objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "objective": 0.6968191868090722,
+    "f1_pr_population_std": 0.08772715594442737,
+    "f1_pr_range": 0.26968209006639043,
+    "f1_pr_coefficient_of_variation": 0.12589658494645403,
+    "precision_mean": 0.5599999999999999,
+    "recall_mean": 0.9400000000000001,
+    "per_encoder": [
+      {"seed": 101, "f1_pr": 0.8235397231797272, "precision": 0.7, "recall": 1.0},
+      {"seed": 202, "f1_pr": 0.7200103999946668, "precision": 0.6, "recall": 0.9},
+      {"seed": 303, "f1_pr": 0.7200103999946668, "precision": 0.6, "recall": 0.9},
+      {"seed": 404, "f1_pr": 0.6666777777629631, "precision": 0.5, "recall": 1.0},
+      {"seed": 505, "f1_pr": 0.5538576331133368, "precision": 0.4, "recall": 0.9}
+    ]
+  },
+  "integrity": {
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "cache_unchanged": true,
+    "validation_collection_sha256": "0a5ad40ab717440f1739f0b203df3df253a6318089202aa467dd4fc6ee5c1832",
+    "generated_collection_sha256": "de1d8afd800eca4f6d3fe9ec2a6c3f279262ea2adaa8ffb2f9b4d9db2d17dc31",
+    "generated_file_sha256": "10430977ee281dfa82f01e490ddbdbb7907161913ed8303c9eba18d54e1c65a9",
+    "evaluation_file_sha256": "5c71d9a2d6ea260a2165b220adcd61b227b2f51241f736064e5f76d3b04d199e",
+    "frozen_file_count": 20,
+    "frozen_tree_sha256": "49445a987c05184efcfe557de0edb87095ee4ab05cff96925faa3c4daa8bd4c9",
+    "file_modes": "0444",
+    "directory_modes": "0555",
+    "independent_parse_and_reopen": true,
+    "credential_and_storage_url_scan_clean": true,
+    "test_access_scan_clean": true
+  },
+  "verification": {
+    "focused_tests_passed": 29,
+    "failed_tests": 0,
+    "runtime_artifacts_committed": false,
+    "binary_checkpoints_committed": false,
+    "postgresql_access": false,
+    "held_out_evaluation": false
+  }
+}

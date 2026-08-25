@@ -484,8 +484,28 @@ under GraphCL runtime fingerprint
 `980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7`.
 The cache remained unchanged and credential/storage-URL/test-access scans pass.
 
-The next action is Gate 3: implement the validation-only GraphVAE-to-PyG
-GraphCL evaluator and its adversarial parser/integrity tests, deploy the
-committed implementation, and run one bounded real checkpoint evaluation.
+Gate 3 is complete. Commit `8aad9e9` adds a validation-only evaluator that
+reuses the same-latent GraphVAE adjacency/node/edge decode, exports exactly ten
+strict PyG candidates, and aggregates the five frozen GraphCL encoders. Its
+parser rejects wrong engine/mode/count, test access, missing decoders, repeated
+or tampered checkpoints, changed source/runtime/schema, nonfinite metrics, and
+inconsistent aggregation. Twenty-nine focused GraphCL campaign tests pass.
+
+The bounded real integration used the already-frozen 2,000-epoch uniform
+`(1,1)` seed-0 checkpoint from the prior Random-GIN study; it did not train,
+reserve, search, or select a new model. At generation seed `123`, the ten-graph
+validation-only GraphCL objective at `summary.f1_pr.mean` was
+`0.6968191868090722` (encoder population standard deviation
+`0.08772715594442737`, coefficient of variation `0.12589658494645403`). This is
+technical evaluator qualification, not evidence that BO improves uniform
+weights. The exact per-encoder metrics and hashes are frozen in
+`lobster_graphcl_f1pr_evaluator_qualification.json`; the immutable 20-file
+runtime tree has digest
+`49445a987c05184efcfe557de0edb87095ee4ab05cff96925faa3c4daa8bd4c9`.
+
+The next action is Gate 4: integrate the versioned GraphCL backend into the
+distributed study/controller/worker contract, including portable artifact
+audit and multi-seed candidate grouping, then run bounded mock concurrency and
+failure/recovery qualifications before any fixed real anchors.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
