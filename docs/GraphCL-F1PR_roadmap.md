@@ -695,14 +695,33 @@ separately. Native Optuna stale handling changed the sole reservation to FAIL
 under heartbeat/grace `1/5`, with no waiting, running, complete, or guard row
 and no replacement.
 
-Collection retained both RUNNING results and all process evidence, but
-pre-finalize inspection stopped progression before mutation because current
-replicate schema `graphvae-attr-f1pr-bo-trial-v3` differed from the initially
-tested
-legacy `v2`. The reconciler now accepts legacy root `v2` or current `v3` but
-requires grouped replicate `v3` exactly; 76 focused tests pass. The study is
-still READY/FAIL, collected, and has no tombstone or freeze marker. The next
-action is to commit/deploy this schema correction and finalize the same consumed
-reservation without dispatching or replacing it.
+Collection retained both RUNNING results and all process evidence. The
+reconciler accepts legacy non-grouped root `v2` or current `v3` and requires
+grouped replicates to use current `v3`. The same consumed reservation was then
+finalized without another dispatch. Its tombstone retains the grouped root and
+seed-0 replicate under hashes
+`3dbd66793239da1bc37b2838761dae3f1c4ee828f80b9fe57b7f197a733496c0`
+and
+`0ce12a7bc7c33871be5e1e7daf531572fc71396f5f35caa0298dcb769eafe74c`.
+The final probe reports PostgreSQL `FAIL`, `RECONCILED_FAIL`, no live tmux,
+`RECONCILED_TERMINAL`, and `retry_safe=true`. No replacement, duplicate, guard
+row, or partial score exists.
+
+All-failed portable restoration is now a supported fail-closed case. It
+requires `best_trial_number=null`, rejects stale best artifacts, regenerates
+only `trials.csv` and `SUMMARY.md`, and verifies their bytes. The fresh restore
+passed with snapshot hash
+`e4572e0418b0fc925bdfd3a078f36d70d5865559a9908d6188d11ceaec3c5131`
+and semantic fingerprint
+`a5bc09733909484e9616f0f3ca7817cd5e7a84fd390bef0fa86cb57c94f938ce`.
+The cache is still exact and read-only, and all four count-only scans are zero.
+Seventy-seven focused tests pass. Exact evidence is frozen in
+`lobster_graphcl_f1pr_stale_qualification.json`.
+
+Gate 4's bounded lifecycle cases are now individually qualified. The next
+action is the Gate 4 exit suite: run the complete non-PostgreSQL distributed BO
+tests and the protected isolated PostgreSQL tests, record the exact results,
+and only then begin Gate 5's fixed real LOBSTER anchors. No mock objective is a
+scientific result.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

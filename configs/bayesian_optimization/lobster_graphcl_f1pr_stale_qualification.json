@@ -1,0 +1,137 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-stale-worker-qualification-v1",
+  "date": "2026-08-25",
+  "purpose": "stale-worker process recovery and failure-consumption qualification only; no scientific model-quality claim",
+  "study": {
+    "name": "lobster_graphcl_f1pr_stale_20260825a",
+    "study_contract_sha256": "45cd9b48619809d96cd9a2ea9a091f6d635cb30e06822e3e1d35fe75e1662a91",
+    "worker_source_commit": "2d9cd73218ef61e5697e6003e9f30e5780ef0024",
+    "worker_source_tree_sha256": "8d0123546b94870d2d6e70001fab1f607f0d36d0252c5929b31cf3e1b9c628ff",
+    "reserved_trials": 1,
+    "max_parallel": 1,
+    "complete": 0,
+    "failed": 1,
+    "waiting": 0,
+    "running": 0,
+    "unreserved_guard": 0,
+    "lifecycle": "FROZEN",
+    "replacement_count": 0,
+    "duplicate_dispatch_count": 0
+  },
+  "fault": {
+    "phase": "training",
+    "heartbeat_interval_seconds": 1,
+    "grace_period_seconds": 5,
+    "termination_grace_seconds": 2,
+    "mock_child_seconds": 120,
+    "worker_parent_pid": 2373995,
+    "worker_parent_signal": "SIGKILL",
+    "parent_absence_verified": true,
+    "child_status_after_parent_kill": "MATCHING_LIVE"
+  },
+  "process_identity": {
+    "trial_number": 0,
+    "training_seed": 0,
+    "worker_run_id": "cs-cl-09-lobster-graphcl-mockcpu0-dispatch-1000000",
+    "pid": 2374013,
+    "process_group_id": 2374013,
+    "pid_start_ticks": 976445956,
+    "command_sha256": "bb42b449779249563f6ca9e69a7bae25fbc53431bfb758b32ff34b5d48b03601",
+    "cwd": "/local-scratch2/graphvae-req-work/GraphVAE-REQ-lobster-graphcl-f1pr",
+    "contract_identity_verified": true,
+    "worker_run_identity_verified": true
+  },
+  "safe_recovery": {
+    "action": "terminate",
+    "status_before": "MATCHING_LIVE",
+    "status_after": "ABSENT",
+    "signal_sent": true,
+    "group_absent_verified": true,
+    "training_seed_selector": 0,
+    "unrelated_process": {
+      "pid": 2374223,
+      "process_group_id": 2374223,
+      "pid_start_ticks": 976451789,
+      "command": "sleep 180",
+      "survived_parent_kill": true,
+      "survived_trial_group_recovery": true,
+      "removed_separately_after_qualification": true
+    }
+  },
+  "failure_reconciliation": {
+    "mechanism": "supported Optuna heartbeat stale-trial handling",
+    "db_state_before": "RUNNING",
+    "db_state_after": "FAIL",
+    "worker_marker": "RECONCILED_FAIL",
+    "failure_category": "postgresql_stale_worker_with_interrupted_result",
+    "canonical_trial_result_absent": true,
+    "tombstone_sha256": "f3588d5159c35b81b1ffc050d52fbaa8762509fdfef1727d93cd2d41a932fac0",
+    "retained_evidence": [
+      {
+        "kind": "interrupted_trial_result",
+        "path": "trials/trial_00000/trial_result.interrupted.json",
+        "recorded_status": "RUNNING",
+        "sha256": "3dbd66793239da1bc37b2838761dae3f1c4ee828f80b9fe57b7f197a733496c0"
+      },
+      {
+        "kind": "interrupted_graphcl_replicate",
+        "path": "trials/trial_00000/replicates/seed_0/trial_result.interrupted.json",
+        "recorded_status": "RUNNING",
+        "training_seed": 0,
+        "sha256": "0ce12a7bc7c33871be5e1e7daf531572fc71396f5f35caa0298dcb769eafe74c"
+      }
+    ]
+  },
+  "final_probe": {
+    "probe_index": 2,
+    "host": "cs-cl-09",
+    "worker_run_id": "cs-cl-09-lobster-graphcl-mockcpu0-dispatch-1000000",
+    "remote_reachable": true,
+    "tmux_active": false,
+    "run_info": true,
+    "heartbeat": true,
+    "db_state": "FAIL",
+    "marker": "RECONCILED_FAIL",
+    "probe_status": "RECONCILED_TERMINAL",
+    "retry_safe": true
+  },
+  "trial": {
+    "trial_number": 0,
+    "budget_index": 0,
+    "alpha_node_feat": 2.322344191844589,
+    "alpha_edge_feat": 0.6285590208899605,
+    "contracted_training_seeds": [0, 1],
+    "started_training_seeds": [0],
+    "status": "FAIL",
+    "objective": null,
+    "partial_score_published": false
+  },
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "aggregation": "arithmetic_mean_only_after_both_graphvae_seeds_complete",
+    "split": "validation",
+    "test_access": false,
+    "scientific_interpretation": "none; interrupted lifecycle mock with no objective"
+  },
+  "restore": {
+    "postgresql_access": false,
+    "aggregate_outputs_match": true,
+    "best_trial_number": null,
+    "best_validation_attr_f1pr": null,
+    "semantic_fingerprint": "a5bc09733909484e9616f0f3ca7817cd5e7a84fd390bef0fa86cb57c94f938ce",
+    "snapshot_sha256": "e4572e0418b0fc925bdfd3a078f36d70d5865559a9908d6188d11ceaec3c5131",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1"
+  },
+  "integrity": {
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "cache_mode": "0444",
+    "cache_size_bytes": 59295793,
+    "validation_reference_file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+    "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "credential_assignment_scan_clean": true,
+    "storage_url_scan_clean": true,
+    "password_assignment_scan_clean": true,
+    "test_access_true_scan_clean": true
+  }
+}

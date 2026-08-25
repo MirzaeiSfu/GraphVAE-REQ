@@ -79,46 +79,27 @@ least once per minute during long training, remote, or test operations. If a
 qualification gate fails, preserve the evidence, report
 `qualification_failed`, commit it, and do not force the BO run.
 
-Current execution checkpoint: Gates 1--3 and the Gate 4 grouped GraphCL backend
-implementation are complete. The exact split export, five immutable LOBSTER
-GraphCL encoders, validation-only same-latent GraphVAE evaluator, and frozen
-two-worker PostgreSQL lifecycle mock are qualified on `cs-cl-09`; read the
-roadmap's Current checkpoint and qualification JSON files for exact hashes,
-metrics, and preserved failed attempts. The next step is the fresh
-three-reservation CPU/mock concurrency qualification using
-`CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_MOCK3_SLOTS.txt`, followed by Gate 4's
-remaining ambiguous-launch and stale-worker/recovery cases. The first
-three-reservation attempt `lobster_graphcl_f1pr_mock3_20260825a` is frozen and
-restored but did not show interval overlap because its mock bodies were too
-short; preserve it and never rerun its consumed reservations. Fresh attempt
-`lobster_graphcl_f1pr_mock3_20260825b` passes with PostgreSQL RUNNING=3 and a
-3.776814222-second common interval, and is frozen/restored with exact evidence
-in `lobster_graphcl_f1pr_mock3_qualification.json`; that qualification is
-already pushed. The ambiguous case is now also complete in frozen/restored
-study
-`lobster_graphcl_f1pr_ambiguous_20260825a`: one injected post-ack SSH error was
-probed first as `ACTIVE_AMBIGUOUS/retry_safe=false` with its exact reserved DB
-row RUNNING, then as `RECONCILED_TERMINAL` after the same worker completed. No
-duplicate was dispatched. The qualification file
-`lobster_graphcl_f1pr_ambiguous_qualification.json` and its checkpoint updates
-are already pushed. Before the live stale-worker case, GraphCL grouped recovery
-support was added locally: immutable mock-only child lifetime, required
-contracted `--training-seed` path selection, and dual grouped/replicate
-interrupted-result tombstone retention. Seventy-six focused tests pass. Commit
-and deploy these changes first, then initialize a fresh exact-one-reservation
-study with short test-only heartbeat/grace and a bounded mock child. No GraphCL
-recovery worker has been killed yet. CPU/mock slots are for immutable mock
-studies only and do not authorize or claim a third GPU. Do not regenerate a
-split, retrain an encoder, treat any mock metric as BO evidence, or access
-held-out/test data.
+Current execution checkpoint: Gates 1--3 are complete, and every individual
+Gate 4 bounded lifecycle case is frozen and restored. This includes exact-two
+and exact-three simultaneous workers, definite prelaunch handling, ambiguous
+post-ack handling without duplicate dispatch, and grouped stale-worker process
+recovery. Preserve the non-overlapping first mock3 attempt and every consumed
+failure exactly as recorded.
 
-The live stale study has now reached READY/FAIL with its exact child recovered
-and unrelated sentinel proven unchanged; see the roadmap's final checkpoint for
-PIDs and hashes. Collection then exposed current replicate schema `v3` versus
-the initially tested legacy `v2`, so finalization has not been attempted and no
-tombstone/FROZEN marker exists. A local correction now accepts legacy root
-`v2`/`v3` and requires grouped replicate `v3`; 76 tests pass. Commit/deploy that
-two-file correction plus these checkpoint updates, then finalize the same study
-without any dispatch or replacement.
+The stale qualification is complete in
+`lobster_graphcl_f1pr_stale_20260825a`. The exact seed-0 process group was
+recovered after its parent died, an unrelated process survived, the sole
+reservation became PostgreSQL `FAIL` through native heartbeat/stale handling,
+and no replacement or partial objective was created. Finalization retained both
+interrupted result layers in the tombstone, the final probe is
+`RECONCILED_TERMINAL`, and an all-failed portable restore passed. Exact evidence
+is in `lobster_graphcl_f1pr_stale_qualification.json`; 77 focused tests pass.
+
+Next run the complete non-PostgreSQL distributed BO suite and the protected,
+isolated PostgreSQL suite as Gate 4's exit check. Document, commit, and push the
+exact result. Only after that may Gate 5 begin with the fixed real LOBSTER
+anchors. CPU/mock slots do not authorize a third physical GPU. Do not
+regenerate a split, retrain an encoder, treat any mock metric as BO evidence,
+or access held-out/test data.
 
 ---
