@@ -616,5 +616,26 @@ has been claimed. Eighty-one focused tests pass, including hold execution and
 the real-study fail-closed guard. The next action is to commit and deploy this
 change, then use a new study name with a two-second hold per grouped replicate
 to produce an auditable three-way overlap.
+
+The fresh-name retry `lobster_graphcl_f1pr_mock3_20260825b` now passes the
+three-worker lifecycle qualification. Its immutable contract
+`0363d1e053adac9f320bf74c0769c029b58a06c1e796f70d0eb96762b074ed66`
+reserved exactly three trials, set `max_parallel=3`, and bound a two-second
+hold to each of the two mock GraphVAE replicates. PostgreSQL was observed with
+all three reservations RUNNING simultaneously and zero WAITING, FAIL, or guard
+rows. The three grouped intervals share 3.776814222 seconds, then all three
+completed with distinct trial, budget, worker-run, dispatch, sampler-seed, and
+artifact identities. Strict collection, grouped objective audit, finalization,
+and fresh offline restore passed. The frozen snapshot hash is
+`4b957409282e6793f788e06d771cb6b6c07fc74ffd9917dc6c6dd984a23dc160`
+and semantic fingerprint is
+`19b9a29d26a01e7e1f891ddd22d24fcd8cf18d6062ec561889d19f036ac26f99`.
+Cache mode/size/hash and frozen GraphCL input hashes remain exact; all four
+credential/URL/password/test-access scans are clean. The exact evidence and
+the preserved non-qualifying attempt are recorded in
+`lobster_graphcl_f1pr_mock3_qualification.json`. No third physical GPU has been
+claimed, and all reported objective values are synthetic. The next action is
+Gate 4's fresh ambiguous-immediately-after-launch qualification, followed by
+the stale-worker/safe-process-recovery case.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
