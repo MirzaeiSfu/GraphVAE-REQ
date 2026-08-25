@@ -24,6 +24,12 @@ SMOKE_CONFIG = (
     / "bayesian_optimization"
     / "lobster_graphvae_attr_f1pr_smoke.yaml"
 )
+GRAPHCL_MOCK_CONFIG = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "lobster_graphcl_f1pr_mock.yaml"
+)
 SIGNAL_CONFIG = (
     REPO_ROOT
     / "configs"
@@ -100,6 +106,20 @@ def test_gate4_smoke_config_renders_only_main_arguments(tmp_path):
     assert flat["require_existing_dataset_cache"] is True
     assert flat["skip_final_evaluation"] is True
     assert flat["third_party_eval"] is False
+
+
+def test_graphcl_mock_config_preserves_exact_validation_cardinality():
+    config = load_yaml_mapping(GRAPHCL_MOCK_CONFIG)
+    validate_base_config(config, tune_alpha_motif=False)
+    flat = flatten_config(config)
+    qualification = config["bayesian_optimization_qualification"]
+
+    assert flat["dataset"] == "LOBSTER"
+    assert flat["split_mode"] == "paper_70_10_20"
+    assert flat["skip_final_evaluation"] is True
+    assert flat["third_party_eval"] is False
+    assert qualification["max_graphs"] == 10
+    assert qualification["generation_batch_size"] == 4
 
 
 def test_gate4_smoke_cache_size_contract_is_enforced():

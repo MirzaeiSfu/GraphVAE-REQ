@@ -519,5 +519,8 @@ failure with no partial score. The next action is to commit and deploy this
 implementation, verify the real frozen inputs on `cs-cl-09`, then run the fresh
 two-worker and three-worker bounded mock PostgreSQL studies plus the required
 failure/recovery/restore qualifications before any fixed real anchors.
+The dedicated mock configuration is separate from the legacy eight-graph smoke
+contract and freezes exactly ten validation graphs; its focused configuration
+and backend suite passes 11 tests.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
