@@ -94,6 +94,12 @@ CONFIRMATION_QUALIFICATION_PATH = (
     / "bayesian_optimization"
     / "aids_attr_f1pr_confirmation_qualification.json"
 )
+FINAL_QUALIFICATION_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_attr_f1pr_final_qualification.json"
+)
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt"
 CREDENTIAL_PATHS = (
@@ -591,3 +597,53 @@ def test_aids_confirmation_qualification_concludes_no_improvement():
         "unredacted_storage_url_matches"
     ] == 0
     assert qualification["artifact_audit"]["test_access_matches"] == 0
+
+
+def test_aids_final_qualification_is_complete_test_free_and_leak_free():
+    qualification = json.loads(FINAL_QUALIFICATION_PATH.read_text(encoding="utf-8"))
+
+    assert qualification["code_head_before_evidence"] == (
+        "d667d9fde8131d6c2d7e670591b3ebec292229e8"
+    )
+    assert qualification["studies"]["search"] == {
+        "name": "aids_attr_f1pr_search14_20260824a",
+        "contract_sha256": (
+            "5d4d8c8157916f4e29610d1e9aebadc7fc7079f7b5fe077e118f95d8390e5221"
+        ),
+        "lifecycle": "FROZEN",
+        "complete": 14,
+        "fail": 0,
+        "waiting": 0,
+        "running": 0,
+        "unreserved_guard": 0,
+    }
+    assert qualification["studies"]["confirmation"]["lifecycle"] == "FROZEN"
+    assert qualification["studies"]["confirmation"]["complete"] == 6
+    assert qualification["objective"] == {
+        "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+        "selection_split": "validation",
+        "test_access": False,
+        "held_out_access": False,
+        "node_decoder_required": True,
+        "edge_decoder_required": True,
+    }
+    assert qualification["tests"] == {
+        "non_postgresql_distributed_and_attribute_bo": 117,
+        "isolated_postgresql": 19,
+        "failed": 0,
+        "skipped": 0,
+        "residual_isolated_postgresql_schemas": 0,
+    }
+    remediation = qualification["scheduler_remediation"]
+    assert remediation["fully_fixed_reservations_use_contracted_parallelism"] is True
+    assert remediation["mixed_or_adaptive_reservations_retain_startup_gating"] is True
+    assert remediation["historical_confirmation_rerun"] is False
+    assert remediation["scientific_result_changed"] is False
+    assert qualification["cache"]["verified_on_controller_and_both_hosts"] is True
+    assert qualification["security"]["tracked_credential_material_matches"] == 0
+    assert qualification["security"][
+        "unredacted_storage_url_matches_in_study_artifacts"
+    ] == 0
+    assert qualification["security"]["test_access_matches_in_study_artifacts"] == 0
+    assert qualification["conclusion"]["decision"] == "no_improvement"
+    assert qualification["conclusion"]["supported_default"] == "uniform_(1,1)"

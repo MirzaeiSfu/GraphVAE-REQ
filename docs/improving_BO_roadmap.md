@@ -681,3 +681,20 @@ integrity, and AIDS-contract suite passes 81 tests. The historical `3+2+1`
 launch record remains unchanged, and the confirmation was not rerun because
 the deviation affected elapsed time only, not any scientific input, reservation,
 objective, or paired result.
+
+The final AIDS checkpoint is complete. The closing read-only PostgreSQL audit
+again finds the search `FROZEN` with 14 `COMPLETE` reservations and the
+confirmation `FROZEN` with six `COMPLETE` reservations; neither has a waiting,
+running, failed, unreserved, duplicate, or replacement trial. Both still expose
+the exact validation objective and `test_access=false`. The controller and both
+hosts reproduce cache mode `0444`, 73,822,456 bytes, and SHA-256
+`6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb`.
+
+The final non-PostgreSQL distributed and attribute-BO suite passes 117 tests.
+All 19 PostgreSQL tests pass in a randomly named disposable schema, and a
+closing catalog query proves that zero such schema remains. A tracked-file scan
+against 35 sensitive materials derived from all 28 protected files finds zero
+match; the frozen artifact scans likewise retain zero unredacted storage URL,
+credential, or test-access match. The plain-language result and reuse guidance
+are recorded in `docs/aids_attr_f1pr_bo_summary.md`. No QM9 BO, held-out/test
+evaluation, reranking, or additional production study ran.

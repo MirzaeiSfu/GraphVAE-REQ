@@ -1,0 +1,74 @@
+{
+  "schema_version": "graphvae-attr-f1pr-final-qualification-v1",
+  "date": "2026-08-24",
+  "code_head_before_evidence": "d667d9fde8131d6c2d7e670591b3ebec292229e8",
+  "studies": {
+    "search": {
+      "name": "aids_attr_f1pr_search14_20260824a",
+      "contract_sha256": "5d4d8c8157916f4e29610d1e9aebadc7fc7079f7b5fe077e118f95d8390e5221",
+      "lifecycle": "FROZEN",
+      "complete": 14,
+      "fail": 0,
+      "waiting": 0,
+      "running": 0,
+      "unreserved_guard": 0
+    },
+    "confirmation": {
+      "name": "aids_attr_f1pr_confirmation6_20260824a",
+      "contract_sha256": "c009d609308f429b570a401c714384270702732fd5bb7209047fd3fcb00c22b5",
+      "lifecycle": "FROZEN",
+      "complete": 6,
+      "fail": 0,
+      "waiting": 0,
+      "running": 0,
+      "unreserved_guard": 0
+    }
+  },
+  "objective": {
+    "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "held_out_access": false,
+    "node_decoder_required": true,
+    "edge_decoder_required": true
+  },
+  "tests": {
+    "non_postgresql_distributed_and_attribute_bo": 117,
+    "isolated_postgresql": 19,
+    "failed": 0,
+    "skipped": 0,
+    "residual_isolated_postgresql_schemas": 0
+  },
+  "scheduler_remediation": {
+    "commit": "d667d9fde8131d6c2d7e670591b3ebec292229e8",
+    "fully_fixed_reservations_use_contracted_parallelism": true,
+    "mixed_or_adaptive_reservations_retain_startup_gating": true,
+    "historical_confirmation_rerun": false,
+    "scientific_result_changed": false
+  },
+  "cache": {
+    "byte_length": 73822456,
+    "mode": "0444",
+    "sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "verified_on_controller_and_both_hosts": true
+  },
+  "security": {
+    "protected_files_read": 28,
+    "protected_materials_tested": 35,
+    "tracked_credential_material_matches": 0,
+    "unredacted_storage_url_matches_in_study_artifacts": 0,
+    "test_access_matches_in_study_artifacts": 0
+  },
+  "conclusion": {
+    "selected_weights": {
+      "alpha_node_feat": 1.4240488736039931,
+      "alpha_edge_feat": 2.468932652132638
+    },
+    "selected_mean_validation_attr_f1pr": 0.5810227228423,
+    "uniform_mean_validation_attr_f1pr": 0.6455165108755903,
+    "mean_paired_difference": -0.0644937880332902,
+    "confidence_interval_95": [-0.2461642964902339, 0.11717672042365351],
+    "decision": "no_improvement",
+    "supported_default": "uniform_(1,1)"
+  }
+}
