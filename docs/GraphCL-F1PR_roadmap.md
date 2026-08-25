@@ -1,0 +1,447 @@
+# LOBSTER GraphCL-F1PR Bayesian-optimization roadmap
+
+## 1. Purpose and final question
+
+This roadmap defines a new, validation-only LOBSTER experiment. It does not
+reinterpret or modify the completed Random-GIN studies. Its final question is:
+
+> When reconstruction weights are selected using a split-safe ensemble of
+> contrastively trained GraphCL-GIN evaluators, does the selected GraphVAE
+> configuration improve mean validation GraphCL-F1PR over uniform `(1,1)`
+> reconstruction weights at matched training seeds and final fidelity?
+
+The answer must be exactly one of:
+
+- `improvement_confirmed`;
+- `no_improvement`;
+- `qualification_failed`, when the evaluator or fidelity proxy is too unstable
+  to support a meaningful BO claim.
+
+The experiment must never turn a promising search observation into an
+improvement claim without a separately frozen, paired confirmation.
+
+## 2. Scope and exclusions
+
+Authorized work for this campaign is:
+
+- export the exact LOBSTER training and validation collections to the strict
+  PyG interchange format;
+- train and freeze LOBSTER-specific GraphCL-GIN encoders using training graphs
+  only;
+- implement GraphCL-F1PR evaluation and distributed BO integration;
+- run bounded mock, timing, anchor, search, and validation-confirmation studies;
+- use the three qualified TITAN RTX slots on `cs-cl-13` and `cs-cl-17`;
+- collect, audit, freeze, restore, test, document, commit, and push each gate.
+
+Excluded unless the user later gives a separate explicit authorization:
+
+- held-out/test evaluation;
+- encoder training on validation or test graphs;
+- QM9 BO;
+- post-confirmation reranking or alternate-candidate fallback;
+- changing or appending trials to any completed Random-GIN study;
+- claiming that an old adaptively sampled Random-GIN study optimized GraphCL;
+- unrestricted production studies.
+
+## 3. Immutable dataset contract
+
+The source cache is:
+
+```text
+cache_datasets/LOBSTER_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-0_bfs-legacy_first_component_features-lobster-optimal_v2.pkl
+```
+
+Its immutable properties are:
+
+- byte length: `59,295,793`;
+- SHA-256: `928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660`;
+- file mode after deployment: `0444`;
+- split: 70 training, 10 validation, 20 held-out/test graphs;
+- split seed: `123`;
+- loader seed: `0`;
+- BFS: `legacy_first_component`;
+- LOBSTER feature schema: `optimal_v2`;
+- node feature dimension: `14`;
+- edge feature dimension: `11`.
+
+GraphCL encoder training may read only the 70 training graphs. BO and
+confirmation evaluation may read only the 10 validation graphs. The 20 test
+graphs must not be exported, loaded, hashed as evaluator input, or mentioned in
+an executable evaluation plan during this campaign.
+
+The PyG feature identity is frozen as:
+
+```text
+lobster-optimal_v2|export=decoded_node_edge
+```
+
+Every generated and reference collection must contain adjacency, grouped
+one-hot node attributes, and grouped one-hot edge attributes with identical
+schema hashes.
+
+## 4. GraphCL evaluator contract
+
+### 4.1 Upstream source
+
+The external evaluator checkout remains outside the repository and must be a
+clean detached checkout at:
+
+```text
+fb6bc26237eb21d7617fd41b22b4bb26ab29bf95
+```
+
+The campaign must fail closed if the revision differs, the checkout is dirty,
+or required runtime dependencies are absent. The external source, dependency
+bundle, and trained binary checkpoints are never committed.
+
+### 4.2 Encoder ensemble
+
+Train five independent GraphCL-GIN encoders with:
+
+- encoder: `graphcl`;
+- architecture: upstream GIN;
+- feature mode: `decoded_node_edge`;
+- seeds: `101`, `202`, `303`, `404`, `505`;
+- epochs: `100`;
+- layers: `3`;
+- hidden dimension: `32`;
+- initialization: `orthogonal`;
+- released Lipschitz limiter: enabled, factor `1.0`;
+- training collection: exact 70-graph PyG training artifact;
+- training device class: qualified TITAN RTX, or CPU if a deterministic timing
+  qualification explicitly selects CPU before training begins.
+
+The five checkpoints, training JSON files, stdout/stderr logs, environment
+fingerprint, source revision, input collection digest, sizes, and SHA-256
+digests form one immutable evaluator bundle. No encoder is retrained or replaced
+after any candidate metric is observed.
+
+### 4.3 Candidate evaluation
+
+For each GraphVAE checkpoint:
+
+1. generate exactly 10 accepted graphs from a frozen generation seed;
+2. decode adjacency, node features, and edge features from the same latent draw;
+3. export strict PyG generated graphs with the frozen LOBSTER schema;
+4. compare them with the exact 10-graph validation reference collection;
+5. compute PRDC precision, recall, and F1-PR independently in each frozen
+   GraphCL-GIN embedding space;
+6. aggregate across all five encoder checkpoints.
+
+The primary objective artifact is the finite value at:
+
+```text
+summary.f1_pr.mean
+```
+
+The artifact must additionally assert:
+
+```text
+engine = contrastive-pyg-upstream
+encoder = graphcl
+feature_mode = decoded_node_edge
+checkpoint_count = 5
+reference split = validation
+test_access = false
+```
+
+Higher is better. Precision, recall, FID, density, coverage, MMD-RBF, MMD-linear,
+and per-checkpoint values are retained as diagnostics but cannot silently
+replace the primary objective.
+
+## 5. Determinism and uncertainty
+
+There are three distinct sources of variability and none may be mislabeled:
+
+- GraphCL encoder seed: represented by the five frozen checkpoints;
+- GraphVAE training seed: represented by matched candidate/uniform training
+  pairs;
+- graph generation seed: fixed within a comparison and changed only according
+  to a predeclared robustness plan.
+
+The mean over encoder checkpoints reduces evaluator dependence on one learned
+representation. It does not remove GraphVAE training variance or uncertainty
+caused by only ten validation graphs.
+
+Qualification must record per-encoder F1-PR, ensemble mean, population standard
+deviation, range, and coefficient of variation. A metric is not accepted for
+BO merely because it is finite.
+
+## 6. Study identities and artifact boundaries
+
+Every stage uses a fresh PostgreSQL study name and a fresh controller/output
+root. Suggested prefixes are:
+
+```text
+lobster_graphcl_f1pr_mock_
+lobster_graphcl_f1pr_timing_
+lobster_graphcl_f1pr_anchor_
+lobster_graphcl_f1pr_search_
+lobster_graphcl_f1pr_confirmation_
+```
+
+Use dedicated GraphCL-F1PR repository roots on both hosts. Do not reuse Gate 4,
+Gate 5, Gate 6, AIDS, or previous LOBSTER production roots. Credentials remain
+outside repository/source/cache/artifact roots with directories mode `0700` and
+files mode `0600`. PostgreSQL requires `PGPASSFILE`, the protected CA, and
+`sslmode=verify-full`.
+
+Immutable reservation counts, failure consumption, heartbeat/grace behavior,
+bounded concurrency, deterministic dispatch seeds, atomic artifact publication,
+portable restoration, and no-replacement rules remain inherited from the
+distributed Attr-F1PR controller.
+
+## 7. Gate 0 — roadmap and prerequisite audit
+
+Tasks:
+
+1. freeze this roadmap and the restart prompt;
+2. verify repository cleanliness and source revision;
+3. verify the cache mode, byte length, and digest;
+4. verify the clean pinned contrastive upstream;
+5. inventory local and remote Python, PyTorch, PyG, PyGCL, scatter/sparse, CUDA,
+   GPU, disk, and dependency-bundle fingerprints;
+6. identify dedicated host roots and exact physical/logical slots;
+7. prove no LOBSTER GraphCL checkpoint is being reused from an incompatible
+   split or schema.
+
+Exit condition: all inputs and missing components are documented. Commit and
+push before implementation.
+
+## 8. Gate 1 — exact split export
+
+Implement a cache-backed exporter rather than regenerating a new split from raw
+data. It must:
+
+- accept the exact frozen cache and its expected SHA-256;
+- export only `real_train_graphs.pt` and `real_validation_graphs.pt` by default;
+- require a separate explicit flag for any test export, which is forbidden in
+  this campaign;
+- normalize graphs through the existing strict PyG contract;
+- preserve grouped one-hot node and edge channels;
+- write atomic tensor-only artifacts and JSON manifests;
+- record split fingerprints, collection digests, graph counts, dimensions,
+  source cache digest, and `test_access=false`;
+- verify that the training and validation graph-fingerprint sets are disjoint;
+- verify source cache mode/hash before and after export.
+
+Tests must cover missing attributes, wrong dimensions, schema mismatch,
+train/validation overlap, cache mutation, attempted test export, unsafe pickle
+fallback, and deterministic repeated export.
+
+Exit condition: 70 training and 10 validation PyG graphs reproduce identical
+digests on repeated export. Commit and push.
+
+## 9. Gate 2 — encoder training and freeze
+
+Run one bounded timing seed first. If healthy, train all five predeclared seeds.
+The encoder training stage must:
+
+- consume only `real_train_graphs.pt`;
+- run in isolated worker processes through `ggm_eval`;
+- preserve the pinned upstream without local edits;
+- record input collection and schema identities in every checkpoint;
+- fail closed on mixed dimensions, wrong feature mode, or nonfinite loss;
+- write a bundle manifest with checkpoint sizes and hashes;
+- make the frozen bundle read-only;
+- restore and verify the bundle manifest without loading validation or test.
+
+Exit condition: five independently seeded checkpoints exist, pass integrity
+checks, and are immutable. Commit only manifests and evidence, never binary
+checkpoints or external dependencies.
+
+## 10. Gate 3 — GraphCL-F1PR GraphVAE evaluator
+
+Implement a validation evaluator that reuses the existing same-latent GraphVAE
+decoder path but exports PyG collections and invokes the frozen GraphCL bundle.
+It must:
+
+- require both feature decoders;
+- reject topology-control or node-only fallback;
+- accept only validation during optimization;
+- verify cache, schema, split, source, checkpoint bundle, and runtime hashes;
+- generate exactly 10 accepted graphs or fail;
+- use deterministic generation seeds;
+- retain generated/reference collection digests and per-encoder metrics;
+- expose exact `summary.f1_pr.mean`;
+- publish artifacts atomically;
+- set `test_access=false` and `skip_final_evaluation=true`.
+
+Add adversarial parser tests for wrong encoder, wrong feature mode, wrong
+checkpoint count, repeated checkpoint, changed upstream, mismatched schemas,
+test reference, nonfinite values, incomplete graph counts, and tampered files.
+
+Exit condition: local unit/integration tests and a bounded real checkpoint
+evaluation pass. Commit and push.
+
+## 11. Gate 4 — distributed controller integration
+
+Extend the study definition with a versioned evaluator backend block containing:
+
+- backend `graphcl_f1pr`;
+- objective path `summary.f1_pr.mean`;
+- encoder-bundle manifest digest;
+- ordered encoder checkpoint digests and seeds;
+- PyG schema and collection digests;
+- validation split fingerprint;
+- checkpoint count five;
+- nearest-k five;
+- generation seed policy;
+- test access false.
+
+Worker commands must receive protected or staged paths, never embed secrets or
+unredacted storage URLs. Collection and portable snapshots must audit GraphCL
+artifacts as strictly as the existing Random-GIN artifacts.
+
+Run bounded mock tests for two and three simultaneous workers, definite
+prelaunch failure, ambiguous postlaunch state, stale-worker failure, safe
+process recovery, no replacement, and portable restoration.
+
+Exit condition: the complete non-PostgreSQL distributed suite and isolated
+PostgreSQL suite pass. Commit and push.
+
+## 12. Gate 5 — evaluator and fidelity qualification
+
+Before adaptive BO, run fixed anchors only. At minimum evaluate:
+
+- uniform `(1,1)`;
+- previous Random-GIN winner `(5.2290456720, 0.0538641483)`;
+- common weak `(0.25,0.25)` and strong `(4,4)` scales;
+- node emphasis `(4,0.25)`;
+- edge emphasis `(0.25,4)`.
+
+Run these at 2,000 epochs and GraphVAE seeds 0 and 1. Promote uniform, the best
+anchor, and one deliberately contrasting anchor to 10,000 epochs at the same
+seeds. Measure:
+
+- encoder-ensemble dispersion;
+- paired GraphVAE-seed dispersion;
+- 2,000-versus-10,000 rank correlation;
+- repeated-generation-seed stability on at least uniform and the best anchor;
+- exact runtime per phase.
+
+Fail the campaign with `qualification_failed` instead of running BO if any of
+the following holds:
+
+- validation/test overlap or schema mismatch;
+- missing feature decoder or encoder checkpoint;
+- nonfinite objective;
+- coefficient of variation above `0.20` for most anchors;
+- 2,000-versus-10,000 rank correlation below `0.50` or a sign reversal for the
+  best-anchor versus uniform comparison;
+- generation-seed variation dominates the candidate difference;
+- no meaningful finite signal above the PRDC floor.
+
+Thresholds are frozen before anchor results are viewed. Exit condition: a
+written go/no-go decision and timing-based bounded search budget. Commit and
+push.
+
+## 13. Gate 6 — fresh GraphCL-F1PR BO search
+
+Only run if Gate 5 passes. The preferred robust search unit is one candidate
+weight pair evaluated at GraphVAE training seeds 0 and 1, with the arithmetic
+mean of their two GraphCL-F1PR ensemble means as the Optuna value. Both
+replicates belong to one reservation; failure of either consumes that
+reservation and the candidate is not partially scored or replaced.
+
+Predeclared search design:
+
+- exactly 18 candidate reservations;
+- `max_parallel=3` on homogeneous TITAN RTX slots;
+- six fixed anchors followed by 12 TPE candidates;
+- TPE startup target six;
+- bounded synchronous waves;
+- log search ranges `[0.25,4]` for node and edge weights;
+- 2,000 epochs only if Gate 5 qualifies that fidelity;
+- exactly 10 validation references;
+- five frozen GraphCL encoder checkpoints;
+- no pruning from test data and no final-test evaluation;
+- one immutable winner: maximum finite candidate-mean objective after freeze;
+- no alternate-candidate fallback.
+
+If multi-seed-per-reservation support is not safely implemented, do not silently
+fall back to a single seed. Stop at Gate 5 and implement the missing contract.
+
+Exit condition: exact budget is terminal, audited, frozen, restored, and one
+candidate is selected using validation only. Commit and push.
+
+## 14. Gate 7 — matched final-fidelity confirmation
+
+Create a different fixed-plan study after the search winner and analysis rule
+are committed. Compare only:
+
+- the single selected GraphCL-F1PR weight pair;
+- uniform `(1,1)`.
+
+Use GraphVAE training seeds 0, 1, and 2, 10,000 epochs, the same generation
+seed policy, all 10 validation graphs, and the same five frozen GraphCL
+encoders. Reserve exactly six trials in two fixed waves of three.
+
+For each seed compute selected minus uniform. The primary estimate is the mean
+paired difference. `improvement_confirmed` requires:
+
+1. all three differences are positive;
+2. the mean difference is positive;
+3. the lower endpoint of the two-sided 95% paired t interval is above zero.
+
+Otherwise report `no_improvement`. Do not rerank another candidate.
+
+Exit condition: paired report, frozen/restored study, cache and encoder bundle
+integrity, credential/storage-URL/test-access scans, and a truthful conclusion.
+Commit and push.
+
+## 15. Gate 8 — final audit and handoff
+
+Run:
+
+- all GraphCL package tests;
+- all GraphCL-F1PR integration tests;
+- the complete non-PostgreSQL distributed BO suite;
+- the isolated PostgreSQL suite in a disposable schema;
+- portable restore audits for every new study;
+- lifecycle/reservation/launch reconciliation;
+- source, cache, collection, checkpoint, and contract hash verification;
+- exhaustive credential and unredacted-storage-URL scans;
+- explicit `test_access=true` and held-out path scans;
+- zero-residual-test-study/schema checks.
+
+Update this roadmap with exact study names, commits, hashes, counts, timings,
+objectives, intervals, deviations, and the final answer. Preserve every failed
+attempt and consumed reservation. Never rewrite prior evidence.
+
+## 16. Commit discipline
+
+Each completed gate receives its own commit and push. Before every commit:
+
+```text
+git status --short --branch
+git log -5 --pretty=format:%s
+git diff --stat
+git diff --cached --stat
+```
+
+Inspect every tracked and untracked change, use the commit-summary skill, stage
+only intended files, run `git diff --cached --check`, inspect the staged diff,
+then commit and push. Never commit caches, GraphVAE checkpoints, GraphCL binary
+checkpoints, generated collections, run trees, credentials, dependency bundles,
+passwords, or storage URLs.
+
+## 17. Current checkpoint
+
+At roadmap creation:
+
+- repository `main` is clean and synchronized at `0a10710`;
+- the exact LOBSTER cache is present, mode `0444`, and hash-verified;
+- the pinned contrastive upstream exists outside the repository, is clean, and
+  matches revision `fb6bc26237eb21d7617fd41b22b4bb26ab29bf95`;
+- the local controller Python has PyTorch `2.1.2` and PyG but does not contain
+  PyGCL/scatter/sparse in its base environment;
+- no bundled LOBSTER GraphCL checkpoint exists;
+- the generic real-split exporter and GraphCL runner exist, but an exact
+  cache-backed, test-disabled export and BO objective integration remain to be
+  implemented;
+- no GraphCL-F1PR LOBSTER trial or held-out evaluation has started.
+
+The next action is Gate 0 remote dependency/root qualification, followed by the
+Gate 1 cache-backed exporter. This section must be updated after every commit so
+a resumed agent never guesses the campaign state.
