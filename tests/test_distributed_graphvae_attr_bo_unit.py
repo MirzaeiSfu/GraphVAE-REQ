@@ -46,6 +46,7 @@ from scripts.graphvae_attr_bo_fingerprints import (
 from scripts.run_distributed_graphvae_attr_bo import (
     _credential_environment_paths,
     _search_space,
+    _validate_mock_cpu_slots,
     build_hardware_repeatability_report,
     render_remote_launch,
     render_tmux_ssh_command,
@@ -438,6 +439,30 @@ def test_u10_slot_validation_fails_before_external_access(tmp_path):
             parse_slots(path, known_hosts=["host-a", "host-b"])
 
 
+def test_mock_cpu_slots_allow_concurrent_lifecycle_workers_on_one_host(tmp_path):
+    path = tmp_path / "mock-cpu-slots.txt"
+    path.write_text(
+        "host-a mock-cpu worker-a\nhost-a mock-cpu worker-b\nhost-a mock-cpu worker-c\n",
+        encoding="utf-8",
+    )
+
+    slots = parse_slots(path, known_hosts=["host-a"])
+
+    assert [slot["worker_id"] for slot in slots] == ["worker-a", "worker-b", "worker-c"]
+    assert all(slot["physical_gpu"] is None for slot in slots)
+
+
+def test_mock_cpu_slots_are_fail_closed_for_real_studies():
+    definition = minimal_definition()
+    slots = [{"host": "host-a", "physical_gpu": None, "worker_id": "worker-a"}]
+
+    with pytest.raises(RuntimeError, match="forbidden for real studies"):
+        _validate_mock_cpu_slots(definition, slots)
+
+    definition["training"]["mock"] = True
+    _validate_mock_cpu_slots(definition, slots)
+
+
 def test_u11_finalization_refuses_waiting_or_running_reservations():
     from optuna.trial import TrialState
 
@@ -534,6 +559,32 @@ def test_launcher_uses_physical_visibility_logical_cuda_and_no_secret_or_test():
     assert "GRAPHVAE_BO_STORAGE_URL" in rendered
     assert "password" not in rendered.lower()
     assert "--split test" not in rendered
+
+
+def test_mock_cpu_launcher_omits_physical_gpu_and_cuda_visibility():
+    command = render_worker_command(
+        python_path="/env/bin/python",
+        repo_path="/repo",
+        study_name="mock-study",
+        base_config="/repo/config.yaml",
+        artifact_root="/repo/runs/mock-study",
+        contract_hash="a" * 64,
+        worker_id="host-cpu0",
+        worker_run_id_value="host-cpu0-dispatch-000001",
+        sampler_seed_value=7,
+        dispatch_sequence=1,
+        physical_gpu=None,
+        storage_env="GRAPHVAE_BO_STORAGE_URL",
+        heartbeat_interval=60,
+        grace_period=600,
+        mock=True,
+    )
+    rendered = render_remote_launch(command, physical_gpu=None, lock_path="/tmp/slot.lock")
+
+    assert "CUDA_VISIBLE_DEVICES" not in rendered
+    assert "--physical-gpu" not in rendered
+    assert "--device cpu" in rendered
+    assert "--mock" in rendered
 
 
 def test_launcher_sources_only_protected_credential_file_path():

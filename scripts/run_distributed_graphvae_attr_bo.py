@@ -623,7 +623,7 @@ def render_worker_command(
     worker_run_id_value: str,
     sampler_seed_value: int,
     dispatch_sequence: int,
-    physical_gpu: int,
+    physical_gpu: int | None,
     storage_env: str,
     heartbeat_interval: int,
     grace_period: int,
@@ -642,13 +642,14 @@ def render_worker_command(
         "--worker-run-id", worker_run_id_value,
         "--sampler-seed", str(sampler_seed_value),
         "--dispatch-sequence", str(dispatch_sequence),
-        "--physical-gpu", str(physical_gpu),
-        "--device", "cuda:0",
+        "--device", "cpu" if physical_gpu is None else "cuda:0",
         "--storage-env", storage_env,
         "--heartbeat-interval", str(heartbeat_interval),
         "--grace-period", str(grace_period),
         "--tpe-startup-trials", str(tpe_startup_trials),
     ]
+    if physical_gpu is not None:
+        command.extend(["--physical-gpu", str(physical_gpu)])
     if mock:
         command.append("--mock")
     if allow_sslmode_require_exception:
@@ -659,7 +660,7 @@ def render_worker_command(
 def render_remote_launch(
     command: Sequence[str],
     *,
-    physical_gpu: int,
+    physical_gpu: int | None,
     lock_path: str,
     credential_env_file: str | None = None,
 ) -> str:
@@ -679,10 +680,13 @@ def render_remote_launch(
         environment_prefix = (
             f"set -a; . {shlex.quote(credential_env_file)}; set +a; "
         )
+    device_prefix = (
+        "" if physical_gpu is None else f"CUDA_VISIBLE_DEVICES={shlex.quote(str(physical_gpu))} "
+    )
     inner = (
         environment_prefix
-        + f"CUDA_VISIBLE_DEVICES={shlex.quote(str(physical_gpu))} "
-        f"flock -n {shlex.quote(lock_path)} "
+        + device_prefix
+        + f"flock -n {shlex.quote(lock_path)} "
         + shlex.join(list(command))
     )
     return inner
@@ -832,12 +836,22 @@ def _assert_controller_owner(study: Any, output_dir: Path, controller_uuid: str)
         )
 
 
+def _validate_mock_cpu_slots(
+    definition: Mapping[str, Any], slots: Sequence[Mapping[str, Any]]
+) -> None:
+    if any(slot["physical_gpu"] is None for slot in slots) and not bool(
+        definition["training"].get("mock", False)
+    ):
+        raise DistributedContractError("mock-cpu slots are forbidden for real studies.")
+
+
 def _command_preflight_locked(args: argparse.Namespace, controller_uuid: str) -> int:
     repositories, pythons, slots = _preflight_inputs(args)
     _storage_url, _storage_instance, study, definition, contract_hash = _load_ready_study(args)
     _assert_controller_owner(
         study, args.output_dir.expanduser().resolve(), controller_uuid
     )
+    _validate_mock_cpu_slots(definition, slots)
     if len(slots) < int(definition["scheduler"]["max_parallel"]):
         raise ValueError("Verified slot count is below the contract maximum concurrency.")
     payload = {
@@ -1368,6 +1382,7 @@ def _command_run_locked(args: argparse.Namespace, controller_uuid: str) -> int:
     _assert_controller_owner(
         study, args.output_dir.expanduser().resolve(), controller_uuid
     )
+    _validate_mock_cpu_slots(definition, slots)
     _assert_prior_launches_reconciled(args.output_dir.expanduser().resolve())
     contracted_parallelism = int(definition["scheduler"]["max_parallel"])
     if args.max_parallel != contracted_parallelism:

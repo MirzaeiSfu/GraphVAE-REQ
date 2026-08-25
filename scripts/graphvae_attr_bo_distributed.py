@@ -1392,19 +1392,23 @@ def parse_slots(path: Path, *, known_hosts: Sequence[str] | None = None) -> list
         host, raw_gpu, worker_id = parts
         validate_identifier(host, "slot host")
         validate_identifier(worker_id, "worker ID")
-        try:
-            gpu = int(raw_gpu)
-        except ValueError as exc:
-            raise ValueError(f"Invalid GPU index on slot row {line_number}.") from exc
-        if gpu < 0:
-            raise ValueError(f"Invalid GPU index on slot row {line_number}.")
+        if raw_gpu == "mock-cpu":
+            gpu = None
+        else:
+            try:
+                gpu = int(raw_gpu)
+            except ValueError as exc:
+                raise ValueError(f"Invalid GPU index on slot row {line_number}.") from exc
+            if gpu < 0:
+                raise ValueError(f"Invalid GPU index on slot row {line_number}.")
         if allowed is not None and host not in allowed:
             raise ValueError(f"Unknown host {host!r} on slot row {line_number}.")
-        if (host, gpu) in seen_gpu:
+        if gpu is not None and (host, gpu) in seen_gpu:
             raise ValueError(f"Duplicate host/GPU slot: {host}:{gpu}.")
         if worker_id in seen_workers:
             raise ValueError(f"Duplicate worker ID: {worker_id}.")
-        seen_gpu.add((host, gpu))
+        if gpu is not None:
+            seen_gpu.add((host, gpu))
         seen_workers.add(worker_id)
         slots.append({"host": host, "physical_gpu": gpu, "worker_id": worker_id})
     if not slots:

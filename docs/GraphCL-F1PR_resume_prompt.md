@@ -79,14 +79,17 @@ least once per minute during long training, remote, or test operations. If a
 qualification gate fails, preserve the evidence, report
 `qualification_failed`, commit it, and do not force the BO run.
 
-Current execution checkpoint: Gates 1--3 are complete. The exact split export,
-five immutable LOBSTER GraphCL encoders, and validation-only same-latent
-GraphVAE evaluator are qualified on `cs-cl-09`; read the roadmap's Current
-checkpoint and the three qualification JSON files for exact hashes, metrics,
-and the preserved initial dependency failure. The next step is Gate 4
-distributed controller/worker integration, including grouped GraphVAE seeds
-and bounded mock concurrency/failure/recovery tests. Do not regenerate a split,
-retrain an encoder, treat the integration metric as BO evidence, or access
-held-out/test data.
+Current execution checkpoint: Gates 1--3 and the Gate 4 grouped GraphCL backend
+implementation are complete. The exact split export, five immutable LOBSTER
+GraphCL encoders, validation-only same-latent GraphVAE evaluator, and frozen
+two-worker PostgreSQL lifecycle mock are qualified on `cs-cl-09`; read the
+roadmap's Current checkpoint and qualification JSON files for exact hashes,
+metrics, and preserved failed attempts. The next step is the fresh
+three-reservation CPU/mock concurrency qualification using
+`CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_MOCK3_SLOTS.txt`, followed by Gate 4's
+remaining ambiguous-launch and stale-worker/recovery cases. CPU/mock slots are
+for immutable mock studies only and do not authorize or claim a third GPU. Do
+not regenerate a split, retrain an encoder, treat any mock metric as BO
+evidence, or access held-out/test data.
 
 ---

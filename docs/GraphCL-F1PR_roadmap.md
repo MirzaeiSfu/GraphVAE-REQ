@@ -577,5 +577,16 @@ three CPU/mock processes on `cs-cl-09` to qualify controller/database
 parallelism, but it does not expand real GPU concurrency beyond the two frozen
 physical slots. Then complete the remaining failure/recovery/restore cases
 before any real fixed anchor.
+
+The three-worker launcher support is now implemented and locally qualified.
+Slot files may use the literal `mock-cpu` only when the immutable study
+definition has `training.mock=true`; both preflight and dispatch fail closed if
+such a slot is presented to any real study. CPU/mock commands omit both
+`CUDA_VISIBLE_DEVICES` and `--physical-gpu` and explicitly select `--device
+cpu`. Multiple lifecycle-only worker identities may therefore share
+`cs-cl-09` without claiming nonexistent GPU capacity. The legacy physical-GPU
+slot representation is unchanged, and 72 focused unit, launcher, and grouped
+GraphCL backend tests pass. The next action is to commit and deploy this
+support, then initialize and run a fresh exact-three-reservation mock study.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

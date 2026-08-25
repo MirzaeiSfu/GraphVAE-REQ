@@ -1,0 +1,5 @@
+# HOST SLOT WORKER_ID
+# Lifecycle-only CPU workers. The launcher rejects these for every real study.
+cs-cl-09 mock-cpu cs-cl-09-lobster-graphcl-mockcpu0
+cs-cl-09 mock-cpu cs-cl-09-lobster-graphcl-mockcpu1
+cs-cl-09 mock-cpu cs-cl-09-lobster-graphcl-mockcpu2
