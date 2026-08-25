@@ -1,0 +1,104 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-mock2-qualification-v1",
+  "date": "2026-08-25",
+  "purpose": "distributed lifecycle qualification only; no scientific model-quality claim",
+  "study": {
+    "name": "lobster_graphcl_f1pr_mock2_20260825c",
+    "study_contract_sha256": "0881081edcae63902ae492f030f65425fef6da0197e99839f9b00552d66df2a7",
+    "worker_source_commit": "27407ee561282d72af3b77363348a2ca9c4d01ba",
+    "worker_source_tree_sha256": "98664ca265683e9dfaeff03a2a4df2636c01eaf30ab137b3fd17767a0b84f249",
+    "aggregate_fix_commit": "ba6d2cd",
+    "reserved_trials": 2,
+    "max_parallel": 2,
+    "complete": 2,
+    "failed": 0,
+    "waiting": 0,
+    "running": 0,
+    "unreserved_guard": 0,
+    "lifecycle": "FROZEN"
+  },
+  "reconciled_prelaunch": {
+    "wave": 1,
+    "cause": "cs-cl-09 self-SSH host key was not staged",
+    "launch_state": "PLANNED",
+    "probe_status": "DEFINITE_PRELAUNCH",
+    "retry_safe": true,
+    "db_trials_per_launch": 0,
+    "replacement_reservation": false
+  },
+  "workers": [
+    {
+      "worker_run_id": "cs-cl-09-lobster-graphcl-gpu0-dispatch-2000000",
+      "physical_gpu": 0,
+      "dispatch_sequence": 2000000,
+      "sampler_seed": 136331046,
+      "trial_number": 1
+    },
+    {
+      "worker_run_id": "cs-cl-09-lobster-graphcl-gpu1-dispatch-2000001",
+      "physical_gpu": 1,
+      "dispatch_sequence": 2000001,
+      "sampler_seed": 1181048583,
+      "trial_number": 0
+    }
+  ],
+  "trials": [
+    {
+      "trial_number": 0,
+      "budget_index": 0,
+      "alpha_node_feat": 1.046132396321961,
+      "alpha_edge_feat": 1.0523460066033954,
+      "training_seeds": [0, 1],
+      "replicate_values": [0.8499688508260312, 0.8499688508260312],
+      "objective_mean": 0.8499688508260312,
+      "status": "COMPLETE"
+    },
+    {
+      "trial_number": 1,
+      "budget_index": 1,
+      "alpha_node_feat": 0.3266287309925576,
+      "alpha_edge_feat": 0.5481789308471007,
+      "training_seeds": [0, 1],
+      "replicate_values": [0.840189243944336, 0.840189243944336],
+      "objective_mean": 0.840189243944336,
+      "status": "COMPLETE"
+    }
+  ],
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "aggregation": "arithmetic_mean_of_complete_graphvae_seeds",
+    "split": "validation",
+    "test_access": false,
+    "scientific_interpretation": "synthetic mock values only"
+  },
+  "restore": {
+    "postgresql_access": false,
+    "aggregate_outputs_match": true,
+    "semantic_fingerprint": "074ced681b66ee91c212312c9ca0ef6866c2222eede1dca88390491dd0a18724",
+    "snapshot_sha256": "a4c94e4f81bb7fe9bf8b99e9f5f103dc12f987f9be17e22964ff2cf4d85cb4ef",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1"
+  },
+  "integrity": {
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "validation_reference_file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+    "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "credential_assignment_scan_clean": true,
+    "storage_url_scan_clean": true,
+    "test_access_true_scan_clean": true
+  },
+  "preserved_prior_attempts": [
+    {
+      "study_name": "lobster_graphcl_f1pr_mock2_20260825a",
+      "result": "definition assembly failed before reservation",
+      "trial_count": 0,
+      "study_attribute_count": 0
+    },
+    {
+      "study_name": "lobster_graphcl_f1pr_mock2_20260825b",
+      "result": "RETIRED_PRECLAIM",
+      "reserved_waiting": 2,
+      "reservation_consumed": false
+    }
+  ]
+}

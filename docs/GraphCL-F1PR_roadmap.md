@@ -556,5 +556,26 @@ objective, and both objective paths; it never treats one seed as canonical.
 Sixty-nine focused backend/controller/launcher tests pass. The existing study
 remains READY and terminal for a post-deploy finalize retry; no reservation may
 be added or rerun.
+
+That same terminal study was finalized after deploying `ba6d2cd`; no worker was
+rerun. It is FROZEN with two COMPLETE reservations, zero FAIL/WAITING/RUNNING or
+unreserved rows, and both worker completion markers. Offline restore initially
+failed under an unsourced shell because its runtime identity differed, then
+passed under the same protected environment used at initialization; it did not
+access PostgreSQL. The restored aggregate files match byte-for-byte, snapshot
+SHA-256 is
+`a4c94e4f81bb7fe9bf8b99e9f5f103dc12f987f9be17e22964ff2cf4d85cb4ef`,
+and semantic fingerprint is
+`074ced681b66ee91c212312c9ca0ef6866c2222eede1dca88390491dd0a18724`.
+Cache, validation reference, and encoder manifest hashes remain exact; storage
+URL, credential-assignment, and `test_access=true` scans are clean. Full details
+are frozen in `lobster_graphcl_f1pr_mock2_qualification.json`. Mock objectives
+are synthetic lifecycle evidence and have no scientific interpretation.
+
+The next action is a separate fresh three-worker lifecycle mock. It may use
+three CPU/mock processes on `cs-cl-09` to qualify controller/database
+parallelism, but it does not expand real GPU concurrency beyond the two frozen
+physical slots. Then complete the remaining failure/recovery/restore cases
+before any real fixed anchor.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
