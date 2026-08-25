@@ -180,6 +180,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "worker overlap and forbidden for real studies."
         ),
     )
+    init.add_argument(
+        "--mock-child-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Mock-only bounded trial child lifetime used for process-recovery "
+            "qualification; forbidden for real studies."
+        ),
+    )
     init.add_argument("--interrupt-after-reservations", type=int, default=None, help=argparse.SUPPRESS)
 
     preflight = subparsers.add_parser("preflight", help="Validate local and worker inputs.")
@@ -372,6 +381,15 @@ def _validated_mock_hold_seconds(args: argparse.Namespace) -> float:
     return value
 
 
+def _validated_mock_child_seconds(args: argparse.Namespace) -> float:
+    value = float(args.mock_child_seconds)
+    if not 0.0 <= value <= 300.0:
+        raise ValueError("--mock-child-seconds must be between 0 and 300 seconds.")
+    if value and not args.mock:
+        raise ValueError("--mock-child-seconds is forbidden for real studies.")
+    return value
+
+
 def _definition_for_init(
     args: argparse.Namespace,
     *,
@@ -399,6 +417,7 @@ def _definition_for_init(
         qualification.get("termination_grace_seconds", args.termination_grace)
     )
     mock_hold_seconds = _validated_mock_hold_seconds(args)
+    mock_child_seconds = _validated_mock_child_seconds(args)
     split_seed_value = int(flat.get("split_seed", 123) if args.split_seed is None else args.split_seed)
 
     cache_manifest = _read_json(args.dataset_cache_manifest)
@@ -535,6 +554,7 @@ def _definition_for_init(
             "termination_grace_seconds": termination_grace,
             "mock": bool(args.mock),
             "mock_hold_seconds": mock_hold_seconds,
+            "mock_child_seconds": mock_child_seconds,
         },
         source=source_manifest,
         environment=environment,
@@ -1987,19 +2007,34 @@ def _reconcile_terminal_failures_without_results(
                         f"Trial {trial.number} has conflicting terminal and interrupted results."
                     )
                 continue
+            grouped_graphcl = (
+                definition.get("evaluator", {}).get("backend") == "graphcl_f1pr"
+                and partial.get("schema_version")
+                == "lobster-graphcl-f1pr-grouped-trial-v1"
+            )
             expected_partial = {
-                "schema_version": "graphvae-attr-f1pr-bo-trial-v2",
                 "status": "RUNNING",
                 "trial_number": trial.number,
                 "budget_index": budget_index,
                 "study_contract_sha256": contract_hash,
                 "worker_run_id": attrs.get("worker_run_id"),
-                "sampled_weights": dict(trial.params),
             }
             if any(
                 partial.get(field) != expected
                 for field, expected in expected_partial.items()
-            ) or partial.get("finished_at_unix") is not None:
+            ) or partial.get("finished_at_unix") is not None or (
+                grouped_graphcl
+                and (
+                    partial.get("training_seeds") != [0, 1]
+                    or partial.get("sampled_weights") not in (None, dict(trial.params))
+                )
+            ) or (
+                not grouped_graphcl
+                and (
+                    partial.get("schema_version") != "graphvae-attr-f1pr-bo-trial-v2"
+                    or partial.get("sampled_weights") != dict(trial.params)
+                )
+            ):
                 raise DistributedContractError(
                     f"Trial {trial.number} partial result identity is invalid."
                 )
@@ -2024,6 +2059,60 @@ def _reconcile_terminal_failures_without_results(
                     "recorded_status": "RUNNING",
                 }
             )
+            if grouped_graphcl:
+                contracted_seeds = [
+                    int(seed)
+                    for seed in definition.get("seeds", {}).get(
+                        "training_seeds", []
+                    )
+                ]
+                for replicate_path in sorted(
+                    result_path.parent.glob("replicates/seed_*/trial_result.json")
+                ):
+                    replicate = json.loads(replicate_path.read_text(encoding="utf-8"))
+                    seed_name = replicate_path.parent.name
+                    seed_text = seed_name[5:] if seed_name.startswith("seed_") else ""
+                    try:
+                        training_seed = int(seed_text)
+                    except ValueError as exc:
+                        raise DistributedContractError(
+                            f"Trial {trial.number} replicate seed path is invalid."
+                        ) from exc
+                    if (
+                        training_seed not in contracted_seeds
+                        or replicate.get("schema_version")
+                        != "graphvae-attr-f1pr-bo-trial-v2"
+                        or replicate.get("status") != "RUNNING"
+                        or replicate.get("trial_number") != trial.number
+                        or replicate.get("budget_index") != budget_index
+                        or replicate.get("study_contract_sha256") != contract_hash
+                        or replicate.get("worker_run_id") != attrs.get("worker_run_id")
+                        or replicate.get("training_seed") != training_seed
+                        or replicate.get("sampled_weights") != dict(trial.params)
+                        or replicate.get("finished_at_unix") is not None
+                    ):
+                        raise DistributedContractError(
+                            f"Trial {trial.number} grouped replicate evidence is invalid."
+                        )
+                    replicate_interrupted = replicate_path.with_name(
+                        "trial_result.interrupted.json"
+                    )
+                    if replicate_interrupted.exists():
+                        raise DistributedContractError(
+                            f"Trial {trial.number} replicate interrupted path already exists."
+                        )
+                    os.replace(str(replicate_path), str(replicate_interrupted))
+                    retained_evidence.append(
+                        {
+                            "kind": "interrupted_graphcl_replicate",
+                            "path": relative_artifact_path(
+                                output_dir, replicate_interrupted
+                            ),
+                            "sha256": sha256_file(replicate_interrupted),
+                            "recorded_status": "RUNNING",
+                            "training_seed": training_seed,
+                        }
+                    )
         tombstone_path = write_failure_tombstone(
             study_root=output_dir,
             trial_number=trial.number,

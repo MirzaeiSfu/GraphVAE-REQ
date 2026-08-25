@@ -99,10 +99,15 @@ study
 `lobster_graphcl_f1pr_ambiguous_20260825a`: one injected post-ack SSH error was
 probed first as `ACTIVE_AMBIGUOUS/retry_safe=false` with its exact reserved DB
 row RUNNING, then as `RECONCILED_TERMINAL` after the same worker completed. No
-duplicate was dispatched. Commit
-`lobster_graphcl_f1pr_ambiguous_qualification.json` and the checkpoint updates
-next, then start only the fresh stale-worker/safe process-group recovery case
-described at the end of the roadmap. CPU/mock slots are for immutable mock
+duplicate was dispatched. The qualification file
+`lobster_graphcl_f1pr_ambiguous_qualification.json` and its checkpoint updates
+are already pushed. Before the live stale-worker case, GraphCL grouped recovery
+support was added locally: immutable mock-only child lifetime, required
+contracted `--training-seed` path selection, and dual grouped/replicate
+interrupted-result tombstone retention. Seventy-six focused tests pass. Commit
+and deploy these changes first, then initialize a fresh exact-one-reservation
+study with short test-only heartbeat/grace and a bounded mock child. No GraphCL
+recovery worker has been killed yet. CPU/mock slots are for immutable mock
 studies only and do not authorize or claim a third GPU. Do not regenerate a
 split, retrain an encoder, treat any mock metric as BO evidence, or access
 held-out/test data.

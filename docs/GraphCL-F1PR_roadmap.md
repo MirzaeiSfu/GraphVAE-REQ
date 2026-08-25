@@ -662,5 +662,22 @@ action is the fresh stale-worker/safe process-group recovery study: record a
 trial-owned child identity, kill the worker parent, recover only the matching
 group, prove an unrelated process survives, and reconcile the one consumed
 reservation to FAIL without replacement.
+
+Prelaunch review found and fixed three GraphCL-specific recovery gaps before a
+live kill was attempted. An immutable `mock_child_seconds` field can now create
+a bounded mock-only child through the same process-group-aware launcher used by
+real training; it is limited to 0--300 seconds and forbidden for real studies.
+The recovery command now requires `--training-seed` for grouped GraphCL trials,
+verifies that seed against the immutable `[0,1]` contract, and derives only that
+replicate's process-identity path. Legacy non-grouped recovery still forbids a
+training-seed selector. Finally, stale reconciliation validates and retains
+both the grouped RUNNING record and its active replicate as separately hashed
+interrupted evidence before writing the failure tombstone. Seventy-six focused
+unit, launcher, and grouped-backend tests pass, including a live matching-group
+kill that spares an unrelated process, exact grouped path selection, mock child
+environment redaction, and grouped tombstone audit. The next action is to
+commit and deploy this interface, then run one fresh short-heartbeat/grace mock
+study and follow the process identity exactly; no live worker has yet been
+killed for this GraphCL case.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

@@ -46,6 +46,7 @@ from scripts.graphvae_attr_bo_fingerprints import (
 from scripts.run_distributed_graphvae_attr_bo import (
     _credential_environment_paths,
     _search_space,
+    _validated_mock_child_seconds,
     _validated_mock_hold_seconds,
     _validate_mock_cpu_slots,
     build_hardware_repeatability_report,
@@ -57,6 +58,9 @@ from scripts.run_distributed_graphvae_attr_bo import (
     _final_outputs,
 )
 from scripts.run_graphvae_attr_bo_worker import _execution_args, _probe_gpu_identity
+from scripts.recover_graphvae_attr_bo_process import (
+    _validated_paths as validated_recovery_paths,
+)
 from scripts.tune_graphvae_attribute_weights import (
     PRIMARY_MODE,
     SearchRanges,
@@ -479,6 +483,21 @@ def test_mock_hold_is_bounded_and_forbidden_for_real_studies():
         )
 
 
+def test_mock_child_is_bounded_and_forbidden_for_real_studies():
+    assert _validated_mock_child_seconds(
+        argparse.Namespace(mock=True, mock_child_seconds=120.0)
+    ) == 120.0
+    for value in (-0.01, 300.01):
+        with pytest.raises(ValueError, match="between 0 and 300"):
+            _validated_mock_child_seconds(
+                argparse.Namespace(mock=True, mock_child_seconds=value)
+            )
+    with pytest.raises(ValueError, match="forbidden for real studies"):
+        _validated_mock_child_seconds(
+            argparse.Namespace(mock=False, mock_child_seconds=1.0)
+        )
+
+
 def test_u11_finalization_refuses_waiting_or_running_reservations():
     from optuna.trial import TrialState
 
@@ -765,6 +784,49 @@ def test_r07_recorded_process_recovery_checks_identity_and_spares_unrelated(tmp_
             unrelated.wait(timeout=5)
 
 
+def test_r07_grouped_recovery_selects_only_the_contracted_seed_identity(tmp_path):
+    study_root = tmp_path / "grouped-recovery"
+    study_root.mkdir()
+    definition = {
+        "study_name": study_root.name,
+        "objective": {
+            "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+            "split": "validation",
+            "test_access": False,
+        },
+        "evaluator": {"backend": "graphcl_f1pr"},
+        "seeds": {"training_seeds": [0, 1]},
+    }
+    atomic_write_json(study_root / "study_definition.json", definition)
+    contract_hash = canonical_contract_hash(definition)
+    args = argparse.Namespace(
+        repo_root=tmp_path,
+        study_root=study_root,
+        worker_run_id="worker-run",
+        trial_number=0,
+        training_seed=0,
+        phase="training",
+        study_contract_sha256=contract_hash,
+        grace_seconds=1.0,
+        output=None,
+    )
+
+    _repo, _study, identity, output = validated_recovery_paths(args)
+
+    assert identity == (
+        study_root
+        / "trials"
+        / "trial_00000"
+        / "replicates"
+        / "seed_0"
+        / "training_subprocess.log.process.json"
+    )
+    assert output == study_root / "workers" / "worker-run" / "PROCESS_RECOVERY.json"
+    args.training_seed = 2
+    with pytest.raises(RuntimeError, match="contracted training seed"):
+        validated_recovery_paths(args)
+
+
 def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path, monkeypatch):
     class FixedTrial:
         number = 0
@@ -809,6 +871,7 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path, monkeypa
         process_termination_grace=1,
         mock=True,
         mock_hold_seconds=0.25,
+        mock_child_seconds=0.5,
         mock_fail_trial=[],
         expected_validation_graph_count=8,
         expected_node_feature_dimension=14,
@@ -824,6 +887,15 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path, monkeypa
     held = []
     monkeypatch.setattr(
         "scripts.tune_graphvae_attribute_weights.time.sleep", held.append
+    )
+    child_calls = []
+
+    def fake_child(command, **kwargs):
+        child_calls.append((command, kwargs))
+        return 0.5
+
+    monkeypatch.setattr(
+        "scripts.tune_graphvae_attribute_weights.run_logged_command", fake_child
     )
     records = []
     configs = []
@@ -877,6 +949,11 @@ def test_l05_fixed_mock_parameters_and_seeds_are_reproducible(tmp_path, monkeypa
     assert records[0] == records[1]
     assert configs[0] == configs[1]
     assert held == [0.25, 0.25]
+    assert len(child_calls) == 2
+    assert all("time.sleep(0.5)" in call[0][2] for call in child_calls)
+    assert all(
+        set(call[1]["environment"]) == {"LANG", "PATH"} for call in child_calls
+    )
 
 
 def test_r08_fixed_parameters_are_contracted_and_enqueued_exactly(tmp_path):

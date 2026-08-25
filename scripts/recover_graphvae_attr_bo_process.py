@@ -5,8 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Sequence
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(REPO_ROOT))
 
 from graphvae_attr_bo_distributed import (
     atomic_write_json,
@@ -26,6 +32,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--worker-run-id", required=True)
     parser.add_argument("--trial-number", type=int, required=True)
+    parser.add_argument(
+        "--training-seed",
+        type=int,
+        default=None,
+        help="Required for a grouped GraphCL replicate; forbidden for legacy trials.",
+    )
     parser.add_argument("--phase", choices=("training", "evaluation"), required=True)
     parser.add_argument("--study-contract-sha256", required=True)
     parser.add_argument("--grace-seconds", type=float, default=10.0)
@@ -67,13 +79,21 @@ def _validated_paths(args: argparse.Namespace) -> tuple[Path, Path, Path, Path]:
         or objective.get("test_access") is not False
     ):
         raise TrialExecutionError("Study objective is not the frozen validation contract.")
+    evaluator = definition.get("evaluator") or {}
+    grouped_graphcl = evaluator.get("backend") == "graphcl_f1pr"
+    training_seeds = [int(seed) for seed in definition.get("seeds", {}).get("training_seeds", [])]
+    if grouped_graphcl:
+        if args.training_seed is None or args.training_seed not in training_seeds:
+            raise TrialExecutionError(
+                "Grouped GraphCL recovery requires one contracted training seed."
+            )
+    elif args.training_seed is not None:
+        raise TrialExecutionError("Legacy trial recovery forbids --training-seed.")
     worker_root = study_root / "workers" / args.worker_run_id
-    identity_path = (
-        study_root
-        / "trials"
-        / f"trial_{args.trial_number:05d}"
-        / f"{args.phase}_subprocess.log.process.json"
-    )
+    trial_root = study_root / "trials" / f"trial_{args.trial_number:05d}"
+    if grouped_graphcl:
+        trial_root = trial_root / "replicates" / f"seed_{args.training_seed}"
+    identity_path = trial_root / f"{args.phase}_subprocess.log.process.json"
     if args.output is not None:
         output = args.output.expanduser().resolve()
         output.relative_to(worker_root.resolve())
@@ -125,6 +145,7 @@ def run(args: argparse.Namespace) -> int:
         "study_contract_sha256": args.study_contract_sha256,
         "worker_run_id": args.worker_run_id,
         "trial_number": args.trial_number,
+        "training_seed": args.training_seed,
         "phase": args.phase,
         "action": "terminate" if args.terminate else "probe",
         "status_before": before["status"],

@@ -1326,6 +1326,33 @@ def execute_trial(
                 raise TrialExecutionError("Mock hold must be between 0 and 30 seconds.")
             if mock_hold_seconds:
                 time.sleep(mock_hold_seconds)
+            mock_child_seconds = float(getattr(args, "mock_child_seconds", 0.0))
+            if not 0.0 <= mock_child_seconds <= 300.0:
+                raise TrialExecutionError("Mock child lifetime must be between 0 and 300 seconds.")
+            if mock_child_seconds:
+                mock_environment = {
+                    "LANG": os.environ.get("LANG", "C.UTF-8"),
+                    "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                }
+                run_logged_command(
+                    [
+                        args.python_bin,
+                        "-c",
+                        f"import time; time.sleep({mock_child_seconds!r})",
+                    ],
+                    log_path=trial_dir / "training_subprocess.log",
+                    environment=mock_environment,
+                    timeout_seconds=args.training_timeout,
+                    termination_grace_seconds=float(
+                        getattr(args, "process_termination_grace", 10.0)
+                    ),
+                    process_identity={
+                        "phase": "training",
+                        "study_contract_sha256": study_contract_sha256,
+                        "worker_run_id": getattr(args, "worker_run_id", None),
+                        "trial_number": trial.number,
+                    },
+                )
             if trial.number in set(args.mock_fail_trial) or args.training_seed in set(
                 getattr(args, "mock_fail_training_seed", [])
             ):

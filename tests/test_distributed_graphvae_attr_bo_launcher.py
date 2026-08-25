@@ -684,3 +684,82 @@ def test_r07_interrupted_result_is_retained_and_bound_to_failure_tombstone(tmp_p
     interrupted.write_bytes(interrupted.read_bytes() + b"tamper")
     with pytest.raises(GraphDistributedContractError, match="retained evidence"):
         audit_trial_result(trial, study_root=tmp_path, definition=definition)
+
+
+def test_r07_grouped_graphcl_partial_and_active_replicate_are_retained(tmp_path):
+    definition = {
+        "schema_version": "test-contract",
+        "study_name": "grouped-r07",
+        "evaluator": {"backend": "graphcl_f1pr"},
+        "seeds": {"training_seeds": [0, 1]},
+    }
+    contract_hash = canonical_contract_hash(definition)
+    worker_run = "grouped-worker-run"
+    params = {"alpha_node_feat": 2.0, "alpha_edge_feat": 0.5}
+    trial = SimpleNamespace(
+        number=0,
+        state=optuna.trial.TrialState.FAIL,
+        value=None,
+        params=params,
+        user_attrs={
+            RESERVED_ATTR: True,
+            BUDGET_INDEX_ATTR: 0,
+            TRIAL_CONTRACT_ATTR: contract_hash,
+            "worker_id": "grouped-worker",
+            "worker_run_id": worker_run,
+        },
+    )
+
+    class Study:
+        def get_trials(self, deepcopy=False):
+            assert deepcopy is False
+            return [trial]
+
+    trial_dir = tmp_path / "trials" / "trial_00000"
+    (tmp_path / "workers" / worker_run).mkdir(parents=True)
+    atomic_write_json(
+        trial_dir / "trial_result.json",
+        {
+            "schema_version": "lobster-graphcl-f1pr-grouped-trial-v1",
+            "status": "RUNNING",
+            "trial_number": 0,
+            "budget_index": 0,
+            "study_contract_sha256": contract_hash,
+            "worker_run_id": worker_run,
+            "sampled_weights": None,
+            "training_seeds": [0, 1],
+            "finished_at_unix": None,
+        },
+    )
+    atomic_write_json(
+        trial_dir / "replicates" / "seed_0" / "trial_result.json",
+        {
+            "schema_version": "graphvae-attr-f1pr-bo-trial-v2",
+            "status": "RUNNING",
+            "trial_number": 0,
+            "budget_index": 0,
+            "study_contract_sha256": contract_hash,
+            "worker_run_id": worker_run,
+            "training_seed": 0,
+            "sampled_weights": params,
+            "finished_at_unix": None,
+        },
+    )
+
+    _reconcile_terminal_failures_without_results(Study(), tmp_path, definition)
+
+    assert not (trial_dir / "trial_result.json").exists()
+    assert not (
+        trial_dir / "replicates" / "seed_0" / "trial_result.json"
+    ).exists()
+    tombstone = json.loads(
+        (trial_dir / "trial_failure_tombstone.json").read_text(encoding="utf-8")
+    )
+    assert [item["kind"] for item in tombstone["retained_evidence"]] == [
+        "interrupted_trial_result",
+        "interrupted_graphcl_replicate",
+    ]
+    assert tombstone["retained_evidence"][1]["training_seed"] == 0
+    assert audit_trial_result(
+        trial, study_root=tmp_path, definition=definition
+    ) == tombstone
