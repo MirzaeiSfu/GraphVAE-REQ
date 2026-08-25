@@ -750,5 +750,16 @@ left implicit.
 The next action is to test and commit these contracts, deploy the clean commit,
 preflight the one real slot and immutable inputs, and only then initialize
 `lobster_graphcl_f1pr_anchors2000_20260825a` with exactly six reservations.
+
+The clean source commit `3c47bd6` is deployed and the frozen real cache manifest
+reverifies against the read-only cache. Fresh study
+`lobster_graphcl_f1pr_anchors2000_20260825a` is now initialized under contract
+`4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398`.
+Supported preflight passed PostgreSQL authentication, source/runtime, cache and
+schema, GraphCL input, and GPU-1 isolation checks. The study is `READY` with
+exactly six `WAITING` reservations and zero RUNNING, COMPLETE, FAIL, or guard
+rows. No worker or real training has started. Exact prelaunch evidence is in
+`lobster_graphcl_f1pr_gate5_phase_a_launch.json`; the next action is one GPU-1
+worker wave, followed by truthful monitoring of that reservation.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

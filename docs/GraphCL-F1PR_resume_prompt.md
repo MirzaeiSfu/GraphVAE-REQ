@@ -120,4 +120,14 @@ deploy the clean commit, preflight the immutable real inputs on GPU 1, and only
 then create `lobster_graphcl_f1pr_anchors2000_20260825a`. Do not use or kill the
 GPU-0 process.
 
+The final policy is pushed at `3c47bd6`, deployed, and preflighted. Fresh study
+`lobster_graphcl_f1pr_anchors2000_20260825a` exists with contract
+`4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398`;
+it is `READY` with exactly six `WAITING` reservations and no other trial state.
+No worker has launched. Prelaunch evidence is in
+`lobster_graphcl_f1pr_gate5_phase_a_launch.json`. Commit/push that evidence
+without redeploying it (the study source remains `3c47bd6`), then invoke one
+worker wave on the frozen GPU-1 slot and monitor it. Never dispatch a second
+wave while the first identity is active or ambiguous, and never use GPU 0.
+
 ---

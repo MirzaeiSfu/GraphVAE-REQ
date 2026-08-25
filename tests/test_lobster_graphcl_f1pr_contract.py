@@ -25,6 +25,9 @@ GATE5_HARDWARE = (
     CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_hardware_policy.json"
 )
 GATE5_CONFIG = CONFIG_ROOT / "lobster_graphcl_f1pr_signal.yaml"
+GATE5_PHASE_A_LAUNCH = (
+    CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_phase_a_launch.json"
+)
 GATE5_SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_GATE5_SLOTS.txt"
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_PYTHON_PATHS.txt"
@@ -386,3 +389,26 @@ def test_gate5_fixed_anchor_plan_is_exact_and_validation_only():
     assert _data_rows(GATE5_SLOTS) == [
         ["cs-cl-09", "1", "cs-cl-09-lobster-graphcl-gate5-gpu1"]
     ]
+
+
+def test_gate5_phase_a_launch_checkpoint_is_ready_and_unstarted():
+    launch = json.loads(GATE5_PHASE_A_LAUNCH.read_text(encoding="utf-8"))
+    assert launch["study"]["study_contract_sha256"] == (
+        "4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398"
+    )
+    assert launch["study"]["source_commit"] == (
+        "3c47bd61f5c12e2a258dbecdc1007265ea976431"
+    )
+    assert launch["study"]["lifecycle"] == "READY"
+    assert launch["study"]["reserved_trials"] == 6
+    assert launch["study"]["waiting"] == 6
+    assert launch["study"]["running"] == 0
+    assert launch["study"]["complete"] == 0
+    assert launch["study"]["failed"] == 0
+    assert launch["preflight"]["passed"] is True
+    assert launch["preflight"]["physical_gpu"] == 1
+    assert launch["preflight"]["test_access"] is False
+    assert launch["execution"]["workers_launched"] == 0
+    assert launch["execution"]["real_training_started"] is False
+    assert launch["execution"]["adaptive_bo"] is False
+    assert launch["execution"]["held_out_or_test_evaluation"] is False
