@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from graph_evaluation.src.ggm_eval.io import load_pyg_collection_with_metadata
 from scripts import export_lobster_graphcl_f1pr_splits as exporter
@@ -16,6 +17,15 @@ EVALUATOR_QUALIFICATION = CONFIG_ROOT / "lobster_graphcl_f1pr_evaluator_qualific
 GATE4_EXIT_QUALIFICATION = (
     CONFIG_ROOT / "lobster_graphcl_f1pr_gate4_exit_qualification.json"
 )
+GATE5_POLICY = CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_policy.json"
+GATE5_RESERVATIONS = (
+    CONFIG_ROOT / "lobster_graphcl_f1pr_anchor_reservations_6.json"
+)
+GATE5_HARDWARE = (
+    CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_hardware_policy.json"
+)
+GATE5_CONFIG = CONFIG_ROOT / "lobster_graphcl_f1pr_signal.yaml"
+GATE5_SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_GATE5_SLOTS.txt"
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_PYTHON_PATHS.txt"
 SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_SLOTS.txt"
@@ -293,3 +303,77 @@ def test_gate4_exit_is_complete_test_free_and_non_scientific():
         "adaptive_bo_authorized": False,
         "held_out_or_test_evaluation_authorized": False,
     }
+
+
+def test_gate5_fixed_anchor_plan_is_exact_and_validation_only():
+    reservations = json.loads(GATE5_RESERVATIONS.read_text(encoding="utf-8"))
+    assert reservations["schema_version"] == "graphvae-attr-f1pr-reservation-plan-v1"
+    assert reservations["reservations"] == [
+        {
+            "budget_index": 0,
+            "parameters": {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0},
+            "training_seed": 0,
+        },
+        {
+            "budget_index": 1,
+            "parameters": {
+                "alpha_node_feat": 5.229045672,
+                "alpha_edge_feat": 0.0538641483,
+            },
+            "training_seed": 0,
+        },
+        {
+            "budget_index": 2,
+            "parameters": {"alpha_node_feat": 0.25, "alpha_edge_feat": 0.25},
+            "training_seed": 0,
+        },
+        {
+            "budget_index": 3,
+            "parameters": {"alpha_node_feat": 4.0, "alpha_edge_feat": 4.0},
+            "training_seed": 0,
+        },
+        {
+            "budget_index": 4,
+            "parameters": {"alpha_node_feat": 4.0, "alpha_edge_feat": 0.25},
+            "training_seed": 0,
+        },
+        {
+            "budget_index": 5,
+            "parameters": {"alpha_node_feat": 0.25, "alpha_edge_feat": 4.0},
+            "training_seed": 0,
+        },
+    ]
+
+    policy = json.loads(GATE5_POLICY.read_text(encoding="utf-8"))
+    assert policy["phase_a"]["reserved_candidates"] == 6
+    assert policy["phase_a"]["graphvae_training_seeds_per_candidate"] == [0, 1]
+    assert policy["phase_a"]["max_parallel"] == 1
+    assert policy["phase_b"]["epoch_number"] == 10000
+    assert policy["phase_b"]["promoted_candidates"] == 3
+    assert policy["generation_stability"]["generation_seeds"] == [123, 124, 125]
+    assert (
+        policy["pass_thresholds"]["training_seed_coefficient_of_variation_max"]
+        == 0.2
+    )
+    assert policy["pass_thresholds"]["minimum_anchors_passing_cv"] == 4
+    assert policy["pass_thresholds"]["phase_a_phase_b_spearman_min"] == 0.5
+    assert policy["objective_contract"]["selection_split"] == "validation"
+    assert policy["objective_contract"]["test_access"] is False
+    assert policy["objective_contract"]["partial_candidate_score_forbidden"] is True
+    config = yaml.safe_load(GATE5_CONFIG.read_text(encoding="utf-8"))
+    assert config["data"]["dataset"] == "LOBSTER"
+    assert config["experiment"]["epoch_number"] == 2000
+    assert config["runtime"]["skip_final_evaluation"] is True
+    assert config["bayesian_optimization_qualification"] == {
+        "expected_total_graphs": 100,
+        "max_graphs": 10,
+        "generation_batch_size": 10,
+        "training_timeout_seconds": 7200,
+        "evaluation_timeout_seconds": 1200,
+        "termination_grace_seconds": 10,
+    }
+    hardware = json.loads(GATE5_HARDWARE.read_text(encoding="utf-8"))
+    assert hardware["homogeneous_production_pool"] == ["cs-cl-09:cuda:1"]
+    assert _data_rows(GATE5_SLOTS) == [
+        ["cs-cl-09", "1", "cs-cl-09-lobster-graphcl-gate5-gpu1"]
+    ]

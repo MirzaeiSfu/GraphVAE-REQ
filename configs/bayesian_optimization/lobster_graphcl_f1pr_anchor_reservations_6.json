@@ -1,0 +1,11 @@
+{
+  "schema_version": "graphvae-attr-f1pr-reservation-plan-v1",
+  "reservations": [
+    {"budget_index": 0, "parameters": {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0}, "training_seed": 0},
+    {"budget_index": 1, "parameters": {"alpha_node_feat": 5.229045672, "alpha_edge_feat": 0.0538641483}, "training_seed": 0},
+    {"budget_index": 2, "parameters": {"alpha_node_feat": 0.25, "alpha_edge_feat": 0.25}, "training_seed": 0},
+    {"budget_index": 3, "parameters": {"alpha_node_feat": 4.0, "alpha_edge_feat": 4.0}, "training_seed": 0},
+    {"budget_index": 4, "parameters": {"alpha_node_feat": 4.0, "alpha_edge_feat": 0.25}, "training_seed": 0},
+    {"budget_index": 5, "parameters": {"alpha_node_feat": 0.25, "alpha_edge_feat": 4.0}, "training_seed": 0}
+  ]
+}

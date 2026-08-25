@@ -734,5 +734,17 @@ The machine-checked result is recorded in
 `lobster_graphcl_f1pr_gate4_exit_qualification.json`. Gate 5 may now begin with
 the six predeclared fixed real LOBSTER anchors at 2,000 epochs and GraphVAE
 training seeds 0 and 1. Adaptive BO is not yet authorized.
+
+Gate 5 precreation inspection found GPU 1 idle on `cs-cl-09`, while GPU 0 has a
+long-lived compute context owned by another user. GPU 0 is excluded and will
+not be disturbed. The fixed phase-A plan therefore uses one physical slot and
+`max_parallel=1`; this affects elapsed time only. The six ordered anchors,
+2,000-epoch real configuration, 10 validation graphs, seeds 0 and 1 per
+candidate, five-encoder GraphCL objective, promotion rule, generation seeds
+`[123,124,125]`, and all go/no-go thresholds are frozen in the Gate 5 policy,
+reservation, hardware, configuration, and slot files before study creation.
+The next action is to test and commit these contracts, deploy the clean commit,
+preflight the one real slot and immutable inputs, and only then initialize
+`lobster_graphcl_f1pr_anchors2000_20260825a` with exactly six reservations.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

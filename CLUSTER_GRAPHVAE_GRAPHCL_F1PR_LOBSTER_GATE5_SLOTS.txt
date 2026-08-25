@@ -1,0 +1,3 @@
+# Gate 5 real fixed-anchor slot frozen after a read-only 2026-08-25 check.
+# GPU 0 is excluded because it has an unrelated long-lived compute process.
+cs-cl-09 1 cs-cl-09-lobster-graphcl-gate5-gpu1

@@ -1,0 +1,54 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-policy-v1",
+  "phase_a": {
+    "study_name": "lobster_graphcl_f1pr_anchors2000_20260825a",
+    "epoch_number": 2000,
+    "reservation_plan": "configs/bayesian_optimization/lobster_graphcl_f1pr_anchor_reservations_6.json",
+    "reserved_candidates": 6,
+    "graphvae_training_seeds_per_candidate": [0, 1],
+    "generation_seed": 123,
+    "max_parallel": 1,
+    "slot_file": "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_GATE5_SLOTS.txt"
+  },
+  "phase_b": {
+    "epoch_number": 10000,
+    "promoted_candidates": 3,
+    "selection": [
+      "uniform_(1,1)",
+      "maximum_finite_phase_a_mean_with_lowest_budget_index_tie_break",
+      "first_nonduplicate_from_edge_emphasis_node_emphasis_common_weak_common_strong_previous_random_gin"
+    ],
+    "graphvae_training_seeds_per_candidate": [0, 1],
+    "generation_seed": 123,
+    "max_parallel": 1
+  },
+  "generation_stability": {
+    "candidates": ["uniform", "phase_a_best"],
+    "generation_seeds": [123, 124, 125],
+    "reuse_exact_phase_b_checkpoints": true,
+    "dominance_rule": "maximum within-candidate objective range must not exceed absolute phase-b best-minus-uniform difference"
+  },
+  "pass_thresholds": {
+    "all_reserved_candidates_terminal_complete": true,
+    "finite_objectives_required": true,
+    "training_seed_coefficient_of_variation_max": 0.2,
+    "minimum_anchors_passing_cv": 4,
+    "phase_a_phase_b_spearman_min": 0.5,
+    "best_vs_uniform_sign_reversal_forbidden": true,
+    "generation_seed_variation_may_not_dominate_candidate_difference": true,
+    "minimum_mean_f1_pr_above_floor": 0.05
+  },
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "partial_candidate_score_forbidden": true
+  },
+  "decision": {
+    "on_pass": "commit timing-based bounded Gate 6 search contract before creating it",
+    "on_fail": "qualification_failed; do not create or launch adaptive BO"
+  }
+}
