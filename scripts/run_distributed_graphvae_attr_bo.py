@@ -2470,7 +2470,26 @@ def restore_frozen_study(
         raise FileNotFoundError("Frozen portable SQLite snapshot is missing.")
     source_snapshot_sha = sha256_file(snapshot_path)
 
-    aggregate_names = ("trials.csv", "best_trial.json", "best_config.yaml", "SUMMARY.md")
+    frozen_best_trial_number = frozen.get("best_trial_number")
+    if frozen_best_trial_number is None:
+        aggregate_names = ("trials.csv", "SUMMARY.md")
+        unexpected_best_outputs = ("best_trial.json", "best_config.yaml")
+        for name in unexpected_best_outputs:
+            if (source / name).exists():
+                raise DistributedContractError(
+                    f"All-failed frozen study unexpectedly contains: {name}"
+                )
+    else:
+        if isinstance(frozen_best_trial_number, bool) or not isinstance(
+            frozen_best_trial_number, int
+        ):
+            raise DistributedContractError("Frozen best trial number is invalid.")
+        aggregate_names = (
+            "trials.csv",
+            "best_trial.json",
+            "best_config.yaml",
+            "SUMMARY.md",
+        )
     for name in aggregate_names:
         if not (source / name).is_file():
             raise FileNotFoundError(f"Frozen aggregate output is missing: {name}")
@@ -2504,8 +2523,14 @@ def restore_frozen_study(
             staging,
             artifact_root=source,
         )
-        if best is None:
-            raise DistributedContractError("R09 restoration requires a selected best trial.")
+        if best is None and frozen_best_trial_number is not None:
+            raise DistributedContractError(
+                "Restored study has no best trial but the freeze declares one."
+            )
+        if best is not None and best.number != frozen_best_trial_number:
+            raise DistributedContractError(
+                "Restored best trial differs from the frozen declaration."
+            )
         aggregate_hashes = {}
         for name in aggregate_names:
             original_sha = sha256_file(source / name)
@@ -2519,7 +2544,13 @@ def restore_frozen_study(
             raise DistributedContractError("Reopened snapshot bytes changed during restore.")
         if sha256_file(snapshot_path) != source_snapshot_sha:
             raise DistributedContractError("Frozen source snapshot changed during restore.")
-        best_payload = json.loads((staging / "best_trial.json").read_text(encoding="utf-8"))
+        best_payload = (
+            None
+            if best is None
+            else json.loads(
+                (staging / "best_trial.json").read_text(encoding="utf-8")
+            )
+        )
         report = {
             "schema_version": "graphvae-attr-f1pr-restored-v1",
             "study_name": study_name,
@@ -2530,8 +2561,10 @@ def restore_frozen_study(
             "semantic_fingerprint": trial_semantic_fingerprint(restored),
             "aggregate_sha256": aggregate_hashes,
             "aggregate_outputs_match": True,
-            "best_trial_number": best.number,
-            "best_validation_attr_f1pr": best_payload["validation_attr_f1pr"],
+            "best_trial_number": None if best is None else best.number,
+            "best_validation_attr_f1pr": (
+                None if best_payload is None else best_payload["validation_attr_f1pr"]
+            ),
             "objective_json_path": OBJECTIVE_JSON_PATH,
             "selection_split": "validation",
             "runtime_fingerprint": environment["sha256"],

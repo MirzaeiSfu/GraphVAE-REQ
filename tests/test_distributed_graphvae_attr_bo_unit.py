@@ -1308,6 +1308,90 @@ def test_r09_clean_snapshot_restore_regenerates_identical_aggregates(
         )
 
 
+def test_all_failed_snapshot_restore_regenerates_failure_aggregates(
+    tmp_path,
+    monkeypatch,
+):
+    from optuna.trial import TrialState
+
+    source = tmp_path / "all-failed-frozen"
+    source.mkdir()
+    definition = minimal_definition("restore-all-failed")
+    definition["reserved_trials"] = 1
+    contract = canonical_contract_hash(definition)
+    atomic_write_json(source / "study_definition.json", definition)
+    snapshot_path = source / "study_snapshot.sqlite3"
+    study = optuna.create_study(
+        study_name="restore-all-failed",
+        direction="maximize",
+        storage="sqlite:///" + snapshot_path.as_posix(),
+    )
+    initialize_reserved_study(
+        study,
+        definition,
+        controller_uuid="controller",
+        output_root=source,
+    )
+    claimed = study.ask()
+    claimed.suggest_float("alpha_node_feat", 1e-3, 1e2, log=True)
+    claimed.suggest_float("alpha_edge_feat", 1e-3, 1e2, log=True)
+    tombstone_path = source / "trials" / "trial_00000" / "trial_failure_tombstone.json"
+    atomic_write_json(
+        tombstone_path,
+        {
+            "schema_version": "graphvae-attr-f1pr-failure-tombstone-v1",
+            "failure_category": "stale_worker",
+            "trial_number": 0,
+            "budget_index": 0,
+            "db_state": "FAIL",
+            "study_contract_sha256": contract,
+            "missing_artifacts": [
+                {
+                    "path": "trials/trial_00000/trial_result.json",
+                    "verified_absent": True,
+                }
+            ],
+            "retained_evidence": [],
+        },
+    )
+    claimed.set_user_attr(
+        "failure_tombstone",
+        "trials/trial_00000/trial_failure_tombstone.json",
+    )
+    study.tell(claimed, state=TrialState.FAIL)
+    study.set_user_attr(LIFECYCLE_ATTR, "FROZEN")
+    atomic_write_json(
+        source / "FROZEN.json",
+        {
+            "study_name": "restore-all-failed",
+            "study_contract_sha256": contract,
+            "lifecycle": "FROZEN",
+            "snapshot": snapshot_path.name,
+            "best_trial_number": None,
+        },
+    )
+    assert _final_outputs(study, definition, source) is None
+    monkeypatch.setattr(
+        "scripts.run_distributed_graphvae_attr_bo.runtime_dependency_fingerprint",
+        lambda: {"sha256": "environment"},
+    )
+
+    destination = tmp_path / "all-failed-restored"
+    report = restore_frozen_study(
+        source,
+        destination,
+        study_name="restore-all-failed",
+    )
+
+    assert report["best_trial_number"] is None
+    assert report["best_validation_attr_f1pr"] is None
+    assert set(report["aggregate_sha256"]) == {"trials.csv", "SUMMARY.md"}
+    for name in ("trials.csv", "SUMMARY.md"):
+        assert (destination / name).read_bytes() == (source / name).read_bytes()
+    assert not (destination / "best_trial.json").exists()
+    assert not (destination / "best_config.yaml").exists()
+
+
 def test_r08_hardware_report_enforces_fixed_objective_tolerance(tmp_path):
     definition = minimal_definition("hardware-r08")
     definition["reserved_trials"] = 2
