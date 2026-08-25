@@ -453,5 +453,20 @@ At the completed prerequisite audit:
 - no GraphCL-F1PR LOBSTER trial, encoder training, or held-out evaluation has
   started.
 
-The next action is the Gate 1 cache-backed exporter. This section must be
-updated after every commit so a resumed agent never guesses the campaign state.
+Gate 1 is complete locally. The hash-bound exporter emitted only the 70 training
+and 10 validation graphs with feature identity
+`lobster-optimal_v2|export=decoded_node_edge`, exact dimensions 14/11, zero
+rejected graph, and zero training/validation fingerprint overlap. Repeated
+exports reproduce collection digests
+`8de6ccf86bb2ae994f0a7401217d57a814d5e71c6e49732e345ae2b242f569e4`
+and `0a5ad40ab717440f1739f0b203df3df253a6318089202aa467dd4fc6ee5c1832`.
+The published input files and manifests are mode `0444`; the source cache is
+unchanged. Seven focused tests pass, including a guard that rejects test export
+before cache access and a hash guard that precedes pickle loading. Generated
+PyG inputs remain ignored runtime artifacts and are not committed.
+
+The next action is to commit Gate 1, stage the dedicated source/cache/input
+deployment on `cs-cl-09`, run an encoder timing seed on physical GPU 1, and
+train/freeze all five encoders only if the timing and integrity checks pass.
+This section must be updated after every commit so a resumed agent never guesses
+the campaign state.

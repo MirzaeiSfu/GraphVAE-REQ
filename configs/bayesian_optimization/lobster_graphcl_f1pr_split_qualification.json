@@ -1,0 +1,50 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-split-qualification-v1",
+  "date": "2026-08-25",
+  "source_commit": "f1a4efc",
+  "exporter": "scripts/export_lobster_graphcl_f1pr_splits.py",
+  "cache": {
+    "relative_path": "cache_datasets/LOBSTER_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-0_bfs-legacy_first_component_features-lobster-optimal_v2.pkl",
+    "byte_length": 59295793,
+    "mode": "0444",
+    "sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "unchanged_after_export": true
+  },
+  "contract": {
+    "feature_schema": "lobster-optimal_v2|export=decoded_node_edge",
+    "node_feature_dimension": 14,
+    "edge_feature_dimension": 11,
+    "exported_splits": ["train", "validation"],
+    "test_access": false,
+    "split_overlap_count": 0
+  },
+  "artifacts": {
+    "train": {
+      "graph_count": 70,
+      "directed_edge_count": 7174,
+      "total_nodes": 3657,
+      "split_fingerprint": "e780866699dc333924a131b03472fd769dc1d63c82cabcb70f0101dca0f61068",
+      "collection_sha256": "8de6ccf86bb2ae994f0a7401217d57a814d5e71c6e49732e345ae2b242f569e4",
+      "file_byte_length": 738458,
+      "file_sha256": "2ceb667e563c10087042ef8da76a6c30ffe84a27d297c0cfae44ef438a2d0bd8",
+      "mode": "0444"
+    },
+    "validation": {
+      "graph_count": 10,
+      "directed_edge_count": 908,
+      "total_nodes": 464,
+      "split_fingerprint": "2c1853642157f09f68bc4950e0c5e0074dc207f7565f6bedca2dc2126dd33d62",
+      "collection_sha256": "0a5ad40ab717440f1739f0b203df3df253a6318089202aa467dd4fc6ee5c1832",
+      "file_byte_length": 96242,
+      "file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+      "mode": "0444"
+    }
+  },
+  "verification": {
+    "deterministic_repeated_collection_digests": true,
+    "atomic_manifest_publication": true,
+    "focused_tests_passed": 7,
+    "failed_tests": 0
+  },
+  "generated_artifacts_committed": false
+}

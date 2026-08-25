@@ -79,4 +79,9 @@ least once per minute during long training, remote, or test operations. If a
 qualification gate fails, preserve the evidence, report
 `qualification_failed`, commit it, and do not force the BO run.
 
+Current execution checkpoint: Gate 1 exact cache-backed train/validation export
+is implemented and qualified. Read the roadmap's Current checkpoint for exact
+digests. The next step is the dedicated `cs-cl-09` deployment and bounded
+encoder timing/training gate; do not regenerate a raw-data split.
+
 ---
