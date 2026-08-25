@@ -637,5 +637,30 @@ the preserved non-qualifying attempt are recorded in
 claimed, and all reported objective values are synthetic. The next action is
 Gate 4's fresh ambiguous-immediately-after-launch qualification, followed by
 the stale-worker/safe-process-recovery case.
+
+The ambiguous-immediately-after-launch qualification now passes in frozen
+study `lobster_graphcl_f1pr_ambiguous_20260825a`, contract
+`9577c15a7faf05e0381e04480c460f78865bf87a99aa7309e4c6bacd198af667`.
+The controller received the remote tmux acknowledgement and then injected the
+test-only SSH error, recording `AMBIGUOUS_SSH_ERROR` for worker-run
+`cs-cl-09-lobster-graphcl-mockcpu0-dispatch-1000000`. The immediate read-only
+probe found the same tmux active, RUN_INFO and heartbeat present, and the exact
+reserved PostgreSQL row RUNNING, so it classified `ACTIVE_AMBIGUOUS` with
+`retry_safe=false`. No dispatcher was called again. A second probe found the
+same identity COMPLETE with its matching completion marker and classified
+`RECONCILED_TERMINAL`. The study contains one launch manifest, one worker-run,
+one reserved trial, and zero duplicate dispatches or guard rows.
+
+Strict collection/finalization and offline restore passed. Snapshot hash is
+`3c6e98d3733407e97fb149e41ecffd1d357d3af9b8ff79d4edb07b3bdcf1c6f2`
+and semantic fingerprint is
+`22d45fcb5cbd3e43db8f8e2b31b29282ec7bf871d5a916da5caac4df7cd3f207`.
+Cache and GraphCL input hashes remain exact and all four count-only scans are
+zero. The synthetic objective has no scientific interpretation. Exact evidence
+is frozen in `lobster_graphcl_f1pr_ambiguous_qualification.json`. The next
+action is the fresh stale-worker/safe process-group recovery study: record a
+trial-owned child identity, kill the worker parent, recover only the matching
+group, prove an unrelated process survives, and reconcile the one consumed
+reservation to FAIL without replacement.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

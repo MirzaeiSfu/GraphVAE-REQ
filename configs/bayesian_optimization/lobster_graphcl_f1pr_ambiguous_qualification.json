@@ -1,0 +1,115 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-ambiguous-launch-qualification-v1",
+  "date": "2026-08-25",
+  "purpose": "ambiguous-immediately-after-launch lifecycle qualification only; no scientific model-quality claim",
+  "study": {
+    "name": "lobster_graphcl_f1pr_ambiguous_20260825a",
+    "study_contract_sha256": "9577c15a7faf05e0381e04480c460f78865bf87a99aa7309e4c6bacd198af667",
+    "worker_source_commit": "dc26c3b6ec587dec89da90cf38032084ec941bd3",
+    "worker_source_tree_sha256": "491e197b396c8bf6eff5c62202db61af3064c14686e570b6f53371b94d5880fd",
+    "reserved_trials": 1,
+    "max_parallel": 1,
+    "complete": 1,
+    "failed": 0,
+    "waiting": 0,
+    "running": 0,
+    "unreserved_guard": 0,
+    "lifecycle": "FROZEN"
+  },
+  "injected_fault": {
+    "phase": "remote_launch",
+    "state": "AMBIGUOUS_SSH_ERROR",
+    "host": "cs-cl-09",
+    "worker_run_id": "cs-cl-09-lobster-graphcl-mockcpu0-dispatch-1000000",
+    "injected_after_remote_ack": true,
+    "recorded_ssh_returncode": 255,
+    "launch_manifest_count": 1,
+    "duplicate_dispatch_count": 0
+  },
+  "probes": [
+    {
+      "probe_index": 1,
+      "worker_run_id": "cs-cl-09-lobster-graphcl-mockcpu0-dispatch-1000000",
+      "launch_state": "SSH_ERROR",
+      "remote_reachable": true,
+      "tmux_active": true,
+      "run_info": true,
+      "heartbeat": true,
+      "markers": [],
+      "db_trials": [
+        {
+          "trial_number": 0,
+          "budget_index": 0,
+          "reserved": true,
+          "state": "RUNNING"
+        }
+      ],
+      "probe_status": "ACTIVE_AMBIGUOUS",
+      "retry_safe": false
+    },
+    {
+      "probe_index": 2,
+      "worker_run_id": "cs-cl-09-lobster-graphcl-mockcpu0-dispatch-1000000",
+      "launch_state": "SSH_ERROR",
+      "remote_reachable": true,
+      "tmux_active": false,
+      "run_info": true,
+      "heartbeat": true,
+      "markers": ["COMPLETED"],
+      "db_trials": [
+        {
+          "trial_number": 0,
+          "budget_index": 0,
+          "reserved": true,
+          "state": "COMPLETE"
+        }
+      ],
+      "probe_status": "RECONCILED_TERMINAL",
+      "retry_safe": true
+    }
+  ],
+  "dispatch": {
+    "worker_id": "cs-cl-09-lobster-graphcl-mockcpu0",
+    "worker_run_id": "cs-cl-09-lobster-graphcl-mockcpu0-dispatch-1000000",
+    "dispatch_sequence": 1000000,
+    "sampler_seed": 3017110943,
+    "physical_gpu": null,
+    "logical_device": "cpu"
+  },
+  "trial": {
+    "trial_number": 0,
+    "budget_index": 0,
+    "alpha_node_feat": 1.178477030103257,
+    "alpha_edge_feat": 1.4647336186445878,
+    "training_seeds": [0, 1],
+    "replicate_values": [0.8487483617295425, 0.8487483617295425],
+    "objective_mean": 0.8487483617295425,
+    "status": "COMPLETE"
+  },
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "aggregation": "arithmetic_mean_of_complete_graphvae_seeds",
+    "split": "validation",
+    "test_access": false,
+    "scientific_interpretation": "synthetic mock value only"
+  },
+  "restore": {
+    "postgresql_access": false,
+    "aggregate_outputs_match": true,
+    "semantic_fingerprint": "22d45fcb5cbd3e43db8f8e2b31b29282ec7bf871d5a916da5caac4df7cd3f207",
+    "snapshot_sha256": "3c6e98d3733407e97fb149e41ecffd1d357d3af9b8ff79d4edb07b3bdcf1c6f2",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1"
+  },
+  "integrity": {
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "cache_mode": "0444",
+    "cache_size_bytes": 59295793,
+    "validation_reference_file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+    "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "credential_assignment_scan_clean": true,
+    "storage_url_scan_clean": true,
+    "password_assignment_scan_clean": true,
+    "test_access_true_scan_clean": true
+  }
+}

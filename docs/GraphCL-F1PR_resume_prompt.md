@@ -93,10 +93,18 @@ restored but did not show interval overlap because its mock bodies were too
 short; preserve it and never rerun its consumed reservations. Fresh attempt
 `lobster_graphcl_f1pr_mock3_20260825b` passes with PostgreSQL RUNNING=3 and a
 3.776814222-second common interval, and is frozen/restored with exact evidence
-in `lobster_graphcl_f1pr_mock3_qualification.json`. Commit and push that
-qualification next, then run the fresh ambiguous-immediately-after-launch
-case. CPU/mock slots are for immutable mock studies only and do not authorize
-or claim a third GPU. Do not regenerate a split, retrain an encoder, treat any
-mock metric as BO evidence, or access held-out/test data.
+in `lobster_graphcl_f1pr_mock3_qualification.json`; that qualification is
+already pushed. The ambiguous case is now also complete in frozen/restored
+study
+`lobster_graphcl_f1pr_ambiguous_20260825a`: one injected post-ack SSH error was
+probed first as `ACTIVE_AMBIGUOUS/retry_safe=false` with its exact reserved DB
+row RUNNING, then as `RECONCILED_TERMINAL` after the same worker completed. No
+duplicate was dispatched. Commit
+`lobster_graphcl_f1pr_ambiguous_qualification.json` and the checkpoint updates
+next, then start only the fresh stale-worker/safe process-group recovery case
+described at the end of the roadmap. CPU/mock slots are for immutable mock
+studies only and do not authorize or claim a third GPU. Do not regenerate a
+split, retrain an encoder, treat any mock metric as BO evidence, or access
+held-out/test data.
 
 ---
