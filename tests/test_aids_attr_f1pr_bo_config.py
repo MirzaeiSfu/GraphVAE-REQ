@@ -64,6 +64,12 @@ SEARCH_POLICY_PATH = (
     / "bayesian_optimization"
     / "aids_attr_f1pr_search_policy.json"
 )
+SEARCH_QUALIFICATION_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_attr_f1pr_search_qualification.json"
+)
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt"
 CREDENTIAL_PATHS = (
@@ -364,3 +370,71 @@ def test_aids_search_contract_is_bounded_and_confirmation_gated():
         "epochs": 250,
         "matched_training_seeds": [0, 1, 2],
     }
+
+
+def test_aids_search_qualification_freezes_validation_only_winner():
+    qualification = json.loads(
+        SEARCH_QUALIFICATION_PATH.read_text(encoding="utf-8")
+    )
+
+    assert qualification["study"] == {
+        "name": "aids_attr_f1pr_search14_20260824a",
+        "contract_sha256": (
+            "5d4d8c8157916f4e29610d1e9aebadc7fc7079f7b5fe077e118f95d8390e5221"
+        ),
+        "lifecycle": "FROZEN",
+        "training_epochs": 100,
+        "training_seed": 0,
+    }
+    assert qualification["reservations"] == {
+        "reserved_total": 14,
+        "complete": 14,
+        "fail": 0,
+        "running": 0,
+        "waiting": 0,
+        "unreserved_guard": 0,
+        "max_parallel": 3,
+    }
+    objective = qualification["objective"]
+    assert objective["json_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert objective["selection_split"] == "validation"
+    assert objective["test_access"] is False
+    assert objective["node_decoder_required"] is True
+    assert objective["edge_decoder_required"] is True
+    assert objective["accepted_validation_graphs"] == 184
+    assert objective["evaluator_repeats"] == 5
+
+    results = qualification["results"]
+    assert [result["trial_number"] for result in results] == list(range(14))
+    assert qualification["selection"] == {
+        "rule": "maximum exact validation objective after freeze",
+        "selected_trial_number": 12,
+        "selected_weights": {
+            "alpha_node_feat": 1.4240488736039931,
+            "alpha_edge_feat": 2.468932652132638,
+        },
+        "validation_attr_f1pr": 0.43905872826081566,
+        "validation_precision": 0.2891304347826087,
+        "validation_recall": 0.9391304347826086,
+        "uniform_search_validation_attr_f1pr": 0.3794140016611583,
+        "search_fidelity_selected_minus_uniform": 0.05964472659965736,
+        "confirmation_required": True,
+        "alternate_candidate_fallback": False,
+    }
+    assert max(
+        results, key=lambda result: result["validation_attr_f1pr"]
+    )["trial_number"] == 12
+    assert qualification["scheduler"]["exact_wave_sizes"] == [3, 2, 3, 3, 3]
+    assert qualification["scheduler"]["launches_reconciled_terminal"] == 14
+    assert qualification["scheduler"]["duplicate_or_replacement_trials"] == 0
+    assert qualification["portable_restore"]["aggregate_outputs_match"] is True
+    assert qualification["portable_restore"]["postgresql_access"] is False
+    assert qualification["portable_restore"]["test_access"] is False
+    assert qualification["cache"]["verified_on_controller_and_both_hosts"] is True
+    assert qualification["artifact_audit"]["credential_matches"] == 0
+    assert qualification["artifact_audit"][
+        "unredacted_storage_url_matches"
+    ] == 0
+    assert qualification["artifact_audit"]["test_access_matches"] == 0

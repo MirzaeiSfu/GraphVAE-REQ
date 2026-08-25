@@ -594,3 +594,32 @@ waves and is superseded before study creation. Candidate selection remains
 validation-only and must be followed by a separately frozen 250-epoch,
 matched-seed comparison of the single selected candidate against uniform
 before held-out access.
+
+The bounded search is now complete and frozen as
+`aids_attr_f1pr_search14_20260824a`. It consumed exactly 14 reservations in
+the predeclared synchronous waves `3+2+3+3+3`; all 14 are `COMPLETE`, with no
+waiting, running, failed, unreserved, duplicate, or replacement trial. All 14
+recorded launch identities were independently reconciled to terminal database
+and worker-marker state before freeze. Every result used training seed zero,
+all 184 validation graphs, five fixed evaluator repeats, both attribute
+decoders, the exact Attr-F1PR JSON path, and `test_access=false`.
+
+After freeze, the maximum validation objective selects trial 12:
+`alpha_node_feat=1.4240488736039931` and
+`alpha_edge_feat=2.468932652132638`, with 100-epoch validation Attr-F1PR
+`0.43905872826081566`. The matched search-fidelity uniform anchor scored
+`0.3794140016611583`, a selected-minus-uniform difference of
+`0.05964472659965736`. This is promising search evidence, not the final answer:
+the candidate was selected from 14 observations on the same seed, and the
+earlier `0.718249786584885` uniform timing value used 250 epochs. Those values
+must not be compared across fidelities.
+
+The portable snapshot restores without PostgreSQL and reproduces all aggregate
+hashes, the same winner, and semantic fingerprint
+`725c03c8c32c6c9a9341c738d5c4cb87d3f13ea50c5df223a681c84a0644e076`.
+Post-search cache verification matches mode `0444`, 73,822,456 bytes, and the
+frozen SHA-256 on the controller and both hosts. An exhaustive 3,376-file,
+5,135,449,316-byte study/restore scan found zero protected-credential, storage
+URL, or test-access matches. The next required step is therefore the separately
+frozen 250-epoch comparison of this single selected pair against uniform at
+matched training seeds 0, 1, and 2, with no alternate-candidate fallback.
