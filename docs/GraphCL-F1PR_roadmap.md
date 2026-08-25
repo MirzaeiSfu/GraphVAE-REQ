@@ -522,5 +522,9 @@ failure/recovery/restore qualifications before any fixed real anchors.
 The dedicated mock configuration is separate from the legacy eight-graph smoke
 contract and freezes exactly ten validation graphs; its focused configuration
 and backend suite passes 11 tests.
+Prelaunch review also separates the lifecycle mock cache fingerprint from the
+real frozen GraphCL validation-split fingerprint. The worker and auditor now
+bind each to its correct contract field; 43 focused tests pass with deliberately
+different synthetic-cache and real-evaluator split identities.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

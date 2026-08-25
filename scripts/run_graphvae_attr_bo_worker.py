@@ -351,6 +351,7 @@ def _execution_args(
         graphcl_bundle_sha256=graphcl.get("encoder_bundle_sha256"),
         graphcl_encoder_checkpoints=graphcl.get("encoder_checkpoints"),
         graphcl_validation_collection_sha256=graphcl.get("validation_collection_sha256"),
+        graphcl_validation_split_fingerprint=graphcl.get("validation_split_fingerprint"),
         secret_environment_names=(
             cli.storage_env,
             "GRAPHVAE_BO_STORAGE_URL",

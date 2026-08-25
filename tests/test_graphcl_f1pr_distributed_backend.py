@@ -86,7 +86,7 @@ def definition():
         training={"epoch_number": 1, "mock": True},
         source={"tree_sha256": "source"},
         environment={"sha256": "environment"},
-        dataset_cache={"sha256": "cache", "split_fingerprint": "split"},
+        dataset_cache={"sha256": "cache", "split_fingerprint": "synthetic-cache-split"},
         feature_schemas={"node_sha256": "node", "edge_sha256": "edge"},
         hardware_policy={},
         heartbeat_interval=60,
@@ -160,7 +160,7 @@ def execution_args(contract_hash, *, fail_seed=()):
         expected_edge_feature_dimension=11,
         integrity={
             "cache_sha256": "cache",
-            "split_fingerprint": "split",
+            "split_fingerprint": "synthetic-cache-split",
             "node_schema_fingerprint": "node",
             "edge_schema_fingerprint": "edge",
             "source_tree_sha256": "source",
@@ -170,6 +170,7 @@ def execution_args(contract_hash, *, fail_seed=()):
         graphcl_runtime_sha256="runtime",
         graphcl_encoder_checkpoints=ENCODERS,
         graphcl_validation_collection_sha256="validation",
+        graphcl_validation_split_fingerprint="split",
     )
 
 

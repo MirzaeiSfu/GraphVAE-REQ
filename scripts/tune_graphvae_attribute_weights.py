@@ -1358,7 +1358,7 @@ def execute_trial(
                         runtime_sha256=args.graphcl_runtime_sha256,
                         encoder_checkpoints=args.graphcl_encoder_checkpoints,
                         cache_sha256=integrity["cache_sha256"],
-                        split_fingerprint=integrity["split_fingerprint"],
+                        split_fingerprint=args.graphcl_validation_split_fingerprint,
                         validation_collection_sha256=(
                             args.graphcl_validation_collection_sha256
                         ),
@@ -1528,7 +1528,7 @@ def execute_trial(
                 expected_runtime_sha256=args.graphcl_runtime_sha256,
                 expected_encoder_checkpoints=args.graphcl_encoder_checkpoints,
                 expected_cache_sha256=integrity["cache_sha256"],
-                expected_split_fingerprint=integrity["split_fingerprint"],
+                expected_split_fingerprint=args.graphcl_validation_split_fingerprint,
                 expected_validation_collection_sha256=(
                     args.graphcl_validation_collection_sha256
                 ),
