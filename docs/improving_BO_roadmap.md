@@ -638,3 +638,36 @@ and the lower endpoint of the two-sided 95% paired t interval to exceed zero;
 a positive mean that misses this rule is reported only as directional evidence.
 There is no reranking or alternate-candidate fallback, and no held-out/test
 graph may be accessed during this confirmation.
+
+The confirmation is complete and frozen. The selected weights scored
+`0.5833637554120299`, `0.5874287703471912`, and `0.5722756427676791` at
+training seeds 0, 1, and 2. Uniform scored `0.718249786584885`,
+`0.5763281590367452`, and `0.6419715870051406` at the same seeds. The paired
+selected-minus-uniform differences are therefore `-0.13488603117285514`,
+`0.01110061131044604`, and `-0.0696959442374615`.
+
+The selected mean is `0.5810227228423`; the uniform mean is
+`0.6455165108755903`. The mean paired difference is
+`-0.0644937880332902`, with two-sided 95% paired t interval
+`[-0.2461642964902339, 0.11717672042365351]`. Two of three pairs favor
+uniform, the mean difference is negative, and the superiority rule is not met.
+The predeclared conclusion is therefore **no improvement**: on this AIDS
+contract, Bayesian optimization did not improve GraphVAE over uniform
+reconstruction weights. Uniform `(1,1)` remains the supported default.
+
+All six reservations are `COMPLETE`, every launch identity reconciles to a
+terminal database/worker state, and there are no failed, waiting, running,
+unreserved, duplicated, or replacement trials. A portable restore reproduces
+all aggregate hashes without PostgreSQL and with `test_access=false`. The cache
+still matches mode `0444`, 73,822,456 bytes, and its frozen SHA-256 on the
+controller and both hosts. An exhaustive 1,677-file, 2,242,756,147-byte scan
+found zero credential, storage-URL, or test-access matches. No held-out graph
+was accessed.
+
+One operational deviation is preserved rather than hidden. The predeclared
+confirmation schedule was `3+3`, but the controller applied its TPE startup
+barrier to the fully fixed reservation plan and launched `3+2+1`. This changed
+only throughput: the same six fixed weights/seeds ran at the same fidelity and
+the paired analysis remains valid. The controller must nevertheless be fixed
+and regression-tested so startup gating applies only when a waiting reservation
+still requires adaptive sampling.

@@ -88,6 +88,12 @@ CONFIRMATION_POLICY_PATH = (
     / "bayesian_optimization"
     / "aids_attr_f1pr_confirmation_analysis_policy.json"
 )
+CONFIRMATION_QUALIFICATION_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_attr_f1pr_confirmation_qualification.json"
+)
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt"
 CREDENTIAL_PATHS = (
@@ -514,3 +520,74 @@ def test_aids_confirmation_contract_is_paired_and_test_free():
     assert policy["no_reranking"] is True
     assert policy["alternate_candidate_fallback"] is False
     assert policy["held_out_access_before_freeze"] is False
+
+
+def test_aids_confirmation_qualification_concludes_no_improvement():
+    qualification = json.loads(
+        CONFIRMATION_QUALIFICATION_PATH.read_text(encoding="utf-8")
+    )
+
+    assert qualification["study"] == {
+        "name": "aids_attr_f1pr_confirmation6_20260824a",
+        "contract_sha256": (
+            "c009d609308f429b570a401c714384270702732fd5bb7209047fd3fcb00c22b5"
+        ),
+        "lifecycle": "FROZEN",
+        "training_epochs": 250,
+    }
+    assert qualification["reservations"] == {
+        "reserved_total": 6,
+        "complete": 6,
+        "fail": 0,
+        "running": 0,
+        "waiting": 0,
+        "unreserved_guard": 0,
+        "duplicate_or_replacement_trials": 0,
+    }
+    assert qualification["objective"] == {
+        "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+        "selection_split": "validation",
+        "test_access": False,
+        "held_out_access": False,
+        "node_decoder_required": True,
+        "edge_decoder_required": True,
+        "accepted_validation_graphs": 184,
+        "evaluator_repeats": 5,
+    }
+    pairs = qualification["pairs"]
+    assert [pair["training_seed"] for pair in pairs] == [0, 1, 2]
+    assert [pair["paired_difference"] for pair in pairs] == [
+        -0.13488603117285514,
+        0.01110061131044604,
+        -0.0696959442374615,
+    ]
+    analysis = qualification["analysis"]
+    assert analysis["selected_mean_validation_attr_f1pr"] == 0.5810227228423
+    assert analysis["uniform_mean_validation_attr_f1pr"] == 0.6455165108755903
+    assert analysis["mean_paired_difference"] == -0.0644937880332902
+    assert analysis["confidence_interval_95"] == [
+        -0.2461642964902339,
+        0.11717672042365351,
+    ]
+    assert analysis["superiority_rule_met"] is False
+    assert analysis["conclusion"] == "no_improvement"
+    assert analysis["no_reranking"] is True
+    assert analysis["alternate_candidate_fallback"] is False
+
+    scheduler = qualification["scheduler_audit"]
+    assert scheduler["predeclared_wave_sizes"] == [3, 3]
+    assert scheduler["actual_wave_sizes"] == [3, 2, 1]
+    assert scheduler["deviation"] is True
+    assert scheduler["scientific_inputs_changed"] is False
+    assert scheduler["reservation_count_or_identity_changed"] is False
+    assert scheduler["paired_analysis_valid"] is True
+    assert scheduler["controller_fix_required"] is True
+    assert qualification["portable_restore"]["aggregate_outputs_match"] is True
+    assert qualification["portable_restore"]["postgresql_access"] is False
+    assert qualification["portable_restore"]["test_access"] is False
+    assert qualification["cache"]["verified_on_controller_and_both_hosts"] is True
+    assert qualification["artifact_audit"]["credential_matches"] == 0
+    assert qualification["artifact_audit"][
+        "unredacted_storage_url_matches"
+    ] == 0
+    assert qualification["artifact_audit"]["test_access_matches"] == 0

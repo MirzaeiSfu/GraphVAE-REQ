@@ -1,0 +1,115 @@
+{
+  "schema_version": "graphvae-attr-f1pr-confirmation-qualification-v1",
+  "date": "2026-08-24",
+  "study": {
+    "name": "aids_attr_f1pr_confirmation6_20260824a",
+    "contract_sha256": "c009d609308f429b570a401c714384270702732fd5bb7209047fd3fcb00c22b5",
+    "lifecycle": "FROZEN",
+    "training_epochs": 250
+  },
+  "source": {
+    "git_commit": "8b2729240ce8089d8451bed2465b746884f12e4e",
+    "tree_sha256": "57a10fbe4152c506e29da4b5438ef55d6f4931bb8e2fc6931cb15b5957523e10"
+  },
+  "objective": {
+    "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "held_out_access": false,
+    "node_decoder_required": true,
+    "edge_decoder_required": true,
+    "accepted_validation_graphs": 184,
+    "evaluator_repeats": 5
+  },
+  "reservations": {
+    "reserved_total": 6,
+    "complete": 6,
+    "fail": 0,
+    "running": 0,
+    "waiting": 0,
+    "unreserved_guard": 0,
+    "duplicate_or_replacement_trials": 0
+  },
+  "scheduler_audit": {
+    "predeclared_wave_sizes": [3, 3],
+    "actual_wave_sizes": [3, 2, 1],
+    "launches_reconciled_terminal": 6,
+    "ambiguous_launches": 0,
+    "deviation": true,
+    "cause": "TPE startup gating was applied to an entirely fixed reservation plan",
+    "scientific_inputs_changed": false,
+    "reservation_count_or_identity_changed": false,
+    "paired_analysis_valid": true,
+    "controller_fix_required": true
+  },
+  "pairs": [
+    {
+      "training_seed": 0,
+      "selected_trial_number": 0,
+      "uniform_trial_number": 1,
+      "selected_validation_attr_f1pr": 0.5833637554120299,
+      "uniform_validation_attr_f1pr": 0.718249786584885,
+      "paired_difference": -0.13488603117285514
+    },
+    {
+      "training_seed": 1,
+      "selected_trial_number": 2,
+      "uniform_trial_number": 3,
+      "selected_validation_attr_f1pr": 0.5874287703471912,
+      "uniform_validation_attr_f1pr": 0.5763281590367452,
+      "paired_difference": 0.01110061131044604
+    },
+    {
+      "training_seed": 2,
+      "selected_trial_number": 4,
+      "uniform_trial_number": 5,
+      "selected_validation_attr_f1pr": 0.5722756427676791,
+      "uniform_validation_attr_f1pr": 0.6419715870051406,
+      "paired_difference": -0.0696959442374615
+    }
+  ],
+  "analysis": {
+    "selected_weights": {
+      "alpha_node_feat": 1.4240488736039931,
+      "alpha_edge_feat": 2.468932652132638
+    },
+    "uniform_weights": {
+      "alpha_node_feat": 1.0,
+      "alpha_edge_feat": 1.0
+    },
+    "selected_mean_validation_attr_f1pr": 0.5810227228423,
+    "uniform_mean_validation_attr_f1pr": 0.6455165108755903,
+    "mean_paired_difference": -0.0644937880332902,
+    "paired_sample_standard_deviation": 0.07313222113245466,
+    "confidence_interval_95": [-0.2461642964902339, 0.11717672042365351],
+    "all_differences_positive": false,
+    "superiority_rule_met": false,
+    "conclusion": "no_improvement",
+    "no_reranking": true,
+    "alternate_candidate_fallback": false,
+    "report_sha256": "98d989b7a92c7eda19a99a4f4a08d5d2d47922ad16143e7823804bff1e2acb62"
+  },
+  "portable_restore": {
+    "snapshot_sha256": "c32160981c185419f1facfc0d930b666203e26fb873e3d65b86f806a288339c1",
+    "semantic_fingerprint": "55005a9eb54606c2411e486fbafa48bc4737ffa583219035e6a5b42ae8d02e8f",
+    "aggregate_outputs_match": true,
+    "postgresql_access": false,
+    "test_access": false
+  },
+  "cache": {
+    "byte_length": 73822456,
+    "post_trial_mode": "0444",
+    "post_trial_sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "verified_on_controller_and_both_hosts": true
+  },
+  "artifact_audit": {
+    "roots_scanned": 2,
+    "files_scanned": 1677,
+    "bytes_scanned": 2242756147,
+    "protected_files_read": 28,
+    "protected_materials_tested": 32,
+    "credential_matches": 0,
+    "unredacted_storage_url_matches": 0,
+    "test_access_matches": 0
+  }
+}
