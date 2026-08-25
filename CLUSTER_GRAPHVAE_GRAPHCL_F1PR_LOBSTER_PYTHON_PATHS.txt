@@ -1,0 +1,2 @@
+# HOST PYTHON_PATH
+cs-cl-09 /localhome/mirzaei/miniconda3/envs/micro/bin/python

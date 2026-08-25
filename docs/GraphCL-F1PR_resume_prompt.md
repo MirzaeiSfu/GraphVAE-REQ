@@ -50,8 +50,10 @@ Use protected mode-0600 environment/pgpass/CA files, `PGPASSFILE`, and
 `sslmode=verify-full`. Keep credentials outside source, cache, checkpoint,
 collection, and artifact roots.
 
-Use dedicated GraphCL-F1PR remote repository and run roots; never reuse Gate
-4/5/6, AIDS, or earlier LOBSTER study roots. Preserve old studies and failures.
+Use the committed dedicated `cs-cl-09` GraphCL-F1PR mappings and never reuse
+Gate 4/5/6, AIDS, or earlier LOBSTER study roots. Candidate concurrency is two
+homogeneous GTX TITAN X slots and remains subject to the roadmap's fresh
+hardware/timing gate. Preserve old studies and failures.
 
 Work gate by gate. Run focused tests after implementation changes, then the
 full GraphCL, non-PostgreSQL distributed BO, and isolated PostgreSQL suites at

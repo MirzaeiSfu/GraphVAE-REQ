@@ -1,0 +1,58 @@
+{
+  "schema_version": "graphvae-lobster-graphcl-f1pr-prerequisite-v1",
+  "date": "2026-08-25",
+  "repository_head_before_evidence": "cc65b58",
+  "dataset_cache": {
+    "relative_path": "cache_datasets/LOBSTER_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-0_bfs-legacy_first_component_features-lobster-optimal_v2.pkl",
+    "byte_length": 59295793,
+    "sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "mode": "0444",
+    "split_counts": {"train": 70, "validation": 10, "held_out_test": 20},
+    "node_feature_dimension": 14,
+    "edge_feature_dimension": 11,
+    "test_access": false
+  },
+  "contrastive_upstream": {
+    "revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+    "local_checkout_clean": true,
+    "selected_host_checkout_clean": true,
+    "selected_host_runtime_imports": {
+      "torch": "2.1.2",
+      "pygcl": true,
+      "torch_scatter": true,
+      "torch_sparse": true
+    }
+  },
+  "selected_host": {
+    "host": "cs-cl-09",
+    "dedicated_repository_root": "/local-scratch2/graphvae-req-work/GraphVAE-REQ-lobster-graphcl-f1pr",
+    "scratch_free_gib_at_audit": 952,
+    "credential_bundle_preexisting": true,
+    "credential_directory_mode": "0700",
+    "credential_file_modes": "0600",
+    "credential_contents_read": false,
+    "gpus": [
+      {"physical_gpu": 0, "model": "NVIDIA GeForce GTX TITAN X", "reported_vram_mib": 12288, "free_vram_mib_at_audit": 6794},
+      {"physical_gpu": 1, "model": "NVIDIA GeForce GTX TITAN X", "reported_vram_mib": 12288, "free_vram_mib_at_audit": 12190}
+    ]
+  },
+  "rejected_provisional_hosts": [
+    {"host": "cs-cl-13", "reason": "only approximately 6 GiB remained on the intended scratch filesystem"},
+    {"host": "cs-cl-17", "reason": "no existing isolated GraphCL dependency/upstream deployment and only approximately 39 GiB remained"}
+  ],
+  "concurrency": {
+    "candidate_max_parallel": 2,
+    "homogeneous_gpu_model": true,
+    "hardware_qualified_for_new_objective": false,
+    "qualification_required_before_real_search": true
+  },
+  "checkpoint_reuse": {
+    "bundled_lobster_graphcl_checkpoint_exists": false,
+    "new_training_only_encoder_bundle_required": true
+  },
+  "execution": {
+    "graphcl_f1pr_study_created": false,
+    "graphcl_encoder_training_started": false,
+    "held_out_or_test_access": false
+  }
+}

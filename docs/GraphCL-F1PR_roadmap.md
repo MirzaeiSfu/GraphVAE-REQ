@@ -30,7 +30,7 @@ Authorized work for this campaign is:
   only;
 - implement GraphCL-F1PR evaluation and distributed BO integration;
 - run bounded mock, timing, anchor, search, and validation-confirmation studies;
-- use the three qualified TITAN RTX slots on `cs-cl-13` and `cs-cl-17`;
+- use only a newly qualified homogeneous GPU slot set;
 - collect, audit, freeze, restore, test, document, commit, and push each gate.
 
 Excluded unless the user later gives a separate explicit authorization:
@@ -180,8 +180,8 @@ lobster_graphcl_f1pr_search_
 lobster_graphcl_f1pr_confirmation_
 ```
 
-Use dedicated GraphCL-F1PR repository roots on both hosts. Do not reuse Gate 4,
-Gate 5, Gate 6, AIDS, or previous LOBSTER production roots. Credentials remain
+Use the committed dedicated GraphCL-F1PR repository mapping. Do not reuse Gate
+4, Gate 5, Gate 6, AIDS, or previous LOBSTER production roots. Credentials remain
 outside repository/source/cache/artifact roots with directories mode `0700` and
 files mode `0600`. PostgreSQL requires `PGPASSFILE`, the protected CA, and
 `sslmode=verify-full`.
@@ -347,7 +347,7 @@ reservation and the candidate is not partially scored or replaced.
 Predeclared search design:
 
 - exactly 18 candidate reservations;
-- `max_parallel=3` on homogeneous TITAN RTX slots;
+- `max_parallel=2` on the selected homogeneous GTX TITAN X slots;
 - six fixed anchors followed by 12 TPE candidates;
 - TPE startup target six;
 - bounded synchronous waves;
@@ -375,7 +375,7 @@ are committed. Compare only:
 
 Use GraphVAE training seeds 0, 1, and 2, 10,000 epochs, the same generation
 seed policy, all 10 validation graphs, and the same five frozen GraphCL
-encoders. Reserve exactly six trials in two fixed waves of three.
+encoders. Reserve exactly six trials in three fixed waves of two.
 
 For each seed compute selected minus uniform. The primary estimate is the mean
 paired difference. `improvement_confirmed` requires:
@@ -428,20 +428,30 @@ passwords, or storage URLs.
 
 ## 17. Current checkpoint
 
-At roadmap creation:
+At the completed prerequisite audit:
 
-- repository `main` is clean and synchronized at `0a10710`;
+- the roadmap/restart contract is committed and pushed at `cc65b58`;
 - the exact LOBSTER cache is present, mode `0444`, and hash-verified;
 - the pinned contrastive upstream exists outside the repository, is clean, and
   matches revision `fb6bc26237eb21d7617fd41b22b4bb26ab29bf95`;
 - the local controller Python has PyTorch `2.1.2` and PyG but does not contain
   PyGCL/scatter/sparse in its base environment;
+- `cs-cl-13` is rejected because its intended scratch filesystem has only about
+  6 GiB free; `cs-cl-17` is not selected because it lacks the prior isolated
+  GraphCL deployment and has only about 39 GiB free;
+- `cs-cl-09` is selected with a new dedicated root on `/local-scratch2`, about
+  952 GiB free, an existing clean pinned upstream/runtime, an already-deployed
+  protected LOBSTER worker bundle, and two homogeneous 12,288 MiB GTX TITAN X
+  slots; physical GPU 0 was partially occupied at audit and must be idle before
+  any two-worker wave;
+- candidate concurrency is therefore two, not the provisional three, and a
+  fresh fixed-parameter hardware/timing qualification is mandatory before BO;
 - no bundled LOBSTER GraphCL checkpoint exists;
 - the generic real-split exporter and GraphCL runner exist, but an exact
   cache-backed, test-disabled export and BO objective integration remain to be
   implemented;
-- no GraphCL-F1PR LOBSTER trial or held-out evaluation has started.
+- no GraphCL-F1PR LOBSTER trial, encoder training, or held-out evaluation has
+  started.
 
-The next action is Gate 0 remote dependency/root qualification, followed by the
-Gate 1 cache-backed exporter. This section must be updated after every commit so
-a resumed agent never guesses the campaign state.
+The next action is the Gate 1 cache-backed exporter. This section must be
+updated after every commit so a resumed agent never guesses the campaign state.

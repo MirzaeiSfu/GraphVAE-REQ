@@ -1,0 +1,4 @@
+# HOST PHYSICAL_GPU WORKER_ID
+# Candidate homogeneous slots; each must pass the new campaign preflight.
+cs-cl-09 0 cs-cl-09-lobster-graphcl-gpu0
+cs-cl-09 1 cs-cl-09-lobster-graphcl-gpu1
