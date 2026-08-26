@@ -816,5 +816,16 @@ phase limits, `skip_final_evaluation=true`, and `max_parallel=1`. Twenty focused
 promotion and GraphCL contract tests pass. No Phase B study or training has
 started; the next action is to commit and deploy this contract, then preflight
 and initialize its fresh three-reservation study.
+
+The first Phase B initialization name,
+`lobster_graphcl_f1pr_promoted10000_20260826a`, created an empty PostgreSQL
+study and then failed before definition/reservation creation because the
+staging-only cache-manifest path was wrong after source redeployment. The study
+has exactly zero trials, no worker was launched, and no reservation was
+consumed. It is preserved, marked unusable by the committed contract, and will
+never be reused or deleted. The frozen Phase A cache manifest independently
+reverified the deployed read-only cache, and the corrected fresh identity is
+`lobster_graphcl_f1pr_promoted10000_20260826b`. This correction must be tested,
+committed, pushed, and redeployed before creating the `b` study.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

@@ -1,9 +1,9 @@
 {
   "schema_version": "lobster-graphcl-f1pr-gate5-phase-b-contract-v1",
   "study": {
-    "name": "lobster_graphcl_f1pr_promoted10000_20260826a",
-    "controller_output_root": "runs/lobster_graphcl_f1pr_promoted10000_20260826a",
-    "worker_artifact_root": "runs/bayesian_optimization/lobster_graphcl_f1pr_promoted10000_20260826a",
+    "name": "lobster_graphcl_f1pr_promoted10000_20260826b",
+    "controller_output_root": "runs/lobster_graphcl_f1pr_promoted10000_20260826b",
+    "worker_artifact_root": "runs/bayesian_optimization/lobster_graphcl_f1pr_promoted10000_20260826b",
     "reserved_candidates": 3,
     "epoch_number": 10000,
     "graphvae_training_seeds": [
@@ -93,5 +93,19 @@
     "phase_b_training_started": false,
     "adaptive_bo": false,
     "held_out_or_test_evaluation": false
-  }
+  },
+  "precreation_attempts": [
+    {
+      "study_name": "lobster_graphcl_f1pr_promoted10000_20260826a",
+      "status": "empty_unusable_preserved",
+      "failure_phase": "cache_manifest_resolution_after_database_create",
+      "failure_type": "FileNotFoundError",
+      "database_trial_count": 0,
+      "immutable_definition_created": false,
+      "reservations_created": 0,
+      "workers_launched": 0,
+      "reservation_consumed": false,
+      "reuse_forbidden": true
+    }
+  ]
 }

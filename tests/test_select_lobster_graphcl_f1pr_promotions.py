@@ -51,6 +51,23 @@ def test_committed_phase_b_promotions_are_reproducible_and_unique():
         "adaptive_bo": False,
         "held_out_or_test_evaluation": False,
     }
+    assert committed["study"]["name"] == (
+        "lobster_graphcl_f1pr_promoted10000_20260826b"
+    )
+    assert committed["precreation_attempts"] == [
+        {
+            "study_name": "lobster_graphcl_f1pr_promoted10000_20260826a",
+            "status": "empty_unusable_preserved",
+            "failure_phase": "cache_manifest_resolution_after_database_create",
+            "failure_type": "FileNotFoundError",
+            "database_trial_count": 0,
+            "immutable_definition_created": False,
+            "reservations_created": 0,
+            "workers_launched": 0,
+            "reservation_consumed": False,
+            "reuse_forbidden": True,
+        }
+    ]
     assert committed["objective_contract"]["selection_split"] == "validation"
     assert committed["objective_contract"]["test_access"] is False
 
