@@ -1,4 +1,20 @@
-# motif_counting/motif_store.py
+"""Build and cache FactorBase motif-rule metadata.
+
+CP source extension
+-------------------
+The cache schema stores both versions of every FactorBase value table:
+
+* ``<child>_CP`` supplies the original combinations and child-value priors.
+* ``<child>_CP_smoothed`` supplies the complete smoothed combination inventory.
+
+The payload deliberately contains the unmodified database rows for both
+sources. It is therefore reusable across ``motif_cp_table_source`` and
+``rule_prune`` settings. Local multiplicities depend on the active training
+graphs, so they cannot be computed here or persisted in this shared cache.
+When ``cp_smoothed`` and pruning are selected, ``RelationalMotifCounter``
+counts all smoothed combinations on the active split, derives CP and prior
+metadata, and only then removes combinations that fail the pruning score.
+"""
 
 import os
 import torch
