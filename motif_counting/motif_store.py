@@ -13,6 +13,25 @@ from itertools import permutations
 from math import log
 
 
+CP_TABLE_SOURCES = {"cp", "cp_smoothed"}
+
+
+def normalize_cp_table_source(args=None) -> str:
+    """Return the configured FactorBase CP-table source."""
+    source = (
+        getattr(args, "motif_cp_table_source", "cp")
+        if args is not None
+        else "cp"
+    )
+    source = str(source).strip().lower()
+    if source not in CP_TABLE_SOURCES:
+        raise ValueError(
+            f"Unknown motif_cp_table_source: {source}. "
+            f"Expected one of {sorted(CP_TABLE_SOURCES)}."
+        )
+    return source
+
+
 def get_motif_cache_dir(args=None) -> Path:
     configured_dir = getattr(args, 'motif_cache_dir', None) if args is not None else None
     if configured_dir is not None:
@@ -84,11 +103,44 @@ class RuleBasedMotifStore:
 
         # Load or create motif data
         if self.pickle_path.exists():
-            print(f"  📦 Found existing pickle: {self.pickle_path}")
+            if (
+                normalize_cp_table_source(args) == "cp_smoothed"
+                and not self._cache_contains_smoothed_values()
+            ):
+                print(
+                    "  ♻️  Existing motif pickle predates `_CP_smoothed` "
+                    f"caching; rebuilding: {self.pickle_path}"
+                )
+                self._read_from_database()
+                self._save_to_pickle()
+            else:
+                print(f"  📦 Found existing pickle: {self.pickle_path}")
         else:
             print(f"  🗄️  No pickle found, reading from database...")
             self._read_from_database()
             self._save_to_pickle()
+
+    def _cache_contains_smoothed_values(self) -> bool:
+        """Return whether an existing cache has the new dual-source payload."""
+        try:
+            with open(self.pickle_path, "rb") as handle:
+                data = pickle.load(handle)
+        except (OSError, pickle.PickleError, EOFError):
+            return False
+
+        smoothed_values = data.get("values_smoothed_full")
+        rule_sources = data.get("rule_sources", [])
+        return (
+            int(data.get("cache_schema_version", 0)) >= 3
+            and smoothed_values is not None
+            and "value_smoothed_columns" in data
+            and len(smoothed_values) == len(rule_sources)
+            and all(
+                rows is not None
+                for rows, source in zip(smoothed_values, rule_sources)
+                if source == "factorbase"
+            )
+        )
 
     def _initialize_structures(self):
         """Initialize all data structures."""
@@ -103,6 +155,13 @@ class RuleBasedMotifStore:
         # deleting the cache.
         self.values_full:   List = []   # all rows (rule_prune=False)
         self.values_pruned: List = []   # pruned multi-atom rows; full single-atom rows
+        # Every new cache also keeps the complete FactorBase `_CP_smoothed`
+        # rows. Their data-dependent local_mult/CP/prior metadata is populated
+        # later by RelationalMotifCounter, after it has counted the actual graph
+        # split and before pruning.
+        self.values_smoothed_full: List = []
+        self.value_columns: List = []
+        self.value_smoothed_columns: List = []
 
         # Structural metadata for rules
         self.functors: Dict = {}
@@ -172,6 +231,9 @@ class RuleBasedMotifStore:
             # Both value sets — motif_counter selects at load time based on --rule_prune
             "values_full":   self.values_full,
             "values_pruned": self.values_pruned,
+            "values_smoothed_full": self.values_smoothed_full,
+            "value_columns": self.value_columns,
+            "value_smoothed_columns": self.value_smoothed_columns,
             "rule_sources": self.rule_sources,
             "functors": self.functors,
             "variables": self.variables,
@@ -189,7 +251,7 @@ class RuleBasedMotifStore:
             "num_nodes_graph": self.num_nodes_graph,
             "total_relation_occurrences": self.total_relation_occurrences,
             "cache_is_flag_neutral": True,
-            "cache_schema_version": 2,
+            "cache_schema_version": 3,
             "use_syntactic_literal_rules": self.use_syntactic_literal_rules,
             "syntactic_literal_rule_mode": self.syntactic_literal_rule_mode,
         }
@@ -453,12 +515,42 @@ class RuleBasedMotifStore:
                 if parent != '':
                     rule.append(parent)
 
-            cursor_bn.execute(f"SELECT * FROM `{childs[i][0]}_CP`")
+            cp_table_name = f"{childs[i][0]}_CP"
+            cursor_bn.execute(f"SELECT * FROM `{cp_table_name}`")
+            value_columns = [description[0] for description in cursor_bn.description]
             value = sorted(
                 cursor_bn.fetchall(),
                 key=lambda row: tuple(str(item) for item in row),
             )
-            self._add_processed_rule(rule, value, relation_names, rule_source="factorbase")
+
+            smoothed_table_name = f"{childs[i][0]}_CP_smoothed"
+            try:
+                cursor_bn.execute(f"SELECT * FROM `{smoothed_table_name}`")
+                smoothed_columns = [
+                    description[0] for description in cursor_bn.description
+                ]
+                smoothed_value = sorted(
+                    cursor_bn.fetchall(),
+                    key=lambda row: tuple(str(item) for item in row),
+                )
+            except MySQLError as exc:
+                # Older FactorBase outputs may not contain smoothed tables.
+                # The ordinary CP source remains usable; selecting cp_smoothed
+                # later raises a focused cache/source error.
+                if getattr(exc, "args", (None,))[0] != 1146:
+                    raise
+                smoothed_columns = None
+                smoothed_value = None
+
+            self._add_processed_rule(
+                rule,
+                value,
+                relation_names,
+                rule_source="factorbase",
+                value_columns=value_columns,
+                smoothed_value_rows=smoothed_value,
+                smoothed_value_columns=smoothed_columns,
+            )
 
         self._ensure_entity_unary_literal_rules(relation_names)
         self._ensure_relation_literal_rules(relation_names)
@@ -576,6 +668,9 @@ class RuleBasedMotifStore:
             "values",
             "values_full",
             "values_pruned",
+            "values_smoothed_full",
+            "value_columns",
+            "value_smoothed_columns",
             "rule_sources",
             "base_indices",
             "mask_indices",
@@ -603,6 +698,9 @@ class RuleBasedMotifStore:
         relation_names,
         keep_all_values=False,
         rule_source="factorbase",
+        value_columns=None,
+        smoothed_value_rows=None,
+        smoothed_value_columns=None,
     ):
         """Add one rule and populate all aligned rule metadata structures."""
         rule_idx = len(self.rules)
@@ -627,15 +725,42 @@ class RuleBasedMotifStore:
                     unmasked_variables.append(var)
                     state.append(0)
                 else:
-                    mas = []
+                    incident_relations = []
                     for k in rule:
+                        if ',' not in k:
+                            continue
                         func = k.split('(')[0]
                         if func not in relation_names:
                             func = self.attributes.get(func, func)
-                        if ',' in k and var in k:
-                            var1, var2 = k.split('(')[1][:-1].split(',')
-                            mas.append([func, var1, var2])
-                            unmasked_variables.append(k.split('(')[1][:-1])
+                        var1, var2 = k.split('(')[1][:-1].split(',')
+                        if var == var1 or var == var2:
+                            incident_relations.append([func, var1, var2])
+
+                    if not incident_relations:
+                        raise ValueError(
+                            f"Unary atom {rule[j]!r} is disconnected from every "
+                            f"binary atom in rule {rule!r}."
+                        )
+
+                    # Apply each unary predicate exactly once. Prefer the
+                    # relation occurrence where its variable is the row/source
+                    # variable; otherwise use its first incoming occurrence.
+                    # For nodes0->nodes1->nodes2 this assigns features to:
+                    #   nodes0: row of A01
+                    #   nodes1: row of A12
+                    #   nodes2: column of A12
+                    selected_relation = next(
+                        (
+                            relation
+                            for relation in incident_relations
+                            if var == relation[1]
+                        ),
+                        incident_relations[0],
+                    )
+                    mas = [selected_relation]
+                    unmasked_variables.append(
+                        selected_relation[1] + ',' + selected_relation[2]
+                    )
                     mask[j] = mas
                     state.append(1)
             else:
@@ -676,6 +801,28 @@ class RuleBasedMotifStore:
 
         # Remove N/A rows regardless of pruning setting.
         value_rows = [row for row in value_rows if 'N/A' not in row]
+        if smoothed_value_rows is None and rule_source == "synthetic_literal":
+            # Synthetic literal rules are not read from a FactorBase CP table;
+            # they are already the complete value set and therefore appear
+            # identically under either runtime source.
+            smoothed_value_rows = list(value_rows)
+            smoothed_value_columns = value_columns
+        if smoothed_value_rows is not None:
+            smoothed_value_rows = [
+                row for row in smoothed_value_rows if 'N/A' not in row
+            ]
+
+        self.value_columns.append(list(value_columns or []))
+        self.value_smoothed_columns.append(
+            list(smoothed_value_columns or [])
+            if smoothed_value_rows is not None
+            else None
+        )
+        self.values_smoothed_full.append(
+            list(smoothed_value_rows)
+            if smoothed_value_rows is not None
+            else None
+        )
 
         # ── Always compute BOTH value sets so a single pickle works
         # for either value of --rule_prune without deleting the cache.

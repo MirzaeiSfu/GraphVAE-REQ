@@ -1,6 +1,7 @@
 # motif_counting/motif_counter.py
 
 import os
+import math
 import torch
 import pickle
 import time
@@ -15,6 +16,7 @@ from motif_counting.motif_representations import (
     pad_full_motif_matrix,
     represent_full_motif_matrices,
 )
+from motif_counting.motif_store import normalize_cp_table_source
 
 MotifBatchResult = Union[
     torch.Tensor,
@@ -142,6 +144,16 @@ class RelationalMotifCounter:
             )
         self.feature_info_mapping  = data.get("feature_info_mapping", {})
         self.num_nodes_graph       = data.get("num_nodes_graph", 0)
+        self.motif_cp_table_source = normalize_cp_table_source(self.args)
+        self.cp_reference_values = [
+            list(rows) for rows in data.get("values_full", [])
+        ]
+        self.cp_reference_columns = [
+            list(columns) for columns in data.get(
+                "value_columns",
+                [[] for _ in self.rules],
+            )
+        ]
         self.syntactic_literal_rule_mode = syntactic_literal_rule_mode(self.args)
         self.use_syntactic_literal_rules = self.syntactic_literal_rule_mode != "original"
         loaded_total_relation_occurrences = data.get("total_relation_occurrences", {})
@@ -150,8 +162,54 @@ class RelationalMotifCounter:
         else:
             self.total_relation_occurrences = dict(self.relation_occurrence_counts)
 
-        # ── Select value set based on --rule_prune ────────────────────
-        self.values = self._select_motif_values(data, pickle_path)
+        # ── Select CP vs CP_smoothed value combinations ───────────────
+        self.data_driven_smoothed_pruning_pending = False
+        if self.motif_cp_table_source == "cp_smoothed":
+            smoothed_values = data.get("values_smoothed_full")
+            smoothed_columns = data.get("value_smoothed_columns")
+            if (
+                smoothed_values is None
+                or smoothed_columns is None
+                or len(smoothed_values) != len(self.rules)
+                or any(
+                    rows is None
+                    for rows, source in zip(smoothed_values, self.rule_sources)
+                    if source == "factorbase"
+                )
+            ):
+                raise RuntimeError(
+                    "The motif cache does not contain `_CP_smoothed` rows for "
+                    f"every FactorBase rule: {pickle_path}. Delete/regenerate "
+                    "the cache while the smoothed BN tables are available."
+                )
+            self.values = [list(rows) for rows in smoothed_values]
+            self.value_columns = [
+                list(columns) if columns is not None else []
+                for columns in smoothed_columns
+            ]
+            self.data_driven_smoothed_pruning_pending = bool(
+                getattr(self.args, "rule_prune", False)
+            )
+            if self.data_driven_smoothed_pruning_pending:
+                print(
+                    "  motif_cp_table_source=cp_smoothed: loaded all "
+                    f"{sum(len(rows) for rows in self.values)} combinations; "
+                    "local_mult/CP/prior calculation and pruning are deferred "
+                    "until graph data is available"
+                )
+            else:
+                print(
+                    "  motif_cp_table_source=cp_smoothed: using all "
+                    f"{sum(len(rows) for rows in self.values)} combinations"
+                )
+        else:
+            self.value_columns = [
+                list(columns) for columns in data.get(
+                    "value_columns",
+                    [[] for _ in self.rules],
+                )
+            ]
+            self.values = self._select_motif_values(data, pickle_path)
 
         self._filter_rules_for_runtime_mode()
         self._build_motif_group_masks()
@@ -238,6 +296,226 @@ class RelationalMotifCounter:
         print("="*80)
         return selected
 
+    @property
+    def requires_data_driven_smoothed_pruning(self) -> bool:
+        """Whether all smoothed rows must be counted before rule pruning."""
+        return bool(self.data_driven_smoothed_pruning_pending)
+
+    @staticmethod
+    def _consistent_prior_by_child(
+        rule: List[str],
+        cp_rows: List,
+        cp_columns: List[str],
+    ) -> Dict[Any, float]:
+        """Read one FactorBase prior for each value of the rule child atom."""
+        child_column = rule[0]
+        if child_column not in cp_columns or "prior" not in cp_columns:
+            raise ValueError(
+                f"Original CP metadata for rule {rule!r} must contain "
+                f"{child_column!r} and 'prior'; columns={cp_columns!r}."
+            )
+        child_idx = cp_columns.index(child_column)
+        prior_idx = cp_columns.index("prior")
+        result: Dict[Any, float] = {}
+        for row in cp_rows:
+            child_value = row[child_idx]
+            prior_value = row[prior_idx]
+            if prior_value is None or prior_value == "":
+                continue
+            prior_value = float(prior_value)
+            previous = result.get(child_value)
+            if previous is not None and not math.isclose(
+                previous,
+                prior_value,
+                rel_tol=1e-7,
+                abs_tol=1e-9,
+            ):
+                raise ValueError(
+                    f"Inconsistent priors for {child_column}={child_value!r}: "
+                    f"{previous} vs {prior_value}."
+                )
+            result[child_value] = prior_value
+        return result
+
+    @classmethod
+    def derive_smoothed_rule_rows(
+        cls,
+        rule: List[str],
+        smoothed_rows: List,
+        smoothed_columns: List[str],
+        cp_rows: List,
+        cp_columns: List[str],
+        local_mults: torch.Tensor,
+    ) -> List[List[Any]]:
+        """Populate local_mult, CP, ParentSum, and prior for smoothed rows.
+
+        FactorBase stores the child atom first in ``rule``. Conditional
+        probabilities therefore group rows by every remaining (parent) atom
+        and normalize over the different child values in that parent group.
+        Priors are copied from the ordinary ``_CP`` table by child value.
+        """
+        required_columns = list(rule) + ["local_mult", "CP", "prior"]
+        missing = [name for name in required_columns if name not in smoothed_columns]
+        if missing:
+            raise ValueError(
+                f"Smoothed CP metadata for rule {rule!r} is missing columns: "
+                f"{missing}; columns={smoothed_columns!r}."
+            )
+        local_mults = torch.as_tensor(local_mults, dtype=torch.float64).flatten()
+        if local_mults.numel() != len(smoothed_rows):
+            raise ValueError(
+                f"Rule {rule!r} has {len(smoothed_rows)} smoothed rows but "
+                f"{local_mults.numel()} local_mult values."
+            )
+
+        child_idx = smoothed_columns.index(rule[0])
+        parent_indices = [smoothed_columns.index(atom) for atom in rule[1:]]
+        local_mult_idx = smoothed_columns.index("local_mult")
+        cp_idx = smoothed_columns.index("CP")
+        prior_idx = smoothed_columns.index("prior")
+        parent_sum_idx = (
+            smoothed_columns.index("ParentSum")
+            if "ParentSum" in smoothed_columns
+            else None
+        )
+
+        parent_sums: Dict[Tuple[Any, ...], float] = {}
+        local_values = [float(value) for value in local_mults.tolist()]
+        for row, local_mult in zip(smoothed_rows, local_values):
+            parent_key = tuple(row[index] for index in parent_indices)
+            parent_sums[parent_key] = parent_sums.get(parent_key, 0.0) + local_mult
+
+        prior_by_child = cls._consistent_prior_by_child(
+            rule,
+            cp_rows,
+            cp_columns,
+        )
+        derived_rows: List[List[Any]] = []
+        for row, local_mult in zip(smoothed_rows, local_values):
+            mutable_row = list(row)
+            parent_key = tuple(row[index] for index in parent_indices)
+            denominator = parent_sums[parent_key]
+            cp_value = local_mult / denominator if denominator > 0.0 else 0.0
+            child_value = row[child_idx]
+            if child_value not in prior_by_child:
+                raise ValueError(
+                    f"No prior found in the ordinary _CP rows for "
+                    f"{rule[0]}={child_value!r}."
+                )
+            mutable_row[local_mult_idx] = local_mult
+            mutable_row[cp_idx] = cp_value
+            mutable_row[prior_idx] = prior_by_child[child_value]
+            if parent_sum_idx is not None:
+                mutable_row[parent_sum_idx] = denominator
+            derived_rows.append(mutable_row)
+        return derived_rows
+
+    def _prune_derived_smoothed_rows(
+        self,
+        rule_idx: int,
+        rows: List[List[Any]],
+    ) -> List[List[Any]]:
+        """Apply the existing FactorBase score to derived smoothed metadata."""
+        rule = self.rules[rule_idx]
+        if len(rule) == 1 or self.rule_sources[rule_idx] != "factorbase":
+            return list(rows)
+
+        columns = self.value_columns[rule_idx]
+        required = ("local_mult", "CP", "prior")
+        missing = [name for name in required if name not in columns]
+        if missing:
+            raise ValueError(
+                f"Cannot prune smoothed rule {rule!r}; missing columns {missing}."
+            )
+        local_idx = columns.index("local_mult")
+        cp_idx = columns.index("CP")
+        prior_idx = columns.index("prior")
+        scored_rows = []
+        for row in rows:
+            local_mult = float(row[local_idx])
+            cp_value = float(row[cp_idx])
+            prior_value = float(row[prior_idx])
+            if local_mult <= 0.0 or cp_value <= 0.0 or prior_value <= 0.0:
+                continue
+            score = (
+                2.0 * local_mult * (math.log(cp_value) - math.log(prior_value))
+                - math.log(local_mult)
+            )
+            if score > 0.0:
+                scored_rows.append((score, row))
+
+        max_values = getattr(self.args, "motif_prune_max_values_per_rule", None)
+        if max_values is not None and max_values > 0:
+            scored_rows = sorted(
+                scored_rows,
+                key=lambda item: item[0],
+                reverse=True,
+            )[:max_values]
+        return [row for _, row in scored_rows]
+
+    def prepare_data_driven_smoothed_pruning(
+        self,
+        preprocessor,
+        batch_size: int,
+    ) -> Dict[str, int]:
+        """Count all smoothed combinations, derive metadata, then prune them."""
+        if not self.requires_data_driven_smoothed_pruning:
+            return {
+                "full_combinations": sum(len(rows) for rows in self.values),
+                "pruned_combinations": sum(len(rows) for rows in self.values),
+            }
+
+        counts = self.count_batch(
+            preprocessor,
+            batch_size=batch_size,
+            output_mode="total_count",
+            detach_to_cpu=True,
+        )
+        aggregated_counts = counts.sum(dim=0)
+        expected_count = sum(len(rows) for rows in self.values)
+        if aggregated_counts.numel() != expected_count:
+            raise RuntimeError(
+                "Smoothed local_mult counting returned the wrong motif "
+                f"dimension: expected {expected_count}, got "
+                f"{aggregated_counts.numel()}."
+            )
+
+        derived_values = []
+        offset = 0
+        for rule_idx, rows in enumerate(self.values):
+            value_count = len(rows)
+            rule_counts = aggregated_counts[offset:offset + value_count]
+            offset += value_count
+            if self.rule_sources[rule_idx] == "factorbase":
+                derived_rows = self.derive_smoothed_rule_rows(
+                    rule=self.rules[rule_idx],
+                    smoothed_rows=rows,
+                    smoothed_columns=self.value_columns[rule_idx],
+                    cp_rows=self.cp_reference_values[rule_idx],
+                    cp_columns=self.cp_reference_columns[rule_idx],
+                    local_mults=rule_counts,
+                )
+            else:
+                derived_rows = [list(row) for row in rows]
+            derived_values.append(
+                self._prune_derived_smoothed_rows(rule_idx, derived_rows)
+            )
+
+        full_count = sum(len(rows) for rows in self.values)
+        pruned_count = sum(len(rows) for rows in derived_values)
+        self.values = derived_values
+        self.data_driven_smoothed_pruning_pending = False
+        self._build_motif_group_masks()
+        print(
+            "  cp_smoothed data-driven pruning: "
+            f"{pruned_count} / {full_count} combinations kept after "
+            "local_mult, CP, and prior derivation"
+        )
+        return {
+            "full_combinations": full_count,
+            "pruned_combinations": pruned_count,
+        }
+
     # ------------------------------------------------------------------
     # Main entry point — batched (PARALLELISED OVER GRAPHS)
     # ------------------------------------------------------------------
@@ -256,10 +534,10 @@ class RelationalMotifCounter:
         """
         Evaluate motifs for all graphs via batched GPU tensor ops.
 
-        The counting algorithm always materializes the canonical padded full
-        matrices first. ``output_mode`` is only a compatibility convenience
-        that derives another representation after counting. Training can call
-        ``full_matrix`` once and choose representations later in the loss.
+        Structured modes materialize the canonical padded full matrices first.
+        ``total_count`` uses a scalar fast path so a large unpruned smoothed
+        value inventory can be counted before pruning without retaining one
+        ``N_max x N_max`` tensor per combination.
 
         Canonical ``output_mode`` values are:
 
@@ -317,26 +595,33 @@ class RelationalMotifCounter:
 
             feat_b, feat_onehot_b, adj_b, edge_b = preprocessor.get_batch(start, end_excl)
 
-            batch_result = self._iteration_function_batched(
-                feat_b, feat_onehot_b, edge_b, adj_b, fom, B, N_max,
-                selected_rules_values,
-            )
-            batch_result, batch_valid_mask = batch_result
-            if detach_to_cpu:
-                batch_result = batch_result.detach().cpu()
-                batch_valid_mask = batch_valid_mask.detach().cpu()
-            if matrix_valid_mask is None:
-                matrix_valid_mask = batch_valid_mask
-            elif not torch.equal(matrix_valid_mask, batch_valid_mask):
-                raise RuntimeError(
-                    "Motif matrix shapes changed between graph batches; "
-                    "cannot construct one consistent validity mask."
+            if output_mode == "total_count":
+                batch_result = self._iteration_total_counts_batched(
+                    feat_b, feat_onehot_b, edge_b, adj_b, fom, B, N_max,
+                    selected_rules_values,
                 )
+                if detach_to_cpu:
+                    batch_result = batch_result.detach().cpu()
+            else:
+                batch_result, batch_valid_mask = self._iteration_function_batched(
+                    feat_b, feat_onehot_b, edge_b, adj_b, fom, B, N_max,
+                    selected_rules_values,
+                )
+                if detach_to_cpu:
+                    batch_result = batch_result.detach().cpu()
+                    batch_valid_mask = batch_valid_mask.detach().cpu()
+                if matrix_valid_mask is None:
+                    matrix_valid_mask = batch_valid_mask
+                elif not torch.equal(matrix_valid_mask, batch_valid_mask):
+                    raise RuntimeError(
+                        "Motif matrix shapes changed between graph batches; "
+                        "cannot construct one consistent validity mask."
+                    )
 
             batch_tensors.append(batch_result)
 
             # Sync so elapsed time reflects actual GPU completion, not just launch.
-            if self.device == 'cuda':
+            if str(self.device).startswith('cuda'):
                 torch.cuda.synchronize()
 
             elapsed        = time.perf_counter() - t0
@@ -350,6 +635,9 @@ class RelationalMotifCounter:
                 f"  ETA {self._fmt_time(eta_sec)}"
             )
 
+        if output_mode == "total_count":
+            return torch.cat(batch_tensors, dim=0)
+
         full_matrices = torch.cat(batch_tensors, dim=0)
         if output_mode == "full_matrix":
             return full_matrices, matrix_valid_mask
@@ -362,11 +650,68 @@ class RelationalMotifCounter:
             histogram_smoothing=histogram_smoothing,
             histogram_spec=histogram_spec,
         )
-        if output_mode == "total_count":
-            return values
         if output_mode == "marginal_histogram":
             return values, valid_mask, histogram_spec
         return values, valid_mask
+
+    def _iteration_total_counts_batched(
+        self,
+        feat_b: torch.Tensor,
+        feat_onehot_b: torch.Tensor,
+        edge_b: Optional[List[torch.Tensor]],
+        adj_b: Dict[str, torch.Tensor],
+        feature_onehot_mapping: Dict[int, Dict[int, int]],
+        B: int,
+        N_max: int,
+        selected_rules_values: Optional[Dict] = None,
+    ) -> torch.Tensor:
+        """Count motifs directly as scalars without retaining full matrices."""
+        if selected_rules_values is not None:
+            iteration_plan = [
+                (rule_idx, self.values[rule_idx][value_idx])
+                for rule_idx, value_indices in selected_rules_values.items()
+                for value_idx in value_indices
+            ]
+        else:
+            iteration_plan = [
+                (rule_idx, table_row)
+                for rule_idx in range(len(self.rules))
+                for table_row in self.values[rule_idx]
+            ]
+
+        motif_counts: List[torch.Tensor] = []
+        for rule_idx, table_row in iteration_plan:
+            unmasked = self._compute_unmasked_matrices_batched(
+                rule_idx,
+                table_row,
+                feat_b,
+                feat_onehot_b,
+                feature_onehot_mapping,
+                edge_b,
+                adj_b,
+                B,
+                N_max,
+            )
+            masked = self._compute_masked_matrices_batched(
+                unmasked,
+                self.base_indices[rule_idx],
+                self.mask_indices[rule_idx],
+            )
+            sorted_matrices = self._compute_sorted_matrices_batched(
+                masked,
+                self.sort_indices[rule_idx],
+            )
+            stacked = self._compute_stacked_matrices_batched(
+                sorted_matrices,
+                self.stack_indices[rule_idx],
+                B,
+            )
+            motif_counts.append(self._compute_result_batched(stacked))
+
+        if not motif_counts:
+            device = next(iter(adj_b.values())).device
+            return torch.zeros(B, 0, dtype=torch.float32, device=device)
+        return torch.stack(motif_counts, dim=1)
 
     # ------------------------------------------------------------------
     # Batched iteration loop  (unified — fully differentiable)
@@ -952,6 +1297,9 @@ class RelationalMotifCounter:
             "multiples",
             "states",
             "values",
+            "value_columns",
+            "cp_reference_values",
+            "cp_reference_columns",
             "rule_sources",
             "base_indices",
             "mask_indices",
@@ -961,6 +1309,8 @@ class RelationalMotifCounter:
         dict_attrs = ("functors", "variables", "nodes", "masks")
 
         for attr in list_attrs:
+            if not hasattr(self, attr):
+                continue
             old_values = getattr(self, attr)
             setattr(self, attr, [old_values[old_idx] for old_idx in keep_indices])
 

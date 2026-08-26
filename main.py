@@ -51,7 +51,11 @@ import time
 import timeit
 import dgl
 from util import *
-from motif_counting.motif_store import RuleBasedMotifStore, get_motif_pickle_path
+from motif_counting.motif_store import (
+    CP_TABLE_SOURCES,
+    RuleBasedMotifStore,
+    get_motif_pickle_path,
+)
 from motif_counting.motif_counter import RelationalMotifCounter
 from motif_counting.motif_loss_utils import (
     compute_hard_motif_metrics,
@@ -1208,6 +1212,18 @@ parser.add_argument(
 )
 parser.add_argument('--rule_prune', type=str2bool, default=False)
 parser.add_argument(
+    '--motif_cp_table_source',
+    type=str,
+    default='cp',
+    choices=sorted(CP_TABLE_SOURCES),
+    help=(
+        'FactorBase value-combination source. cp preserves the existing '
+        '`<child>_CP` behavior. cp_smoothed reads all combinations from '
+        '`<child>_CP_smoothed`, counts their local_mult values on the active '
+        'graph split, derives CP/prior metadata, and then applies pruning.'
+    ),
+)
+parser.add_argument(
     '--protect_unit_relation_motifs_from_pruning',
     type=str2bool,
     default=False,
@@ -1648,6 +1664,7 @@ motif_temperature_guard_sharpen_factor = min(
 args.motif_temperature_guard_relax_factor = motif_temperature_guard_relax_factor
 args.motif_temperature_guard_sharpen_factor = motif_temperature_guard_sharpen_factor
 rule_prune = args.rule_prune
+motif_cp_table_source = args.motif_cp_table_source
 motif_batch_size = args.motif_batch_size
 prepare_motif_cache_only = args.prepare_motif_cache_only
 syntactic_literal_rule_mode = (
@@ -1961,6 +1978,7 @@ print(
       f"{unit_relation_motif_loss_mode}"
 )
 print("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
+print("motif_cp_table_source:" + str(motif_cp_table_source))
 print(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -2000,6 +2018,7 @@ logging.info(
       f"{unit_relation_motif_loss_mode}"
 )
 logging.info("syntactic_literal_rule_mode:" + str(syntactic_literal_rule_mode))
+logging.info("motif_cp_table_source:" + str(motif_cp_table_source))
 logging.info(
     "motif_temperature_anneal:"
     + f"start={motif_temperature_start}, end={motif_temperature_end}, "
@@ -3062,8 +3081,27 @@ if use_motif_loss:
         node_onehot_info,
         edge_onehot_info=edge_onehot_info,
         edge_feature_info_mapping=motif_counter.feature_info_mapping,
-        device='cuda',
+        device=device,
     )
+
+    # `_CP_smoothed` contains the complete Cartesian value inventory but does
+    # not provide the local_mult/prior metadata needed by the existing pruning
+    # score. Count every combination on the active graph split first, derive
+    # local_mult/CP/prior, prune, and only then construct the training targets.
+    if motif_counter.requires_data_driven_smoothed_pruning:
+        smoothed_pruning_summary = (
+            motif_counter.prepare_data_driven_smoothed_pruning(
+                wrapper,
+                batch_size=motif_batch_size,
+            )
+        )
+        smoothed_pruning_message = (
+            "CP_SMOOTHED PRUNING: "
+            f"{smoothed_pruning_summary['pruned_combinations']}/"
+            f"{smoothed_pruning_summary['full_combinations']} combinations kept"
+        )
+        print(smoothed_pruning_message)
+        logging.info(smoothed_pruning_message)
 
     # Resolve and validate active group objectives before the potentially
     # expensive full-matrix target count.

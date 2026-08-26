@@ -118,6 +118,24 @@ cache. The default MySQL values in the code are:
 - user: `fbuser`
 - password: empty string
 
+New motif caches retain value combinations from both `<child>_CP` and, when
+available, `<child>_CP_smoothed`. Select the latter with:
+
+```yaml
+motif:
+  motif_cp_table_source: cp_smoothed
+  rule_prune: true
+```
+
+For the smoothed source, pruning is deliberately deferred until graph data is
+loaded. The motif counter first evaluates every smoothed combination on the
+active training split, uses those aggregate counts as `local_mult`, copies the
+child-value prior from the ordinary `_CP` table, and computes
+`CP = local_mult(child, parents) / sum_child local_mult(child, parents)` for
+each fixed parent assignment. Only then is the existing pruning score applied.
+The derived split-specific metadata is not written back into the flag-neutral
+database cache.
+
 ## Common Runs
 
 Baseline GraphVAE on the default QM9 config:

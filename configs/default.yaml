@@ -71,6 +71,7 @@ motif:
   motif_temperature_guard_ratio: null
   motif_temperature_guard_relax_factor: 1.05
   motif_temperature_guard_sharpen_factor: 0.995
+  motif_cp_table_source: cp
   rule_prune: false
   motif_batch_size: 50000
 
