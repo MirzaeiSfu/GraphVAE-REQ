@@ -827,5 +827,21 @@ never be reused or deleted. The frozen Phase A cache manifest independently
 reverified the deployed read-only cache, and the corrected fresh identity is
 `lobster_graphcl_f1pr_promoted10000_20260826b`. This correction must be tested,
 committed, pushed, and redeployed before creating the `b` study.
+
+The recovery correction is committed and deployed as source commit `3b55d3e`.
+Fresh Phase B study `lobster_graphcl_f1pr_promoted10000_20260826b` is now
+initialized under immutable contract
+`9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8`.
+Protected `verify-full` PostgreSQL authentication, the exact source and runtime,
+the frozen read-only LOBSTER cache, GraphCL inputs, schemas, and the dedicated
+physical GPU-1 slot all pass supported preflight. Status is `READY` with exactly
+three `WAITING` reservations and zero running, complete, failed, other, or guard
+rows. A supported launch probe records no launches. The unusable `a` study
+still has zero trials. No worker or 10,000-epoch training has started. Exact
+prelaunch evidence is in
+`lobster_graphcl_f1pr_gate5_phase_b_launch.json`; the next action is one GPU-1
+worker wave, followed by truthful monitoring and collection of that exact
+reservation. The live study remains bound to source commit `3b55d3e`; later
+evidence-only commits must not be redeployed over its immutable source root.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

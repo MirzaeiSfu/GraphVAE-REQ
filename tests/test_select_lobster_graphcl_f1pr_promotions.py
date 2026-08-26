@@ -118,3 +118,63 @@ def test_phase_b_config_is_exact_and_test_free():
         "evaluation_timeout_seconds": 1200,
         "termination_grace_seconds": 10,
     }
+
+
+def test_phase_b_prelaunch_evidence_is_exact_and_test_free():
+    evidence = _payload(
+        CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_phase_b_launch.json"
+    )
+    assert evidence["study"] == {
+        "name": "lobster_graphcl_f1pr_promoted10000_20260826b",
+        "study_contract_sha256": (
+            "9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8"
+        ),
+        "source_commit": "3b55d3e1fda84c1603908c0ef8ea73ac71591358",
+        "source_tree_sha256": (
+            "d73c5c4a40d67331b9cadb8eecbd4b6f6fc68fca28f27db3b62ec30f3d2b9b7e"
+        ),
+        "base_config_sha256": (
+            "65a3cc5eb70dda44720988148f992d2e744ff27c4eeb8fe032cf18cbae0baf30"
+        ),
+        "reservation_plan_sha256": (
+            "89f87a2bb2cc1a0cf0d9659004b5745cca449404c97817dc4f638d91a1d0b7ae"
+        ),
+        "runtime_fingerprint": (
+            "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1"
+        ),
+        "lifecycle": "READY",
+        "reserved_trials": 3,
+        "waiting": 3,
+        "running": 0,
+        "complete": 0,
+        "failed": 0,
+        "other": 0,
+        "unreserved_guard": 0,
+    }
+    assert evidence["objective_contract"] == {
+        "path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+        "selection_split": "validation",
+        "test_access": False,
+        "node_feature_decoder_required": True,
+        "edge_feature_decoder_required": True,
+        "graphcl_encoder_count": 5,
+        "validation_graph_count": 10,
+        "graphvae_training_seeds": [0, 1],
+        "epoch_number": 10000,
+        "skip_final_evaluation": True,
+    }
+    assert evidence["preflight"]["protected_authentication"].endswith(
+        "sslmode=verify-full"
+    )
+    assert evidence["preflight"]["recorded_launches"] == 0
+    assert evidence["preflight"]["test_access"] is False
+    assert evidence["execution"] == {
+        "workers_launched": 0,
+        "real_training_started": False,
+        "max_parallel": 1,
+        "replacement_reservations": 0,
+        "duplicate_dispatches": 0,
+        "adaptive_bo": False,
+        "held_out_or_test_evaluation": False,
+        "next_action": "launch one GPU-1 worker wave and monitor the exact reservation",
+    }

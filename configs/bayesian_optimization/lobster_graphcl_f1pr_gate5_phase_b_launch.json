@@ -1,0 +1,75 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-phase-b-launch-v1",
+  "date": "2026-08-26",
+  "study": {
+    "name": "lobster_graphcl_f1pr_promoted10000_20260826b",
+    "study_contract_sha256": "9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8",
+    "source_commit": "3b55d3e1fda84c1603908c0ef8ea73ac71591358",
+    "source_tree_sha256": "d73c5c4a40d67331b9cadb8eecbd4b6f6fc68fca28f27db3b62ec30f3d2b9b7e",
+    "base_config_sha256": "65a3cc5eb70dda44720988148f992d2e744ff27c4eeb8fe032cf18cbae0baf30",
+    "reservation_plan_sha256": "89f87a2bb2cc1a0cf0d9659004b5745cca449404c97817dc4f638d91a1d0b7ae",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "lifecycle": "READY",
+    "reserved_trials": 3,
+    "waiting": 3,
+    "running": 0,
+    "complete": 0,
+    "failed": 0,
+    "other": 0,
+    "unreserved_guard": 0
+  },
+  "preflight": {
+    "passed": true,
+    "storage_backend": "PostgreSQL",
+    "protected_authentication": "PGPASSFILE and protected CA with sslmode=verify-full",
+    "hosts": [
+      "cs-cl-09"
+    ],
+    "slot_count": 1,
+    "physical_gpu": 1,
+    "gpu_model": "NVIDIA GeForce GTX TITAN X",
+    "gpu_memory_mib": 12288,
+    "launch_probe_count": 1,
+    "recorded_launches": 0,
+    "test_access": false
+  },
+  "immutable_inputs": {
+    "cache_size_bytes": 59295793,
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "cache_mode": "0444",
+    "validation_reference_file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+    "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "graphcl_runtime_sha256": "980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7"
+  },
+  "objective_contract": {
+    "path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "graphcl_encoder_count": 5,
+    "validation_graph_count": 10,
+    "graphvae_training_seeds": [
+      0,
+      1
+    ],
+    "epoch_number": 10000,
+    "skip_final_evaluation": true
+  },
+  "preserved_precreation_attempt": {
+    "study_name": "lobster_graphcl_f1pr_promoted10000_20260826a",
+    "database_trial_count": 0,
+    "reservation_consumed": false,
+    "reuse_forbidden": true
+  },
+  "execution": {
+    "workers_launched": 0,
+    "real_training_started": false,
+    "max_parallel": 1,
+    "replacement_reservations": 0,
+    "duplicate_dispatches": 0,
+    "adaptive_bo": false,
+    "held_out_or_test_evaluation": false,
+    "next_action": "launch one GPU-1 worker wave and monitor the exact reservation"
+  }
+}
