@@ -1,0 +1,55 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-phase-b-supervisor-launch-v1",
+  "date": "2026-08-26",
+  "study_name": "lobster_graphcl_f1pr_promoted10000_20260826b",
+  "study_contract_sha256": "9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8",
+  "implementation": {
+    "commit": "2b65e5bd91c12a908869c5cd4bb23953f8f53c26",
+    "script_sha256": "59e55a00359c8ad82fb39d12888c5bd03bb218c87dd34292a5d7c6faf531d926",
+    "staged_outside_immutable_source_root": true,
+    "staged_mode": "0500",
+    "focused_tests_passed": 90
+  },
+  "launch": {
+    "host": "cs-cl-09",
+    "tmux_session": "graphvae-bo-supervisor-lobster-graphcl-phaseb-20260826b",
+    "detached": true,
+    "poll_seconds": 300,
+    "single_supervisor_lock": true,
+    "protected_environment_sourced_on_worker_host": true,
+    "credential_contents_recorded": false
+  },
+  "first_observation": {
+    "action": "WAIT",
+    "reserved_states": {
+      "RESERVED_TOTAL": 3,
+      "WAITING": 2,
+      "RUNNING": 1,
+      "COMPLETE": 0,
+      "FAIL": 0,
+      "OTHER": 0,
+      "UNRESERVED_GUARD": 0
+    },
+    "test_access": false
+  },
+  "automation_contract": {
+    "supported_operations_only": [
+      "probe",
+      "status",
+      "collect",
+      "run"
+    ],
+    "launch_requires_all_prior_attempts_reconciled_terminal": true,
+    "active_work_is_never_duplicated": true,
+    "consumed_failure_is_never_replaced": true,
+    "stops_for_any_nonactive_nonterminal_probe": true,
+    "stops_for_inexact_budget_or_guard_row": true,
+    "held_out_or_test_evaluation": false,
+    "finalize_or_freeze_automatic": false
+  },
+  "immutable_source": {
+    "commit": "3b55d3e1fda84c1603908c0ef8ea73ac71591358",
+    "tree_sha256": "d73c5c4a40d67331b9cadb8eecbd4b6f6fc68fca28f27db3b62ec30f3d2b9b7e",
+    "deployment_manifest_reverified_after_supervisor_start": true
+  }
+}

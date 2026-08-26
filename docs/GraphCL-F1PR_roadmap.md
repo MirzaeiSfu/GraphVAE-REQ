@@ -855,5 +855,20 @@ replacement reservation. Ninety focused supervisor, launcher, and controller
 tests pass. After commit, the standalone standard-library supervisor will be
 checksum-staged outside the immutable live source root and started in detached
 `tmux`; this avoids changing the source tree bound to the active study.
+
+The supervisor implementation is committed as `2b65e5b`, and its exact
+SHA-256 was verified after staging with mode `0500` outside the live source
+root. Detached session
+`graphvae-bo-supervisor-lobster-graphcl-phaseb-20260826b` is active on
+`cs-cl-09` with a five-minute poll interval. Its first atomic observation is
+`WAIT`: the exact budget remains one running and two waiting, with zero
+complete, failed, other, or guard rows and `test_access=false`. The immutable
+`3b55d3e` deployment manifest reverified after supervisor startup. The
+supervisor will collect and launch only terminally reconciled waves, and will
+stop rather than guess on any unsafe state. It intentionally does not finalize,
+freeze, restore, run generation-seed stability, or make a scientific decision;
+those audited steps remain for the controller after the three reservations are
+consumed. Exact launch evidence is in
+`lobster_graphcl_f1pr_gate5_phase_b_supervisor_launch.json`.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
