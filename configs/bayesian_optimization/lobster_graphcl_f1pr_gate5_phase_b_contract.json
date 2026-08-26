@@ -1,0 +1,97 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-phase-b-contract-v1",
+  "study": {
+    "name": "lobster_graphcl_f1pr_promoted10000_20260826a",
+    "controller_output_root": "runs/lobster_graphcl_f1pr_promoted10000_20260826a",
+    "worker_artifact_root": "runs/bayesian_optimization/lobster_graphcl_f1pr_promoted10000_20260826a",
+    "reserved_candidates": 3,
+    "epoch_number": 10000,
+    "graphvae_training_seeds": [
+      0,
+      1
+    ],
+    "generation_seed": 123,
+    "study_seed": 23034,
+    "tpe_startup_trials": 3,
+    "heartbeat_interval_seconds": 60,
+    "grace_period_seconds": 600,
+    "max_parallel": 1,
+    "phase_b_config_sha256": "65a3cc5eb70dda44720988148f992d2e744ff27c4eeb8fe032cf18cbae0baf30"
+  },
+  "source_evidence": {
+    "phase_a_completion_sha256": "9a09d1592b1aa7c3a0ed672964112ad8ad2ea8c1911b63005f4a29c19abf18a7",
+    "frozen_policy_sha256": "c02afa10bcd17a172c5fbdece3ab4acdd4d727b522f2cf92f29e177bd4659bb2",
+    "phase_a_study_contract_sha256": "4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398",
+    "phase_a_snapshot_sha256": "c88a8512ea3ac5f0c943ece6ecd9a6a9da121f81b4d238134bc2f845fda4af92"
+  },
+  "clarification": {
+    "original_policy_preserved": true,
+    "reason": "Uniform is both explicitly required and the Phase A maximum.",
+    "deterministic_resolution": [
+      "select the single exact uniform candidate",
+      "select the maximum finite nonuniform mean with lowest budget-index tie break",
+      "select the first weight-unique candidate in the frozen contrast priority"
+    ],
+    "contrast_priority": [
+      "edge_emphasis",
+      "node_emphasis",
+      "common_weak",
+      "common_strong",
+      "previous_random_gin"
+    ],
+    "post_result_parameter_discretion": false
+  },
+  "promotions": [
+    {
+      "source_budget_index": 0,
+      "label": "uniform",
+      "weights": {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0
+      },
+      "phase_a_mean": 0.7216081830934524,
+      "phase_a_rank": 1,
+      "promotion_role": "uniform",
+      "promotion_index": 0
+    },
+    {
+      "source_budget_index": 1,
+      "label": "previous_random_gin",
+      "weights": {
+        "alpha_node_feat": 5.229045672,
+        "alpha_edge_feat": 0.0538641483
+      },
+      "phase_a_mean": 0.708767568610423,
+      "phase_a_rank": 2,
+      "promotion_role": "best_nonuniform",
+      "promotion_index": 1
+    },
+    {
+      "source_budget_index": 5,
+      "label": "edge_emphasis",
+      "weights": {
+        "alpha_node_feat": 0.25,
+        "alpha_edge_feat": 4.0
+      },
+      "phase_a_mean": 0.6432249659152287,
+      "phase_a_rank": 4,
+      "promotion_role": "contrasting_anchor",
+      "promotion_index": 2
+    }
+  ],
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "partial_candidate_score_forbidden": true
+  },
+  "execution": {
+    "phase_b_study_created": false,
+    "phase_b_training_started": false,
+    "adaptive_bo": false,
+    "held_out_or_test_evaluation": false
+  }
+}

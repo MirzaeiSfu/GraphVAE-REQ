@@ -799,5 +799,22 @@ rule: uniform is explicitly required but is also the maximum finite Phase A
 candidate. The three-promotion contract must deterministically de-duplicate
 that overlap, remain consistent with the roadmap's uniform/best/contrast
 design, and be committed before any 10,000-epoch reservation is created.
+
+The Phase B promotion ambiguity is now resolved without modifying the original
+frozen policy. `select_lobster_graphcl_f1pr_promotions.py` requires the frozen
+six-complete Phase A evidence, exact validation-only objective contract, finite
+unique weights, and passing Phase A thresholds. It selects exact uniform once,
+then the highest-mean nonuniform candidate with the predeclared budget-index
+tie break, then the first weight-unique candidate in the frozen contrast
+priority. The resulting unique 10,000-epoch promotions are uniform `(1,1)`,
+previous Random-GIN `(5.229045672,0.0538641483)`, and edge emphasis `(0.25,4)`.
+The selector fails closed for an unfrozen study, test access, failed thresholds,
+or duplicate weights, and reproduces the committed contract and three-entry
+reservation plan exactly. The new fidelity configuration retains both
+GraphVAE seeds, all ten validation graphs, the five encoders, 7,200/1,200-second
+phase limits, `skip_final_evaluation=true`, and `max_parallel=1`. Twenty focused
+promotion and GraphCL contract tests pass. No Phase B study or training has
+started; the next action is to commit and deploy this contract, then preflight
+and initialize its fresh three-reservation study.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
