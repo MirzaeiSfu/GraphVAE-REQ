@@ -761,5 +761,43 @@ exactly six `WAITING` reservations and zero RUNNING, COMPLETE, FAIL, or guard
 rows. No worker or real training has started. Exact prelaunch evidence is in
 `lobster_graphcl_f1pr_gate5_phase_a_launch.json`; the next action is one GPU-1
 worker wave, followed by truthful monitoring of that reservation.
+
+Gate 5 Phase A is now complete. Study
+`lobster_graphcl_f1pr_anchors2000_20260825a` consumed exactly its six fixed
+reservations, each with GraphVAE seeds 0 and 1, and finished with six
+`COMPLETE` rows and zero waiting, running, failed, other, or guard rows. No
+reservation was replaced or duplicated. The grouped validation GraphCL-F1PR
+means, in budget order, are `0.7216081830934524` for uniform,
+`0.708767568610423` for the previous Random-GIN pair,
+`0.6051842628333693` for common weak, `0.6403079758214479` for common strong,
+`0.6857229978163659` for node emphasis, and `0.6432249659152287` for edge
+emphasis. Uniform ranks first at 2,000 epochs; no fixed nonuniform anchor
+improves it. All six population training-seed coefficients of variation are at
+or below the frozen `0.20` threshold, so the Phase A-only stability checks
+pass, but this is not a final improvement or Gate 5 pass claim.
+
+The controller rebooted 22 seconds after the fifth launch probe and removed a
+temporary PostgreSQL firewall rule. The completed fifth reservation was
+preserved; collection and status failed with definite connection timeouts,
+the sixth reservation remained unclaimed, and no ambiguous work was launched.
+The exact cs-cl-09 `/32` TCP-5432 rule was restored and added to the host boot
+script before supported `verify-full` status/probe checks resumed. The cache
+still matches its frozen SHA-256, byte length, and mode `0444`; credential,
+storage-URL, and `test_access=true` scans have zero hits.
+
+The study is frozen under contract `4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398`.
+Its portable snapshot SHA-256 is
+`c88a8512ea3ac5f0c943ece6ecd9a6a9da121f81b4d238134bc2f845fda4af92`.
+A bare-shell restore correctly failed closed because it resolved the wrong
+NumPy copy; the retry under the exact qualified runtime passed without
+PostgreSQL and reproduced every aggregate hash. Machine-checked details are in
+`lobster_graphcl_f1pr_gate5_phase_a_completion.json`.
+
+Adaptive BO remains unauthorized. Before creating Phase B, implement and test
+a fail-closed unique-candidate interpretation of the predeclared promotion
+rule: uniform is explicitly required but is also the maximum finite Phase A
+candidate. The three-promotion contract must deterministically de-duplicate
+that overlap, remain consistent with the roadmap's uniform/best/contrast
+design, and be committed before any 10,000-epoch reservation is created.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

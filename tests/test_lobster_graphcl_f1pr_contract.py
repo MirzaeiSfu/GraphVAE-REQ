@@ -28,6 +28,9 @@ GATE5_CONFIG = CONFIG_ROOT / "lobster_graphcl_f1pr_signal.yaml"
 GATE5_PHASE_A_LAUNCH = (
     CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_phase_a_launch.json"
 )
+GATE5_PHASE_A_COMPLETION = (
+    CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_phase_a_completion.json"
+)
 GATE5_SLOTS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_GATE5_SLOTS.txt"
 REPO_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_REPO_PATHS.txt"
 PYTHON_PATHS = REPO_ROOT / "CLUSTER_GRAPHVAE_GRAPHCL_F1PR_LOBSTER_PYTHON_PATHS.txt"
@@ -412,3 +415,67 @@ def test_gate5_phase_a_launch_checkpoint_is_ready_and_unstarted():
     assert launch["execution"]["real_training_started"] is False
     assert launch["execution"]["adaptive_bo"] is False
     assert launch["execution"]["held_out_or_test_evaluation"] is False
+
+
+def test_gate5_phase_a_completion_is_exact_frozen_and_test_free():
+    completion = json.loads(GATE5_PHASE_A_COMPLETION.read_text(encoding="utf-8"))
+
+    assert completion["study"]["lifecycle"] == "FROZEN"
+    assert completion["study"]["study_contract_sha256"] == (
+        "4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398"
+    )
+    assert completion["study"]["reserved_states"] == {
+        "RESERVED_TOTAL": 6,
+        "WAITING": 0,
+        "RUNNING": 0,
+        "COMPLETE": 6,
+        "FAIL": 0,
+        "OTHER": 0,
+        "UNRESERVED_GUARD": 0,
+    }
+    assert completion["objective_contract"]["selection_split"] == "validation"
+    assert completion["objective_contract"]["test_access"] is False
+    assert completion["execution"]["replacement_reservations"] == 0
+    assert completion["execution"]["duplicate_dispatches"] == 0
+    assert completion["execution"]["failed_reservations"] == 0
+    assert len(completion["execution"]["worker_run_ids"]) == 6
+    assert len(set(completion["execution"]["worker_run_ids"])) == 6
+
+    results = completion["results"]
+    assert [result["budget_index"] for result in results] == list(range(6))
+    assert sorted(result["rank"] for result in results) == list(range(1, 7))
+    for result in results:
+        seed_zero, seed_one = result["seed_values"]
+        expected_mean = (seed_zero + seed_one) / 2.0
+        expected_population_std = abs(seed_zero - seed_one) / 2.0
+        assert result["mean"] == pytest.approx(expected_mean)
+        assert result["population_standard_deviation"] == pytest.approx(
+            expected_population_std
+        )
+        assert result["coefficient_of_variation"] == pytest.approx(
+            expected_population_std / expected_mean
+        )
+        assert result["coefficient_of_variation"] <= 0.20
+
+    best = min(results, key=lambda result: result["rank"])
+    assert best["budget_index"] == 0
+    assert best["label"] == "uniform"
+    assert best["weights"] == {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0}
+    assert best["mean"] == pytest.approx(0.7216081830934524)
+    assert completion["phase_a_threshold_audit"][
+        "anchors_at_or_below_population_cv_0p20"
+    ] == 6
+    assert completion["phase_a_threshold_audit"]["phase_a_checks_passed"] is True
+    assert completion["phase_a_threshold_audit"]["adaptive_bo_authorized"] is False
+    assert completion["promotion_contract_status"]["status"] == (
+        "requires_fail_closed_unique_candidate_clarification"
+    )
+    assert completion["promotion_contract_status"]["phase_b_study_created"] is False
+    assert completion["portable_restore"]["postgresql_access"] is False
+    assert completion["portable_restore"]["aggregate_outputs_match"] is True
+    assert completion["integrity_audit"]["storage_url_file_hits"] == 0
+    assert completion["integrity_audit"]["credential_pattern_file_hits"] == 0
+    assert completion["integrity_audit"]["test_access_true_file_hits"] == 0
+    assert completion["scientific_checkpoint"]["final_improvement_claim_allowed"] is False
+    assert completion["scientific_checkpoint"]["held_out_or_test_evaluation"] is False
+    assert completion["scientific_checkpoint"]["adaptive_bo"] is False
