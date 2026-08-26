@@ -843,5 +843,17 @@ prelaunch evidence is in
 worker wave, followed by truthful monitoring and collection of that exact
 reservation. The live study remains bound to source commit `3b55d3e`; later
 evidence-only commits must not be redeployed over its immutable source root.
+
+An unattended fail-closed wave supervisor is now implemented in
+`supervise_distributed_graphvae_attr_bo.py`. It uses only the supported
+probe/status/collect/run operations, holds a single-supervisor file lock, and
+launches a later wave only when every attempted prior launch is
+`RECONCILED_TERMINAL`. Active work is never duplicated; unreachable, missing,
+conflicting, pretrial, guard, test-access, or inexact-budget evidence stops for
+operator review. Consumed failures remain consumed and do not create a
+replacement reservation. Ninety focused supervisor, launcher, and controller
+tests pass. After commit, the standalone standard-library supervisor will be
+checksum-staged outside the immutable live source root and started in detached
+`tmux`; this avoids changing the source tree bound to the active study.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
