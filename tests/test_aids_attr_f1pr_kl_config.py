@@ -114,3 +114,50 @@ def test_aids_kl_confirmation_is_disjoint_and_cannot_be_launched_from_template()
     )
     assert template["decision"]["alternate_candidate_fallback"] is False
     assert template["decision"]["extra_trials_after_result"] is False
+
+
+def test_aids_kl_smoke_qualification_preserves_failure_and_is_validation_only():
+    config = _yaml("aids_graphvae_attr_f1pr_kl_smoke.yaml")
+    qualification = _json("aids_attr_f1pr_kl_smoke_qualification.json")
+    smoke = qualification["real_smoke"]
+    failed, completed = smoke["preserved_attempts"]
+
+    assert config["bayesian_optimization_qualification"][
+        "training_timeout_seconds"
+    ] == 1200
+    assert qualification["status"] == "smoke_qualified_postgresql_blocked"
+    assert qualification["postgresql"]["search_launch_authorized"] is False
+    assert qualification["postgresql"]["schema_created"] is False
+    assert qualification["postgresql"]["study_created"] is False
+    assert qualification["interpretation"]["scientific_weight_claim"] is False
+    assert qualification["interpretation"]["search_launched"] is False
+
+    assert smoke["selection_split"] == "validation"
+    assert smoke["validation_graphs"] == 184
+    assert smoke["test_access"] is False
+    assert smoke["held_out_access"] is False
+    assert smoke["skip_final_evaluation"] is True
+    assert smoke["objective_json_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert smoke["node_feature_decoder_required"] is True
+    assert smoke["edge_feature_decoder_required"] is True
+    assert smoke["evaluator_seeds"] == list(range(1000, 1010))
+    assert smoke["resolved_parameter_scopes"] == {
+        "loss.alpha_node_feat": smoke["parameters"]["alpha_node_feat"],
+        "loss.alpha_edge_feat": smoke["parameters"]["alpha_edge_feat"],
+        "model.beta": smoke["parameters"]["beta"],
+        "loss.use_graphvae_mm_bce_kl_weights": False,
+    }
+
+    assert failed["status"] == "FAIL"
+    assert failed["training_timeout_seconds"] == 600
+    assert failed["replacement"] is False
+    assert failed["orphan_processes"] == 0
+    assert completed["status"] == "COMPLETE"
+    assert completed["training_timeout_seconds"] == 1200
+    assert completed["accepted_graphs"] == 184
+    assert completed["objective"] == 0.00001999301714791553
+    assert completed["artifacts_read_only"] is True
+    assert qualification["integrity"]["credential_marker_files"] == 0
+    assert qualification["integrity"]["test_or_held_out_true_files"] == 0

@@ -1,0 +1,140 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-smoke-qualification-v1",
+  "date": "2026-08-27",
+  "status": "smoke_qualified_postgresql_blocked",
+  "dataset": "AIDS",
+  "execution_host": "cs-cl-17",
+  "source": {
+    "git_commit": "3e9967220e8e827a3a91f3c79f45c0d178bab699",
+    "tree_sha256": "5022a4b28ba51d5f75cb689107086acfc623142052445d0f4c5900a6830f9ae8",
+    "verified_on_hosts": [
+      "cs-cl-13",
+      "cs-cl-17"
+    ]
+  },
+  "runtime": {
+    "fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "verified_on_hosts": [
+      "cs-cl-13",
+      "cs-cl-17"
+    ],
+    "gpu_model": "NVIDIA TITAN RTX",
+    "physical_gpu": 0,
+    "logical_device": "cuda:0",
+    "logical_device_count": 1,
+    "reported_vram_mib": 24576
+  },
+  "cache": {
+    "manifest": "configs/bayesian_optimization/aids_attr_f1pr_cache_manifest.json",
+    "byte_length": 73822456,
+    "mode": "0444",
+    "sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "node_feature_dimension": 56,
+    "edge_feature_dimension": 3,
+    "verified_before_and_after_smoke": true,
+    "verified_on_hosts": [
+      "cs-cl-13",
+      "cs-cl-17"
+    ]
+  },
+  "postgresql": {
+    "required_sslmode": "verify-full",
+    "controller_authentication": false,
+    "worker_authentication": false,
+    "failed_from": [
+      "controller",
+      "cs-cl-17"
+    ],
+    "failure": "protected Gate 5 qualification login rejected",
+    "schema_created": false,
+    "study_created": false,
+    "search_launch_authorized": false,
+    "required_action": "rotate or repair the protected Gate 5 controller and worker qualification credentials"
+  },
+  "mock_qualification": {
+    "beta_sampled_injected_persisted_and_replayed": true,
+    "non_postgresql_tests_passed": 138
+  },
+  "real_smoke": {
+    "configuration": "configs/bayesian_optimization/aids_graphvae_attr_f1pr_kl_smoke.yaml",
+    "epochs": 5,
+    "selection_split": "validation",
+    "validation_graphs": 184,
+    "test_access": false,
+    "held_out_access": false,
+    "skip_final_evaluation": true,
+    "objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "feature_mode": "decoded_node_edge",
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "training_seed": 0,
+    "generation_seed": 123,
+    "evaluator_seeds": [
+      1000,
+      1001,
+      1002,
+      1003,
+      1004,
+      1005,
+      1006,
+      1007,
+      1008,
+      1009
+    ],
+    "parameters": {
+      "alpha_node_feat": 1.0338638569892913,
+      "alpha_edge_feat": 0.5856778040923959,
+      "beta": 1.2161059009713202
+    },
+    "resolved_parameter_scopes": {
+      "loss.alpha_node_feat": 1.0338638569892913,
+      "loss.alpha_edge_feat": 0.5856778040923959,
+      "model.beta": 1.2161059009713202,
+      "loss.use_graphvae_mm_bce_kl_weights": false
+    },
+    "preserved_attempts": [
+      {
+        "output_root": "runs/bayesian_optimization/aids_attr_f1pr_kl_real_smoke_20260827a",
+        "status": "FAIL",
+        "training_timeout_seconds": 600,
+        "failure": "training phase exceeded its bounded timeout after reaching epoch 4",
+        "replacement": false,
+        "orphan_processes": 0,
+        "artifact_tree_sha256": "63b0f053f8349a6cc828467a41f3fca92ea4ac45b58a70282e38475292e997ad",
+        "artifacts_read_only": true
+      },
+      {
+        "output_root": "runs/bayesian_optimization/aids_attr_f1pr_kl_real_smoke_20260827b",
+        "status": "COMPLETE",
+        "training_timeout_seconds": 1200,
+        "objective": 0.00001999301714791553,
+        "precision": 0.0,
+        "recall": 0.050543478260869565,
+        "accepted_graphs": 184,
+        "training_elapsed_seconds": 1072.7065742267296,
+        "evaluation_elapsed_seconds": 14.107683128677309,
+        "checkpoint_sha256": "34bb24819dfad865b68e6ca6cc050918561ddfc2d0a96f28e170f3268803347e",
+        "evaluator_sha256": "54b3357834615767882d675b68347df7d89f7b459c1a25f07153b3c2bd6fb47d",
+        "resolved_config_sha256": "d7387f0a9c4b5fbbab0b97671b9ebc6058d48370a1de7ccee013a1ee7fbcf4df",
+        "study_definition_sha256": "f838630cb50bdfe6632b6a5f43665bce6df000b94ce87907c7943978d6ad9341",
+        "trial_result_sha256": "934b2872fb783e0ec0d63e6143bca42768f76b69c5f606944e8e6cf62da8e140",
+        "artifact_tree_sha256": "eb2b846de6a4cfc03dc9e449a44ed367af30d0f1e5a13838cc36922822fc8073",
+        "artifacts_read_only": true
+      }
+    ]
+  },
+  "integrity": {
+    "active_smoke_processes_after_collection": 0,
+    "credential_marker_files": 0,
+    "test_or_held_out_true_files": 0,
+    "failed_attempt_preserved": true,
+    "successful_attempt_frozen": true
+  },
+  "interpretation": {
+    "plumbing_qualified": true,
+    "scientific_weight_claim": false,
+    "reason": "five epochs qualify parameter plumbing and validation-only evaluation but are not scientific search fidelity",
+    "search_launched": false,
+    "remaining_i3_blocker": "protected verify-full Gate 5 PostgreSQL authentication"
+  }
+}

@@ -68,6 +68,6 @@ bayesian_optimization_qualification:
   expected_total_graphs: 1849
   max_graphs: 0
   generation_batch_size: 20
-  training_timeout_seconds: 600
+  training_timeout_seconds: 1200
   evaluation_timeout_seconds: 600
   termination_grace_seconds: 10

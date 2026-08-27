@@ -2,10 +2,13 @@
 
 ## Status and purpose
 
-The evaluator-selection prerequisite is complete. A matched AIDS bake-off
+The evaluator-selection prerequisite, beta BO implementation, immutable study
+inputs, and bounded real beta smoke are complete. A matched AIDS bake-off
 selected the ten-seed Random-GIN ensemble over the ten-encoder GraphCL
-ensemble. The KL-weight study itself has not been launched. This document does
-not authorize or record held-out/test evaluation or a production claim.
+ensemble. The KL-weight search itself has not been launched because the
+protected Gate 5 PostgreSQL qualification login is currently rejected. This
+document does not authorize or record held-out/test evaluation or a production
+claim.
 
 The goal is to answer one narrow question with a bounded amount of work:
 
@@ -322,6 +325,14 @@ PostgreSQL suite before any real reservation.
 
 ### I2. Create AIDS KL-BO configurations and manifests
 
+Implementation status (2026-08-27): complete and committed. Separate smoke,
+search, and confirmation YAMLs preserve direct node/edge weighting, model-scoped
+KL beta, validation-only selection, both feature decoders, and
+`skip_final_evaluation=true`. The exact 15-reservation search plan, six anchors,
+nine adaptive slots, ten evaluator seeds, scheduler waves, and launch-disabled
+policy are frozen. The six-trial confirmation remains a template until a search
+winner passes the predeclared gate.
+
 Create separate files rather than editing the completed AIDS study contracts:
 
 - `aids_graphvae_attr_f1pr_kl_smoke.yaml`;
@@ -337,6 +348,27 @@ split fingerprint, and 56/3 node/edge schemas are reverified. Do not regenerate
 the dataset or create a new split.
 
 ### I3. Qualify only what changed
+
+Implementation status (2026-08-27): all non-database elements are qualified.
+The clean `3e99672` source, exact runtime fingerprint, mode-`0444` AIDS cache,
+56/3 schemas, and isolated TITAN RTX GPU-0 slots were verified on `cs-cl-13`
+and `cs-cl-17`. The bounded beta mock passed. A first five-epoch real smoke
+attempt reached epoch 4 but truthfully failed its 600-second training limit; it
+is preserved read-only and was not overwritten. A fresh-root retry with the
+corrected 1,200-second bound completed in 1,072.71 seconds and evaluated all
+184 validation graphs with the ten fixed Random-GIN seeds. Its sampled node,
+edge, and beta values appear exactly at `loss.alpha_node_feat`,
+`loss.alpha_edge_feat`, and `model.beta`; both decoders are present,
+`test_access=false`, and the cache hash is unchanged. Its tiny objective is a
+plumbing result only, not scientific weight evidence.
+
+The sole remaining I3 blocker is protected `verify-full` PostgreSQL
+authentication: both the controller and `cs-cl-17` reject the Gate 5 login.
+Those failed connection attempts created no schema or study. The search policy
+therefore remains launch-disabled until the dedicated Gate 5 controller and
+worker credentials are repaired or rotated and the isolated PostgreSQL suite
+passes. Exact smoke evidence is frozen in
+`aids_attr_f1pr_kl_smoke_qualification.json`.
 
 Do not repeat the full historical lifecycle campaign. The controller has
 already passed multi-host locking, ambiguity, stale-worker recovery, portable
