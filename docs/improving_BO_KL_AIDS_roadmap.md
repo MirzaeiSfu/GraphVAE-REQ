@@ -38,7 +38,7 @@ Run exactly 15 search trials at 250 epochs and training seed 0:
 - six fixed anchors that cover the important directions;
 - nine adaptive TPE proposals;
 - three homogeneous TITAN RTX workers, when available;
-- all 184 validation graphs and five fixed evaluator repeats;
+- all 184 validation graphs and ten fixed evaluator seeds `1000..1009`;
 - generation seed 123 and no held-out/test access.
 
 Only if the frozen search winner exceeds the same-study uniform anchor by at
@@ -252,7 +252,8 @@ Required invariants:
 - `skip_final_evaluation=true`;
 - node and edge feature decoders both required;
 - all 184 validation graphs;
-- five fixed Random-GIN evaluator repeats;
+- ten fixed Random-GIN evaluator seeds `1000..1009` during search;
+- a disjoint ten-seed Random-GIN ensemble `2000..2009` during confirmation;
 - identical evaluator, graph-generation, runtime, and hardware contracts for
   search and confirmation;
 - GraphVAE fidelity: 250 epochs for both search and confirmation;
@@ -359,7 +360,8 @@ before creating the scientific search.
 
 ### E1. Freeze the 15-trial search before creation
 
-Use exactly these six startup anchors, in order:
+Use exactly these six startup anchors, in order. They are frozen in
+`aids_attr_f1pr_kl_search_reservations_15.json`:
 
 | Budget index | Label | Node | Edge | KL beta |
 | ---: | --- | ---: | ---: | ---: |
@@ -413,7 +415,8 @@ training seed 3: selected, uniform
 ```
 
 Use two waves of three workers, 250 epochs, generation seed 123, the same 184
-validation graphs, and the same five evaluator repeats. Training seed 0 is not
+validation graphs, and the disjoint fixed evaluator seeds `2000..2009`.
+Training seed 0 is not
 part of the final decision because it selected the winner.
 
 No alternate candidate is substituted if confirmation fails. No failed

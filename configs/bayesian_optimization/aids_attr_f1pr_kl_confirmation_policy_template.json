@@ -1,0 +1,30 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-confirmation-policy-template-v1",
+  "status": "template_only_until_search_winner_is_frozen",
+  "study_name_template": "aids_attr_f1pr_kl_confirmation6_<date><suffix>",
+  "config": "configs/bayesian_optimization/aids_graphvae_attr_f1pr_kl_confirmation.yaml",
+  "reservation_plan": null,
+  "candidate_source": "single frozen winner from aids_attr_f1pr_kl_search15_20260827a",
+  "uniform": {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 1.0},
+  "training_seeds": [1, 2, 3],
+  "candidate_count": 2,
+  "total_reservations": 6,
+  "epoch_number": 250,
+  "objective": {
+    "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "skip_final_evaluation": true,
+    "validation_graphs": 184,
+    "evaluator_seeds": [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+  },
+  "generation_seeds": [123, 124, 125],
+  "decision": {
+    "minimum_overall_mean_difference": 0.02,
+    "every_training_seed_average_positive": true,
+    "every_generation_seed_average_positive": true,
+    "alternate_candidate_fallback": false,
+    "extra_trials_after_result": false
+  },
+  "creation_guard": "Create the exact six-reservation plan only after the search winner and search-gate decision are committed."
+}

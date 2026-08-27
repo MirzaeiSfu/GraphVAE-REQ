@@ -1,0 +1,55 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-search-policy-v1",
+  "study_name": "aids_attr_f1pr_kl_search15_20260827a",
+  "output_root": "runs/bayesian_optimization/aids_attr_f1pr_kl_search15_20260827a",
+  "prerequisites": {
+    "source_minimum_commit": "8036038cc27ff27da4c78526bcd0599a9ad7bc86",
+    "evaluator_bakeoff": "configs/bayesian_optimization/aids_evaluator_bakeoff_completion.json",
+    "selected_primary_evaluator": "random_gin",
+    "postgresql_qualification_required": true,
+    "current_launch_authorized": false
+  },
+  "objective": {
+    "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "direction": "maximize",
+    "selection_split": "validation",
+    "test_access": false,
+    "skip_final_evaluation": true,
+    "max_graphs": 0,
+    "validation_graphs": 184,
+    "evaluator_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009]
+  },
+  "search": {
+    "config": "configs/bayesian_optimization/aids_graphvae_attr_f1pr_kl_search.yaml",
+    "reservation_plan": "configs/bayesian_optimization/aids_attr_f1pr_kl_search_reservations_15.json",
+    "total_reservations": 15,
+    "anchor_reservations": 6,
+    "adaptive_reservations": 9,
+    "training_seed": 0,
+    "epoch_number": 250,
+    "ranges": {
+      "alpha_node_feat": {"low": 0.5, "high": 2.0, "log": true},
+      "alpha_edge_feat": {"low": 0.5, "high": 2.0, "log": true},
+      "beta": {"low": 0.25, "high": 4.0, "log": true}
+    }
+  },
+  "sampler": {
+    "name": "TPESampler",
+    "seed": 83,
+    "startup_trials": 6,
+    "constant_liar": true
+  },
+  "scheduler": {
+    "mode": "bounded_synchronous_waves",
+    "max_parallel": 3,
+    "exact_wave_sizes": [3, 3, 3, 3, 3],
+    "failed_reservations_replaced": false,
+    "ambiguous_launches_duplicated": false
+  },
+  "search_gate": {
+    "winner_must_be_nonuniform": true,
+    "minimum_winner_minus_uniform": 0.03,
+    "precision_and_recall_must_be_positive_finite": true,
+    "otherwise": "no_improvement_at_search_gate"
+  }
+}
