@@ -14,6 +14,12 @@ QUALIFICATION = (
     / "bayesian_optimization"
     / "aids_evaluator_bakeoff_split_qualification.json"
 )
+CONTRACT = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_evaluator_bakeoff_contract.json"
+)
 
 
 def test_frozen_aids_export_is_exact_deterministic_and_test_free(tmp_path):
@@ -98,3 +104,38 @@ def test_aids_split_qualification_records_exact_test_free_inputs():
         "c0eaa2e545525e4a7a321eaa1937f6c68db76738906e2aa7f514b46dcd907e74"
     )
     assert qualification["verification"]["generated_collections_committed"] is False
+
+
+def test_aids_evaluator_bakeoff_contract_is_matched_bounded_and_test_free():
+    contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    assert contract["scientific_contract"]["split"] == "validation"
+    assert contract["scientific_contract"]["validation_graphs"] == 184
+    assert contract["scientific_contract"]["test_access"] is False
+    assert contract["scientific_contract"]["held_out_access"] is False
+    assert contract["source"]["new_graphvae_training"] is False
+    assert contract["source"]["new_bo_trials"] is False
+    assert contract["source"]["generation_deployment_commit"] == (
+        "3b185638b16986bc829e0f51f550581b5400e030"
+    )
+    assert contract["sampling"]["training_seeds"] == [0, 1, 2]
+    assert contract["sampling"]["generation_seeds"] == [123, 124, 125]
+    assert contract["sampling"]["generated_collection_count"] == 18
+    assert len(contract["sampling"]["random_gin"]["fixed_evaluator_seeds"]) == 10
+    assert contract["sampling"]["random_gin"]["fresh_ensemble_per_job"] is False
+    assert len(
+        contract["sampling"]["graphcl"]["fixed_train_only_encoder_seeds"]
+    ) == 10
+    assert contract["sampling"]["graphcl"]["retrain_per_job"] is False
+    assert contract["matched_collection_rule"][
+        "same_generated_collection_for_both_evaluators"
+    ] is True
+    assert contract["decision_rule"]["no_weight_improvement_claim_from_bakeoff"] is True
+
+    checkpoint_rows = [
+        checkpoint
+        for candidate in contract["candidates"].values()
+        for checkpoint in candidate["checkpoints"]
+    ]
+    assert len(checkpoint_rows) == 6
+    assert {row["host"] for row in checkpoint_rows} == {"cs-cl-13", "cs-cl-17"}
+    assert len({row["sha256"] for row in checkpoint_rows}) == 6
