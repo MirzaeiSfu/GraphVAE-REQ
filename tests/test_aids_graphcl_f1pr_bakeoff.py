@@ -115,8 +115,8 @@ def test_aids_evaluator_bakeoff_contract_is_matched_bounded_and_test_free():
     assert contract["scientific_contract"]["held_out_access"] is False
     assert contract["source"]["new_graphvae_training"] is False
     assert contract["source"]["new_bo_trials"] is False
-    assert contract["source"]["generation_deployment_commit"] == (
-        "3b185638b16986bc829e0f51f550581b5400e030"
+    assert contract["source"]["minimum_generation_implementation_commit"] == (
+        "b80aeacc633a1ed17b0cb37ed43dc60661283cf6"
     )
     assert contract["sampling"]["training_seeds"] == [0, 1, 2]
     assert contract["sampling"]["generation_seeds"] == [123, 124, 125]
@@ -143,6 +143,7 @@ def test_aids_evaluator_bakeoff_contract_is_matched_bounded_and_test_free():
     assert len(checkpoint_rows) == 6
     assert {row["host"] for row in checkpoint_rows} == {"cs-cl-13", "cs-cl-17"}
     assert len({row["sha256"] for row in checkpoint_rows}) == 6
+    assert all(row["relative_path"].endswith("/model_249_6") for row in checkpoint_rows)
 
 
 def _summary_jobs(random_gin: bool):

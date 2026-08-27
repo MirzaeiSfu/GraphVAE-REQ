@@ -3,7 +3,7 @@
   "date": "2026-08-27",
   "purpose": "Choose the primary evaluator before any new AIDS KL-weight BO",
   "source": {
-    "generation_deployment_commit": "3b185638b16986bc829e0f51f550581b5400e030",
+    "minimum_generation_implementation_commit": "b80aeacc633a1ed17b0cb37ed43dc60661283cf6",
     "historical_study": "aids_attr_f1pr_confirmation6_20260824a",
     "historical_study_lifecycle": "FROZEN",
     "new_graphvae_training": false,
@@ -33,22 +33,22 @@
           "training_seed": 0,
           "host": "cs-cl-13",
           "trial_number": 0,
-          "relative_path": "trials/trial_00000/training/seed_0/model_249_0",
-          "sha256": "91c1ebf6b40aa55f66b776b0ad109dc8b873b607408a89cb18fd17699d2e1dda"
+          "relative_path": "trials/trial_00000/training/seed_0/model_249_6",
+          "sha256": "fca2f18837518b465ff8055b79add73f8566a06ff7279b6e2b7c4d4dd050abca"
         },
         {
           "training_seed": 1,
           "host": "cs-cl-17",
           "trial_number": 2,
-          "relative_path": "trials/trial_00002/training/seed_1/model_249_0",
-          "sha256": "1accea8e0ae61b7c833e6543a6527ce7393f0a4759ebffa71a26cec5fb8f41a6"
+          "relative_path": "trials/trial_00002/training/seed_1/model_249_6",
+          "sha256": "a3144f020609de7199355c61dbf422870e98d3a5032add0aaae973f895e7b26f"
         },
         {
           "training_seed": 2,
           "host": "cs-cl-17",
           "trial_number": 4,
-          "relative_path": "trials/trial_00004/training/seed_2/model_249_0",
-          "sha256": "f8148a01f9c97ef6efac7ed7f042ce5bd52a88449d787ee221ba826db13e719f"
+          "relative_path": "trials/trial_00004/training/seed_2/model_249_6",
+          "sha256": "b86e88bdc2dfe48fabd9f4363810e26c24edaf90460d981f2ead0c4adc25dc3d"
         }
       ]
     },
@@ -62,22 +62,22 @@
           "training_seed": 0,
           "host": "cs-cl-17",
           "trial_number": 1,
-          "relative_path": "trials/trial_00001/training/seed_0/model_249_0",
-          "sha256": "d8f2e6dbbb5a36a06389b1459c716b31c2bd552b087cd45d5b63b029a3ee2d39"
+          "relative_path": "trials/trial_00001/training/seed_0/model_249_6",
+          "sha256": "d0ba5db16be2a4800675a2aa7b238bc8ae6d8ea02b868afdd509ba8eddca915b"
         },
         {
           "training_seed": 1,
           "host": "cs-cl-13",
           "trial_number": 3,
-          "relative_path": "trials/trial_00003/training/seed_1/model_249_0",
-          "sha256": "d5eb697c6befcddcb2f3502d27f4ae65aac41c866af4b28e2c6bef85f440e48b"
+          "relative_path": "trials/trial_00003/training/seed_1/model_249_6",
+          "sha256": "a55fabb16f4f2ec3ae61ed7f72df9651c4ded7fe154a77693588cbd7e2e87290"
         },
         {
           "training_seed": 2,
           "host": "cs-cl-13",
           "trial_number": 5,
-          "relative_path": "trials/trial_00005/training/seed_2/model_249_0",
-          "sha256": "f44a241ae066b35418250e871954cd7fcafea99fa4350e00330a1ac8e77763d0"
+          "relative_path": "trials/trial_00005/training/seed_2/model_249_6",
+          "sha256": "9539083730c6ac0e8a83b1e88808986f851582b11c13ec7278544136aa23c5fc"
         }
       ]
     }
