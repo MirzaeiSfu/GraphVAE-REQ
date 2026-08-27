@@ -1,5 +1,6 @@
 import copy
 import json
+import statistics
 
 import pytest
 import yaml
@@ -178,3 +179,49 @@ def test_phase_b_prelaunch_evidence_is_exact_and_test_free():
         "held_out_or_test_evaluation": False,
         "next_action": "launch one GPU-1 worker wave and monitor the exact reservation",
     }
+
+
+def test_phase_b_completion_recomputes_and_fails_gate5_thresholds():
+    completion = _payload(
+        CONFIG_ROOT / "lobster_graphcl_f1pr_gate5_phase_b_completion.json"
+    )
+    phase_a = _payload(DEFAULT_COMPLETION)
+    assert completion["study"]["reserved_states"] == {
+        "RESERVED_TOTAL": 3,
+        "WAITING": 0,
+        "RUNNING": 0,
+        "COMPLETE": 3,
+        "FAIL": 0,
+        "OTHER": 0,
+        "UNRESERVED_GUARD": 0,
+    }
+    assert completion["objective_contract"]["compatibility_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert completion["objective_contract"]["selection_split"] == "validation"
+    assert completion["objective_contract"]["test_access"] is False
+    for result in completion["results"]:
+        assert statistics.mean(result["seed_values"]) == pytest.approx(result["mean"])
+        assert statistics.pstdev(result["seed_values"]) == pytest.approx(
+            result["population_standard_deviation"]
+        )
+        assert result["population_standard_deviation"] / result["mean"] == (
+            pytest.approx(result["coefficient_of_variation"])
+        )
+    audit = completion["phase_a_phase_b_audit"]
+    assert audit["phase_a_means"] == [
+        phase_a["results"][index]["mean"] for index in (0, 1, 5)
+    ]
+    assert audit["phase_b_means"] == [
+        result["mean"] for result in completion["results"]
+    ]
+    assert audit["spearman_rank_correlation"] == -1.0
+    assert audit["spearman_passed"] is False
+    assert audit["best_anchor_vs_uniform_sign_reversal"] is True
+    assert completion["portable_restore"]["aggregate_outputs_match"] is True
+    assert completion["portable_restore"]["postgresql_access"] is False
+    assert completion["integrity_audit"]["storage_url_file_hits"] == 0
+    assert completion["integrity_audit"]["credential_assignment_file_hits"] == 0
+    assert completion["integrity_audit"]["test_access_true_file_hits"] == 0
+    assert completion["gate5_checkpoint"]["decision"] == "qualification_failed"
+    assert completion["gate5_checkpoint"]["adaptive_bo_authorized"] is False

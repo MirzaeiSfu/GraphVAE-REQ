@@ -870,5 +870,28 @@ freeze, restore, run generation-seed stability, or make a scientific decision;
 those audited steps remain for the controller after the three reservations are
 consumed. Exact launch evidence is in
 `lobster_graphcl_f1pr_gate5_phase_b_supervisor_launch.json`.
+Gate 5 Phase B is now frozen and portably restored. All three exact promoted
+reservations are `COMPLETE`; all three launches reconcile terminally, and no
+reservation failed, was replaced, or was duplicated. At 10,000 epochs the
+validation GraphCL-F1PR means are `0.51299782675377` for uniform,
+`0.5394144240677171` for the previous Random-GIN weights, and
+`0.6217187852365449` for edge emphasis `(0.25,4)`. Edge emphasis is therefore
+`0.10872095848277485` absolute (`21.193259076896442%` relative) above uniform
+within Phase B. This is a fixed-anchor result, not an adaptive BO result.
+
+The promoted ranking is exactly reversed from Phase A: Spearman correlation is
+`-1.0`, below the frozen `0.5` minimum. The previous best nonuniform anchor also
+changes from `-0.012840614483029422` below uniform in Phase A to
+`0.026416597313947077` above uniform in Phase B, violating the frozen
+no-sign-reversal rule. Gate 5 is therefore already `qualification_failed`, and
+adaptive GraphCL-F1PR BO/Gate 6 is not authorized; generation-seed stability
+cannot rescue that decision but remains to be run as the predeclared final
+characterization. The portable snapshot SHA-256 is
+`c22b74cd2ff061fa6901c4b77eed4ba9e9f825926c3f7df1d25d1dc449daa082`.
+Restore ran with PostgreSQL variables removed and reproduced every aggregate
+hash. The cache remains exact and mode `0444`; scans of 305 text artifacts have
+zero storage-URL, credential-assignment, or `test_access=true` hits. Full
+machine-checked evidence is in
+`lobster_graphcl_f1pr_gate5_phase_b_completion.json`.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

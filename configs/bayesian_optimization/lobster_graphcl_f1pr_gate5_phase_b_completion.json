@@ -1,0 +1,186 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-phase-b-completion-v1",
+  "completed_on": "2026-08-26",
+  "study": {
+    "name": "lobster_graphcl_f1pr_promoted10000_20260826b",
+    "lifecycle": "FROZEN",
+    "study_contract_sha256": "9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8",
+    "reserved_states": {
+      "RESERVED_TOTAL": 3,
+      "WAITING": 0,
+      "RUNNING": 0,
+      "COMPLETE": 3,
+      "FAIL": 0,
+      "OTHER": 0,
+      "UNRESERVED_GUARD": 0
+    },
+    "snapshot": "study_snapshot.sqlite3",
+    "snapshot_sha256": "c22b74cd2ff061fa6901c4b77eed4ba9e9f825926c3f7df1d25d1dc449daa082"
+  },
+  "immutable_inputs": {
+    "source_commit": "3b55d3e1fda84c1603908c0ef8ea73ac71591358",
+    "source_tree_sha256": "d73c5c4a40d67331b9cadb8eecbd4b6f6fc68fca28f27db3b62ec30f3d2b9b7e",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "cache_size_bytes": 59295793,
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "cache_mode": "0444"
+  },
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "graphcl_encoder_count": 5,
+    "validation_graph_count": 10,
+    "graphvae_training_seeds": [
+      0,
+      1
+    ],
+    "generation_seed": 123,
+    "epoch_number": 10000,
+    "skip_final_evaluation": true
+  },
+  "execution": {
+    "host": "cs-cl-09",
+    "physical_gpu": 1,
+    "max_parallel": 1,
+    "worker_run_ids": [
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-1000000",
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-2000000",
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-3000000"
+    ],
+    "dispatch_sampler_seeds": [
+      3656510580,
+      1308910699,
+      2858117867
+    ],
+    "all_launches_reconciled_terminal": true,
+    "supervisor_completed": true,
+    "replacement_reservations": 0,
+    "duplicate_dispatches": 0,
+    "failed_reservations": 0,
+    "total_candidate_elapsed_seconds": 8486.419470397756
+  },
+  "results": [
+    {
+      "budget_index": 0,
+      "label": "uniform",
+      "weights": {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0
+      },
+      "seed_values": [
+        0.6413664425244611,
+        0.384629210983079
+      ],
+      "mean": 0.51299782675377,
+      "population_standard_deviation": 0.12836861577069103,
+      "coefficient_of_variation": 0.2502322798967835,
+      "delta_from_uniform": 0.0,
+      "relative_delta_percent": 0.0,
+      "rank": 3,
+      "total_elapsed_seconds": 2825.9683151673526
+    },
+    {
+      "budget_index": 1,
+      "label": "previous_random_gin",
+      "weights": {
+        "alpha_node_feat": 5.229045672,
+        "alpha_edge_feat": 0.0538641483
+      },
+      "seed_values": [
+        0.7245022175108268,
+        0.35432663062460745
+      ],
+      "mean": 0.5394144240677171,
+      "population_standard_deviation": 0.18508779344310966,
+      "coefficient_of_variation": 0.3431272602007285,
+      "delta_from_uniform": 0.026416597313947077,
+      "relative_delta_percent": 5.149455989143319,
+      "rank": 2,
+      "total_elapsed_seconds": 2838.7140453383327
+    },
+    {
+      "budget_index": 2,
+      "label": "edge_emphasis",
+      "weights": {
+        "alpha_node_feat": 0.25,
+        "alpha_edge_feat": 4.0
+      },
+      "seed_values": [
+        0.7022165473059631,
+        0.5412210231671268
+      ],
+      "mean": 0.6217187852365449,
+      "population_standard_deviation": 0.08049776206941811,
+      "coefficient_of_variation": 0.12947616186117197,
+      "delta_from_uniform": 0.10872095848277485,
+      "relative_delta_percent": 21.193259076896442,
+      "rank": 1,
+      "total_elapsed_seconds": 2821.7371098920703
+    }
+  ],
+  "phase_a_phase_b_audit": {
+    "promoted_budget_indexes": [
+      0,
+      1,
+      5
+    ],
+    "phase_a_means": [
+      0.7216081830934524,
+      0.708767568610423,
+      0.6432249659152287
+    ],
+    "phase_b_means": [
+      0.51299782675377,
+      0.5394144240677171,
+      0.6217187852365449
+    ],
+    "spearman_rank_correlation": -1.0,
+    "minimum_required_spearman": 0.5,
+    "spearman_passed": false,
+    "previous_random_gin_minus_uniform_phase_a": -0.012840614483029422,
+    "previous_random_gin_minus_uniform_phase_b": 0.026416597313947077,
+    "best_anchor_vs_uniform_sign_reversal": true,
+    "sign_reversal_forbidden": true
+  },
+  "portable_restore": {
+    "postgresql_access": false,
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "semantic_fingerprint": "96495160d30f09f68fb4f27979c9242b92a23c3dec3d4b8ea8b738a9fbfe18db",
+    "aggregate_outputs_match": true,
+    "best_trial_number": 2,
+    "best_validation_attr_f1pr": 0.6217187852365449,
+    "aggregate_sha256": {
+      "SUMMARY.md": "3c87d46b40cdb956249fc7211635ead73dae72b063eff013a9e199ece56bad38",
+      "best_config.yaml": "a4a1ae72991acf60aeca189aa65a03a96b20097357cca8561f80e1e0cdc8d6f3",
+      "best_trial.json": "bb46959bc4741b448f6bfbe4070b76decf37007554453f1c84aac48ab6ed8da5",
+      "trials.csv": "94132e63e3847cebe1e69dabbe9ed45a464a6fc5c7eb5528dc23d485a629600c"
+    },
+    "selection_split": "validation",
+    "test_access": false
+  },
+  "integrity_audit": {
+    "cache_hash_size_and_mode_reverified_after_trials": true,
+    "scanned_text_files": 305,
+    "storage_url_file_hits": 0,
+    "credential_assignment_file_hits": 0,
+    "test_access_true_file_hits": 0,
+    "all_launches_reconciled_terminal": true,
+    "aggregate_outputs_match_restore": true
+  },
+  "gate5_checkpoint": {
+    "decision": "qualification_failed",
+    "adaptive_bo_authorized": false,
+    "failure_reasons": [
+      "phase_a_phase_b_spearman_below_0p5",
+      "best_anchor_vs_uniform_sign_reversal"
+    ],
+    "generation_seed_stability_can_rescue_decision": false,
+    "generation_seed_stability_status": "remaining_characterization",
+    "held_out_or_test_evaluation": false,
+    "scientific_interpretation": "The edge-emphasis fixed anchor exceeds uniform at 10000 epochs, but the complete promoted ranking reverses relative to 2000 epochs and the previous best nonuniform anchor changes sign versus uniform. The frozen Gate 5 reproducibility thresholds therefore reject adaptive BO; this fixed-anchor result is not evidence that a qualified BO search improves GraphVAE over uniform weights."
+  }
+}
