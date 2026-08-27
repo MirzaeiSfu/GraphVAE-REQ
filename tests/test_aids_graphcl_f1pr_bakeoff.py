@@ -21,6 +21,12 @@ CONTRACT = (
     / "bayesian_optimization"
     / "aids_evaluator_bakeoff_contract.json"
 )
+COMPLETION = (
+    REPO_ROOT
+    / "configs"
+    / "bayesian_optimization"
+    / "aids_evaluator_bakeoff_completion.json"
+)
 
 
 def test_frozen_aids_export_is_exact_deterministic_and_test_free(tmp_path):
@@ -144,6 +150,33 @@ def test_aids_evaluator_bakeoff_contract_is_matched_bounded_and_test_free():
     assert {row["host"] for row in checkpoint_rows} == {"cs-cl-13", "cs-cl-17"}
     assert len({row["sha256"] for row in checkpoint_rows}) == 6
     assert all(row["relative_path"].endswith("/model_249_6") for row in checkpoint_rows)
+
+
+def test_aids_evaluator_bakeoff_completion_obeys_predeclared_decision():
+    completion = json.loads(COMPLETION.read_text(encoding="utf-8"))
+    assert completion["sampling"] == {
+        "candidate_checkpoint_count": 6,
+        "training_seeds": [0, 1, 2],
+        "generation_seeds": [123, 124, 125],
+        "matched_jobs": 18,
+        "random_gin_evaluators_per_job": 10,
+        "graphcl_encoders_per_job": 10,
+        "graphcl_checkpoint_evaluations": 180,
+    }
+    assert completion["test_access"] is False
+    assert completion["held_out_access"] is False
+    assert completion["random_gin"]["exact_replay"] is True
+    assert completion["graphcl"]["exact_replay"] is True
+    conditions = completion["decision_conditions"]
+    assert conditions["graphcl_paired_dispersion_at_least_20_percent_lower"] is True
+    assert conditions["graphcl_mean_generation_range_no_greater"] is False
+    assert conditions["graphcl_sign_stability_no_worse"] is False
+    assert completion["decision"]["selected_primary_evaluator"] == "random_gin"
+    assert completion["decision"]["weight_improvement_claim"] is False
+    assert completion["integrity"]["reference_collection_unique_digest_count"] == 1
+    assert completion["integrity"]["generated_collection_unique_digest_count"] == 18
+    assert completion["integrity"]["credential_marker_files"] == 0
+    assert completion["integrity"]["test_or_held_out_true_files"] == 0
 
 
 def _summary_jobs(random_gin: bool):

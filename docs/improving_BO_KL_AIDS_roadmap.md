@@ -2,8 +2,10 @@
 
 ## Status and purpose
 
-This document is a plan only. It does not authorize or record a new study, a
-held-out/test evaluation, or a production claim.
+The evaluator-selection prerequisite is complete. A matched AIDS bake-off
+selected the ten-seed Random-GIN ensemble over the ten-encoder GraphCL
+ensemble. The KL-weight study itself has not been launched. This document does
+not authorize or record held-out/test evaluation or a production claim.
 
 The goal is to answer one narrow question with a bounded amount of work:
 
@@ -20,7 +22,8 @@ surrogates outside Optuna, or a complicated statistical package.
 
 ## Final recommendation
 
-Use AIDS and the existing attributed Random-GIN validation objective. Add
+Use AIDS and the now directly qualified attributed Random-GIN validation
+objective. Add
 `beta` as a third log-scaled BO parameter, keep adjacency BCE fixed at `1.0`,
 and keep the search close to the current default:
 
@@ -94,6 +97,29 @@ That apparent signal did not qualify:
 GraphCL is therefore not the economical evaluator for the next attempt. Its
 current generated-sample sensitivity is too large, and its training/evaluation
 stack adds substantial runtime and operational complexity.
+
+### Matched AIDS Random-GIN versus GraphCL bake-off
+
+The evaluator choice was subsequently tested directly on AIDS rather than
+inferred only from LOBSTER. The bake-off reused all six frozen 250-epoch AIDS
+checkpoints and generated 18 exact validation collections: selected and
+uniform candidates at training seeds 0, 1, and 2 and generation seeds 123,
+124, and 125. Every collection was scored by the same ten fixed Random-GIN
+seeds and the same ten train-only GraphCL encoders. Both methods replayed the
+predeclared uniform job exactly.
+
+| Evaluator | Selected mean | Uniform mean | Difference | Mean paired SD | Mean generation range | Stable signs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Random-GIN | 0.58160 | 0.64980 | -0.06820 | 0.04085 | 0.03062 | 9/9 |
+| GraphCL | 0.60736 | 0.68366 | -0.07629 | 0.03267 | 0.03957 | 8/9 |
+
+GraphCL reduced evaluator-to-evaluator paired dispersion by `20.027%`, just
+enough to pass that condition. It nevertheless had a `29.218%` larger mean
+generation-seed range and worse sign stability. It therefore failed two of
+the predeclared selection conditions. Random-GIN is the frozen primary
+evaluator for the proposed search. A disjoint fixed Random-GIN ensemble is
+still required for confirmation; the bake-off does not claim that the old BO
+weights improved GraphVAE.
 
 ### Combined diagnosis
 

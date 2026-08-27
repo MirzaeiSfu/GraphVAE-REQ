@@ -156,6 +156,23 @@ files, and require `sslmode=verify-full`.
 
 ## Better next BO design
 
+### Evaluator choice is now resolved
+
+A later matched validation-only bake-off evaluated the six frozen confirmation
+checkpoints at three generation seeds with ten fixed Random-GIN evaluators and
+ten frozen train-only GraphCL encoders. Random-GIN retained the selected-minus-
+uniform sign in all nine training/generation cells and had a mean generation-
+seed range of `0.03062`. GraphCL was less dispersed across evaluator instances,
+but its generation-seed range was larger (`0.03957`) and its sign stability was
+only 8/9. Both methods replayed exactly.
+
+The predeclared decision therefore selects Random-GIN for the next bounded
+AIDS KL-weight BO. This strengthens the earlier recommendation: GraphCL is not
+being rejected because it is contrastive, but because it was less stable to
+the generated collection in this matched AIDS experiment. No held-out graph
+was accessed, and this evaluator bake-off makes no new weight-improvement
+claim.
+
 The next experiment should improve the objective before merely increasing the
 trial count:
 

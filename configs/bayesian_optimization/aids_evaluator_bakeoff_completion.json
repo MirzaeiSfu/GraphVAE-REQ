@@ -1,0 +1,76 @@
+{
+  "schema_version": "aids-evaluator-bakeoff-completion-v1",
+  "date": "2026-08-27",
+  "contract": "configs/bayesian_optimization/aids_evaluator_bakeoff_contract.json",
+  "campaign": "aids_evaluator_bakeoff_20260827",
+  "execution_host": "cs-cl-17",
+  "source_commit_minimum": "b80aeacc633a1ed17b0cb37ed43dc60661283cf6",
+  "dataset": "AIDS",
+  "split": "validation",
+  "validation_graphs": 184,
+  "test_access": false,
+  "held_out_access": false,
+  "skip_final_evaluation": true,
+  "feature_mode": "decoded_node_edge",
+  "feature_schema": "tu-quantile8-max40|export=decoded_node_edge",
+  "node_feature_decoder_required": true,
+  "edge_feature_decoder_required": true,
+  "sampling": {
+    "candidate_checkpoint_count": 6,
+    "training_seeds": [0, 1, 2],
+    "generation_seeds": [123, 124, 125],
+    "matched_jobs": 18,
+    "random_gin_evaluators_per_job": 10,
+    "graphcl_encoders_per_job": 10,
+    "graphcl_checkpoint_evaluations": 180
+  },
+  "random_gin": {
+    "selected_mean": 0.5815972142441784,
+    "uniform_mean": 0.6498021520579267,
+    "selected_minus_uniform": -0.06820493781374831,
+    "mean_paired_difference_population_sd": 0.040848788497182,
+    "mean_generation_seed_range": 0.03062217170978987,
+    "max_generation_seed_range": 0.039980034063451075,
+    "sign_stability_count_of_9": 9,
+    "exact_replay": true
+  },
+  "graphcl": {
+    "selected_mean": 0.6073647523001214,
+    "uniform_mean": 0.6836589095624667,
+    "selected_minus_uniform": -0.0762941572623452,
+    "mean_paired_difference_population_sd": 0.032667850731639234,
+    "mean_generation_seed_range": 0.03956943383707201,
+    "max_generation_seed_range": 0.05292372803667744,
+    "sign_stability_count_of_9": 8,
+    "exact_replay": true
+  },
+  "decision_conditions": {
+    "both_evaluators_replay_exactly": true,
+    "graphcl_paired_dispersion_at_least_20_percent_lower": true,
+    "graphcl_mean_generation_range_no_greater": false,
+    "graphcl_sign_stability_no_worse": false,
+    "integrity_and_validation_only_guards": true
+  },
+  "decision": {
+    "selected_primary_evaluator": "random_gin",
+    "reason": "GraphCL reduced paired evaluator dispersion by 20.027 percent, but its mean generation-seed range was 29.218 percent larger and its sign stability was 8/9 rather than Random-GIN's 9/9.",
+    "search_ensemble": "ten fixed Random-GIN evaluator seeds 1000 through 1009",
+    "confirmation_requirement": "use a separate disjoint fixed Random-GIN ensemble",
+    "weight_improvement_claim": false
+  },
+  "integrity": {
+    "cache_sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "cache_byte_length": 73822456,
+    "cache_mode": "0444",
+    "cache_verified_on_hosts": ["cs-cl-13", "cs-cl-17"],
+    "reference_collection_unique_digest_count": 1,
+    "generated_collection_unique_digest_count": 18,
+    "analysis_sha256": "0fb688e8b55fefe66a33051d9ea3ee4f70f593d959ddeba5c758c58387c215b7",
+    "artifact_tree_sha256": "ad80694e6af3c4b47f04da04c525f0450066a9912f15e58fd46d903796d1e7bb",
+    "independent_analysis_recomputation_exact": true,
+    "artifacts_read_only": true,
+    "credential_marker_files": 0,
+    "test_or_held_out_true_files": 0
+  },
+  "completed": true
+}
