@@ -907,5 +907,16 @@ roots, validates both feature decoders and all objective paths, uses one GPU,
 and never accesses held-out/test data. Forty-one focused contract, evaluator,
 and backend tests pass. The contract and runner must be committed before they
 are checksum-staged outside the immutable live source root and launched.
+
+The first stability output identity ending in `20260826a` failed before graph
+generation because the standalone runner did not mirror the worker's GraphCL
+dependency `PYTHONPATH`; `GCL` therefore could not import. The contracted root
+and both diagnostic evaluator directories are preserved. Both evaluator roots
+contain zero files: no generated graph, encoder evaluation, objective, or
+scientific evaluation was consumed. The `a` root is marked unusable and will
+never be reused. The runner now constructs the same dependency and
+`graph_evaluation/src` import order as the frozen worker, and the corrected
+fresh output identity ends in `20260826b`. This recovery must be tested,
+committed, checksum-staged, and verified before launching `b`.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

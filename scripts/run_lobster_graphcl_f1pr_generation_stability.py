@@ -58,6 +58,25 @@ def resolve_under(root: Path, value: str) -> Path:
     return resolved
 
 
+def build_evaluator_environment(
+    repository_root: Path,
+    dependency_root: Path,
+    base: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Mirror the frozen worker's GraphCL evaluator import environment."""
+
+    environment = dict(os.environ if base is None else base)
+    required_pythonpath = [
+        str(dependency_root.resolve()),
+        str((repository_root / "graph_evaluation" / "src").resolve()),
+    ]
+    current_pythonpath = environment.get("PYTHONPATH", "")
+    if current_pythonpath:
+        required_pythonpath.append(current_pythonpath)
+    environment["PYTHONPATH"] = os.pathsep.join(required_pythonpath)
+    return environment
+
+
 def validate_contract(contract: Mapping[str, Any]) -> None:
     if contract.get("schema_version") != (
         "lobster-graphcl-f1pr-gate5-generation-stability-contract-v1"
@@ -108,6 +127,27 @@ def validate_contract(contract: Mapping[str, Any]) -> None:
         or execution.get("adaptive_bo") is not False
     ):
         raise StabilityContractError("Execution contract differs.")
+    if execution.get("output_root") != (
+        "runs/lobster_graphcl_f1pr_generation_stability_20260826b"
+    ):
+        raise StabilityContractError("Fresh stability output identity differs.")
+    if contract.get("precreation_attempts") != [
+        {
+            "output_root": "runs/lobster_graphcl_f1pr_generation_stability_20260826a",
+            "status": "empty_unusable_preserved",
+            "failure_phase": "graphcl_runtime_import_before_generation",
+            "failure_type": "ModuleNotFoundError",
+            "missing_module": "GCL",
+            "runner_omitted_dependency_pythonpath": True,
+            "evaluation_attempt_roots": 2,
+            "files_below_evaluation_attempt_roots": 0,
+            "generated_graph_files": 0,
+            "objective_files": 0,
+            "scientific_evaluations_consumed": 0,
+            "reuse_forbidden": True,
+        }
+    ]:
+        raise StabilityContractError("Preserved precreation attempt record differs.")
 
 
 def validate_evaluation(
@@ -238,6 +278,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return json.loads(completion_path.read_text(encoding="utf-8"))
 
     evaluator = contract["evaluator"]
+    dependency_root = resolve_under(repository_root, evaluator["dependency_root"])
+    evaluator_environment = build_evaluator_environment(
+        repository_root, dependency_root
+    )
     records = []
     for candidate in contract["candidates"]:
         for replicate in candidate["replicates"]:
@@ -297,7 +341,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                             "--campaign-root",
                             str(resolve_under(repository_root, evaluator["campaign_root"])),
                             "--dependency-root",
-                            str(resolve_under(repository_root, evaluator["dependency_root"])),
+                            str(dependency_root),
                             "--graphcl-runtime-sha256",
                             evaluator["graphcl_runtime_sha256"],
                             "--upstream-repo",
@@ -325,6 +369,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                             stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
+                            env=evaluator_environment,
                             timeout=float(evaluator["timeout_seconds"]),
                             check=False,
                         )

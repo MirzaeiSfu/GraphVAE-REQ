@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from scripts.run_lobster_graphcl_f1pr_generation_stability import (
     StabilityContractError,
     aggregate_records,
+    build_evaluator_environment,
     build_new_tasks,
     validate_contract,
 )
@@ -77,6 +79,41 @@ def test_exactly_eight_new_evaluations_reuse_seed_123():
         ("phase_b_best_edge_emphasis", 0),
         ("phase_b_best_edge_emphasis", 1),
     }
+
+
+def test_evaluator_environment_mirrors_frozen_worker_pythonpath():
+    environment = build_evaluator_environment(
+        ROOT,
+        ROOT / ".graphcl_deps",
+        {"PYTHONPATH": "/existing/pythonpath", "SENTINEL": "safe"},
+    )
+    assert environment["PYTHONPATH"].split(os.pathsep) == [
+        str((ROOT / ".graphcl_deps").resolve()),
+        str((ROOT / "graph_evaluation/src").resolve()),
+        "/existing/pythonpath",
+    ]
+    assert environment["SENTINEL"] == "safe"
+
+
+def test_failed_a_root_is_preserved_empty_and_never_reused():
+    contract = _contract()
+    assert contract["execution"]["output_root"].endswith("20260826b")
+    assert contract["precreation_attempts"] == [
+        {
+            "output_root": "runs/lobster_graphcl_f1pr_generation_stability_20260826a",
+            "status": "empty_unusable_preserved",
+            "failure_phase": "graphcl_runtime_import_before_generation",
+            "failure_type": "ModuleNotFoundError",
+            "missing_module": "GCL",
+            "runner_omitted_dependency_pythonpath": True,
+            "evaluation_attempt_roots": 2,
+            "files_below_evaluation_attempt_roots": 0,
+            "generated_graph_files": 0,
+            "objective_files": 0,
+            "scientific_evaluations_consumed": 0,
+            "reuse_forbidden": True,
+        }
+    ]
 
 
 def test_dominance_rule_passes_at_equality_and_fails_above_threshold():

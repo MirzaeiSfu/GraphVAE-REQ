@@ -122,8 +122,24 @@
     "host": "cs-cl-09",
     "physical_gpu": 1,
     "max_parallel": 1,
-    "output_root": "runs/lobster_graphcl_f1pr_generation_stability_20260826a",
+    "output_root": "runs/lobster_graphcl_f1pr_generation_stability_20260826b",
     "held_out_or_test_evaluation": false,
     "adaptive_bo": false
-  }
+  },
+  "precreation_attempts": [
+    {
+      "output_root": "runs/lobster_graphcl_f1pr_generation_stability_20260826a",
+      "status": "empty_unusable_preserved",
+      "failure_phase": "graphcl_runtime_import_before_generation",
+      "failure_type": "ModuleNotFoundError",
+      "missing_module": "GCL",
+      "runner_omitted_dependency_pythonpath": true,
+      "evaluation_attempt_roots": 2,
+      "files_below_evaluation_attempt_roots": 0,
+      "generated_graph_files": 0,
+      "objective_files": 0,
+      "scientific_evaluations_consumed": 0,
+      "reuse_forbidden": true
+    }
+  ]
 }
