@@ -27,6 +27,7 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "graph_evaluation" / "src"))
 
 from eval.attributed_gin import (  # noqa: E402
     FEATURE_MODES,
@@ -48,6 +49,8 @@ from graphvae_attr_bo_fingerprints import (  # noqa: E402
     sha256_file,
     split_fingerprint,
 )
+from ggm_eval.adapters import attributed_arrays_to_pyg  # noqa: E402
+from ggm_eval.io import save_pyg_collection  # noqa: E402
 
 
 DEFAULT_CONFIG_FILENAME = "run_config_used.yaml"
@@ -59,6 +62,8 @@ DEFAULT_CHECKPOINT_CANDIDATES = (
 DEFAULT_OUTPUT_DIRNAME = "attributed_random_gin_eval"
 GENERATED_DGL_FILENAME = "generated_attributed_graphs.bin"
 REFERENCE_DGL_FILENAME = "reference_attributed_graphs.bin"
+GENERATED_PYG_FILENAME = "generated_attributed_graphs.pt"
+REFERENCE_PYG_FILENAME = "reference_attributed_graphs.pt"
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -194,6 +199,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Also save generated and reference DGL files accepted by "
             "evaluate_attributed_dgl_graphs.py."
+        ),
+    )
+    parser.add_argument(
+        "--save-pyg",
+        action="store_true",
+        help=(
+            "Also save the exact generated and reference collections in the "
+            "restricted tensor-only PyG interchange format."
         ),
     )
     return parser.parse_args()
@@ -567,6 +580,47 @@ def save_dgl_graph_collections(
     }
 
 
+def save_pyg_graph_collections(
+    output_dir: Path,
+    generated_graphs: Sequence[AttributedGraph],
+    reference_graphs: Sequence[AttributedGraph],
+    *,
+    metadata: dict,
+) -> dict[str, dict]:
+    """Save the exact attributed collections for matched evaluator reuse."""
+
+    def convert(graphs: Sequence[AttributedGraph], collection_role: str):
+        return [
+            attributed_arrays_to_pyg(
+                graph.edges,
+                graph.node_attributes,
+                graph.edge_attributes,
+                graph.source_node_ids,
+                name=f"{collection_role} graph {index}",
+            )
+            for index, graph in enumerate(graphs)
+        ]
+
+    exports = {}
+    for role, filename, graphs in (
+        ("generated", GENERATED_PYG_FILENAME, generated_graphs),
+        ("reference", REFERENCE_PYG_FILENAME, reference_graphs),
+    ):
+        path = (output_dir / filename).resolve()
+        manifest = save_pyg_collection(
+            path,
+            convert(graphs, role),
+            metadata={**metadata, "collection_role": role},
+        )
+        exports[role] = {
+            "path": str(path),
+            "manifest": str(path.with_suffix(path.suffix + ".json")),
+            "collection_sha256": manifest["collection_sha256"],
+            "summary": manifest["summary"],
+        }
+    return exports
+
+
 def write_csv(output_path: Path, payload: dict):
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(
@@ -733,6 +787,26 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
             generated_dgl,
             reference_dgl,
         )
+    pyg_exports = None
+    if args.save_pyg:
+        cache_metadata = cache.get("cache_metadata") or {}
+        pyg_exports = save_pyg_graph_collections(
+            output_dir,
+            generated_graphs,
+            reference_graphs,
+            metadata={
+                "dataset": cache_metadata.get("dataset", config.get("dataset")),
+                "feature_mode": full_feature_mode,
+                "feature_schema": cache_metadata.get("feature_schema"),
+                "split": args.split,
+                "test_access": args.split == "test",
+                "generation_seed": int(args.generation_seed),
+                "source_cache_sha256": integrity["cache_sha256"],
+                "split_fingerprint": integrity["split_fingerprint"],
+                "checkpoint_sha256": sha256_file(checkpoint_path),
+                "producer": "scripts/evaluate_attributed_graph_realism_checkpoints.py",
+            },
+        )
 
     payload = {
         "schema_version": "attributed-random-gin-v1",
@@ -780,6 +854,8 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
     }
     if dgl_exports is not None:
         payload["dgl_exports"] = dgl_exports
+    if pyg_exports is not None:
+        payload["pyg_exports"] = pyg_exports
 
     json_path = output_dir / "attributed_random_gin.json"
     _atomic_write_text(json_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")

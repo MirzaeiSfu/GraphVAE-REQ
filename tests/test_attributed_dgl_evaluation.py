@@ -10,9 +10,13 @@ from eval.attributed_gin import (
 from scripts.evaluate_attributed_dgl_graphs import load_dgl_graphs
 from scripts.evaluate_attributed_graph_realism_checkpoints import (
     GENERATED_DGL_FILENAME,
+    GENERATED_PYG_FILENAME,
     REFERENCE_DGL_FILENAME,
+    REFERENCE_PYG_FILENAME,
     save_dgl_graph_collections,
+    save_pyg_graph_collections,
 )
+from graph_evaluation.src.ggm_eval.io import load_pyg_collection_with_metadata
 
 
 def make_bidirectional_path(node_count: int, feature_offset: float = 0.0):
@@ -138,3 +142,38 @@ def test_checkpoint_dgl_exports_are_accepted_by_file_evaluator(tmp_path):
         loaded_reference[2].edata["attr"],
         reference[2].edata["attr"],
     )
+
+
+def test_checkpoint_pyg_exports_preserve_exact_matched_collections(tmp_path):
+    from eval.attributed_gin import attributed_graph_from_dgl
+
+    generated = [
+        attributed_graph_from_dgl(make_bidirectional_path(size))
+        for size in (3, 4, 5)
+    ]
+    reference = [
+        attributed_graph_from_dgl(make_bidirectional_path(size, feature_offset=0.1))
+        for size in (3, 4, 5)
+    ]
+    metadata = {
+        "dataset": "AIDS",
+        "feature_schema": "tu-quantile8-max40|export=decoded_node_edge",
+        "split": "validation",
+        "test_access": False,
+    }
+
+    exports = save_pyg_graph_collections(
+        tmp_path, generated, reference, metadata=metadata
+    )
+
+    assert set(exports) == {"generated", "reference"}
+    for role, filename in (
+        ("generated", GENERATED_PYG_FILENAME),
+        ("reference", REFERENCE_PYG_FILENAME),
+    ):
+        graphs, saved_metadata = load_pyg_collection_with_metadata(
+            tmp_path / filename
+        )
+        assert len(graphs) == 3
+        assert saved_metadata == {**metadata, "collection_role": role}
+        assert exports[role]["collection_sha256"]
