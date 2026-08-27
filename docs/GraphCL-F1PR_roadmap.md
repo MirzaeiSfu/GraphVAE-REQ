@@ -893,5 +893,19 @@ hash. The cache remains exact and mode `0444`; scans of 305 text artifacts have
 zero storage-URL, credential-assignment, or `test_access=true` hits. Full
 machine-checked evidence is in
 `lobster_graphcl_f1pr_gate5_phase_b_completion.json`.
+
+The final generation-seed characterization now has an explicit fail-closed
+contract. The frozen policy's `uniform` and `phase_a_best` names collapse to
+the same `(1,1)` candidate, so duplicate work is forbidden. Uniform is evaluated
+once, and the unique Phase-B best edge-emphasis candidate is added because the
+predeclared dominance threshold is explicitly the Phase-B best-minus-uniform
+difference. This clarification cannot change the existing Gate-5 no-go
+decision. Exact Phase-B seed-123 evaluations are reused by hash; only seeds 124
+and 125 are newly evaluated for both training checkpoints of both candidates,
+for exactly eight new validation-only evaluations. The runner refuses partial
+roots, validates both feature decoders and all objective paths, uses one GPU,
+and never accesses held-out/test data. Forty-one focused contract, evaluator,
+and backend tests pass. The contract and runner must be committed before they
+are checksum-staged outside the immutable live source root and launched.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

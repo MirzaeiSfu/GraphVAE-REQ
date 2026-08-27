@@ -1,0 +1,129 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-generation-stability-contract-v1",
+  "study_source": {
+    "phase_b_root": "runs/lobster_graphcl_f1pr_promoted10000_20260826b",
+    "phase_b_contract_sha256": "9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8",
+    "phase_b_completion_sha256": "1c06d141bbb729fb02e9bbcd7364666a88092d49eeee3f5080bf3bc5b547c02b",
+    "gate5_policy_sha256": "c02afa10bcd17a172c5fbdece3ab4acdd4d727b522f2cf92f29e177bd4659bb2",
+    "source_commit": "3b55d3e1fda84c1603908c0ef8ea73ac71591358",
+    "source_tree_sha256": "d73c5c4a40d67331b9cadb8eecbd4b6f6fc68fca28f27db3b62ec30f3d2b9b7e"
+  },
+  "clarification": {
+    "frozen_policy_candidates": [
+      "uniform",
+      "phase_a_best"
+    ],
+    "phase_a_best_is_uniform": true,
+    "duplicate_evaluation_forbidden": true,
+    "deduplicated_policy_candidates": [
+      "uniform"
+    ],
+    "additional_candidate": "phase_b_best_edge_emphasis",
+    "additional_candidate_reason": "The frozen dominance rule is defined by the Phase-B best-minus-uniform difference, so evaluating the unique Phase-B best is required to make that rule measurable without pretending the duplicate Phase-A best is a second candidate.",
+    "changes_gate5_no_go_decision": false
+  },
+  "generation_seeds": [
+    123,
+    124,
+    125
+  ],
+  "reuse_generation_seed_123": true,
+  "new_evaluation_count": 8,
+  "candidates": [
+    {
+      "label": "uniform",
+      "trial_number": 0,
+      "weights": {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0
+      },
+      "replicates": [
+        {
+          "training_seed": 0,
+          "checkpoint": "trials/trial_00000/replicates/seed_0/training/seed_0/model_9999_1",
+          "checkpoint_sha256": "34f44d15e6b0467937154011dd0ad27ec498412425613d7c6cfae95b2641a9bb",
+          "resolved_config": "trials/trial_00000/replicates/seed_0/resolved_config.yaml",
+          "resolved_config_sha256": "8e4de2f71763c42426bb7799106b46540b26d2fc8fa26b17d9055ef806ab205e",
+          "generation_seed_123_evaluation": "trials/trial_00000/replicates/seed_0/validation_evaluation/graphcl_f1pr.json",
+          "generation_seed_123_evaluation_sha256": "1b452955e9cc8207ccccc58dea99d5b2bf107b62e8880b74b07e848dca142afc",
+          "generation_seed_123_value": 0.6413664425244611
+        },
+        {
+          "training_seed": 1,
+          "checkpoint": "trials/trial_00000/replicates/seed_1/training/seed_1/model_9999_1",
+          "checkpoint_sha256": "4da075c46310b3305b3b4538bf836649ae26b7085549385364ecb47f52c4557d",
+          "resolved_config": "trials/trial_00000/replicates/seed_1/resolved_config.yaml",
+          "resolved_config_sha256": "d519335fbde3357bbc9e9324ba6ba03c8bf425d9ab0ffaa2eb9d2e71a7a7309f",
+          "generation_seed_123_evaluation": "trials/trial_00000/replicates/seed_1/validation_evaluation/graphcl_f1pr.json",
+          "generation_seed_123_evaluation_sha256": "f2c46c4dc78fc2e8e1fb2b39301f6c8ae466d6b86ae25872b7a8f9b61de4a0f7",
+          "generation_seed_123_value": 0.384629210983079
+        }
+      ]
+    },
+    {
+      "label": "phase_b_best_edge_emphasis",
+      "trial_number": 2,
+      "weights": {
+        "alpha_node_feat": 0.25,
+        "alpha_edge_feat": 4.0
+      },
+      "replicates": [
+        {
+          "training_seed": 0,
+          "checkpoint": "trials/trial_00002/replicates/seed_0/training/seed_0/model_9999_1",
+          "checkpoint_sha256": "1f0f30063af6b8c34a5024d28388bb37351301ece942ad4985011576573b1af8",
+          "resolved_config": "trials/trial_00002/replicates/seed_0/resolved_config.yaml",
+          "resolved_config_sha256": "e5d29460bff3f15f70284f4f214477c548bb0f5b9a0e333a46b9c44c806e4b5b",
+          "generation_seed_123_evaluation": "trials/trial_00002/replicates/seed_0/validation_evaluation/graphcl_f1pr.json",
+          "generation_seed_123_evaluation_sha256": "0f971073a801f7823dcd3eb3f718048fa7bbb2d2100173745faad86fedb76b4b",
+          "generation_seed_123_value": 0.7022165473059631
+        },
+        {
+          "training_seed": 1,
+          "checkpoint": "trials/trial_00002/replicates/seed_1/training/seed_1/model_9999_1",
+          "checkpoint_sha256": "a78cc499bb7b2dcbbf1b17473fcaaed1e654486aa1b682510e458207f35afac7",
+          "resolved_config": "trials/trial_00002/replicates/seed_1/resolved_config.yaml",
+          "resolved_config_sha256": "df163c0ebf5f81ea01112519176a84382f13a9459cc3c2bf64d80aaaa09f4500",
+          "generation_seed_123_evaluation": "trials/trial_00002/replicates/seed_1/validation_evaluation/graphcl_f1pr.json",
+          "generation_seed_123_evaluation_sha256": "8bd3c19a3429c67f838e27055cbed454325759ee39d527bfbeb36d058285c9d1",
+          "generation_seed_123_value": 0.5412210231671268
+        }
+      ]
+    }
+  ],
+  "evaluator": {
+    "script": "scripts/evaluate_lobster_graphcl_f1pr_checkpoint.py",
+    "cache_path": "cache_datasets/LOBSTER_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-0_bfs-legacy_first_component_features-lobster-optimal_v2.pkl",
+    "reference": "runs/graphcl_f1pr_lobster_20260825/inputs/real_validation_graphs.pt",
+    "encoder_bundle_manifest": "runs/graphcl_f1pr_lobster_20260825/encoder_bundle_manifest.json",
+    "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "campaign_root": "runs/graphcl_f1pr_lobster_20260825",
+    "dependency_root": ".graphcl_deps",
+    "graphcl_runtime_sha256": "980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7",
+    "upstream_repo": "/local-scratch2/graphvae-req-work/Self-Supervised-Models-for-GGM-Evaluation",
+    "max_graphs": 10,
+    "generation_batch_size": 10,
+    "nearest_k": 5,
+    "adjacency_threshold": 0.5,
+    "timeout_seconds": 1200,
+    "objective_json_path": "summary.f1_pr.mean",
+    "compatibility_objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "skip_final_evaluation": true,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true
+  },
+  "dominance_rule": {
+    "phase_b_best_minus_uniform_absolute": 0.10872095848277485,
+    "formula": "maximum within-candidate generation-seed objective range <= absolute Phase-B best-minus-uniform difference"
+  },
+  "execution": {
+    "host": "cs-cl-09",
+    "physical_gpu": 1,
+    "max_parallel": 1,
+    "output_root": "runs/lobster_graphcl_f1pr_generation_stability_20260826a",
+    "held_out_or_test_evaluation": false,
+    "adaptive_bo": false
+  }
+}
