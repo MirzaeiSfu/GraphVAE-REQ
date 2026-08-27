@@ -5,6 +5,7 @@ import pytest
 
 from graph_evaluation.src.ggm_eval.io import load_pyg_collection_with_metadata
 from scripts import export_aids_graphcl_f1pr_splits as exporter
+from scripts import analyze_aids_evaluator_bakeoff as analyzer
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -130,6 +131,9 @@ def test_aids_evaluator_bakeoff_contract_is_matched_bounded_and_test_free():
         "same_generated_collection_for_both_evaluators"
     ] is True
     assert contract["decision_rule"]["no_weight_improvement_claim_from_bakeoff"] is True
+    assert contract["decision_rule"]["graphcl_selected_only_if_all_conditions_hold"][
+        0
+    ] == "both evaluators replay exactly on a frozen job"
 
     checkpoint_rows = [
         checkpoint
@@ -139,3 +143,67 @@ def test_aids_evaluator_bakeoff_contract_is_matched_bounded_and_test_free():
     assert len(checkpoint_rows) == 6
     assert {row["host"] for row in checkpoint_rows} == {"cs-cl-13", "cs-cl-17"}
     assert len({row["sha256"] for row in checkpoint_rows}) == 6
+
+
+def _summary_jobs(random_gin: bool):
+    jobs = {}
+    evaluator_offsets = [index * 0.01 for index in range(10)]
+    for candidate in ("selected", "uniform"):
+        for training_seed in (0, 1, 2):
+            for generation_seed in (123, 124, 125):
+                generation_offset = (generation_seed - 123) * (
+                    0.03 if random_gin else 0.01
+                )
+                values = [0.4 + generation_offset] * 10
+                if candidate == "selected":
+                    values = [
+                        value + (offset if random_gin else 0.04)
+                        for value, offset in zip(values, evaluator_offsets)
+                    ]
+                jobs[(candidate, training_seed, generation_seed)] = {
+                    "method": {"values": values, "mean": sum(values) / len(values)}
+                }
+    return jobs
+
+
+def test_bakeoff_summary_rewards_lower_paired_and_generation_dispersion():
+    random_summary = analyzer._method_summary(_summary_jobs(True), "method")
+    graphcl_summary = analyzer._method_summary(_summary_jobs(False), "method")
+
+    assert graphcl_summary["mean_paired_difference_population_sd"] < (
+        0.8 * random_summary["mean_paired_difference_population_sd"]
+    )
+    assert graphcl_summary["mean_generation_seed_range"] < random_summary[
+        "mean_generation_seed_range"
+    ]
+    assert graphcl_summary["sign_stability_count_of_9"] == 9
+
+
+def test_bakeoff_manifest_rejects_test_access(tmp_path):
+    manifest = {
+        "collection_sha256": "a" * 64,
+        "summary": {
+            "graph_count": 184,
+            "node_feature_dim": 56,
+            "edge_feature_dim": 3,
+        },
+        "metadata": {
+            "dataset": "AIDS",
+            "feature_mode": "decoded_node_edge",
+            "feature_schema": analyzer.FEATURE_SCHEMA,
+            "split": "validation",
+            "test_access": True,
+            "generation_seed": 123,
+            "source_cache_sha256": analyzer.CACHE_SHA256,
+            "split_fingerprint": analyzer.VALIDATION_SPLIT_FINGERPRINT,
+            "checkpoint_sha256": "b" * 64,
+            "collection_role": "generated",
+        },
+    }
+    path = tmp_path / "generated.pt.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(analyzer.DistributedContractError, match="test_access"):
+        analyzer._manifest(
+            path, role="generated", generation_seed=123, checkpoint_sha="b" * 64
+        )

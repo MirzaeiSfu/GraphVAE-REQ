@@ -790,6 +790,14 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
     pyg_exports = None
     if args.save_pyg:
         cache_metadata = cache.get("cache_metadata") or {}
+        base_feature_schema = cache_metadata.get("feature_schema")
+        exported_feature_schema = (
+            None
+            if base_feature_schema is None
+            else base_feature_schema
+            if "|export=" in str(base_feature_schema)
+            else f"{base_feature_schema}|export={full_feature_mode}"
+        )
         pyg_exports = save_pyg_graph_collections(
             output_dir,
             generated_graphs,
@@ -797,10 +805,18 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
             metadata={
                 "dataset": cache_metadata.get("dataset", config.get("dataset")),
                 "feature_mode": full_feature_mode,
-                "feature_schema": cache_metadata.get("feature_schema"),
+                "feature_schema": exported_feature_schema,
                 "split": args.split,
                 "test_access": args.split == "test",
                 "generation_seed": int(args.generation_seed),
+                "node_feature_dimension": generated_graphs[0].node_feature_dim,
+                "edge_feature_dimension": generated_graphs[0].edge_feature_dim,
+                "same_latent_decoding": True,
+                "feature_source": (
+                    "GraphVAE node_feature_decoder and edge_feature_decoder"
+                    if checkpoint_has_edge_head
+                    else "GraphVAE node_feature_decoder"
+                ),
                 "source_cache_sha256": integrity["cache_sha256"],
                 "split_fingerprint": integrity["split_fingerprint"],
                 "checkpoint_sha256": sha256_file(checkpoint_path),
@@ -815,6 +831,8 @@ def evaluate_run(args: argparse.Namespace, run_dir: Path, multiple_runs: bool) -
         "checkpoint": str(checkpoint_path),
         "dataset_cache_dir": config.get("dataset_cache_dir"),
         "split": args.split,
+        "test_access": args.split == "test",
+        "skip_final_evaluation": True,
         "device": str(device),
         "adjacency_threshold": args.adjacency_threshold,
         "generation_seed": args.generation_seed,
