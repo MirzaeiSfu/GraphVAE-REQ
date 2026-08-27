@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,10 +21,24 @@ CONTRACT_PATH = (
     / "configs/bayesian_optimization"
     / "lobster_graphcl_f1pr_gate5_generation_stability_contract.json"
 )
+COMPLETION_PATH = (
+    ROOT
+    / "configs/bayesian_optimization"
+    / "lobster_graphcl_f1pr_gate5_generation_stability_completion.json"
+)
+GATE5_COMPLETION_PATH = (
+    ROOT
+    / "configs/bayesian_optimization"
+    / "lobster_graphcl_f1pr_gate5_completion.json"
+)
 
 
 def _contract():
     return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+
+
+def _completion():
+    return json.loads(COMPLETION_PATH.read_text(encoding="utf-8"))
 
 
 def _records(uniform, edge):
@@ -79,6 +94,62 @@ def test_exactly_eight_new_evaluations_reuse_seed_123():
         ("phase_b_best_edge_emphasis", 0),
         ("phase_b_best_edge_emphasis", 1),
     }
+
+
+def test_committed_completion_reproduces_failed_dominance_rule():
+    contract = _contract()
+    completion = _completion()
+    gate5_completion = json.loads(
+        GATE5_COMPLETION_PATH.read_text(encoding="utf-8")
+    )
+    validate_contract(contract)
+    stability = aggregate_records(contract, completion["records"])
+    assert completion["selection_split"] == "validation"
+    assert completion["test_access"] is False
+    assert completion["skip_final_evaluation"] is True
+    assert completion["adaptive_bo_authorized"] is False
+    assert completion["gate5_decision_before_stability"] == "qualification_failed"
+    assert completion["gate5_decision_after_stability"] == "qualification_failed"
+    assert len(completion["records"]) == 12
+    assert sum(
+        record["source"] == "new_evaluation"
+        for record in completion["records"]
+    ) == 8
+    assert sum(
+        record["source"] == "reused_phase_b"
+        for record in completion["records"]
+    ) == 4
+    assert stability == completion["stability"]
+    assert stability["maximum_within_candidate_range"] == pytest.approx(
+        0.2938981909190103
+    )
+    assert stability["phase_b_best_minus_uniform_absolute"] == pytest.approx(
+        0.10872095848277485
+    )
+    assert stability["dominance_rule_passed"] is False
+    assert stability[
+        "generation_seed_variation_dominates_candidate_difference"
+    ] is True
+    assert gate5_completion["scientific_contract"] == {
+        "objective_compatibility_path": (
+            "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+        ),
+        "selection_split": "validation",
+        "test_access": False,
+        "skip_final_evaluation": True,
+        "node_feature_decoder_required": True,
+        "edge_feature_decoder_required": True,
+        "held_out_or_test_evaluation_performed": False,
+    }
+    assert gate5_completion["generation_stability"][
+        "completion_file_sha256"
+    ] == hashlib.sha256(COMPLETION_PATH.read_bytes()).hexdigest()
+    assert gate5_completion["conclusion"]["decision"] == "qualification_failed"
+    assert gate5_completion["conclusion"]["adaptive_bo_authorized"] is False
+    assert gate5_completion["conclusion"]["gate6_authorized"] is False
+    assert gate5_completion["conclusion"]["bo_improves_uniform_graphvae"] == (
+        "not_demonstrated"
+    )
 
 
 def test_evaluator_environment_mirrors_frozen_worker_pythonpath():

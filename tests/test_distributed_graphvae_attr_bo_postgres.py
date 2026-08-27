@@ -43,7 +43,12 @@ from scripts.graphvae_attr_bo_distributed import (
 
 pytestmark = pytest.mark.postgres
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MICRO_PYTHON = Path("/local-scratch2/mirzaei/miniconda3/envs/micro/bin/python")
+MICRO_PYTHON = Path(
+    os.environ.get(
+        "GRAPHVAE_BO_TEST_PYTHON",
+        "/local-scratch2/mirzaei/miniconda3/envs/micro/bin/python",
+    )
+)
 
 
 def _allow_insecure(url):

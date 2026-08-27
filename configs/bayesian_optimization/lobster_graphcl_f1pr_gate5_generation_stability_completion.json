@@ -1,0 +1,190 @@
+{
+  "adaptive_bo_authorized": false,
+  "finished_at_unix": 1787810335.858188,
+  "gate5_decision_after_stability": "qualification_failed",
+  "gate5_decision_before_stability": "qualification_failed",
+  "records": [
+    {
+      "candidate_label": "uniform",
+      "evaluation_sha256": "1b452955e9cc8207ccccc58dea99d5b2bf107b62e8880b74b07e848dca142afc",
+      "generation_seed": 123,
+      "source": "reused_phase_b",
+      "training_seed": 0,
+      "value": 0.6413664425244611
+    },
+    {
+      "candidate_label": "uniform",
+      "evaluation_sha256": "ad1f0995a8dafe6b32ea733903ee999da4eda5f7afc99649cede6b936640280f",
+      "generation_seed": 124,
+      "source": "new_evaluation",
+      "training_seed": 0,
+      "value": 0.5399390204537596
+    },
+    {
+      "candidate_label": "uniform",
+      "evaluation_sha256": "9f7cf99046773b07509c5a9df5b61ddcda18126704f2a4dae2cd6d1c3b02adc6",
+      "generation_seed": 125,
+      "source": "new_evaluation",
+      "training_seed": 0,
+      "value": 0.5982240709867647
+    },
+    {
+      "candidate_label": "uniform",
+      "evaluation_sha256": "f2c46c4dc78fc2e8e1fb2b39301f6c8ae466d6b86ae25872b7a8f9b61de4a0f7",
+      "generation_seed": 123,
+      "source": "reused_phase_b",
+      "training_seed": 1,
+      "value": 0.384629210983079
+    },
+    {
+      "candidate_label": "uniform",
+      "evaluation_sha256": "5c60eff1d5c19b96c02fb3eba44721c889e5f5fe29bf737022a275c0aeef7e0c",
+      "generation_seed": 124,
+      "source": "new_evaluation",
+      "training_seed": 1,
+      "value": 0.7232963491239948
+    },
+    {
+      "candidate_label": "uniform",
+      "evaluation_sha256": "47462964c27e779b19f4718940a6a3960b9707a79a82998b643bc1fe0400c980",
+      "generation_seed": 125,
+      "source": "new_evaluation",
+      "training_seed": 1,
+      "value": 0.4322477370697433
+    },
+    {
+      "candidate_label": "phase_b_best_edge_emphasis",
+      "evaluation_sha256": "0f971073a801f7823dcd3eb3f718048fa7bbb2d2100173745faad86fedb76b4b",
+      "generation_seed": 123,
+      "source": "reused_phase_b",
+      "training_seed": 0,
+      "value": 0.7022165473059631
+    },
+    {
+      "candidate_label": "phase_b_best_edge_emphasis",
+      "evaluation_sha256": "49a68689dfa7c458a038b9b93b4c9915a57f96b04c7996368905fa7f8a841fe1",
+      "generation_seed": 124,
+      "source": "new_evaluation",
+      "training_seed": 0,
+      "value": 0.10910892546680986
+    },
+    {
+      "candidate_label": "phase_b_best_edge_emphasis",
+      "evaluation_sha256": "5e316aaa8d31e03bd73da5abede984ff2ed790541a391c0cb91ccec8b475ffb6",
+      "generation_seed": 125,
+      "source": "new_evaluation",
+      "training_seed": 0,
+      "value": 0.43591064426245296
+    },
+    {
+      "candidate_label": "phase_b_best_edge_emphasis",
+      "evaluation_sha256": "8bd3c19a3429c67f838e27055cbed454325759ee39d527bfbeb36d058285c9d1",
+      "generation_seed": 123,
+      "source": "reused_phase_b",
+      "training_seed": 1,
+      "value": 0.5412210231671268
+    },
+    {
+      "candidate_label": "phase_b_best_edge_emphasis",
+      "evaluation_sha256": "eb093906a071d68c29bdb7e1e1c501a8d19b8cd9682ce6c675366ba9071eabcb",
+      "generation_seed": 124,
+      "source": "new_evaluation",
+      "training_seed": 1,
+      "value": 0.5465322631682593
+    },
+    {
+      "candidate_label": "phase_b_best_edge_emphasis",
+      "evaluation_sha256": "e21b4e5e0d1874da44651cbc4b25308a8463a1310de7c771f9c7c57de835f90e",
+      "generation_seed": 125,
+      "source": "new_evaluation",
+      "training_seed": 1,
+      "value": 0.30304519734523344
+    }
+  ],
+  "schema_version": "lobster-graphcl-f1pr-gate5-generation-stability-v1",
+  "selection_split": "validation",
+  "skip_final_evaluation": true,
+  "stability": {
+    "candidates": [
+      {
+        "label": "uniform",
+        "maximum_mean": 0.6316176847888773,
+        "minimum_mean": 0.51299782675377,
+        "per_generation_seed": [
+          {
+            "generation_seed": 123,
+            "mean": 0.51299782675377,
+            "training_seed_values": [
+              0.6413664425244611,
+              0.384629210983079
+            ]
+          },
+          {
+            "generation_seed": 124,
+            "mean": 0.6316176847888773,
+            "training_seed_values": [
+              0.5399390204537596,
+              0.7232963491239948
+            ]
+          },
+          {
+            "generation_seed": 125,
+            "mean": 0.5152359040282539,
+            "training_seed_values": [
+              0.5982240709867647,
+              0.4322477370697433
+            ]
+          }
+        ],
+        "weights": {
+          "alpha_edge_feat": 1.0,
+          "alpha_node_feat": 1.0
+        },
+        "within_candidate_range": 0.11861985803510722
+      },
+      {
+        "label": "phase_b_best_edge_emphasis",
+        "maximum_mean": 0.6217187852365449,
+        "minimum_mean": 0.3278205943175346,
+        "per_generation_seed": [
+          {
+            "generation_seed": 123,
+            "mean": 0.6217187852365449,
+            "training_seed_values": [
+              0.7022165473059631,
+              0.5412210231671268
+            ]
+          },
+          {
+            "generation_seed": 124,
+            "mean": 0.3278205943175346,
+            "training_seed_values": [
+              0.10910892546680986,
+              0.5465322631682593
+            ]
+          },
+          {
+            "generation_seed": 125,
+            "mean": 0.36947792080384323,
+            "training_seed_values": [
+              0.43591064426245296,
+              0.30304519734523344
+            ]
+          }
+        ],
+        "weights": {
+          "alpha_edge_feat": 4.0,
+          "alpha_node_feat": 0.25
+        },
+        "within_candidate_range": 0.2938981909190103
+      }
+    ],
+    "dominance_rule_passed": false,
+    "generation_seed_variation_dominates_candidate_difference": true,
+    "maximum_within_candidate_range": 0.2938981909190103,
+    "phase_b_best_minus_uniform_absolute": 0.10872095848277485
+  },
+  "stability_contract_sha256": "a6afec8fadee3451f6a740ef3c6aa993240e3dd9742a35dbe51d7d64115e105f",
+  "study_contract_sha256": "9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8",
+  "test_access": false
+}

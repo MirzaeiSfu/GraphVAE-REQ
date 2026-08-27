@@ -918,5 +918,38 @@ never be reused. The runner now constructs the same dependency and
 `graph_evaluation/src` import order as the frozen worker, and the corrected
 fresh output identity ends in `20260826b`. This recovery must be tested,
 committed, checksum-staged, and verified before launching `b`.
+
+The corrected generation-seed characterization ending in `20260826b` is now
+complete. It reused the four exact Phase-B seed-123 evaluations and performed
+exactly eight new validation-only evaluations: seeds 124 and 125 for both
+GraphVAE training checkpoints of uniform and edge emphasis. No held-out/test
+data or final evaluation was accessed. Uniform's generation-seed mean range is
+`0.11861985803510722`; edge emphasis ranges by
+`0.2938981909190103`. The latter is far greater than the frozen Phase-B
+edge-emphasis-minus-uniform difference of `0.10872095848277485`, so the
+generation-seed dominance rule fails. The apparent edge-emphasis gain at seed
+123 is not stable enough to support a model-improvement claim.
+
+Gate 5 is complete with a truthful `qualification_failed` decision. The
+complete current non-PostgreSQL distributed, attribute-BO, and GraphCL suite
+passes `161/161`; the protected, UUID-isolated PostgreSQL suite passes `19/19`
+from `cs-cl-09`, and its final catalog audit contains zero residual
+`graphvae_bo_pytest_*` studies. The PostgreSQL test runtime is now explicitly
+overridable so qualification can run on a network-authorized host without
+altering its frozen Python environment. Failed operational attempts are
+retained in the final evidence: the controller-local PostgreSQL route was
+unreachable, initial scratch staging exposed the hard-coded Python and missing
+Git identity, and one stale-heartbeat timing check required a clean-suite
+rerun. None consumed a scientific reservation.
+
+The final answer to the campaign question is **no demonstrated improvement**:
+this work did not run adaptive BO because its predeclared qualification gates
+failed. Edge emphasis `(alpha_node_feat=0.25, alpha_edge_feat=4.0)` beat
+uniform at the single 10,000-epoch seed-123 comparison, but the promoted order
+reversed between fidelities and generation-seed variation dominated that
+difference. Gate 6, adaptive BO, and held-out/test evaluation remain forbidden.
+Exact final evidence is frozen in
+`lobster_graphcl_f1pr_gate5_generation_stability_completion.json` and
+`lobster_graphcl_f1pr_gate5_completion.json`.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.
