@@ -132,6 +132,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     init.add_argument("--alpha-edge-feat-max", type=float, default=1e2)
     init.add_argument("--fixed-alpha-node-feat", type=float, default=None)
     init.add_argument("--fixed-alpha-edge-feat", type=float, default=None)
+    init.add_argument("--tune-beta", action="store_true")
+    init.add_argument("--beta-min", type=float, default=0.25)
+    init.add_argument("--beta-max", type=float, default=4.0)
+    init.add_argument("--fixed-beta", type=float, default=None)
     init.add_argument(
         "--reservation-plan",
         type=Path,
@@ -326,13 +330,21 @@ def _search_space(args: argparse.Namespace) -> dict[str, Any]:
     def entry(value):
         return None if value is None else {"low": value[0], "high": value[1], "log": True}
 
-    supplied_fixed = (
+    tune_beta = bool(getattr(args, "tune_beta", False))
+    fixed_beta = getattr(args, "fixed_beta", None)
+    if fixed_beta is not None and not tune_beta:
+        raise ValueError("--fixed-beta requires --tune-beta.")
+    supplied_fixed = [
         args.fixed_alpha_node_feat is not None,
         args.fixed_alpha_edge_feat is not None,
-    )
+    ]
+    if tune_beta:
+        supplied_fixed.append(fixed_beta is not None)
     if any(supplied_fixed) and not all(supplied_fixed):
         raise ValueError(
-            "Fixed-parameter qualification requires both attribute-loss weights."
+            "Fixed-parameter qualification requires every tuned weight."
+            if tune_beta
+            else "Fixed-parameter qualification requires both attribute-loss weights."
         )
     fixed_parameters = None
     if all(supplied_fixed):
@@ -340,19 +352,25 @@ def _search_space(args: argparse.Namespace) -> dict[str, Any]:
             "alpha_node_feat": float(args.fixed_alpha_node_feat),
             "alpha_edge_feat": float(args.fixed_alpha_edge_feat),
         }
+        if tune_beta:
+            fixed_parameters["beta"] = float(fixed_beta)
         for name, value in fixed_parameters.items():
             low, high = getattr(ranges, name)
             if not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(
                     f"Fixed {name}={value!r} must be finite and within [{low}, {high}]."
                 )
-    return {
+    search_space = {
         "alpha_node_feat": entry(ranges.alpha_node_feat),
         "alpha_edge_feat": entry(ranges.alpha_edge_feat),
         "alpha_motif_loss": entry(ranges.alpha_motif_loss),
         "motif_opt_in": bool(args.tune_alpha_motif),
         "fixed_parameters": fixed_parameters,
     }
+    if tune_beta:
+        search_space["beta"] = entry(ranges.beta)
+        search_space["beta_opt_in"] = True
+    return search_space
 
 
 def _default_hardware_policy() -> dict[str, Any]:
@@ -1379,7 +1397,7 @@ def _waiting_reservations_require_adaptive_sampling(
     search_space = definition.get("search_space") or {}
     sampled_names = {
         name
-        for name in ("alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss")
+        for name in ("alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss", "beta")
         if isinstance(search_space.get(name), Mapping)
     }
     for trial in waiting:
@@ -1788,6 +1806,9 @@ def _final_outputs(
 ) -> Any | None:
     artifact_root = output_dir if artifact_root is None else artifact_root
     audit = reservation_audit(study, int(definition["reserved_trials"]))
+    includes_beta = isinstance(
+        definition.get("search_space", {}).get("beta"), Mapping
+    )
     rows = []
     selectable = []
     completed_in_order = sorted(
@@ -1812,8 +1833,7 @@ def _final_outputs(
             )
             if trial.state.name == "COMPLETE":
                 selectable.append((trial, result))
-        rows.append(
-            {
+        row = {
                 "trial_number": trial.number,
                 "budget_index": attrs.get(BUDGET_INDEX_ATTR),
                 "reserved": reserved,
@@ -1838,9 +1858,14 @@ def _final_outputs(
                     else trial.datetime_complete.isoformat()
                 ),
             }
-        )
+        if includes_beta:
+            row["beta"] = trial.params.get("beta")
+        rows.append(row)
     buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=FINAL_CSV_FIELDS)
+    csv_fields = list(FINAL_CSV_FIELDS)
+    if includes_beta:
+        csv_fields.insert(csv_fields.index("alpha_motif_loss") + 1, "beta")
+    writer = csv.DictWriter(buffer, fieldnames=csv_fields)
     writer.writeheader()
     writer.writerows(rows)
     atomic_write_bytes(output_dir / "trials.csv", buffer.getvalue().encode("utf-8"))

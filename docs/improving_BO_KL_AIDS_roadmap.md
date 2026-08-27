@@ -279,6 +279,14 @@ not justified.
 
 ### I1. Add `beta` to the BO parameter contract
 
+Implementation status (2026-08-27): complete in source. The bounded beta mock
+and all 138 non-PostgreSQL distributed/attribute-BO tests pass. The isolated
+PostgreSQL suite is collected but cannot currently qualify because the
+protected Gate 5 login is rejected from both the controller and `cs-cl-17`.
+No study or schema was created by those failed connection attempts. Protected
+qualification credentials must be rotated or repaired before I3 or any real
+reservation.
+
 Extend the existing BO plumbing; do not modify the VAE loss formula.
 
 Required code changes:

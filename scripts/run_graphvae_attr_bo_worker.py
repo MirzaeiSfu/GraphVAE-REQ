@@ -184,6 +184,7 @@ def local_preflight(
         validate_base_config(
             base_config,
             tune_alpha_motif=definition["search_space"].get("alpha_motif_loss") is not None,
+            tune_beta=definition["search_space"].get("beta") is not None,
         )
 
     dependency = runtime_dependency_fingerprint()
@@ -260,6 +261,7 @@ def _ranges(definition: Mapping[str, Any]) -> SearchRanges:
         alpha_node_feat=bounds("alpha_node_feat"),
         alpha_edge_feat=bounds("alpha_edge_feat"),
         alpha_motif_loss=bounds("alpha_motif_loss"),
+        beta=bounds("beta"),
     )
 
 

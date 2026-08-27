@@ -336,6 +336,44 @@ def test_u05_every_trial_identity_and_integrity_mismatch_fails_audit(tmp_path):
         audit_trial_result(trial, study_root=tmp_path, definition=definition)
 
 
+def test_beta_audit_requires_exact_model_scoped_resolved_value(tmp_path):
+    definition = minimal_definition("beta-audit")
+    definition["search_space"]["beta"] = {
+        "low": 0.25,
+        "high": 4.0,
+        "log": True,
+    }
+    definition["dataset_cache"]["expected_validation_graphs"] = 8
+    definition["seeds"].update({"generation_seed": 123, "evaluator_seed": 0})
+    definition["evaluator"]["repeat_count"] = 5
+    trial, result = _auditable_tree(tmp_path, definition)
+    trial.params["beta"] = 1.0
+    result["sampled_weights"] = dict(trial.params)
+    config_path = tmp_path / result["resolved_config"]
+    config_path.write_text(
+        "model:\n  beta: 1.0\nloss:\n  use_graphvae_mm_bce_kl_weights: false\n",
+        encoding="utf-8",
+    )
+    result["resolved_config_sha256"] = hashlib.sha256(
+        config_path.read_bytes()
+    ).hexdigest()
+    atomic_write_json(tmp_path / trial.user_attrs["trial_result"], result)
+    assert audit_trial_result(
+        trial, study_root=tmp_path, definition=definition
+    )["validation_attr_f1pr"] == 0.75
+
+    config_path.write_text(
+        "model:\n  beta: 2.0\nloss:\n  use_graphvae_mm_bce_kl_weights: false\n",
+        encoding="utf-8",
+    )
+    result["resolved_config_sha256"] = hashlib.sha256(
+        config_path.read_bytes()
+    ).hexdigest()
+    atomic_write_json(tmp_path / trial.user_attrs["trial_result"], result)
+    with pytest.raises(DistributedContractError, match="Resolved beta"):
+        audit_trial_result(trial, study_root=tmp_path, definition=definition)
+
+
 def test_u06_collected_trial_tree_is_portable_after_root_move(tmp_path):
     definition = minimal_definition()
     definition["dataset_cache"]["expected_validation_graphs"] = 8
@@ -997,6 +1035,69 @@ def test_r08_fixed_parameters_are_contracted_and_enqueued_exactly(tmp_path):
     args.fixed_alpha_node_feat = 1e4
     with pytest.raises(ValueError, match="must be finite and within"):
         _search_space(args)
+
+
+def test_beta_search_space_fixed_parameters_and_plan_are_exact(tmp_path):
+    args = argparse.Namespace(
+        alpha_node_feat_min=0.5,
+        alpha_node_feat_max=2.0,
+        alpha_edge_feat_min=0.5,
+        alpha_edge_feat_max=2.0,
+        tune_alpha_motif=False,
+        alpha_motif_min=1e-3,
+        alpha_motif_max=1e2,
+        tune_beta=True,
+        beta_min=0.25,
+        beta_max=4.0,
+        fixed_alpha_node_feat=1.0,
+        fixed_alpha_edge_feat=2.0,
+        fixed_beta=0.5,
+    )
+    search_space = _search_space(args)
+    assert search_space["beta"] == {"low": 0.25, "high": 4.0, "log": True}
+    assert search_space["beta_opt_in"] is True
+    assert search_space["fixed_parameters"] == {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 2.0,
+        "beta": 0.5,
+    }
+
+    args.fixed_beta = None
+    with pytest.raises(ValueError, match="every tuned weight"):
+        _search_space(args)
+    args.fixed_beta = 0.0
+    with pytest.raises(ValueError, match="finite and within"):
+        _search_space(args)
+
+    definition = minimal_definition("beta-plan")
+    definition["reserved_trials"] = 2
+    definition["search_space"] = {
+        **search_space,
+        "fixed_parameters": None,
+    }
+    definition["reservation_plan"] = [
+        {
+            "budget_index": 0,
+            "parameters": {
+                "alpha_node_feat": 1.0,
+                "alpha_edge_feat": 1.0,
+                "beta": 1.0,
+            },
+            "training_seed": 0,
+        },
+        {"budget_index": 1, "parameters": {}, "training_seed": 0},
+    ]
+    study = optuna.create_study(study_name="beta-plan", direction="maximize")
+    initialize_reserved_study(
+        study, definition, controller_uuid="controller", output_root=tmp_path
+    )
+    trials = study.get_trials(deepcopy=False)
+    assert trials[0].system_attrs["fixed_params"] == {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0,
+        "beta": 1.0,
+    }
+    assert trials[1].system_attrs["fixed_params"] == {}
 
 
 def test_mixed_reservation_plan_enqueues_exact_parameters_and_seeds(tmp_path):
