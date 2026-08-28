@@ -6,7 +6,13 @@
     "source_minimum_commit": "8036038cc27ff27da4c78526bcd0599a9ad7bc86",
     "evaluator_bakeoff": "configs/bayesian_optimization/aids_evaluator_bakeoff_completion.json",
     "selected_primary_evaluator": "random_gin",
+    "postgresql_qualification": "configs/bayesian_optimization/aids_attr_f1pr_kl_smoke_qualification.json",
     "postgresql_qualification_required": true,
+    "repo_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_REPO_PATHS.txt",
+    "python_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt",
+    "slots": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_SLOTS.txt",
+    "credential_env_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt",
+    "hardware_policy": "configs/bayesian_optimization/aids_attr_f1pr_kl_hardware_policy.json",
     "current_launch_authorized": false
   },
   "objective": {

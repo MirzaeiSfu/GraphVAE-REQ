@@ -377,6 +377,12 @@ reservations, record a definite prelaunch proof, then authorize the first wave.
 Exact qualification evidence is frozen in
 `aids_attr_f1pr_kl_smoke_qualification.json`.
 
+The launch inputs now explicitly select the dedicated Gate 5 credential paths,
+the AIDS-only source roots, the three qualified TITAN RTX slots, and a tracked
+hardware policy. The older AIDS production credential mapping is not used.
+These path-only and hardware contracts are committed before study creation;
+the search launch flag remains false.
+
 Do not repeat the full historical lifecycle campaign. The controller has
 already passed multi-host locking, ambiguity, stale-worker recovery, portable
 restore, and PostgreSQL isolation tests.

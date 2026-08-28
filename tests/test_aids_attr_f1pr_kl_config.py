@@ -9,6 +9,9 @@ from scripts.tune_graphvae_attribute_weights import flatten_config, validate_bas
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_ROOT = REPO_ROOT / "configs" / "bayesian_optimization"
+KL_CREDENTIAL_PATHS = (
+    REPO_ROOT / "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt"
+)
 
 
 def _yaml(name):
@@ -17,6 +20,16 @@ def _yaml(name):
 
 def _json(name):
     return json.loads((CONFIG_ROOT / name).read_text(encoding="utf-8"))
+
+
+def _mapping(path):
+    rows = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if line:
+            host, value = line.split()
+            rows[host] = value
+    return rows
 
 
 def test_aids_kl_configs_are_direct_weighted_validation_only_and_decoder_complete():
@@ -52,6 +65,28 @@ def test_aids_kl_search_policy_and_exact_reservations_are_frozen():
     plan = _json("aids_attr_f1pr_kl_search_reservations_15.json")["reservations"]
     assert policy["prerequisites"]["selected_primary_evaluator"] == "random_gin"
     assert policy["prerequisites"]["current_launch_authorized"] is False
+    assert policy["prerequisites"]["credential_env_paths"] == (
+        "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt"
+    )
+    credentials = _mapping(KL_CREDENTIAL_PATHS)
+    assert credentials == {
+        "cs-cl-13": (
+            "/local-scratch/graphvae-req-work/"
+            ".graphvae-bo-credentials/gate5/worker.env"
+        ),
+        "cs-cl-17": (
+            "/local-scratch/graphvae-req-work/"
+            ".graphvae-bo-credentials/gate5/worker.env"
+        ),
+    }
+    assert all("production" not in path for path in credentials.values())
+    hardware = _json("aids_attr_f1pr_kl_hardware_policy.json")
+    assert hardware["homogeneous_production_pool"] == [
+        "cs-cl-13:cuda:0",
+        "cs-cl-17:cuda:0",
+        "cs-cl-17:cuda:1",
+    ]
+    assert hardware["attr_f1pr_abs_tolerance"] == 0.02
     assert policy["objective"] == {
         "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
         "direction": "maximize",
