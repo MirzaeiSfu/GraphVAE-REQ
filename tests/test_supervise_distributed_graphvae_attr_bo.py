@@ -1,10 +1,12 @@
 import json
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
 
 from scripts.supervise_distributed_graphvae_attr_bo import (
     SupervisorError,
+    _controller_command,
     decide_next_action,
 )
 
@@ -110,6 +112,33 @@ def test_unsafe_status_fails_closed(mutation):
 def test_untracked_running_trial_fails_closed():
     with pytest.raises(SupervisorError, match="without an active launch probe"):
         decide_next_action(_probe(), _status())
+
+
+def test_multi_host_collection_command_is_exact_staged_and_verified(tmp_path):
+    collector = tmp_path / "collect.sh"
+    collector.write_text("#!/bin/sh\n", encoding="utf-8")
+    args = Namespace(
+        controller_python=tmp_path / "python",
+        controller_script=tmp_path / "controller.py",
+        study_name="study",
+        output_dir=tmp_path / "output",
+        heartbeat_interval=60,
+        grace_period=600,
+        collector_script=collector,
+        repo_paths=tmp_path / "repos.txt",
+        remote_run_root="runs/bayesian_optimization/study",
+        source_root=None,
+    )
+    assert _controller_command(args, "collect") == [
+        str(collector),
+        "--repo-paths",
+        str(args.repo_paths),
+        "--remote-run-root",
+        "runs/bayesian_optimization/study",
+        "--exact-destination",
+        str(args.output_dir),
+        "--verify-manifests",
+    ]
 
 
 def test_phase_b_supervisor_launch_evidence_is_fail_closed_and_test_free():

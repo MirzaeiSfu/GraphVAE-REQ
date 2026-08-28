@@ -418,6 +418,15 @@ to budget indexes 0--2 and is now authorized; it has not yet been dispatched.
 The complete prelaunch evidence is frozen in
 `aids_attr_f1pr_kl_search_prelaunch.json`.
 
+Wave 1 was then acknowledged on all three slots and claimed exactly budget
+indexes 0--2, leaving three `RUNNING` and 12 `WAITING` reservations. To keep
+later waves unattended without weakening collision checks, the existing
+fail-closed supervisor is being extended only at its collection boundary: it
+may invoke the repository's staged multi-host collector before the already
+supported probe/status/run operations continue. The supervisor still stops on
+ambiguous, missing, conflicting, guarded, inexact, or test-access evidence; it
+cannot replace a failure and does not finalize or evaluate held-out data.
+
 Use exactly these six startup anchors, in order. They are frozen in
 `aids_attr_f1pr_kl_search_reservations_15.json`:
 

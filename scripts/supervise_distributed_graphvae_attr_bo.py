@@ -15,6 +15,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import subprocess
 import sys
 import time
@@ -142,6 +143,17 @@ def _controller_command(args: argparse.Namespace, operation: str) -> list[str]:
     if operation == "status":
         return common + ["--json", str(args.state_dir / "current_status.json")]
     if operation == "collect":
+        if args.collector_script is not None:
+            return [
+                str(args.collector_script),
+                "--repo-paths",
+                str(args.repo_paths),
+                "--remote-run-root",
+                args.remote_run_root,
+                "--exact-destination",
+                str(args.output_dir),
+                "--verify-manifests",
+            ]
         return common + ["--source-root", str(args.source_root)]
     if operation == "run":
         return common + [
@@ -242,7 +254,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--controller-python", type=Path, required=True)
     parser.add_argument("--controller-script", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--source-root", type=Path, required=True)
+    collection = parser.add_mutually_exclusive_group(required=True)
+    collection.add_argument("--source-root", type=Path)
+    collection.add_argument("--collector-script", type=Path)
+    parser.add_argument(
+        "--remote-run-root",
+        help=(
+            "Study-relative run root collected from every repo-path host. "
+            "Required with --collector-script."
+        ),
+    )
     parser.add_argument("--base-config", type=Path, required=True)
     parser.add_argument("--repo-paths", type=Path, required=True)
     parser.add_argument("--python-paths", type=Path, required=True)
@@ -258,12 +279,23 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--max-parallel must be positive")
     if args.poll_seconds < 30:
         parser.error("--poll-seconds must be at least 30")
+    if args.collector_script is not None:
+        if not args.remote_run_root:
+            parser.error("--remote-run-root is required with --collector-script")
+        remote = PurePosixPath(args.remote_run_root)
+        if (
+            remote.is_absolute()
+            or not remote.parts
+            or any(part in {"", ".", ".."} for part in remote.parts)
+        ):
+            parser.error("--remote-run-root must be a safe relative path")
+    elif args.remote_run_root is not None:
+        parser.error("--remote-run-root requires --collector-script")
     for name in (
         "repository_root",
         "controller_python",
         "controller_script",
         "output_dir",
-        "source_root",
         "base_config",
         "repo_paths",
         "python_paths",
@@ -272,6 +304,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "state_dir",
     ):
         setattr(args, name, getattr(args, name).expanduser().resolve())
+    for name in ("source_root", "collector_script"):
+        value = getattr(args, name)
+        if value is not None:
+            setattr(args, name, value.expanduser().resolve())
+    if args.collector_script is not None and not args.collector_script.is_file():
+        parser.error("--collector-script must name an existing regular file")
     return args
 
 
