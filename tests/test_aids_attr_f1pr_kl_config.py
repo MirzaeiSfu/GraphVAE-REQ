@@ -64,7 +64,7 @@ def test_aids_kl_search_policy_and_exact_reservations_are_frozen():
     policy = _json("aids_attr_f1pr_kl_search_policy.json")
     plan = _json("aids_attr_f1pr_kl_search_reservations_15.json")["reservations"]
     assert policy["prerequisites"]["selected_primary_evaluator"] == "random_gin"
-    assert policy["prerequisites"]["current_launch_authorized"] is False
+    assert policy["prerequisites"]["current_launch_authorized"] is True
     assert policy["prerequisites"]["credential_env_paths"] == (
         "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt"
     )
@@ -127,6 +127,66 @@ def test_aids_kl_search_policy_and_exact_reservations_are_frozen():
     ]
     assert all(row["parameters"] == {} for row in plan[6:])
     assert all(row["training_seed"] == 0 for row in plan)
+
+
+def test_aids_kl_search_prelaunch_is_exact_ready_and_unclaimed():
+    policy = _json("aids_attr_f1pr_kl_search_policy.json")
+    prelaunch = _json("aids_attr_f1pr_kl_search_prelaunch.json")
+    assert policy["prerequisites"]["prelaunch_record"] == (
+        "configs/bayesian_optimization/aids_attr_f1pr_kl_search_prelaunch.json"
+    )
+    assert prelaunch["study_name"] == policy["study_name"]
+    assert prelaunch["contract_sha256"] == (
+        "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78"
+    )
+    assert prelaunch["immutable_inputs"]["source_commit"].startswith("df81ff2")
+    assert prelaunch["scientific_contract"]["objective_json_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert prelaunch["scientific_contract"]["selection_split"] == "validation"
+    assert prelaunch["scientific_contract"]["test_access"] is False
+    assert prelaunch["scientific_contract"]["held_out_access"] is False
+    assert prelaunch["scientific_contract"]["skip_final_evaluation"] is True
+    assert prelaunch["scientific_contract"]["evaluator_seeds"] == list(
+        range(1000, 1010)
+    )
+    assert prelaunch["reservation_budget"] == {
+        "total": 15,
+        "fixed_anchors": 6,
+        "adaptive": 9,
+        "max_parallel": 3,
+        "exact_wave_sizes": [3, 3, 3, 3, 3],
+        "sampler": "TPESampler",
+        "sampler_seed": 83,
+        "startup_trials": 6,
+        "failed_reservations_replaced": False,
+        "ambiguous_launches_duplicated": False,
+    }
+    assert prelaunch["postgresql_prelaunch"]["lifecycle"] == "READY"
+    assert prelaunch["postgresql_prelaunch"]["reserved_states"] == {
+        "WAITING": 15,
+        "RUNNING": 0,
+        "COMPLETE": 0,
+        "FAIL": 0,
+        "OTHER": 0,
+        "UNRESERVED_GUARD": 0,
+        "RESERVED_TOTAL": 15,
+    }
+    assert prelaunch["workers"]["preflight_slot_count"] == 3
+    assert prelaunch["workers"]["active_worker_processes"] == 0
+    assert prelaunch["workers"]["study_tmux_sessions"] == 0
+    assert prelaunch["workers"]["launch_manifests"] == 0
+    assert prelaunch["authorization"] == {
+        "first_wave_budget_indexes": [0, 1, 2],
+        "first_wave_parameters_fixed": True,
+        "launch_authorized": True,
+        "search_launched": False,
+        "reservation_claims": 0,
+        "reason": (
+            "immutable study, exact budget, multi-host preflight, and definite "
+            "no-launch state independently verified"
+        ),
+    }
 
 
 def test_aids_kl_confirmation_is_disjoint_and_cannot_be_launched_from_template():

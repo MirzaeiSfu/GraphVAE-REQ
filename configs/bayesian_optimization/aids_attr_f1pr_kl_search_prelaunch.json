@@ -1,0 +1,91 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-search-prelaunch-v1",
+  "date": "2026-08-27",
+  "study_name": "aids_attr_f1pr_kl_search15_20260827a",
+  "study_uuid": "e448bf49-1aec-4939-b823-e108bc911248",
+  "output_root": "runs/bayesian_optimization/aids_attr_f1pr_kl_search15_20260827a",
+  "contract_sha256": "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78",
+  "immutable_inputs": {
+    "source_commit": "df81ff2da942cec91257fc7f0e54a83eb4f398c4",
+    "source_tree_sha256": "32cc87a26f77a65395a8f4d5b61298d6d4ccd0c7d981b40b4c23c4236c30adb0",
+    "source_file_count": 1058,
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "base_config_sha256": "8bebc1eb217734e7b31997700d975f88c44fedecacf8475a8f8224103182baea",
+    "reservation_plan_sha256": "09a28a6fa8f99b7f7c61af1e7ed2906aa294a4c12913bf7d891ecc496eabf47e",
+    "hardware_policy_sha256": "061405c15240e1ac4e1b7422bc3dcd1eb6bb0f3e143ef170e8d20eea6acc2730",
+    "study_definition_sha256": "3466a7a33717989bd1060746a2f2165833f20107334d3ba66e211ee2aa5155ec",
+    "deployment_manifest_sha256": "7796c33c9ac2302810e78cd640de8e1636819db37505f52095fe1840ee509d66",
+    "dataset_manifest_sha256": "16e5e43f11c374db34d3e1f91d37d6a2729de301d7fa5f074ff47d69095d498c",
+    "preflight_sha256": "81d09535fb7bf9a7abb2b9ebdf17d24dc53d4420297842259f73302a038f296d",
+    "cache_sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "cache_byte_length": 73822456,
+    "cache_mode": "0444",
+    "node_feature_dimension": 56,
+    "edge_feature_dimension": 3
+  },
+  "scientific_contract": {
+    "objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "direction": "maximize",
+    "selection_split": "validation",
+    "validation_graphs": 184,
+    "test_access": false,
+    "held_out_access": false,
+    "skip_final_evaluation": true,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "epoch_number": 250,
+    "training_seed": 0,
+    "generation_seed": 123,
+    "evaluator_backend": "random_gin",
+    "evaluator_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009],
+    "search_ranges": {
+      "alpha_node_feat": {"low": 0.5, "high": 2.0, "log": true},
+      "alpha_edge_feat": {"low": 0.5, "high": 2.0, "log": true},
+      "beta": {"low": 0.25, "high": 4.0, "log": true}
+    }
+  },
+  "reservation_budget": {
+    "total": 15,
+    "fixed_anchors": 6,
+    "adaptive": 9,
+    "max_parallel": 3,
+    "exact_wave_sizes": [3, 3, 3, 3, 3],
+    "sampler": "TPESampler",
+    "sampler_seed": 83,
+    "startup_trials": 6,
+    "failed_reservations_replaced": false,
+    "ambiguous_launches_duplicated": false
+  },
+  "postgresql_prelaunch": {
+    "backend": "PostgreSQL",
+    "tls_policy": "verify-full",
+    "heartbeat_interval_seconds": 60,
+    "grace_period_seconds": 600,
+    "lifecycle": "READY",
+    "reserved_states": {
+      "WAITING": 15,
+      "RUNNING": 0,
+      "COMPLETE": 0,
+      "FAIL": 0,
+      "OTHER": 0,
+      "UNRESERVED_GUARD": 0,
+      "RESERVED_TOTAL": 15
+    }
+  },
+  "workers": {
+    "hosts": ["cs-cl-13", "cs-cl-17"],
+    "slots": ["cs-cl-13:cuda:0", "cs-cl-17:cuda:0", "cs-cl-17:cuda:1"],
+    "preflight_slot_count": 3,
+    "active_worker_processes": 0,
+    "study_tmux_sessions": 0,
+    "launch_manifests": 0
+  },
+  "authorization": {
+    "first_wave_budget_indexes": [0, 1, 2],
+    "first_wave_parameters_fixed": true,
+    "launch_authorized": true,
+    "search_launched": false,
+    "reservation_claims": 0,
+    "reason": "immutable study, exact budget, multi-host preflight, and definite no-launch state independently verified"
+  }
+}

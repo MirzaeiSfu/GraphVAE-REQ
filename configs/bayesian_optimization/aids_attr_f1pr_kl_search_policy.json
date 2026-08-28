@@ -13,7 +13,8 @@
     "slots": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_SLOTS.txt",
     "credential_env_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt",
     "hardware_policy": "configs/bayesian_optimization/aids_attr_f1pr_kl_hardware_policy.json",
-    "current_launch_authorized": false
+    "prelaunch_record": "configs/bayesian_optimization/aids_attr_f1pr_kl_search_prelaunch.json",
+    "current_launch_authorized": true
   },
   "objective": {
     "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",

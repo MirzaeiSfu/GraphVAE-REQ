@@ -380,8 +380,8 @@ Exact qualification evidence is frozen in
 The launch inputs now explicitly select the dedicated Gate 5 credential paths,
 the AIDS-only source roots, the three qualified TITAN RTX slots, and a tracked
 hardware policy. The older AIDS production credential mapping is not used.
-These path-only and hardware contracts are committed before study creation;
-the search launch flag remains false.
+These path-only and hardware contracts were committed before study creation;
+the launch flag changed only after the initialized no-claim state was audited.
 
 Do not repeat the full historical lifecycle campaign. The controller has
 already passed multi-host locking, ambiguity, stale-worker recovery, portable
@@ -404,6 +404,19 @@ before creating the scientific search.
 ## Execution roadmap
 
 ### E1. Freeze the 15-trial search before creation
+
+Execution status (2026-08-27): initialized and ready for the first wave. Fresh
+study `aids_attr_f1pr_kl_search15_20260827a` contains exactly 15 immutable
+reservations under contract
+`cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78`.
+All 15 are `WAITING`; zero are running, complete, failed, guarded, claimed, or
+replaced. The clean `df81ff2` source and exact manifests verify on both workers.
+The three-slot non-launching preflight passes with the validation-only
+objective and protected PostgreSQL backend. Independent probes find no worker
+process, study tmux session, or launch manifest. The exact first wave is fixed
+to budget indexes 0--2 and is now authorized; it has not yet been dispatched.
+The complete prelaunch evidence is frozen in
+`aids_attr_f1pr_kl_search_prelaunch.json`.
 
 Use exactly these six startup anchors, in order. They are frozen in
 `aids_attr_f1pr_kl_search_reservations_15.json`:
