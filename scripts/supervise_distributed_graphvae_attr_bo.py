@@ -24,6 +24,7 @@ from typing import Any, Mapping, Sequence
 
 ACTIVE_PROBE_STATUS = "ACTIVE_AMBIGUOUS"
 TERMINAL_PROBE_STATUS = "RECONCILED_TERMINAL"
+PRETRIAL_PROBE_STATUS = "RECONCILED_PRETRIAL"
 
 
 class SupervisorError(RuntimeError):
@@ -46,7 +47,10 @@ def _read_json(path: Path) -> Any:
 
 
 def decide_next_action(
-    probe: Mapping[str, Any], status: Mapping[str, Any]
+    probe: Mapping[str, Any],
+    status: Mapping[str, Any],
+    *,
+    reviewed_pretrial_worker_run_ids: Sequence[str] = (),
 ) -> str:
     """Return WAIT, LAUNCH, COLLECT_AND_LAUNCH, or COLLECT_AND_FINISH.
 
@@ -86,7 +90,48 @@ def decide_next_action(
     launches = probe.get("launches")
     if not isinstance(launches, list):
         raise SupervisorError("Probe launch records are missing.")
-    probe_statuses = [str(record.get("probe_status")) for record in launches]
+    reviewed = set(reviewed_pretrial_worker_run_ids)
+    if len(reviewed) != len(reviewed_pretrial_worker_run_ids):
+        raise SupervisorError("Reviewed pretrial worker-run identities are not unique.")
+    seen_worker_run_ids: set[str] = set()
+    seen_reviewed: set[str] = set()
+    probe_statuses: list[str] = []
+    for record in launches:
+        probe_status = str(record.get("probe_status"))
+        worker_run_id = record.get("worker_run_id")
+        if not isinstance(worker_run_id, str) or not worker_run_id:
+            raise SupervisorError("Probe launch record lacks a worker-run identity.")
+        if worker_run_id in seen_worker_run_ids:
+            raise SupervisorError("Probe contains a duplicate worker-run identity.")
+        seen_worker_run_ids.add(worker_run_id)
+        if probe_status == PRETRIAL_PROBE_STATUS and worker_run_id in reviewed:
+            payloads = record.get("marker_payloads")
+            failed = payloads.get("FAILED_PRETRIAL") if isinstance(payloads, Mapping) else None
+            safely_unconsumed = (
+                record.get("retry_safe") is True
+                and record.get("db_trials") == []
+                and record.get("heartbeat") is False
+                and record.get("tmux_active") is False
+                and isinstance(failed, Mapping)
+                and failed.get("parse_ok") is True
+                and failed.get("reservation_consumed") is False
+                and failed.get("trial_number") is None
+                and failed.get("budget_index") is None
+            )
+            if not safely_unconsumed:
+                raise SupervisorError(
+                    "Reviewed pretrial launch does not prove zero reservation consumption: "
+                    + worker_run_id
+                )
+            seen_reviewed.add(worker_run_id)
+            probe_status = TERMINAL_PROBE_STATUS
+        probe_statuses.append(probe_status)
+    unknown_reviews = sorted(reviewed - seen_reviewed)
+    if unknown_reviews:
+        raise SupervisorError(
+            "Reviewed pretrial identities are absent or no longer pretrial: "
+            + ", ".join(unknown_reviews)
+        )
     unsafe = sorted(
         {
             value
@@ -156,9 +201,15 @@ def _controller_command(args: argparse.Namespace, operation: str) -> list[str]:
             ]
         return common + ["--source-root", str(args.source_root)]
     if operation == "run":
+        try:
+            remote_base_config = args.base_config.relative_to(args.repository_root).as_posix()
+        except ValueError as exc:
+            raise SupervisorError(
+                "Base config must resolve inside the controller repository root."
+            ) from exc
         return common + [
             "--base-config",
-            str(args.base_config),
+            remote_base_config,
             "--repo-paths",
             str(args.repo_paths),
             "--python-paths",
@@ -222,7 +273,13 @@ def supervise(args: argparse.Namespace) -> int:
         probe = _read_json(args.state_dir / "current_probe.json")
         status = _read_json(args.state_dir / "current_status.json")
         try:
-            action = decide_next_action(probe, status)
+            action = decide_next_action(
+                probe,
+                status,
+                reviewed_pretrial_worker_run_ids=(
+                    args.reviewed_pretrial_worker_run_id
+                ),
+            )
         except SupervisorError as exc:
             _event(args, "STOPPED_REVIEW_REQUIRED", reason=str(exc))
             raise
@@ -274,6 +331,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--heartbeat-interval", type=int, default=60)
     parser.add_argument("--grace-period", type=int, default=600)
     parser.add_argument("--poll-seconds", type=int, default=300)
+    parser.add_argument(
+        "--reviewed-pretrial-worker-run-id",
+        action="append",
+        default=[],
+        help=(
+            "Explicitly reviewed RECONCILED_PRETRIAL worker-run identity whose "
+            "probe proves that no reservation was consumed; repeat per identity."
+        ),
+    )
     args = parser.parse_args(argv)
     if args.max_parallel <= 0:
         parser.error("--max-parallel must be positive")

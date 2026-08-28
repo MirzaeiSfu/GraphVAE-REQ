@@ -33,7 +33,29 @@ def _probe(*statuses):
     return {
         "study_name": "study",
         "test_access": False,
-        "launches": [{"probe_status": status} for status in statuses],
+        "launches": [
+            {"probe_status": status, "worker_run_id": f"worker-{index}"}
+            for index, status in enumerate(statuses)
+        ],
+    }
+
+
+def _reviewed_pretrial_record(worker_run_id="reviewed-worker"):
+    return {
+        "worker_run_id": worker_run_id,
+        "probe_status": "RECONCILED_PRETRIAL",
+        "retry_safe": True,
+        "db_trials": [],
+        "heartbeat": False,
+        "tmux_active": False,
+        "marker_payloads": {
+            "FAILED_PRETRIAL": {
+                "parse_ok": True,
+                "reservation_consumed": False,
+                "trial_number": None,
+                "budget_index": None,
+            }
+        },
     }
 
 
@@ -91,6 +113,65 @@ def test_any_nonactive_nonterminal_probe_fails_closed(unsafe):
         decide_next_action(_probe(unsafe), status)
 
 
+def test_exact_reviewed_pretrial_can_collect_and_launch_without_consumption():
+    status = _status(WAITING=2, RUNNING=0, COMPLETE=1)
+    probe = _probe("RECONCILED_TERMINAL")
+    probe["launches"].append(_reviewed_pretrial_record())
+    assert (
+        decide_next_action(
+            probe,
+            status,
+            reviewed_pretrial_worker_run_ids=["reviewed-worker"],
+        )
+        == "COLLECT_AND_LAUNCH"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda record: record.update({"retry_safe": False}),
+        lambda record: record.update({"db_trials": [{"number": 1}]}),
+        lambda record: record.update({"heartbeat": True}),
+        lambda record: record.update({"tmux_active": True}),
+        lambda record: record["marker_payloads"]["FAILED_PRETRIAL"].update(
+            {"parse_ok": False}
+        ),
+        lambda record: record["marker_payloads"]["FAILED_PRETRIAL"].update(
+            {"reservation_consumed": True}
+        ),
+        lambda record: record["marker_payloads"]["FAILED_PRETRIAL"].update(
+            {"trial_number": 1}
+        ),
+        lambda record: record["marker_payloads"]["FAILED_PRETRIAL"].update(
+            {"budget_index": 1}
+        ),
+    ],
+)
+def test_inexact_reviewed_pretrial_still_fails_closed(mutation):
+    status = _status(WAITING=3, RUNNING=0)
+    record = _reviewed_pretrial_record()
+    mutation(record)
+    probe = _probe()
+    probe["launches"].append(record)
+    with pytest.raises(SupervisorError, match="zero reservation consumption"):
+        decide_next_action(
+            probe,
+            status,
+            reviewed_pretrial_worker_run_ids=["reviewed-worker"],
+        )
+
+
+def test_unknown_reviewed_pretrial_identity_fails_closed():
+    status = _status(WAITING=3, RUNNING=0)
+    with pytest.raises(SupervisorError, match="absent or no longer pretrial"):
+        decide_next_action(
+            _probe(),
+            status,
+            reviewed_pretrial_worker_run_ids=["unknown-worker"],
+        )
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -139,6 +220,43 @@ def test_multi_host_collection_command_is_exact_staged_and_verified(tmp_path):
         str(args.output_dir),
         "--verify-manifests",
     ]
+
+
+def test_run_command_passes_repository_relative_base_config(tmp_path):
+    repository_root = tmp_path / "repo"
+    args = Namespace(
+        controller_python=tmp_path / "python",
+        controller_script=tmp_path / "controller.py",
+        study_name="study",
+        output_dir=tmp_path / "output",
+        heartbeat_interval=60,
+        grace_period=600,
+        base_config=repository_root / "configs" / "search.yaml",
+        repository_root=repository_root,
+        repo_paths=repository_root / "repos.txt",
+        python_paths=repository_root / "pythons.txt",
+        slots=repository_root / "slots.txt",
+        max_parallel=3,
+        credential_env_file=repository_root / "credentials.txt",
+    )
+    command = _controller_command(args, "run")
+    assert command[command.index("--base-config") + 1] == "configs/search.yaml"
+
+
+def test_run_command_rejects_base_config_outside_repository(tmp_path):
+    repository_root = tmp_path / "repo"
+    args = Namespace(
+        controller_python=tmp_path / "python",
+        controller_script=tmp_path / "controller.py",
+        study_name="study",
+        output_dir=tmp_path / "output",
+        heartbeat_interval=60,
+        grace_period=600,
+        base_config=tmp_path / "outside.yaml",
+        repository_root=repository_root,
+    )
+    with pytest.raises(SupervisorError, match="inside the controller repository"):
+        _controller_command(args, "run")
 
 
 def test_phase_b_supervisor_launch_evidence_is_fail_closed_and_test_free():
