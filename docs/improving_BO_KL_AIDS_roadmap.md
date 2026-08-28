@@ -5,10 +5,11 @@
 The evaluator-selection prerequisite, beta BO implementation, immutable study
 inputs, and bounded real beta smoke are complete. A matched AIDS bake-off
 selected the ten-seed Random-GIN ensemble over the ten-encoder GraphCL
-ensemble. The KL-weight search itself has not been launched because the
-protected Gate 5 PostgreSQL qualification login is currently rejected. This
-document does not authorize or record held-out/test evaluation or a production
-claim.
+ensemble. The dedicated Gate 5 PostgreSQL role now authenticates through
+`verify-full` from the controller and both workers, and the isolated database
+suite passes. The KL-weight search itself has not been launched; its next step
+is a separately committed initialization and prelaunch proof. This document
+does not authorize or record held-out/test evaluation or a production claim.
 
 The goal is to answer one narrow question with a bounded amount of work:
 
@@ -283,13 +284,10 @@ not justified.
 
 ### I1. Add `beta` to the BO parameter contract
 
-Implementation status (2026-08-27): complete in source. The bounded beta mock
-and all 138 non-PostgreSQL distributed/attribute-BO tests pass. The isolated
-PostgreSQL suite is collected but cannot currently qualify because the
-protected Gate 5 login is rejected from both the controller and `cs-cl-17`.
-No study or schema was created by those failed connection attempts. Protected
-qualification credentials must be rotated or repaired before I3 or any real
-reservation.
+Implementation status (2026-08-27): complete. The bounded beta mock and all
+138 non-PostgreSQL distributed/attribute-BO tests pass. All 19 isolated
+PostgreSQL tests also pass through the dedicated qualification role, and the
+closing catalog check finds zero residual test studies.
 
 Extend the existing BO plumbing; do not modify the VAE loss formula.
 
@@ -349,7 +347,7 @@ the dataset or create a new split.
 
 ### I3. Qualify only what changed
 
-Implementation status (2026-08-27): all non-database elements are qualified.
+Implementation status (2026-08-27): complete.
 The clean `3e99672` source, exact runtime fingerprint, mode-`0444` AIDS cache,
 56/3 schemas, and isolated TITAN RTX GPU-0 slots were verified on `cs-cl-13`
 and `cs-cl-17`. The bounded beta mock passed. A first five-epoch real smoke
@@ -362,12 +360,21 @@ edge, and beta values appear exactly at `loss.alpha_node_feat`,
 `test_access=false`, and the cache hash is unchanged. Its tiny objective is a
 plumbing result only, not scientific weight evidence.
 
-The sole remaining I3 blocker is protected `verify-full` PostgreSQL
-authentication: both the controller and `cs-cl-17` reject the Gate 5 login.
-Those failed connection attempts created no schema or study. The search policy
-therefore remains launch-disabled until the dedicated Gate 5 controller and
-worker credentials are repaired or rotated and the isolated PostgreSQL suite
-passes. Exact smoke evidence is frozen in
+The stale shared qualification material was replaced with a dedicated Gate 5
+AIDS role without changing production credentials. Exact firewall and
+`hostssl` rules admit only the two frozen worker addresses. Controller,
+`cs-cl-13`, and `cs-cl-17` authentication passes with `verify-full`; worker
+queries independently report TLS active. Credential directories remain mode
+`0700` and files mode `0600`. All 19 isolated PostgreSQL tests pass and their
+closing catalog check reports zero residual test studies. The intermediate
+password, path-allowlist, firewall, and HBA failures are retained truthfully in
+the qualification record; none created the scientific search or consumed a
+reservation.
+
+I3 is complete. The search policy remains launch-disabled only to preserve the
+required next commit boundary: create and audit the fresh study and exact 15
+reservations, record a definite prelaunch proof, then authorize the first wave.
+Exact qualification evidence is frozen in
 `aids_attr_f1pr_kl_smoke_qualification.json`.
 
 Do not repeat the full historical lifecycle campaign. The controller has

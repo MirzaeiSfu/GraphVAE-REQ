@@ -125,12 +125,22 @@ def test_aids_kl_smoke_qualification_preserves_failure_and_is_validation_only():
     assert config["bayesian_optimization_qualification"][
         "training_timeout_seconds"
     ] == 1200
-    assert qualification["status"] == "smoke_qualified_postgresql_blocked"
-    assert qualification["postgresql"]["search_launch_authorized"] is False
-    assert qualification["postgresql"]["schema_created"] is False
-    assert qualification["postgresql"]["study_created"] is False
+    assert qualification["status"] == "i3_qualified_search_not_initialized"
+    assert qualification["postgresql"]["controller_authentication"] is True
+    assert qualification["postgresql"]["worker_authentication"] is True
+    assert qualification["postgresql"]["qualification_passed"] is True
+    assert qualification["postgresql"]["qualification_schema_created"] is False
+    assert qualification["postgresql"]["search_study_created"] is False
+    assert qualification["postgresql"]["isolated_suite"] == {
+        "tests_passed": 19,
+        "tests_failed": 0,
+        "disposable_studies_only": True,
+        "residual_test_studies": 0,
+    }
+    assert qualification["interpretation"]["i3_complete"] is True
     assert qualification["interpretation"]["scientific_weight_claim"] is False
     assert qualification["interpretation"]["search_launched"] is False
+    assert qualification["interpretation"]["remaining_i3_blocker"] is None
 
     assert smoke["selection_split"] == "validation"
     assert smoke["validation_graphs"] == 184

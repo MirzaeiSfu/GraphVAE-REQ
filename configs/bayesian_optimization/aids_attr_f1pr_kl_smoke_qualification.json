@@ -1,7 +1,7 @@
 {
   "schema_version": "aids-attr-f1pr-kl-smoke-qualification-v1",
   "date": "2026-08-27",
-  "status": "smoke_qualified_postgresql_blocked",
+  "status": "i3_qualified_search_not_initialized",
   "dataset": "AIDS",
   "execution_host": "cs-cl-17",
   "source": {
@@ -39,17 +39,38 @@
   },
   "postgresql": {
     "required_sslmode": "verify-full",
-    "controller_authentication": false,
-    "worker_authentication": false,
-    "failed_from": [
+    "controller_authentication": true,
+    "worker_authentication": true,
+    "authenticated_endpoints": [
       "controller",
+      "cs-cl-13",
       "cs-cl-17"
     ],
-    "failure": "protected Gate 5 qualification login rejected",
-    "schema_created": false,
-    "study_created": false,
-    "search_launch_authorized": false,
-    "required_action": "rotate or repair the protected Gate 5 controller and worker qualification credentials"
+    "server_side_tls_verified_on_workers": true,
+    "dedicated_qualification_role": true,
+    "credential_directory_mode": "0700",
+    "credential_file_mode": "0600",
+    "worker_firewall_sources": [
+      "142.58.212.118/32",
+      "142.58.213.75/32"
+    ],
+    "hostssl_rules": 2,
+    "qualification_schema_created": false,
+    "search_study_created": false,
+    "qualification_passed": true,
+    "search_launch_authorized_after_prelaunch_commit": true,
+    "isolated_suite": {
+      "tests_passed": 19,
+      "tests_failed": 0,
+      "disposable_studies_only": true,
+      "residual_test_studies": 0
+    },
+    "preserved_failures": [
+      "the inherited Gate 5 qualification password had expired or been rotated",
+      "the first dedicated-role deployment stopped before remote copy because the protected worker root allowlist was stale",
+      "worker preflight initially timed out until exact source-address firewall rules were restored",
+      "worker preflight then failed closed until exact dedicated-role hostssl rules were installed"
+    ]
   },
   "mock_qualification": {
     "beta_sampled_injected_persisted_and_replayed": true,
@@ -132,9 +153,11 @@
   },
   "interpretation": {
     "plumbing_qualified": true,
+    "i3_complete": true,
     "scientific_weight_claim": false,
     "reason": "five epochs qualify parameter plumbing and validation-only evaluation but are not scientific search fidelity",
     "search_launched": false,
-    "remaining_i3_blocker": "protected verify-full Gate 5 PostgreSQL authentication"
+    "remaining_i3_blocker": null,
+    "next_step": "commit a fresh search initialization and prelaunch proof before claiming any scientific reservation"
   }
 }
