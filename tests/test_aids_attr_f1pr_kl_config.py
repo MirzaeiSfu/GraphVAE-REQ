@@ -189,6 +189,37 @@ def test_aids_kl_search_prelaunch_is_exact_ready_and_unclaimed():
     }
 
 
+def test_aids_kl_search_supervisor_launch_is_fail_closed_and_test_free():
+    launch = _json("aids_attr_f1pr_kl_search_supervisor_launch.json")
+    assert launch["study_contract_sha256"] == (
+        "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78"
+    )
+    assert launch["implementation"]["commit"].startswith("155fd10")
+    assert launch["implementation"]["focused_tests_passed"] == 99
+    assert launch["implementation"]["staged_outside_immutable_source_root"] is True
+    assert launch["first_wave"]["budget_indexes"] == [0, 1, 2]
+    assert launch["first_wave"]["fixed_parameters_only"] is True
+    assert launch["first_wave"]["ambiguous"] is False
+    assert launch["first_supervisor_observation"]["reserved_states"] == {
+        "RESERVED_TOTAL": 15,
+        "WAITING": 12,
+        "RUNNING": 3,
+        "COMPLETE": 0,
+        "FAIL": 0,
+        "OTHER": 0,
+        "UNRESERVED_GUARD": 0,
+    }
+    assert launch["first_supervisor_observation"]["test_access"] is False
+    contract = launch["automation_contract"]
+    assert contract["active_work_is_never_duplicated"] is True
+    assert contract["consumed_failure_is_never_replaced"] is True
+    assert contract["held_out_or_test_evaluation"] is False
+    assert contract["finalize_or_freeze_automatic"] is False
+    assert launch["immutable_worker_source"][
+        "later_supervisor_and_evidence_commits_deployed"
+    ] is False
+
+
 def test_aids_kl_confirmation_is_disjoint_and_cannot_be_launched_from_template():
     template = _json("aids_attr_f1pr_kl_confirmation_policy_template.json")
     search = _json("aids_attr_f1pr_kl_search_policy.json")

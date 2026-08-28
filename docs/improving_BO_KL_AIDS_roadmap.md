@@ -419,13 +419,21 @@ The complete prelaunch evidence is frozen in
 `aids_attr_f1pr_kl_search_prelaunch.json`.
 
 Wave 1 was then acknowledged on all three slots and claimed exactly budget
-indexes 0--2, leaving three `RUNNING` and 12 `WAITING` reservations. To keep
-later waves unattended without weakening collision checks, the existing
-fail-closed supervisor is being extended only at its collection boundary: it
-may invoke the repository's staged multi-host collector before the already
-supported probe/status/run operations continue. The supervisor still stops on
-ambiguous, missing, conflicting, guarded, inexact, or test-access evidence; it
-cannot replace a failure and does not finalize or evaluate held-out data.
+indexes 0--2, leaving three `RUNNING` and 12 `WAITING` reservations. The
+fail-closed supervisor's multi-host collection extension is committed as
+`155fd10` after 99 focused tests. Its exact supervisor and collector scripts
+are checksum-staged outside the immutable worker source root at mode `0500`.
+Detached session `graphvae-bo-supervisor-aids-kl-search15-20260827a` is active
+on the controller with a five-minute poll interval. Its first observation is
+`WAIT` with the exact three-running/12-waiting state and `test_access=false`.
+
+The supervisor collects each host through checksum staging into the exact
+controller destination before launching a later wave. It stops on ambiguous,
+missing, conflicting, guarded, inexact, or test-access evidence; it cannot
+replace a failure and does not finalize or evaluate held-out data. Later
+evidence commits are not deployed over the immutable `df81ff2` worker source.
+Exact launch evidence is frozen in
+`aids_attr_f1pr_kl_search_supervisor_launch.json`.
 
 Use exactly these six startup anchors, in order. They are frozen in
 `aids_attr_f1pr_kl_search_reservations_15.json`:
