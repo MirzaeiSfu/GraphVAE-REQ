@@ -259,6 +259,47 @@ def test_run_command_rejects_base_config_outside_repository(tmp_path):
         _controller_command(args, "run")
 
 
+def test_aids_wave2_pretrial_review_is_exact_unconsumed_and_test_free():
+    root = Path(__file__).resolve().parents[1]
+    review = json.loads(
+        (
+            root
+            / "configs/bayesian_optimization"
+            / "aids_attr_f1pr_kl_search_wave2_pretrial_review.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert review["study_contract_sha256"] == (
+        "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78"
+    )
+    assert review["database_state_after_review"] == {
+        "RESERVED_TOTAL": 15,
+        "WAITING": 12,
+        "RUNNING": 0,
+        "COMPLETE": 3,
+        "FAIL": 0,
+        "OTHER": 0,
+        "UNRESERVED_GUARD": 0,
+    }
+    reviewed = review["reviewed_worker_runs"]
+    assert len(reviewed) == 3
+    assert len({record["worker_run_id"] for record in reviewed}) == 3
+    for record in reviewed:
+        assert record["probe_status"] == "RECONCILED_PRETRIAL"
+        assert record["failed_pretrial_marker_parse_ok"] is True
+        assert record["reservation_consumed"] is False
+        assert record["trial_number"] is None
+        assert record["budget_index"] is None
+        assert record["database_trials"] == []
+        assert record["heartbeat_present"] is False
+        assert record["tmux_active"] is False
+        assert record["retry_safe"] is True
+    authorization = review["authorization"]
+    assert authorization["failed_pretrial_attempts_are_preserved"] is True
+    assert authorization["consumed_failure_replacement"] is False
+    assert authorization["blind_duplicate_dispatch"] is False
+    assert authorization["test_access"] is False
+
+
 def test_phase_b_supervisor_launch_evidence_is_fail_closed_and_test_free():
     root = Path(__file__).resolve().parents[1]
     evidence = json.loads(

@@ -1,0 +1,73 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-search-pretrial-review-v1",
+  "date": "2026-08-27",
+  "study_name": "aids_attr_f1pr_kl_search15_20260827a",
+  "study_contract_sha256": "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78",
+  "wave_index": 2,
+  "launch_manifest_sha256": "508180493c57ba7fb1467a9808181266c9a130bf0dc25c2b16e20bccbeb5b0e4",
+  "failure_category": "controller_absolute_base_config_not_present_on_remote",
+  "reviewed_worker_runs": [
+    {
+      "worker_run_id": "cs-cl-13-aids-prod-gpu0-dispatch-2000000",
+      "host": "cs-cl-13",
+      "probe_status": "RECONCILED_PRETRIAL",
+      "failed_pretrial_marker_parse_ok": true,
+      "reservation_consumed": false,
+      "trial_number": null,
+      "budget_index": null,
+      "database_trials": [],
+      "heartbeat_present": false,
+      "tmux_active": false,
+      "retry_safe": true
+    },
+    {
+      "worker_run_id": "cs-cl-17-aids-prod-gpu0-dispatch-2000001",
+      "host": "cs-cl-17",
+      "probe_status": "RECONCILED_PRETRIAL",
+      "failed_pretrial_marker_parse_ok": true,
+      "reservation_consumed": false,
+      "trial_number": null,
+      "budget_index": null,
+      "database_trials": [],
+      "heartbeat_present": false,
+      "tmux_active": false,
+      "retry_safe": true
+    },
+    {
+      "worker_run_id": "cs-cl-17-aids-prod-gpu1-dispatch-2000002",
+      "host": "cs-cl-17",
+      "probe_status": "RECONCILED_PRETRIAL",
+      "failed_pretrial_marker_parse_ok": true,
+      "reservation_consumed": false,
+      "trial_number": null,
+      "budget_index": null,
+      "database_trials": [],
+      "heartbeat_present": false,
+      "tmux_active": false,
+      "retry_safe": true
+    }
+  ],
+  "database_state_after_review": {
+    "RESERVED_TOTAL": 15,
+    "WAITING": 12,
+    "RUNNING": 0,
+    "COMPLETE": 3,
+    "FAIL": 0,
+    "OTHER": 0,
+    "UNRESERVED_GUARD": 0
+  },
+  "repair": {
+    "commit": "694d05842063efdec2bee2502ffbebcd7b9499fe",
+    "supervisor_sha256": "d06b8ef6d7a6aa16410198d1b2b9815e4bfdc44de5e385efc8c1ae19dc2beada",
+    "focused_tests_passed": 106,
+    "remote_base_config_is_repository_relative": true,
+    "reviewed_pretrial_allowlist_is_exact_and_fail_closed": true
+  },
+  "authorization": {
+    "same_waiting_reservations_may_be_dispatched_with_new_worker_run_ids": true,
+    "failed_pretrial_attempts_are_preserved": true,
+    "consumed_failure_replacement": false,
+    "blind_duplicate_dispatch": false,
+    "test_access": false
+  }
+}
