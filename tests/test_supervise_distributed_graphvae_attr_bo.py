@@ -300,6 +300,44 @@ def test_aids_wave2_pretrial_review_is_exact_unconsumed_and_test_free():
     assert authorization["test_access"] is False
 
 
+def test_aids_supervisor_recovery_preserves_budget_and_test_isolation():
+    root = Path(__file__).resolve().parents[1]
+    recovery = json.loads(
+        (
+            root
+            / "configs/bayesian_optimization"
+            / "aids_attr_f1pr_kl_search_supervisor_recovery.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert recovery["first_observation"]["reserved_states"] == {
+        "RESERVED_TOTAL": 15,
+        "WAITING": 9,
+        "RUNNING": 3,
+        "COMPLETE": 3,
+        "FAIL": 0,
+        "OTHER": 0,
+        "UNRESERVED_GUARD": 0,
+    }
+    launch = recovery["recovery_launch"]
+    assert len(launch["worker_run_ids"]) == 3
+    assert len(set(launch["worker_run_ids"])) == 3
+    assert launch["all_run_info_present"] is True
+    assert launch["all_heartbeats_present"] is True
+    assert launch["all_tmux_sessions_active"] is True
+    assert launch["probe_status"] == "ACTIVE_AMBIGUOUS"
+    assert (
+        recovery["background_supervision"]["unattended_continuation_enabled"] is True
+    )
+    safety = recovery["safety"]
+    assert safety["previous_pretrial_attempts_preserved"] is True
+    assert safety["previous_pretrial_attempts_duplicated"] is False
+    assert safety["consumed_failure_replaced"] is False
+    assert safety["waiting_reservations_claimed_exactly"] == 3
+    assert safety["credential_contents_recorded"] is False
+    assert safety["storage_url_recorded"] is False
+    assert safety["test_access"] is False
+
+
 def test_phase_b_supervisor_launch_evidence_is_fail_closed_and_test_free():
     root = Path(__file__).resolve().parents[1]
     evidence = json.loads(

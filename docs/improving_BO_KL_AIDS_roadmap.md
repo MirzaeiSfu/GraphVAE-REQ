@@ -418,14 +418,32 @@ to budget indexes 0--2 and is now authorized; it has not yet been dispatched.
 The complete prelaunch evidence is frozen in
 `aids_attr_f1pr_kl_search_prelaunch.json`.
 
-Wave 1 was then acknowledged on all three slots and claimed exactly budget
-indexes 0--2, leaving three `RUNNING` and 12 `WAITING` reservations. The
-fail-closed supervisor's multi-host collection extension is committed as
-`155fd10` after 99 focused tests. Its exact supervisor and collector scripts
-are checksum-staged outside the immutable worker source root at mode `0500`.
+Wave 1 was acknowledged on all three slots, claimed exactly budget indexes
+0--2, and completed all three reservations successfully. The next controller
+launch manifest recorded three remote attempts, but each stopped during local
+preflight because the supervisor passed a controller-absolute config path to
+the workers. The probe reconciled all three as `RECONCILED_PRETRIAL`: no trial
+number, budget index, database row, heartbeat, or active tmux session existed,
+and all 12 remaining reservations stayed `WAITING`. The failed attempts remain
+preserved and are audited in
+`aids_attr_f1pr_kl_search_wave2_pretrial_review.json`.
+
+The path defect and a narrowly scoped reviewed-pretrial interface were fixed
+in `694d058` after 106 focused tests. The interface accepts only explicitly
+named attempts whose live probe still proves zero reservation consumption;
+all other pretrial or ambiguous states remain fail-closed. The audit was
+committed as `8a9bd63` before retry. The repaired mode-`0500` supervisor then
+collected wave 1 and dispatched three new worker-run identities for the second
+scientific fixed-anchor wave. The database now contains three `COMPLETE`,
+three `RUNNING`, nine `WAITING`, zero `FAIL`, and no guard or other rows. All
+three workers have run information, heartbeats, active tmux sessions, and
+`ACTIVE_AMBIGUOUS` probes, so duplication is forbidden.
+
 Detached session `graphvae-bo-supervisor-aids-kl-search15-20260827a` is active
-on the controller with a five-minute poll interval. Its first observation is
-`WAIT` with the exact three-running/12-waiting state and `test_access=false`.
+on `cs-cl-18` with a five-minute poll interval. It is SSH-owned so it continues
+without a Codex turn. Exact recovery and launch evidence is frozen in
+`aids_attr_f1pr_kl_search_supervisor_recovery.json`; `test_access=false` remains
+unchanged.
 
 The supervisor collects each host through checksum staging into the exact
 controller destination before launching a later wave. It stops on ambiguous,
