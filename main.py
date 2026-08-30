@@ -75,6 +75,11 @@ from motif_counting.motif_objective import (
     compute_grouped_motif_loss,
     restrict_to_nonzero_weight_motif_groups,
 )
+from motif_counting.motif_selection_manifest import (
+    MOTIF_SELECTION_MANIFEST_FILENAME,
+    build_motif_selection_manifest,
+    write_motif_selection_manifest,
+)
 from motif_counting.motif_representations import (
     MOTIF_OUTPUT_MODE_CHOICES,
     canonicalize_motif_output_mode,
@@ -3053,6 +3058,11 @@ if use_motif_loss:
 
     # Creates a relational motif counter and wraps data for counting on CUDA.
     motif_counter = RelationalMotifCounter(database_name=database_name, args=args)
+    motif_selection_full_count = sum(
+        len(rows) for rows in motif_counter.cp_reference_values
+    )
+    if motif_cp_table_source == 'cp_smoothed':
+        motif_selection_full_count = sum(len(rows) for rows in motif_counter.values)
     if use_syntactic_literal_rules:
         print(
             "SYNTACTIC LITERAL MOTIF MASK:"
@@ -3103,6 +3113,8 @@ if use_motif_loss:
         print(smoothed_pruning_message)
         logging.info(smoothed_pruning_message)
 
+    motif_selection_pruned_count = sum(len(rows) for rows in motif_counter.values)
+
     # Resolve and validate active group objectives before the potentially
     # expensive full-matrix target count.
     motif_group_objectives = build_motif_group_objectives(
@@ -3130,6 +3142,35 @@ if use_motif_loss:
     active_motif_rule_value_selection = (
         motif_counter.select_rule_values_from_motif_mask(active_motif_mask)
     )
+    motif_selection_manifest = build_motif_selection_manifest(
+        motif_counter,
+        active_motif_rule_value_selection,
+        database_name=database_name,
+        motif_cp_table_source=motif_cp_table_source,
+        rule_prune=rule_prune,
+        full_combinations=motif_selection_full_count,
+        pruned_combinations=motif_selection_pruned_count,
+        active_groups=[
+            {
+                'name': group.name,
+                'motif_count': group.num_motifs,
+                'output_mode': group.output_mode,
+                'loss_mode': group.loss_mode,
+                'weight': group.weight,
+                'edge_count_weight': group.edge_count_weight,
+            }
+            for group in motif_group_objectives
+        ],
+    )
+    motif_selection_manifest_path = (
+        graph_save_dir / MOTIF_SELECTION_MANIFEST_FILENAME
+    )
+    write_motif_selection_manifest(
+        motif_selection_manifest_path,
+        motif_selection_manifest,
+    )
+    print(f"MOTIF SELECTION MANIFEST: {motif_selection_manifest_path}")
+    logging.info(f"MOTIF SELECTION MANIFEST: {motif_selection_manifest_path}")
     active_group_summary = (
         "ACTIVE MOTIF OBJECTIVE:"
         f" selected={int(active_motif_mask.sum().item())}/"

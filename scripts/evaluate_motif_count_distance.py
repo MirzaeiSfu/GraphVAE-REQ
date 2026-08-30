@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Evaluate relational motif-count distance on train-sized graph samples.
 
-This adapts the ``count distance`` calculation from the VGAE repository:
+This preserves the legacy ``count distance`` calculation from the VGAE
+repository:
 
     sqrt(mean((observed_counts - generated_counts) ** 2))
 
@@ -11,6 +12,12 @@ graph for every training graph and compares the mean motif-count vectors.  It
 also reports the RMSE between aggregate count vectors, which is the literal
 VGAE formula after summing the graph dataset.  The aggregate value scales with
 the number of graphs; the mean-vector value does not.
+
+The recommended robust distance compares each rule's full per-graph count
+distribution with a one-dimensional Wasserstein distance after ``log1p``
+compression, then takes an upper-10%-trimmed mean across rules. This prevents a
+single high-frequency motif from dominating while still detecting changes in
+the shape of the count distribution.
 
 Both views of the generated data are reported:
 
@@ -55,6 +62,11 @@ from motif_counting.motif_counter import RelationalMotifCounter
 from motif_counting.motif_objective import (
     build_motif_group_objectives,
     restrict_to_nonzero_weight_motif_groups,
+)
+from motif_counting.motif_selection_manifest import (
+    MOTIF_SELECTION_MANIFEST_FILENAME,
+    apply_motif_selection_manifest,
+    load_motif_selection_manifest,
 )
 from motif_counting.motif_representations import canonicalize_motif_output_mode
 from util import EdgeFeatureDecoder, NodeFeatureDecoder
@@ -137,6 +149,16 @@ def parse_args() -> argparse.Namespace:
             "training-time rule pruning and active motif groups. Defaults to "
             "--config. Use this when evaluating a motif=False checkpoint against "
             "the rule subset optimized by a corresponding motif=True run."
+        ),
+    )
+    parser.add_argument(
+        "--motif-selection-manifest",
+        default=None,
+        help=(
+            "Exact post-pruning motif selection saved by training. When omitted, "
+            "the evaluator automatically uses motif_selection_manifest.json next "
+            "to the checkpoint if present, otherwise it reconstructs selection "
+            "from the YAML and training cache for backward compatibility."
         ),
     )
     parser.add_argument(
@@ -818,6 +840,51 @@ def metric_summary(observed: torch.Tensor, generated: torch.Tensor) -> Dict[str,
     )
     paired_graph_rmse = torch.sqrt(torch.mean((generated - observed).square(), dim=1))
 
+    # Robust companion distances. A one-count floor avoids exploding scores
+    # for reference motifs with zero empirical variance. log1p compression
+    # and an upper-trimmed Wasserstein mean prevent one frequent motif from
+    # dominating the comparison while retaining per-graph distribution shape.
+    observed_std = observed.std(dim=0, unbiased=False)
+    reference_scale = observed_std.clamp_min(1.0)
+    standardized_difference = mean_difference / reference_scale
+    standardized_rmse = torch.sqrt(torch.mean(standardized_difference.square()))
+
+    if torch.min(observed) < -1e-8 or torch.min(generated) < -1e-8:
+        raise ValueError("Motif counts must be nonnegative for log1p distances.")
+    observed_nonnegative = observed.clamp_min(0.0)
+    generated_nonnegative = generated.clamp_min(0.0)
+    log_mean_difference = torch.log1p(generated_mean.clamp_min(0.0)) - torch.log1p(
+        observed_mean.clamp_min(0.0)
+    )
+    log1p_mean_rmse = torch.sqrt(torch.mean(log_mean_difference.square()))
+    observed_sorted = torch.sort(torch.log1p(observed_nonnegative), dim=0).values
+    generated_sorted = torch.sort(torch.log1p(generated_nonnegative), dim=0).values
+    per_rule_log1p_wasserstein = torch.mean(
+        torch.abs(generated_sorted - observed_sorted), dim=0
+    )
+    wasserstein_sorted = torch.sort(per_rule_log1p_wasserstein).values
+    upper_trim_count = int(math.floor(0.1 * wasserstein_sorted.numel()))
+    upper_trimmed = (
+        wasserstein_sorted[:-upper_trim_count]
+        if upper_trim_count > 0
+        else wasserstein_sorted
+    )
+    robust_count_distance = upper_trimmed.mean()
+
+    squared_error = mean_difference.square()
+    squared_error_total = squared_error.sum()
+    descending_squared_error = torch.sort(squared_error, descending=True).values
+    top1_error_share = (
+        descending_squared_error[:1].sum() / squared_error_total
+        if squared_error_total > 0
+        else torch.tensor(0.0, dtype=torch.float64)
+    )
+    top5_error_share = (
+        descending_squared_error[:5].sum() / squared_error_total
+        if squared_error_total > 0
+        else torch.tensor(0.0, dtype=torch.float64)
+    )
+
     top_count = min(10, int(difference.numel()))
     top_indices = torch.topk(difference.abs(), k=top_count).indices.tolist()
 
@@ -826,6 +893,25 @@ def metric_summary(observed: torch.Tensor, generated: torch.Tensor) -> Dict[str,
         "aggregate_count_distance": float(aggregate_rmse.item()),
         "mean_vector_count_distance": float(mean_vector_rmse.item()),
         "relative_count_distance": float(relative_rmse.item()),
+        "robust_count_distance": float(robust_count_distance.item()),
+        "standardized_mean_vector_count_distance": float(
+            standardized_rmse.item()
+        ),
+        "log1p_mean_vector_count_distance": float(log1p_mean_rmse.item()),
+        "log1p_wasserstein_mean": float(
+            per_rule_log1p_wasserstein.mean().item()
+        ),
+        "log1p_wasserstein_median": float(
+            per_rule_log1p_wasserstein.median().item()
+        ),
+        "log1p_wasserstein_upper_trimmed_mean": float(
+            robust_count_distance.item()
+        ),
+        "per_rule_log1p_wasserstein": per_rule_log1p_wasserstein.tolist(),
+        "reference_count_standard_deviations": observed_std.tolist(),
+        "reference_standardization_scales": reference_scale.tolist(),
+        "top1_raw_squared_error_share": float(top1_error_share.item()),
+        "top5_raw_squared_error_share": float(top5_error_share.item()),
         "aggregate_mean_absolute_count_difference": float(aggregate_mae.item()),
         "mean_vector_absolute_count_difference": float(mean_vector_mae.item()),
         "paired_graph_count_distance_mean": float(paired_graph_rmse.mean().item()),
@@ -919,6 +1005,16 @@ def main() -> None:
     motif_cache_dir = Path(cli.motif_cache_dir).expanduser().resolve()
     output_path = Path(cli.output).expanduser().resolve()
 
+    if cli.motif_selection_manifest is not None:
+        motif_selection_manifest_path = Path(
+            cli.motif_selection_manifest
+        ).expanduser().resolve()
+    else:
+        automatic_manifest = checkpoint_path.parent / MOTIF_SELECTION_MANIFEST_FILENAME
+        motif_selection_manifest_path = (
+            automatic_manifest if automatic_manifest.is_file() else None
+        )
+
     nested_config, flat_config = load_yaml(config_path)
     if motif_selection_config_path == config_path:
         selection_nested_config = nested_config
@@ -970,22 +1066,42 @@ def main() -> None:
     database_name = str(selection_flat_config["database_name"])
     counter = RelationalMotifCounter(database_name=database_name, args=counter_args)
 
-    pruning_wrapper = DataWrapper(
-        merge_datasets(train_dataset),
-        counter.relation_keys,
-        node_onehot_info,
-        edge_onehot_info=edge_onehot_info,
-        edge_feature_info_mapping=counter.feature_info_mapping,
-        device=str(device),
-    )
-    selected_rules_values, motif_selection_summary = (
-        prepare_training_motif_selection(
-            counter=counter,
-            flat_config=selection_flat_config,
-            pruning_preprocessor=pruning_wrapper,
+    if motif_selection_manifest_path is not None:
+        manifest = load_motif_selection_manifest(motif_selection_manifest_path)
+        selected_rules_values = apply_motif_selection_manifest(
+            counter,
+            manifest,
+            database_name=database_name,
+            motif_cp_table_source=str(
+                selection_flat_config.get("motif_cp_table_source", "cp")
+            ),
+            rule_prune=bool(selection_flat_config.get("rule_prune", False)),
         )
-    )
-    del pruning_wrapper
+        motif_selection_summary = {
+            "full_combinations": int(manifest["full_combinations"]),
+            "pruned_combinations": int(manifest["pruned_combinations"]),
+            "active_combinations": int(manifest["active_combinations"]),
+            "active_groups": manifest.get("active_groups", []),
+            "selection_method": "saved_training_manifest",
+        }
+    else:
+        pruning_wrapper = DataWrapper(
+            merge_datasets(train_dataset),
+            counter.relation_keys,
+            node_onehot_info,
+            edge_onehot_info=edge_onehot_info,
+            edge_feature_info_mapping=counter.feature_info_mapping,
+            device=str(device),
+        )
+        selected_rules_values, motif_selection_summary = (
+            prepare_training_motif_selection(
+                counter=counter,
+                flat_config=selection_flat_config,
+                pruning_preprocessor=pruning_wrapper,
+            )
+        )
+        motif_selection_summary["selection_method"] = "reconstructed_from_training_data"
+        del pruning_wrapper
     if device.type == "cuda":
         torch.cuda.empty_cache()
 
@@ -1047,12 +1163,17 @@ def main() -> None:
         )
 
     payload = {
-        "schema_version": "graphvae-motif-count-distance-v4",
+        "schema_version": "graphvae-motif-count-distance-v5",
         "metric_definition": (
             "Primary: sqrt(mean((mean_generated_counts - "
             "mean_train_counts)^2)); traceability: sqrt(mean((sum_generated_counts "
             "- sum_train_counts)^2)); both over the exact data-pruned, nonzero-"
             "weight relational motif/value combinations used by training"
+        ),
+        "recommended_metric_definition": (
+            "robust_count_distance is the mean per-rule 1D Wasserstein distance "
+            "between log1p per-graph motif counts after removing the largest "
+            "10% of rule distances (no trimming for fewer than 10 rules)"
         ),
         "dataset": cli.dataset_label or flat_config.get("dataset"),
         "database_name": database_name,
@@ -1090,6 +1211,11 @@ def main() -> None:
             "checkpoint": str(checkpoint_path),
             "dataset_cache": str(dataset_cache_path),
             "motif_cache": str(motif_cache_dir / f"{database_name}.pkl"),
+            "motif_selection_manifest": (
+                str(motif_selection_manifest_path)
+                if motif_selection_manifest_path is not None
+                else None
+            ),
         },
         "config": nested_config,
         "motif_selection_config": selection_nested_config,
@@ -1107,6 +1233,11 @@ def main() -> None:
         "aggregate "
         f"soft={payload['soft']['aggregate_count_distance']:.8g} "
         f"hard={payload['hard']['aggregate_count_distance']:.8g}"
+    )
+    print(
+        "[CountDistance] robust-log1p-wasserstein "
+        f"soft={payload['soft']['robust_count_distance']:.8g} "
+        f"hard={payload['hard']['robust_count_distance']:.8g}"
     )
 
 

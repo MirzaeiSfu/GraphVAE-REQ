@@ -8,6 +8,7 @@ from scripts.evaluate_motif_count_distance import (
     count_exact_graph_records,
     make_counter_args,
     motif_entry_metadata,
+    metric_summary,
     prepare_training_motif_selection,
 )
 
@@ -166,3 +167,24 @@ def test_counter_arguments_reject_a_cap_not_supported_by_training():
             motif_cache_dir=Path("motif-cache"),
             device=torch.device("cpu"),
         )
+
+
+def test_robust_distance_reduces_single_high_count_outlier_domination():
+    observed = torch.tensor([[1000.0, 2.0], [1000.0, 2.0]])
+    generated = torch.tensor([[2000.0, 3.0], [2000.0, 3.0]])
+
+    summary = metric_summary(observed, generated)
+
+    assert summary["mean_vector_count_distance"] > 700.0
+    assert summary["robust_count_distance"] < 1.0
+    assert summary["top1_raw_squared_error_share"] > 0.999
+
+
+def test_wasserstein_detects_distribution_change_hidden_by_equal_means():
+    observed = torch.tensor([[0.0], [10.0]])
+    generated = torch.tensor([[5.0], [5.0]])
+
+    summary = metric_summary(observed, generated)
+
+    assert summary["mean_vector_count_distance"] == 0.0
+    assert summary["robust_count_distance"] > 0.0
