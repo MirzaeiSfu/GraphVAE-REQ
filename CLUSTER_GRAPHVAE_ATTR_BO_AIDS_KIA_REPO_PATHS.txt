@@ -1,0 +1,4 @@
+# HOST REPO_PATH
+# Fresh immutable source roots for the statistics-free AIDS Kia-weight comparison.
+cs-cl-13 /local-scratch/graphvae-req-work/GraphVAE-REQ-aids-kia-bce-kl
+cs-cl-17 /local-scratch/graphvae-req-work/GraphVAE-REQ-aids-kia-bce-kl

@@ -1,0 +1,67 @@
+{
+  "schema_version": "aids-kia-bce-kl-comparison-policy-v1",
+  "status": "launch_disabled_until_deployment_qualification",
+  "study_name": "aids_kia_bce_kl_comparison3_20260830a",
+  "output_root": "runs/bayesian_optimization/aids_kia_bce_kl_comparison3_20260830a",
+  "purpose": "Test whether Kia's 50/2000 adjacency-BCE/KL scale improves the completed practical-budget AIDS baseline without graph-statistics losses",
+  "source": {
+    "minimum_commit": "28bd3c8",
+    "repo_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KIA_REPO_PATHS.txt",
+    "python_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt",
+    "slots": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_SLOTS.txt",
+    "credential_env_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt"
+  },
+  "scientific_contract": {
+    "dataset": "AIDS",
+    "model": "GraphVAE",
+    "graph_statistics_enabled": false,
+    "motif_loss_enabled": false,
+    "adjacency_bce_weight": 50.0,
+    "kl_weight": 2000.0,
+    "objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "direction": "maximize",
+    "selection_split": "validation",
+    "validation_graphs": 184,
+    "test_access": false,
+    "held_out_access": false,
+    "skip_final_evaluation": true,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "epoch_number": 250,
+    "training_seed": 0,
+    "generation_seeds": [123, 124, 125],
+    "evaluator_backend": "random_gin",
+    "evaluator_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009]
+  },
+  "candidate_vectors_in_bce_kl_edge_node_order": [
+    [50.0, 2000.0, 1.0, 1.0],
+    [50.0, 2000.0, 0.1, 1.0],
+    [50.0, 2000.0, 1.0, 0.1]
+  ],
+  "study": {
+    "config": "configs/bayesian_optimization/aids_graphvae_attr_f1pr_kia_bce_kl_comparison.yaml",
+    "reservation_plan": "configs/bayesian_optimization/aids_kia_bce_kl_comparison_reservations_3.json",
+    "total_reservations": 3,
+    "max_parallel": 3,
+    "exact_wave_sizes": [3],
+    "failed_reservations_replaced": false,
+    "ambiguous_launches_duplicated": false
+  },
+  "uniform_reuse": {
+    "vector_in_bce_kl_edge_node_order": [1.0, 1.0, 1.0, 1.0],
+    "source_study": "aids_attr_f1pr_kl_search15_20260827a",
+    "source_trial_number": 0,
+    "checkpoint_sha256": "d0ba5db16be2a4800675a2aa7b238bc8ae6d8ea02b868afdd509ba8eddca915b",
+    "identical_checkpoint_in_bakeoff_contract": "configs/bayesian_optimization/aids_evaluator_bakeoff_contract.json",
+    "generation_seeds_already_frozen": [123, 124, 125],
+    "retrain_uniform": false,
+    "reason": "The completed KL-search uniform checkpoint is byte-identical to the validation-only bake-off uniform training-seed-0 checkpoint already evaluated at all three generation seeds."
+  },
+  "decision": {
+    "primary_summary": "mean validation Attr-F1PR across three generation seeds, each itself the mean of ten fixed Random-GIN evaluators",
+    "minimum_candidate_minus_uniform": 0.02,
+    "every_generation_seed_difference_positive": true,
+    "scope": "AIDS, 250 epochs, training seed 0; any passing candidate still requires a separately frozen multi-training-seed confirmation",
+    "no_test_or_held_out_evaluation": true
+  }
+}
