@@ -1,0 +1,135 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-search-completion-v1",
+  "date": "2026-08-30",
+  "code_head_before_evidence": "90ee5d6bd251a01aaa099d9bd67c5198c8808468",
+  "study": {
+    "name": "aids_attr_f1pr_kl_search15_20260827a",
+    "contract_sha256": "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78",
+    "lifecycle": "FROZEN",
+    "reserved_states": {
+      "RESERVED_TOTAL": 15,
+      "WAITING": 0,
+      "RUNNING": 0,
+      "COMPLETE": 15,
+      "FAIL": 0,
+      "OTHER": 0,
+      "UNRESERVED_GUARD": 0
+    },
+    "failed_reservations_replaced": false,
+    "ambiguous_work_duplicated": false
+  },
+  "objective": {
+    "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "direction": "maximize",
+    "selection_split": "validation",
+    "validation_graphs": 184,
+    "training_seed": 0,
+    "generation_seed": 123,
+    "evaluator_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009],
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "skip_final_evaluation": true,
+    "test_access": false,
+    "held_out_access": false
+  },
+  "results": [
+    {"budget_index": 0, "trial_number": 0, "alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 1.0, "validation_attr_f1pr": 0.7139565805957744, "validation_precision": 0.5777173913043477, "validation_recall": 0.9380434782608695},
+    {"budget_index": 1, "trial_number": 1, "alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 0.5, "validation_attr_f1pr": 0.6021670050507588, "validation_precision": 0.44021739130434784, "validation_recall": 0.9570652173913043},
+    {"budget_index": 2, "trial_number": 2, "alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 2.0, "validation_attr_f1pr": 0.5499407919192054, "validation_precision": 0.3967391304347826, "validation_recall": 0.9298913043478262},
+    {"budget_index": 3, "trial_number": 3, "alpha_node_feat": 0.5, "alpha_edge_feat": 0.5, "beta": 1.0, "validation_attr_f1pr": 0.6968194089296162, "validation_precision": 0.5652173913043479, "validation_recall": 0.9152173913043479},
+    {"budget_index": 4, "trial_number": 4, "alpha_node_feat": 2.0, "alpha_edge_feat": 2.0, "beta": 1.0, "validation_attr_f1pr": 0.6167859702558346, "validation_precision": 0.4570652173913043, "validation_recall": 0.9505434782608695},
+    {"budget_index": 5, "trial_number": 5, "alpha_node_feat": 1.0, "alpha_edge_feat": 2.0, "beta": 0.5, "validation_attr_f1pr": 0.5173621686708948, "validation_precision": 0.3576086956521739, "validation_recall": 0.9434782608695652},
+    {"budget_index": 6, "trial_number": 6, "alpha_node_feat": 1.6872082520482692, "alpha_edge_feat": 0.6758577974863722, "beta": 3.7164894053318633, "validation_attr_f1pr": 0.04840721195052709, "validation_precision": 0.025, "validation_recall": 0.982608695652174},
+    {"budget_index": 7, "trial_number": 7, "alpha_node_feat": 0.633955980490491, "alpha_edge_feat": 1.2663101318126164, "beta": 0.2563770036460783, "validation_attr_f1pr": 0.4366517328689835, "validation_precision": 0.28478260869565214, "validation_recall": 0.9451086956521738},
+    {"budget_index": 8, "trial_number": 8, "alpha_node_feat": 1.4403212396637837, "alpha_edge_feat": 1.3309023322542244, "beta": 1.977771602220516, "validation_attr_f1pr": 0.6006559303556921, "validation_precision": 0.45108695652173914, "validation_recall": 0.9125},
+    {"budget_index": 9, "trial_number": 9, "alpha_node_feat": 0.7362240054245972, "alpha_edge_feat": 0.699965084350151, "beta": 0.5698045505169125, "validation_attr_f1pr": 0.6444079147237826, "validation_precision": 0.4945652173913043, "validation_recall": 0.9342391304347828},
+    {"budget_index": 10, "trial_number": 10, "alpha_node_feat": 1.3102712030707846, "alpha_edge_feat": 1.3652518153425275, "beta": 1.7312368338415898, "validation_attr_f1pr": 0.6348315320086165, "validation_precision": 0.49184782608695654, "validation_recall": 0.9027173913043477},
+    {"budget_index": 11, "trial_number": 11, "alpha_node_feat": 0.7700726485074276, "alpha_edge_feat": 0.8395543433505868, "beta": 3.5916812789017065, "validation_attr_f1pr": 0.12455595656967378, "validation_precision": 0.06739130434782607, "validation_recall": 0.9559782608695653},
+    {"budget_index": 12, "trial_number": 12, "alpha_node_feat": 0.5446846117613829, "alpha_edge_feat": 0.5101301531051724, "beta": 0.9629373753391589, "validation_attr_f1pr": 0.6646548739794957, "validation_precision": 0.5222826086956521, "validation_recall": 0.9228260869565217},
+    {"budget_index": 13, "trial_number": 13, "alpha_node_feat": 0.5192825235428786, "alpha_edge_feat": 0.5175866101498152, "beta": 0.7763579170133974, "validation_attr_f1pr": 0.6838333022295526, "validation_precision": 0.548913043478261, "validation_recall": 0.9103260869565218},
+    {"budget_index": 14, "trial_number": 14, "alpha_node_feat": 0.7669836440131526, "alpha_edge_feat": 0.6689351508791135, "beta": 1.4954590398573366, "validation_attr_f1pr": 0.60643857470432, "validation_precision": 0.46630434782608693, "validation_recall": 0.888586956521739}
+  ],
+  "selection": {
+    "rule": "maximum finite exact validation objective after freeze",
+    "selected_trial_number": 0,
+    "selected_budget_index": 0,
+    "selected_weights": {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 1.0},
+    "selected_validation_attr_f1pr": 0.7139565805957744,
+    "best_nonuniform_trial_number": 3,
+    "best_nonuniform_weights": {"alpha_node_feat": 0.5, "alpha_edge_feat": 0.5, "beta": 1.0},
+    "best_nonuniform_validation_attr_f1pr": 0.6968194089296162,
+    "best_nonuniform_minus_uniform": -0.017137171666158193,
+    "required_nonuniform_minus_uniform": 0.03,
+    "winner_is_nonuniform": false,
+    "search_gate_passed": false,
+    "decision": "no_improvement_at_search_gate",
+    "supported_default": "uniform_node1_edge1_beta1",
+    "alternate_candidate_fallback": false,
+    "reranking_after_freeze": false
+  },
+  "launch_audit": {
+    "launch_manifests": 6,
+    "successful_scientific_waves": [1, 3, 4, 5, 6],
+    "completed_scientific_worker_runs": 15,
+    "reviewed_pretrial_worker_runs": 3,
+    "terminal_probe_records": 15,
+    "pretrial_probe_records": 3,
+    "duplicate_trials": 0,
+    "replacement_trials": 0,
+    "supervisor_terminal_event": "SUPERVISOR_COMPLETE"
+  },
+  "portable_freeze_restore": {
+    "study_definition_sha256": "3466a7a33717989bd1060746a2f2165833f20107334d3ba66e211ee2aa5155ec",
+    "frozen_marker_sha256": "d2452d4770422fd1fcf7b4fc9c93ce1ed809685ec47cc814d240f9bf431d93b7",
+    "snapshot_sha256": "5caa0c2ccaf153e00a2567f5bbd6aa11b915a350844e71fa26e65bf74ed774ab",
+    "semantic_fingerprint": "9a85433a638320b38886f8de306de97bd5d9f47225323bd7f914be56fc3ea1ae",
+    "restored_report_sha256": "6a49dd3eba2e0d4676d19d42205a8610ebde24229e592f7468eda1e81d4f8c06",
+    "aggregate_outputs_match": true,
+    "postgresql_access_during_restore": false,
+    "test_access": false
+  },
+  "cache": {
+    "byte_length": 73822456,
+    "mode": "0444",
+    "sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "node_feature_dimension": 56,
+    "edge_feature_dimension": 3,
+    "verified_after_trials_on_controller_cs_cl_13_cs_cl_17": true
+  },
+  "security": {
+    "protected_files_read": 4,
+    "password_materials_tested": 1,
+    "tracked_files_scanned": 1371,
+    "tracked_bytes_scanned": 724992634,
+    "tracked_password_material_matches": 0,
+    "tracked_unredacted_storage_url_matches": 0,
+    "expected_true_test_fixture_matches": 1,
+    "expected_true_test_fixture": "tests/test_lobster_graphcl_f1pr_generation_stability.py",
+    "study_and_restore_files_scanned": 4221,
+    "study_and_restore_bytes_scanned": 5624884489,
+    "study_password_material_matches": 0,
+    "study_unredacted_storage_url_matches": 0,
+    "study_true_test_access_or_test_selection_matches": 0
+  },
+  "tests": {
+    "non_postgresql_distributed_and_attribute_bo": 160,
+    "isolated_postgresql": 19,
+    "failed": 0,
+    "skipped": 0,
+    "residual_isolated_postgresql_studies": 0
+  },
+  "confirmation": {
+    "study_created": false,
+    "training_runs": 0,
+    "generation_stability_evaluations": 0,
+    "reason": "uniform was the frozen search winner, so the preregistered search gate failed",
+    "held_out_or_test_evaluation": false
+  },
+  "conclusion": {
+    "does_bo_improve_uniform_graphvae": false,
+    "scope": "AIDS validation at the frozen 250-epoch training-seed-0 search contract",
+    "decision": "no_improvement_at_search_gate",
+    "supported_weights": {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 1.0},
+    "full_qm9_bo_ran": false
+  }
+}

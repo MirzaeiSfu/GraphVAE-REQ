@@ -2,14 +2,13 @@
 
 ## Status and purpose
 
-The evaluator-selection prerequisite, beta BO implementation, immutable study
-inputs, and bounded real beta smoke are complete. A matched AIDS bake-off
-selected the ten-seed Random-GIN ensemble over the ten-encoder GraphCL
-ensemble. The dedicated Gate 5 PostgreSQL role now authenticates through
-`verify-full` from the controller and both workers, and the isolated database
-suite passes. The KL-weight search itself has not been launched; its next step
-is a separately committed initialization and prelaunch proof. This document
-does not authorize or record held-out/test evaluation or a production claim.
+The complete 15-trial AIDS KL-weight search is now frozen, restored, audited,
+and concluded. A matched AIDS bake-off selected the ten-seed Random-GIN
+ensemble over the ten-encoder GraphCL ensemble. The dedicated Gate 5
+PostgreSQL role authenticated through `verify-full` from the controller and
+both workers, and the isolated database suite passes. The search winner was
+the uniform/default anchor itself, so the predeclared search gate failed and
+no confirmation or held-out/test evaluation ran.
 
 The goal is to answer one narrow question with a bounded amount of work:
 
@@ -24,12 +23,12 @@ which is already the model's supported KL coefficient. It does not introduce a
 new model, a new evaluator, multi-objective optimization, pruning, learned
 surrogates outside Optuna, or a complicated statistical package.
 
-## Final recommendation
+## Frozen experiment and final recommendation
 
-Use AIDS and the now directly qualified attributed Random-GIN validation
-objective. Add
-`beta` as a third log-scaled BO parameter, keep adjacency BCE fixed at `1.0`,
-and keep the search close to the current default:
+The completed experiment used AIDS and the directly qualified attributed
+Random-GIN validation objective. It added `beta` as a third log-scaled BO
+parameter, kept adjacency BCE fixed at `1.0`, and searched close to the current
+default:
 
 ```text
 alpha_node_feat in [0.5, 2.0]
@@ -37,7 +36,7 @@ alpha_edge_feat in [0.5, 2.0]
 beta            in [0.25, 4.0]
 ```
 
-Run exactly 15 search trials at 250 epochs and training seed 0:
+It ran exactly 15 search trials at 250 epochs and training seed 0:
 
 - six fixed anchors that cover the important directions;
 - nine adaptive TPE proposals;
@@ -45,18 +44,13 @@ Run exactly 15 search trials at 250 epochs and training seed 0:
 - all 184 validation graphs and ten fixed evaluator seeds `1000..1009`;
 - generation seed 123 and no held-out/test access.
 
-Only if the frozen search winner exceeds the same-study uniform anchor by at
-least `0.03` validation Attr-F1PR should it enter confirmation. Confirm exactly
-that one winner against uniform at training seeds 1, 2, and 3. Re-evaluate the
-six resulting checkpoints at generation seeds 124 and 125; this adds only
-evaluation work, not training. Claim improvement only if the selected-minus-
-uniform difference remains positive across every training-seed average and
-every generation-seed average, and the overall mean improvement is at least
-`0.02`.
-
-This design is expected to take about 7--8 wall-clock hours on three qualified
-TITAN RTX GPUs, including operational margin. It is comparable to the previous
-AIDS study, not to the much heavier GraphCL/LOBSTER campaign.
+The uniform anchor scored `0.7139565805957744`, while the best nonuniform
+candidate, `(alpha_node_feat=0.5, alpha_edge_feat=0.5, beta=1.0)`, scored
+`0.6968194089296162`. Because the nonuniform difference is `-0.01713717`
+rather than the required `+0.03`, the final decision is
+`no_improvement_at_search_gate`. The supported AIDS setting remains uniform
+node/edge reconstruction weights and `beta=1`. More confirmation training is
+not recommended for this candidate set.
 
 ## What the completed experiments teach us
 
@@ -477,6 +471,31 @@ dispatch.
 
 ### E2. Freeze and audit the search
 
+Execution status (2026-08-30): complete. All 15 immutable reservations are
+`COMPLETE`; none failed or were replaced. The study is `FROZEN`, and a fresh
+PostgreSQL-independent restore reproduced the snapshot semantic fingerprint
+and every aggregate output byte-for-byte. The exact objective remained
+`evaluation.modes.decoded_node_edge.summary.f1_pr.mean` on all 184 validation
+graphs with both feature decoders, ten fixed Random-GIN evaluators, and
+`test_access=false`.
+
+The maximum validation objective is the uniform/default anchor itself:
+`alpha_node_feat=1`, `alpha_edge_feat=1`, `beta=1`, with Attr-F1PR
+`0.7139565805957744`. The strongest nonuniform result is trial 3 at
+`(0.5, 0.5, 1.0)`, with `0.6968194089296162`, or `-0.017137171666158193`
+below uniform. Therefore the frozen search fails both promotion conditions:
+the winner is not nonuniform and the best nonuniform-minus-uniform difference
+is below the required `+0.03`. The final search decision is
+`no_improvement_at_search_gate`.
+
+The post-run cache hash and mode match on the controller, `cs-cl-13`, and
+`cs-cl-17`. Security scans found no protected password material or unredacted
+storage URL in tracked files, and no password, URL, true test-access flag, or
+test-selection marker in the 4,221-file study/restore trees. The full 160-test
+non-PostgreSQL distributed/attribute-BO suite and all 19 isolated PostgreSQL
+tests pass, with zero residual test studies. Exact completion evidence is in
+`aids_attr_f1pr_kl_search_completion.json`.
+
 After exactly 15 terminal reservations:
 
 1. collect and audit every launch, trial, checkpoint, and objective;
@@ -498,6 +517,11 @@ confirmation fits when the search signal is too small to be credible.
 
 ### E3. Run independent matched confirmation
 
+Execution status (2026-08-30): correctly not run. E2 did not pass, so no
+confirmation study or reservation plan was created. This avoids six
+scientifically unauthorized training fits and prevents post-result candidate
+substitution.
+
 If E2 passes, create a different fresh study after the winner and its exact
 weights are committed. Reserve exactly six fixed trials:
 
@@ -516,6 +540,10 @@ No alternate candidate is substituted if confirmation fails. No failed
 reservation is replaced.
 
 ### E4. Add cheap generation-seed stability
+
+Execution status (2026-08-30): not applicable. Generation-seed stability is
+conditional on a confirmed nonuniform search candidate, and no candidate
+passed E2. No held-out/test evaluation ran.
 
 After the six confirmation checkpoints are frozen, evaluate each checkpoint at
 generation seeds 124 and 125. Reuse the original seed-123 evaluation by exact

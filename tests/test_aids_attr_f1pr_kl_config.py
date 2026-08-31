@@ -297,3 +297,73 @@ def test_aids_kl_smoke_qualification_preserves_failure_and_is_validation_only():
     assert completed["artifacts_read_only"] is True
     assert qualification["integrity"]["credential_marker_files"] == 0
     assert qualification["integrity"]["test_or_held_out_true_files"] == 0
+
+
+def test_aids_kl_search_completion_is_frozen_restored_and_stops_at_gate():
+    completion = _json("aids_attr_f1pr_kl_search_completion.json")
+    assert completion["study"]["lifecycle"] == "FROZEN"
+    assert completion["study"]["reserved_states"] == {
+        "RESERVED_TOTAL": 15,
+        "WAITING": 0,
+        "RUNNING": 0,
+        "COMPLETE": 15,
+        "FAIL": 0,
+        "OTHER": 0,
+        "UNRESERVED_GUARD": 0,
+    }
+    assert completion["objective"] == {
+        "json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+        "direction": "maximize",
+        "selection_split": "validation",
+        "validation_graphs": 184,
+        "training_seed": 0,
+        "generation_seed": 123,
+        "evaluator_seeds": list(range(1000, 1010)),
+        "node_feature_decoder_required": True,
+        "edge_feature_decoder_required": True,
+        "skip_final_evaluation": True,
+        "test_access": False,
+        "held_out_access": False,
+    }
+    results = completion["results"]
+    assert len(results) == 15
+    assert [row["budget_index"] for row in results] == list(range(15))
+    assert all(row["validation_attr_f1pr"] > 0 for row in results)
+    assert all(row["validation_precision"] > 0 for row in results)
+    assert all(row["validation_recall"] > 0 for row in results)
+    selection = completion["selection"]
+    assert selection["selected_trial_number"] == 0
+    assert selection["selected_weights"] == {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0,
+        "beta": 1.0,
+    }
+    assert selection["selected_validation_attr_f1pr"] == 0.7139565805957744
+    assert selection["best_nonuniform_trial_number"] == 3
+    assert selection["best_nonuniform_validation_attr_f1pr"] == 0.6968194089296162
+    assert selection["best_nonuniform_minus_uniform"] < 0
+    assert selection["winner_is_nonuniform"] is False
+    assert selection["search_gate_passed"] is False
+    assert selection["decision"] == "no_improvement_at_search_gate"
+    assert selection["alternate_candidate_fallback"] is False
+    assert selection["reranking_after_freeze"] is False
+    restore = completion["portable_freeze_restore"]
+    assert restore["aggregate_outputs_match"] is True
+    assert restore["postgresql_access_during_restore"] is False
+    assert restore["test_access"] is False
+    assert completion["cache"][
+        "verified_after_trials_on_controller_cs_cl_13_cs_cl_17"
+    ] is True
+    security = completion["security"]
+    assert security["tracked_password_material_matches"] == 0
+    assert security["tracked_unredacted_storage_url_matches"] == 0
+    assert security["study_password_material_matches"] == 0
+    assert security["study_unredacted_storage_url_matches"] == 0
+    assert security["study_true_test_access_or_test_selection_matches"] == 0
+    confirmation = completion["confirmation"]
+    assert confirmation["study_created"] is False
+    assert confirmation["training_runs"] == 0
+    assert confirmation["generation_stability_evaluations"] == 0
+    assert confirmation["held_out_or_test_evaluation"] is False
+    assert completion["conclusion"]["does_bo_improve_uniform_graphvae"] is False
+    assert completion["conclusion"]["full_qm9_bo_ran"] is False
