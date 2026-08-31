@@ -4,6 +4,12 @@ from loss_weight_utils import apply_kia_bce_kl_weights
 
 
 class KiaLossWeightTests(unittest.TestCase):
+    def test_aids_plain_graphvae_replaces_only_bce_and_kl(self):
+        self.assertEqual(
+            apply_kia_bce_kl_weights([1, 1], "AIDS", True),
+            [50.0, 2000.0],
+        )
+
     def test_lobster_replaces_only_bce_and_kl(self):
         self.assertEqual(
             apply_kia_bce_kl_weights([1, 1], "LOBSTER", True),
