@@ -70,3 +70,25 @@ def test_aids_kia_comparison_has_exact_three_fixed_candidates_and_uniform_reuse(
     )
     assert policy["uniform_reuse"]["retrain_uniform"] is False
     assert policy["decision"]["no_test_or_held_out_evaluation"] is True
+
+
+def test_aids_kia_prelaunch_is_exact_ready_and_unclaimed():
+    policy = _json("aids_kia_bce_kl_comparison_policy.json")
+    prelaunch = _json("aids_kia_bce_kl_comparison_prelaunch.json")
+    assert policy["status"] == "ready_launch_authorized"
+    assert prelaunch["study_contract_sha256"] == (
+        "262ac59a6d3b5ea96b12b4c8e2130ca98f2cca4c3ed14d06cd13de384006da0c"
+    )
+    assert prelaunch["lifecycle"] == "READY"
+    assert prelaunch["scientific_contract"]["graph_statistics_enabled"] is False
+    assert prelaunch["scientific_contract"]["test_access"] is False
+    assert prelaunch["worker_qualification"][
+        "postgresql_verify_full_load_study_on_both_hosts"
+    ] is True
+    assert prelaunch["uniform_reuse_proof"]["byte_identical"] is True
+    assert prelaunch["reservation_budget"]["total"] == 3
+    assert prelaunch["reservation_budget"]["WAITING"] == 3
+    assert prelaunch["reservation_budget"]["RUNNING"] == 0
+    assert prelaunch["reservation_budget"]["UNRESERVED_GUARD"] == 0
+    assert prelaunch["authorization"]["study_launched"] is False
+    assert prelaunch["authorization"]["reservation_claims"] == 0

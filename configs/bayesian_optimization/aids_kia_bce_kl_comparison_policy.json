@@ -1,6 +1,6 @@
 {
   "schema_version": "aids-kia-bce-kl-comparison-policy-v1",
-  "status": "launch_disabled_until_deployment_qualification",
+  "status": "ready_launch_authorized",
   "study_name": "aids_kia_bce_kl_comparison3_20260830a",
   "output_root": "runs/bayesian_optimization/aids_kia_bce_kl_comparison3_20260830a",
   "purpose": "Test whether Kia's 50/2000 adjacency-BCE/KL scale improves the completed practical-budget AIDS baseline without graph-statistics losses",
@@ -9,7 +9,8 @@
     "repo_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KIA_REPO_PATHS.txt",
     "python_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_PYTHON_PATHS.txt",
     "slots": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_SLOTS.txt",
-    "credential_env_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt"
+    "credential_env_paths": "CLUSTER_GRAPHVAE_ATTR_BO_AIDS_KL_GATE5_CREDENTIAL_ENV_PATHS.txt",
+    "prelaunch_record": "configs/bayesian_optimization/aids_kia_bce_kl_comparison_prelaunch.json"
   },
   "scientific_contract": {
     "dataset": "AIDS",
