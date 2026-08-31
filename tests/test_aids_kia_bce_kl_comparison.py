@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 
 from loss_weight_utils import apply_kia_bce_kl_weights
+from scripts import run_aids_kia_generation_stability as stability
 from scripts.graphvae_attr_bo_distributed import validate_reservation_plan
 from scripts.tune_graphvae_attribute_weights import flatten_config, validate_base_config
 
@@ -92,3 +93,28 @@ def test_aids_kia_prelaunch_is_exact_ready_and_unclaimed():
     assert prelaunch["reservation_budget"]["UNRESERVED_GUARD"] == 0
     assert prelaunch["authorization"]["study_launched"] is False
     assert prelaunch["authorization"]["reservation_claims"] == 0
+
+
+def test_aids_kia_generation_stability_command_is_validation_only_and_exact():
+    command = stability.build_evaluation_command(
+        python_bin=Path("/runtime/python"),
+        source_root=Path("/immutable/source"),
+        training_root=Path("/study/training/seed_0"),
+        config_path=Path("/study/resolved_config.yaml"),
+        checkpoint=Path("/study/model_249_6"),
+        generation_seed=124,
+        output_dir=Path("/study/generation_stability/generation_seed_124"),
+    )
+    assert command[command.index("--split") + 1] == "validation"
+    assert command[command.index("--modes") + 1] == "decoded_node_edge"
+    assert command[command.index("--max-graphs") + 1] == "0"
+    assert command[command.index("--generation-seed") + 1] == "124"
+    assert command[command.index("--evaluator-seed") + 1] == "1000"
+    assert command[command.index("--repeats") + 1] == "10"
+    assert "--save-pyg" in command
+    assert "test" not in command
+    assert stability.EXPECTED_CANDIDATES == {
+        (1.0, 1.0),
+        (1.0, 0.1),
+        (0.1, 1.0),
+    }
