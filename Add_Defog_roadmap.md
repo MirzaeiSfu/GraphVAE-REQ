@@ -133,7 +133,7 @@ reference for final scoring.
 - [x] Confirm that checkpoints, generated graphs, caches, and raw ZIP files are
       not staged in Git. Commit code, configs, tests, documentation, manifests,
       and small reports only.
-- [ ] Run relevant tests, review the diff, commit, push the feature branch, and
+- [x] Run relevant tests, review the diff, commit, push the feature branch, and
       merge it through the normal review workflow.
 
 ## Required graph contract
