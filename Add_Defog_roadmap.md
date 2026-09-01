@@ -94,8 +94,9 @@ reference for final scoring.
 ## Work plan
 
 - [x] Receive and integrity-check the DeFoG ZIP and its embedded Git history.
-- [ ] Receive or locate one representative checkpoint, one generated-graph
-      file, the target dataset name, and the current generation command.
+- [x] Receive and validate checkpoints and generated-graph files for AIDS,
+      ENZYMES, MUTAG, PROTEINS, and PTC. The original generation commands were
+      not supplied and remain a provenance gap.
 - [x] Create `feat/defog-baseline` from an up-to-date, clean `main`.
 - [x] Extract the ZIP into a temporary audit directory and inspect its layout,
       license, dependencies, embedded Git metadata, and ignored generated files.
@@ -112,24 +113,26 @@ reference for final scoring.
 - [x] Keep DeFoG source and checkpoints out of GraphVAE-REQ; add only the
       evaluation adapter, configs, manifests, tests, and small reports here.
 - [x] Record the exact DeFoG branch commit in the integration protocol.
-- [ ] Record SHA-256 digests for supplied checkpoints and graph files.
+- [x] Record SHA-256 digests, static checkpoint metadata, graph summaries, and
+      corrected dataset pairings in `reports/defog/artifact_inventory.yaml`.
 - [ ] Create a separate DeFoG environment using the versions required by its
       dependency files. Do not modify the working GraphVAE environment.
 - [x] Add `baselines/defog/protocol.yaml` with the shared dataset, split,
       feature, seed, sample-count, checkpoint-selection, and evaluator rules.
 - [x] Add a small fail-closed protocol verifier; avoid changing either model's
       training code unless a verified mismatch requires it.
-- [ ] Export generated graphs from the independent DeFoG checkout into the
-      ignored `GraphVAE-REQ/runs/defog/` artifact area.
+- [x] Validate and canonicalize the supplied generated graphs into the ignored
+      `GraphVAE-REQ/runs/defog/<dataset>/` artifact area.
 - [ ] Export `real_train_graphs.pt`, `real_test_graphs.pt`, and
       `generated_graphs.pt` with matching dataset and feature-schema metadata.
 - [ ] Validate all three files with `ggm-eval validate`.
 - [x] Add focused protocol and artifact-manifest unit tests.
 - [ ] Run a bounded export smoke test after a checkpoint is supplied.
-- [ ] Evaluate generated graphs against the frozen held-out test graphs using
+- [x] Evaluate PROTEINS generated graphs against the frozen held-out test using
       `ggm-eval evaluate-trained` when the dataset has bundled encoders;
-      otherwise train matched encoders only on `real_train_graphs.pt`.
-- [ ] Save small JSON/CSV/Markdown summaries under `reports/defog/`.
+      the three bundled GraphCL-GIN seeds. Other supplied datasets remain to be
+      matched to their frozen references and evaluated.
+- [x] Save the PROTEINS JSON/Markdown result under `reports/defog/proteins/`.
 - [x] Confirm that checkpoints, generated graphs, caches, and raw ZIP files are
       not staged in Git. Commit code, configs, tests, documentation, manifests,
       and small reports only.
