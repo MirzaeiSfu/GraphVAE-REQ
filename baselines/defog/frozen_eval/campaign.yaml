@@ -1,0 +1,32 @@
+schema_version: defog-worker-campaign-v1
+defog_commit: c631697b9cd5a2474d22ba12de33943c6b49e53e
+
+# These are DeFoG's model-specific schedules. Split, generation, and evaluator
+# settings are taken only from manifest.yaml. The topology jobs use batch size
+# one because the native GRID batch size four exceeds 11 GiB at 323 nodes.
+datasets:
+  MUTAG:
+    experiment: mutag
+    epochs: 20000
+    batch_size: 131
+    validate_every_epochs: 1000
+  PROTEINS:
+    experiment: proteins
+    epochs: 1307
+    batch_size: 16
+    validate_every_epochs: 22
+  GRID:
+    experiment: grid
+    epochs: 10000
+    batch_size: 1
+    validate_every_epochs: 500
+  LOBSTER:
+    experiment: tree
+    epochs: 1000
+    batch_size: 4
+    validate_every_epochs: 200
+  TRIANGULAR_GRID:
+    experiment: grid
+    epochs: 10000
+    batch_size: 1
+    validate_every_epochs: 500
