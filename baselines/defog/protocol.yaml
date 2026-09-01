@@ -1,0 +1,91 @@
+protocol_version: 1
+name: proteins-defog-graphvae-v1
+
+repositories:
+  graphvae:
+    required_ancestor: bc5c5779fa8c8e80fccbe72f6c69b37c7c99749f
+    files:
+      - path: configs/cluster_tests/proteins_table2_00_graphvae.yaml
+        sha256: 136d30c0aad6dbb752c488c4a4532d5b63364d003a8dfc8d63c8402a1f6b3293
+      - path: graph_evaluation/src/ggm_eval/trained_models/manifest.json
+        sha256: 0fda8c11a9f7e4a27cc65a6ce3728c366ff13a280c3dc926b7bb127ab78dd784
+  defog:
+    url: https://github.com/MirzaeiSfu/defog
+    upstream_url: https://github.com/manuelmlmadeira/DeFoG
+    required_head: 474f9405bdcdddc2d96cfedc3305172dffbe8fbd
+    branch: graphvae-evaluation
+    files:
+      - path: configs/dataset/proteins.yaml
+        sha256: 8b20156f2aebeb98657711585f9a885bb0b9985dae0b5eff83f7f54ac8c946bf
+      - path: configs/experiment/proteins.yaml
+        sha256: 9f7a495966b69c161fd0565cfb04792d536b8b5e8f42b640ea2b4b1a55ffd313
+      - path: src/datasets/proteins_dataset.py
+        sha256: a266453bb900d1f06e99b9794714a3735118f58a16ff5fece6ca8c26199d99d8
+
+dataset:
+  name: PROTEINS
+  source: dgl.data.GINDataset
+  source_name: PROTEINS
+  total_graphs_after_filter: 1045
+  max_nodes_exclusive: 100
+  feature_schema: default|export=decoded_node
+  node_feature_dim: 3
+  edge_feature_dim: 0
+
+split:
+  algorithm: python_random.Random.shuffle
+  seed: 123
+  train_fraction: 0.7
+  validation_fraction: 0.1
+  test_fraction: 0.2
+  counts:
+    train: 731
+    validation: 104
+    test: 210
+  index_sha256: d924d80e676c0118be4d5915feacab652528fc6dce60e8350de0267b6dfcce0f
+
+generation:
+  graph_count: 210
+  seed: 12345
+  invalid_graph_policy: reject
+
+normalization:
+  connected_components: deterministic_largest_component
+  self_loops: reject
+  duplicate_directed_edges: reject
+  undirected_edges: require_both_directions
+
+checkpoint_selection:
+  split: validation
+  held_out_test_access: forbidden
+
+evaluation:
+  command: ggm-eval evaluate-trained
+  dataset: PROTEINS
+  encoder: graphcl_gin
+  encoder_seeds: [0, 1, 2]
+  max_graphs: 210
+  feature_mode: decoded_node
+  feature_schema: default|export=decoded_node
+
+native_configs:
+  graphvae:
+    path: configs/cluster_tests/proteins_table2_00_graphvae.yaml
+    expected:
+      data.dataset: PROTEINS
+      data.use_feature: true
+      data.split_mode: paper_70_10_20
+      data.split_seed: 123
+      data.train_fraction: 0.7
+      data.val_fraction: 0.1
+  defog_dataset:
+    path: configs/dataset/proteins.yaml
+    expected:
+      name: proteins
+      datadir: data/proteins/
+  defog_experiment:
+    path: configs/experiment/proteins.yaml
+    expected:
+      general.final_model_samples_to_generate: 210
+      train.n_epochs: 1307
+      train.batch_size: 16

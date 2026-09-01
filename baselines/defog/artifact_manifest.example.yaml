@@ -1,0 +1,30 @@
+protocol: baselines/defog/protocol.yaml
+protocol_name: proteins-defog-graphvae-v1
+
+defog:
+  repository: https://github.com/MirzaeiSfu/defog
+  commit: 474f9405bdcdddc2d96cfedc3305172dffbe8fbd
+  checkpoint_path: /absolute/path/to/checkpoint.ckpt
+  checkpoint_sha256: REPLACE_ME
+
+generation:
+  seed: 12345
+  graph_count: 210
+  command: REPLACE_ME
+  generated_path: runs/defog/proteins/generated_graphs.pt
+  generated_collection_sha256: REPLACE_ME
+
+reference:
+  path: runs/defog/proteins/real_test_graphs.pt
+  collection_sha256: REPLACE_ME
+
+runtime:
+  hostname: REPLACE_ME
+  python: REPLACE_ME
+  pytorch: REPLACE_ME
+  torch_geometric: REPLACE_ME
+  cuda: REPLACE_ME
+
+evaluation:
+  command: REPLACE_ME
+  report_directory: reports/defog/proteins
