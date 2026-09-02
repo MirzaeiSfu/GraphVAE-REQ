@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 from loss_weight_utils import apply_kia_bce_kl_weights
@@ -118,3 +119,35 @@ def test_aids_kia_generation_stability_command_is_validation_only_and_exact():
         (1.0, 0.1),
         (0.1, 1.0),
     }
+
+
+def test_aids_kia_generation_stability_trial_number_disambiguates_reused_worker(
+    tmp_path,
+):
+    study_root = tmp_path / "study"
+    for trial_number in (1, 2):
+        trial_root = study_root / "trials" / f"trial_{trial_number:05d}"
+        trial_root.mkdir(parents=True)
+        (trial_root / "trial_result.json").write_text(
+            json.dumps(
+                {
+                    "worker_id": "reused-worker",
+                    "trial_number": trial_number,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    with pytest.raises(stability.StabilityError, match="found 2"):
+        stability._validate_trial(
+            study_root, worker_id="reused-worker", physical_gpu=0
+        )
+
+    with pytest.raises(stability.StabilityError) as selected:
+        stability._validate_trial(
+            study_root,
+            worker_id="reused-worker",
+            physical_gpu=0,
+            trial_number=2,
+        )
+    assert "found 1" not in str(selected.value)

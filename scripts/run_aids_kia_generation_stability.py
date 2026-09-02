@@ -10,7 +10,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 import yaml
 
@@ -71,15 +71,23 @@ def _validate_trial(
     *,
     worker_id: str,
     physical_gpu: int,
+    trial_number: Optional[int] = None,
 ) -> tuple[dict[str, Any], Path, Path, Path]:
     matches = []
     for path in sorted((study_root / "trials").glob("trial_*/trial_result.json")):
         payload = _load_json(path)
-        if payload.get("worker_id") == worker_id:
+        if payload.get("worker_id") == worker_id and (
+            trial_number is None or payload.get("trial_number") == trial_number
+        ):
             matches.append((payload, path.parent))
     if len(matches) != 1:
+        selector = (
+            f"worker {worker_id} and trial {trial_number}"
+            if trial_number is not None
+            else f"worker {worker_id}"
+        )
         raise StabilityError(
-            f"Expected exactly one completed trial for {worker_id}, found {len(matches)}."
+            f"Expected exactly one completed trial for {selector}, found {len(matches)}."
         )
     result, trial_root = matches[0]
     exact = {
@@ -228,6 +236,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         study_root,
         worker_id=args.worker_id,
         physical_gpu=args.physical_gpu,
+        trial_number=args.trial_number,
     )
     config_path = _within(study_root, str(result["resolved_config"]))
     records = []
@@ -292,6 +301,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--study-root", type=Path, required=True)
     parser.add_argument("--worker-id", required=True)
+    parser.add_argument(
+        "--trial-number",
+        type=int,
+        help="Select one exact trial when a worker slot completed more than one reservation.",
+    )
     parser.add_argument("--physical-gpu", type=int, required=True)
     parser.add_argument("--python-bin", type=Path, required=True)
     parser.add_argument("--generation-seeds", type=int, nargs="+", default=[124, 125])
