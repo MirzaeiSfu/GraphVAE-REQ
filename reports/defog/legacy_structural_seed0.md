@@ -33,6 +33,35 @@ saved DeFoG collection has 19.589744, an absolute difference of 0.538462.
 The historical GraphVAE table reports edge-count errors of 2.786, 3.889, and
 4.470 for motif=False, true-total, and true-full respectively.
 
+## Local Random-GIN comparison to best motif=True
+
+The main GraphVAE report's approximately 0.91 MUTAG and 0.96 PROTEINS F1-PR
+values are from its `Local F1-PR` rows, not its third-party rows. DeFoG was
+therefore also evaluated through the unchanged local `stat_rnn.py` path. That
+path supplies no node attributes, adds self-loops, and lets the vendored GIN
+fall back to degree features.
+
+| Dataset | Metric | Better | DeFoG seed 0 | Best GraphVAE motif=True | GraphVAE representation |
+| --- | --- | :---: | ---: | ---: | --- |
+| MUTAG | Local MMD-RBF | down | **0.046335 +/- 0.005282** | 0.134325 +/- 0.054234 | total |
+| MUTAG | Local precision | up | **0.974359 +/- 0.032434** | 0.859829 +/- 0.038830 | full |
+| MUTAG | Local recall | up | **0.989744 +/- 0.012561** | 0.988034 +/- 0.012906 | full |
+| MUTAG | Local F1-PR | up | **0.981787 +/- 0.020333** | 0.916584 +/- 0.023495 | full |
+| PROTEINS | Local MMD-RBF | down | **0.023581 +/- 0.003290** | 0.0765 +/- 0.0329 | full |
+| PROTEINS | Local precision | up | **0.994286 +/- 0.004151** | 0.9668 +/- 0.0101 | full |
+| PROTEINS | Local recall | up | 0.953810 +/- 0.012243 | **0.9595 +/- 0.0382** | total |
+| PROTEINS | Local F1-PR | up | **0.973604 +/- 0.007438** | 0.9604 +/- 0.0192 | total |
+
+On this preview, DeFoG improves MUTAG F1-PR by about 7.1% and PROTEINS F1-PR
+by about 1.4% relative to the best motif=True mean. It also has substantially
+lower local MMD-RBF. GraphVAE true-total retains a small PROTEINS recall
+advantage of roughly 0.006 absolute.
+
+The DeFoG `+/-` values in this table measure variation across its 10 evaluator
+initializations. The GraphVAE `+/-` values are sample SD across three training
+seeds after evaluation within each seed; they are not the same uncertainty
+quantity.
+
 ## Comparability limits
 
 - MUTAG DeFoG uses the same 39-graph, 20.128-edge reference as the GraphVAE
@@ -52,6 +81,11 @@ The historical GraphVAE table reports edge-count errors of 2.786, 3.889, and
 The unchanged `scripts/evaluate_graph_realism_batch.py` was run on GPU with
 `--repeats 10 --seed 0 --max-graphs 1000`. Raw ignored artifacts and JSON are
 under `runs/defog/structural_preview/`.
+
+The matching local comparison used `stat_rnn.ggm_gnn_quality_stats` with 10
+GIN initializations and deterministic base seed 0. Its raw ignored results are
+`mutag/local_random_gin.json` and `proteins/local_random_gin.json` in the same
+artifact directory.
 
 Source collection identities are recorded in
 `reports/defog/artifact_inventory.yaml`. The topology-only NumPy conversion
