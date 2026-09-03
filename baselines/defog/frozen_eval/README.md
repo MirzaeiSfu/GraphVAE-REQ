@@ -67,8 +67,9 @@ python baselines/defog/frozen_eval/run_defog_job.py \
   --python /path/to/defog-environment/bin/python
 ```
 
-Each worker writes `job_record.json`. A job is usable only when that record
-has `status: complete` and the generated collection passes the strict
+Each worker writes `job_record.json` and preserves both
+`best_validation.ckpt` and `final_epoch.ckpt`. A job is usable only when that
+record has `status: complete` and the generated collection passes the strict
 campaign verifier. Worker allocation and GPU identity do not change any
 scientific parameter.
 

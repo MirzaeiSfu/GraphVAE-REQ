@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from baselines.defog.frozen_eval.aggregate import aggregate_dataset
-from baselines.defog.frozen_eval.run_defog_job import quoted_override
+from baselines.defog.frozen_eval.run_defog_job import quoted_override, train
 from baselines.defog.frozen_eval.verify_campaign import load_yaml
 
 
@@ -39,6 +39,31 @@ def test_campaign_has_a_schedule_for_every_frozen_dataset():
     assert quoted_override("dataset.feature_schema", "a|export=b") == (
         'dataset.feature_schema="a|export=b"'
     )
+
+
+def test_train_preserves_best_and_final_checkpoints(tmp_path, monkeypatch):
+    def fake_run_command(command, *, cwd, env):
+        checkpoint_dir = tmp_path / "job" / "training" / "checkpoints" / "run"
+        checkpoint_dir.mkdir(parents=True)
+        (checkpoint_dir / "best-00001-1.000000.ckpt").write_bytes(b"best")
+        (checkpoint_dir / "last.ckpt").write_bytes(b"final")
+
+    monkeypatch.setattr(
+        "baselines.defog.frozen_eval.run_defog_job.run_command", fake_run_command
+    )
+    job_root = tmp_path / "job"
+    best, final = train(
+        python=Path("/usr/bin/python3"),
+        defog_root=tmp_path,
+        job_root=job_root,
+        overrides=[],
+        schedule={"epochs": 1, "validate_every_epochs": 1},
+    )
+
+    assert best.read_bytes() == b"best"
+    assert final.read_bytes() == b"final"
+    assert (job_root / "best_validation.ckpt").resolve() == best
+    assert (job_root / "final_epoch.ckpt").resolve() == final
 
 
 def test_manifest_records_proteins_rejections_and_feature_contract():

@@ -75,7 +75,7 @@ def common_overrides(
 def train(
     *, python: Path, defog_root: Path, job_root: Path, overrides: list[str],
     schedule: dict,
-) -> Path:
+) -> tuple[Path, Path]:
     training_dir = job_root / "training"
     seed_name = job_root.name[len("seed_") :] if job_root.name.startswith("seed_") else job_root.name
     name = f"frozen_{job_root.parent.name}_seed_{seed_name}"
@@ -98,11 +98,22 @@ def train(
         raise RuntimeError(
             f"Expected exactly one best-validation checkpoint, found {checkpoints}"
         )
-    alias = job_root / "best_validation.ckpt"
-    if alias.exists() or alias.is_symlink():
-        alias.unlink()
-    alias.symlink_to(checkpoints[0].resolve())
-    return checkpoints[0].resolve()
+    final_checkpoints = sorted(training_dir.glob("checkpoints/*/last.ckpt"))
+    if len(final_checkpoints) != 1:
+        raise RuntimeError(
+            f"Expected exactly one final-epoch checkpoint, found {final_checkpoints}"
+        )
+    checkpoint = checkpoints[0].resolve()
+    final_checkpoint = final_checkpoints[0].resolve()
+    for alias_name, target in (
+        ("best_validation.ckpt", checkpoint),
+        ("final_epoch.ckpt", final_checkpoint),
+    ):
+        alias = job_root / alias_name
+        if alias.exists() or alias.is_symlink():
+            alias.unlink()
+        alias.symlink_to(target)
+    return checkpoint, final_checkpoint
 
 
 def generate(
@@ -199,8 +210,9 @@ def main() -> None:
     record_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     try:
         checkpoint = None if args.checkpoint is None else args.checkpoint.expanduser().resolve()
+        final_checkpoint = None
         if args.stage in ("all", "train"):
-            checkpoint = train(
+            checkpoint, final_checkpoint = train(
                 python=args.python.expanduser().resolve(),
                 defog_root=defog_root,
                 job_root=job_root,
@@ -241,6 +253,12 @@ def main() -> None:
             record["generated"] = verified
         record["checkpoint"] = str(checkpoint) if checkpoint else None
         record["checkpoint_sha256"] = sha256_file(checkpoint) if checkpoint else None
+        record["final_checkpoint"] = (
+            str(final_checkpoint) if final_checkpoint else None
+        )
+        record["final_checkpoint_sha256"] = (
+            sha256_file(final_checkpoint) if final_checkpoint else None
+        )
         record["status"] = "complete"
     except Exception as exc:
         record["status"] = "failed"
