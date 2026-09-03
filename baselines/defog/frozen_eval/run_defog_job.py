@@ -42,6 +42,11 @@ def quoted_override(key: str, value: str) -> str:
     return f"{key}={json.dumps(value)}"
 
 
+def executable_path(path: Path) -> Path:
+    """Return an absolute executable path without dereferencing venv symlinks."""
+    return Path(os.path.abspath(path.expanduser()))
+
+
 def run_command(command: list[str], *, cwd: Path, env: dict) -> None:
     print("COMMAND", json.dumps(command), flush=True)
     subprocess.run(command, cwd=cwd, env=env, check=True)
@@ -213,7 +218,7 @@ def main() -> None:
         final_checkpoint = None
         if args.stage in ("all", "train"):
             checkpoint, final_checkpoint = train(
-                python=args.python.expanduser().resolve(),
+                python=executable_path(args.python),
                 defog_root=defog_root,
                 job_root=job_root,
                 overrides=overrides,
@@ -226,7 +231,7 @@ def main() -> None:
                     raise RuntimeError("Generation requires --checkpoint or a completed train stage")
                 checkpoint = alias.resolve()
             generated = generate(
-                python=args.python.expanduser().resolve(),
+                python=executable_path(args.python),
                 defog_root=defog_root,
                 job_root=job_root,
                 overrides=overrides,

@@ -4,7 +4,11 @@ from pathlib import Path
 import pytest
 
 from baselines.defog.frozen_eval.aggregate import aggregate_dataset
-from baselines.defog.frozen_eval.run_defog_job import quoted_override, train
+from baselines.defog.frozen_eval.run_defog_job import (
+    executable_path,
+    quoted_override,
+    train,
+)
 from baselines.defog.frozen_eval.verify_campaign import load_yaml
 
 
@@ -64,6 +68,16 @@ def test_train_preserves_best_and_final_checkpoints(tmp_path, monkeypatch):
     assert final.read_bytes() == b"final"
     assert (job_root / "best_validation.ckpt").resolve() == best
     assert (job_root / "final_epoch.ckpt").resolve() == final
+
+
+def test_executable_path_keeps_virtual_environment_symlink(tmp_path):
+    interpreter = tmp_path / "base-python"
+    interpreter.touch()
+    venv_python = tmp_path / "venv-python"
+    venv_python.symlink_to(interpreter)
+
+    assert executable_path(venv_python) == venv_python.absolute()
+    assert executable_path(venv_python) != venv_python.resolve()
 
 
 def test_manifest_records_proteins_rejections_and_feature_contract():
