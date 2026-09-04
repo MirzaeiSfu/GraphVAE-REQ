@@ -25,6 +25,7 @@ export PATH="$ENV_DIR/bin:$PATH"
 export PYTHONPATH="$REPO/vendor/python:${PYTHONPATH:-}"
 export DGL_DOWNLOAD_DIR="$REPO/.dgl_cache"
 export PYTHONUNBUFFERED=1
+export PYTHONDONTWRITEBYTECODE=1
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
@@ -99,6 +100,8 @@ run_attempt() {
     --motif_prune_max_values_per_rule "$cap" \
     --motif_prune_score_threshold "$threshold" \
     --motif_batch_size "$mbatch" \
+    --checkpoint_interval_epochs 1000 \
+    --resume_from_latest_checkpoint true \
     --graph_save_path "$run_dir" \
     --run_label "ptc-aids-motif-${DATASET}-${MODE}-m${MOTIF_WEIGHT}-s${SEED}" \
     "${data_args[@]}" \

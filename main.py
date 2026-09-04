@@ -463,6 +463,93 @@ def write_best_validation_mmd_metadata(metadata_path, metadata):
     write_json_file(metadata_path, metadata)
 
 
+def find_latest_training_state_checkpoint(run_dir):
+    run_dir = Path(run_dir)
+    candidates = list(run_dir.glob("training_state_epoch_*.pt"))
+    if not candidates:
+        return None
+
+    def checkpoint_sort_key(path):
+        match = re.search(r"training_state_epoch_(\d+)\.pt$", path.name)
+        epoch = int(match.group(1)) if match else -1
+        return (epoch, path.stat().st_mtime)
+
+    return max(candidates, key=checkpoint_sort_key)
+
+
+def optimizer_to_device(optimizer, device):
+    for state in optimizer.state.values():
+        for key, value in state.items():
+            if torch.is_tensor(value):
+                state[key] = value.to(device)
+
+
+def get_training_rng_state():
+    rng_state = {
+        "python": random.getstate(),
+        "numpy": np.random.get_state(),
+        "torch": torch.get_rng_state(),
+    }
+    if torch.cuda.is_available():
+        rng_state["cuda"] = torch.cuda.get_rng_state_all()
+    return rng_state
+
+
+def restore_training_rng_state(rng_state):
+    if not rng_state:
+        return
+    if "python" in rng_state:
+        random.setstate(rng_state["python"])
+    if "numpy" in rng_state:
+        np.random.set_state(rng_state["numpy"])
+    if "torch" in rng_state:
+        torch.set_rng_state(rng_state["torch"])
+    cuda_state = rng_state.get("cuda")
+    if cuda_state is not None and torch.cuda.is_available():
+        if len(cuda_state) == torch.cuda.device_count():
+            torch.cuda.set_rng_state_all(cuda_state)
+        elif len(cuda_state) > 0:
+            torch.cuda.set_rng_state(cuda_state[0])
+
+
+def save_training_state_checkpoint(
+    checkpoint_path,
+    model,
+    optimizer,
+    epoch,
+    batch,
+    step,
+    min_loss,
+    adaptive_motif_temperature,
+    best_validation_mmd_score,
+    best_validation_mmd_metadata,
+    list_graphs,
+):
+    checkpoint_path = Path(checkpoint_path)
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "format_version": 1,
+        "epoch": int(epoch),
+        "epoch_1_based": int(epoch + 1),
+        "next_epoch": int(epoch + 1),
+        "batch": int(batch),
+        "step": int(step),
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "min_loss": float(min_loss),
+        "adaptive_motif_temperature": float(adaptive_motif_temperature),
+        "best_validation_mmd_score": float(best_validation_mmd_score),
+        "best_validation_mmd_metadata": best_validation_mmd_metadata,
+        "rng_state": get_training_rng_state(),
+    }
+    if hasattr(list_graphs, "get_order_ids"):
+        payload["list_graphs_order_ids"] = list_graphs.get_order_ids()
+
+    tmp_path = checkpoint_path.with_name(checkpoint_path.name + ".tmp")
+    torch.save(payload, str(tmp_path))
+    os.replace(str(tmp_path), str(checkpoint_path))
+
+
 def table2_metrics_from_parsed(metrics):
     return {
         metric_name: metrics.get(metric_name)
@@ -1449,6 +1536,16 @@ parser.add_argument(
     help='Save a model state_dict every N epochs; set to 0 to disable periodic epoch checkpoints.'
 )
 parser.add_argument(
+    '--resume_from_latest_checkpoint',
+    default=False,
+    type=str2bool,
+    help=(
+        'Resume training from the latest full training-state checkpoint in '
+        'graph_save_path, restoring model, optimizer, RNG state, epoch, and '
+        'dataset order.'
+    ),
+)
+parser.add_argument(
     '--third_party_eval',
     default=True,
     type=str2bool,
@@ -1763,6 +1860,7 @@ keep_best_validation_mmd = args.keep_best_validation_mmd
 best_validation_mmd_metric = args.best_validation_mmd_metric
 save_validation_checkpoints = args.save_validation_checkpoints
 checkpoint_interval_epochs = max(0, int(args.checkpoint_interval_epochs))
+resume_from_latest_checkpoint = args.resume_from_latest_checkpoint
 third_party_eval = args.third_party_eval
 skip_final_evaluation = args.skip_final_evaluation
 interactive = args.interactive
@@ -1847,12 +1945,21 @@ best_validation_mmd_model_path = graph_save_dir / "best_validation_mmd_model"
 best_validation_mmd_metadata_path = graph_save_dir / "best_validation_mmd.json"
 best_validation_mmd_score = float("inf")
 best_validation_mmd_metadata = None
+resume_checkpoint_path = (
+    find_latest_training_state_checkpoint(graph_save_dir)
+    if resume_from_latest_checkpoint
+    else None
+)
 write_run_reproducibility_files(graph_save_dir, args, run_label)
 
 # maybe to the beest way
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
-logging.basicConfig(filename=str(run_log_path), filemode='w', level=logging.INFO)
+logging.basicConfig(
+    filename=str(run_log_path),
+    filemode=('a' if resume_checkpoint_path is not None else 'w'),
+    level=logging.INFO,
+)
 
 # **********************************************************************
 # setting; general setting and hyper-parameters for each dataset
@@ -3371,16 +3478,62 @@ num_nodes = list_graphs.max_num_nodes
 
 # target_kelrnel_val = kernel_model(target_adj)
 
-if not tiny_overfit:
-    list_graphs.shuffle()
 start = timeit.default_timer()
 # Parameters
 step = 0
 swith = False
-print(model)
-logging.info(model.__str__())
 min_loss = float('inf')
 adaptive_motif_temperature = motif_temperature_start
+start_epoch = 0
+
+if resume_checkpoint_path is not None:
+    training_state = torch.load(str(resume_checkpoint_path), map_location="cpu")
+    model.load_state_dict(training_state["model_state_dict"])
+    optimizer.load_state_dict(training_state["optimizer_state_dict"])
+    optimizer_to_device(optimizer, device)
+    step = int(training_state.get("step", 0))
+    min_loss = float(training_state.get("min_loss", min_loss))
+    adaptive_motif_temperature = float(
+        training_state.get(
+            "adaptive_motif_temperature",
+            adaptive_motif_temperature,
+        )
+    )
+    best_validation_mmd_score = float(
+        training_state.get("best_validation_mmd_score", best_validation_mmd_score)
+    )
+    best_validation_mmd_metadata = training_state.get(
+        "best_validation_mmd_metadata",
+        best_validation_mmd_metadata,
+    )
+    saved_order_ids = training_state.get("list_graphs_order_ids")
+    if saved_order_ids is not None and hasattr(list_graphs, "restore_order_ids"):
+        list_graphs.restore_order_ids(saved_order_ids)
+    restore_training_rng_state(training_state.get("rng_state"))
+    start_epoch = int(
+        training_state.get(
+            "next_epoch",
+            int(training_state.get("epoch", -1)) + 1,
+        )
+    )
+    resume_message = (
+        f"Resumed training from {resume_checkpoint_path} "
+        f"at epoch {start_epoch + 1} of {epoch_number}; step={step}"
+    )
+    print(resume_message)
+    logging.info(resume_message)
+elif resume_from_latest_checkpoint:
+    resume_message = (
+        f"No full training-state checkpoint found in {graph_save_dir}; "
+        "starting from scratch."
+    )
+    print(resume_message)
+    logging.info(resume_message)
+
+if not tiny_overfit and start_epoch == 0:
+    list_graphs.shuffle()
+print(model)
+logging.info(model.__str__())
 
 
 # 50%50 Evaluation
@@ -3401,7 +3554,9 @@ if load_model == True:  # I used this in line code to load a model #TODO: fix it
 #=========================================================================================
 # %% Training loop
 #region Training loop
-for epoch in range(epoch_number):
+epoch = start_epoch - 1
+batch = 0
+for epoch in range(start_epoch, epoch_number):
 
     if not tiny_overfit:
         list_graphs.shuffle()
@@ -3954,8 +4109,25 @@ for epoch in range(epoch_number):
     ):
         periodic_checkpoint_path = graph_save_dir / f"periodic_epoch_{epoch + 1:05d}.pt"
         torch.save(model.state_dict(), str(periodic_checkpoint_path))
+        training_state_checkpoint_path = (
+            graph_save_dir / f"training_state_epoch_{epoch + 1:05d}.pt"
+        )
+        save_training_state_checkpoint(
+            training_state_checkpoint_path,
+            model,
+            optimizer,
+            epoch,
+            batch,
+            step,
+            min_loss,
+            adaptive_motif_temperature,
+            best_validation_mmd_score,
+            best_validation_mmd_metadata,
+            list_graphs,
+        )
         periodic_checkpoint_message = (
-            f"Saved periodic epoch checkpoint: {periodic_checkpoint_path}"
+            "Saved periodic epoch checkpoints: "
+            f"{periodic_checkpoint_path}, {training_state_checkpoint_path}"
         )
         print(periodic_checkpoint_message)
         logging.info(periodic_checkpoint_message)
