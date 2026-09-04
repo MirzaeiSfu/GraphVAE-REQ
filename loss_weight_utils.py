@@ -1,6 +1,8 @@
 """Loss-weight compatibility helpers for the original GraphVAE-MM setup."""
 
 KIA_GRAPHVAE_MM_BCE_KL_BY_DATASET = {
+    "MUTAG": (4.0, 60.0),
+    "PROTEINS": (50.0, 2000.0),
     "GRID": (50.0, 2000.0),
     "TRIANGULAR_GRID": (50.0, 2000.0),
     "LOBSTER": (40.0, 2000.0),

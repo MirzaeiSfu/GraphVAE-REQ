@@ -441,7 +441,8 @@ class RelationalMotifCounter:
                 2.0 * local_mult * (math.log(cp_value) - math.log(prior_value))
                 - math.log(local_mult)
             )
-            if score > 0.0:
+            threshold = float(getattr(self.args, "motif_prune_score_threshold", 0.0) or 0.0)
+            if score > threshold:
                 scored_rows.append((score, row))
 
         max_values = getattr(self.args, "motif_prune_max_values_per_rule", None)
@@ -509,7 +510,8 @@ class RelationalMotifCounter:
         print(
             "  cp_smoothed data-driven pruning: "
             f"{pruned_count} / {full_count} combinations kept after "
-            "local_mult, CP, and prior derivation"
+            "local_mult, CP, and prior derivation "
+            f"(score_threshold={float(getattr(self.args, 'motif_prune_score_threshold', 0.0) or 0.0)})"
         )
         return {
             "full_combinations": full_count,

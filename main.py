@@ -1245,6 +1245,15 @@ parser.add_argument(
     )
 )
 parser.add_argument(
+    '--motif_prune_score_threshold',
+    type=float,
+    default=0.0,
+    help=(
+        'Minimum pruning score for rule-pruned motif rows. '
+        'Default 0.0 preserves the original score > 0 behavior.'
+    )
+)
+parser.add_argument(
     '--motif_batch_size',
     type=int,
     dest="motif_batch_size",
@@ -2751,7 +2760,7 @@ dataset_cache_metadata = build_dataset_cache_metadata(
             if dataset.upper() in {"AIDS", "ENZYMES", "ENZYMEZ"}
             else (
                 "gin-node-label-v2"
-                if dataset.upper() in {"MUTAG", "PTC"}
+                if dataset.upper() in {"MUTAG", "PTC", "AIDS"}
                 else "default"
             )
         )
@@ -2869,7 +2878,7 @@ else:
         # so held-out feature tensors always fit without changing legacy runs.
         max_size = (
             max(int(adjacency.shape[0]) for adjacency in list_adj)
-            if dataset.upper() in {"MUTAG", "PTC"}
+            if dataset.upper() in {"MUTAG", "PTC", "AIDS"}
             else None
         )
         # list_label = None
