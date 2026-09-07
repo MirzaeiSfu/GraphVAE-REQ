@@ -151,3 +151,23 @@ def test_aids_kia_generation_stability_trial_number_disambiguates_reused_worker(
             trial_number=2,
         )
     assert "found 1" not in str(selected.value)
+
+
+def test_aids_kia_completion_rejects_kia_scaling_without_test_access():
+    completion = _json("aids_kia_bce_kl_comparison_completion.json")
+    assert completion["completed"] is True
+    assert completion["lifecycle"] == "FROZEN"
+    assert completion["selection_split"] == "validation"
+    assert completion["test_access"] is False
+    assert completion["held_out_access"] is False
+    assert completion["objective_json_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert completion["uniform_reuse"]["mean_f1_pr"] == 0.6893517469765996
+    assert completion["decision"]["outcome"] == "no_improvement"
+    assert completion["decision"]["promotion_allowed"] is False
+    assert completion["decision"]["best_candidate_minus_uniform"] < -0.689
+    assert completion["integrity"]["reserved_trials"] == 3
+    assert completion["integrity"]["complete_trials"] == 3
+    assert completion["integrity"]["failed_trials"] == 0
+    assert completion["integrity"]["portable_restore_aggregate_outputs_match"] is True
