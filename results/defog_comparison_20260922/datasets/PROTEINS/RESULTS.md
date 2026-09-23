@@ -1,5 +1,26 @@
 # PROTEINS complete verified report: best Motif=True versus Motif=False versus DeFoG
 
+## Corrected independent-seed update (2026-09-23)
+
+This section supersedes the structural and RandomGIN tables below. It replaces the duplicated historical DeFoG generations with independent corrected outputs. Every method uses the same serialized 209-graph reference and 209 generated graphs per seed. RandomGIN uses 10 evaluator seeds; only topology-control and decoded-node modes are reported because the archived collections do not provide compatible native edge attributes.
+
+| Method | Degree MMD | Clustering MMD | Orbit MMD | Spectral MMD | Diameter MMD | Triangle MMD | Sparsity MMD | Mean-edge error |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Motif=False | 0.043587 | 0.029191 | 0.024905 | 0.022455 | 0.046686 | 1.146e-4 | 3.310e-9 | 13.199 |
+| Motif=True full, alpha 0.03 | 0.023801 | 0.023050 | **0.003685** | 0.012978 | **0.023753** | **3.192e-5** | 1.451e-7 | 14.101 |
+| Corrected DeFoG | **0.014637** | **0.018399** | 0.040145 | **0.007790** | 0.024753 | 7.700e-5 | **2.926e-9** | **4.203** |
+
+| Mode | Method | F1-PR | Precision | Recall | MMD-RBF |
+|---|---|---:|---:|---:|---:|
+| Topology control | Motif=False | 0.904366 | 0.908772 | 0.901595 | 0.088519 |
+| Topology control | Motif=True full | 0.953490 | 0.939553 | **0.968262** | 0.041992 |
+| Topology control | Corrected DeFoG | **0.967054** | **0.986762** | 0.948485 | **0.033753** |
+| Decoded node | Motif=False | 0.871237 | 0.949442 | 0.806061 | 0.052647 |
+| Decoded node | Motif=True full | 0.932259 | 0.958852 | 0.908293 | 0.025910 |
+| Decoded node | Corrected DeFoG | **0.959695** | **0.978150** | **0.942105** | **0.019958** |
+
+Motif=True topology F1-PR rises from the historical `0.9186` to `0.9535`, but corrected DeFoG remains higher at `0.9671`. Motif=True wins topology recall, orbit MMD, triangle MMD, and slightly diameter MMD. The corrected independent DeFoG outputs remove the earlier duplicate-seed uncertainty.
+
 This 2026-09-17 copy gathers the current completed three-seed campaign. It is
 kept separate from the still-running AIDs and MUTAG campaigns.
 

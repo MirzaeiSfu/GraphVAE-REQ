@@ -1,5 +1,23 @@
 # GRID complete available-results report
 
+## Corrected common-reference update (2026-09-23)
+
+This section supersedes the older structural and RandomGIN tables below. All methods now use the exact same serialized 20-graph reference, equal graph counts, the same structural implementation, and 10 RandomGIN evaluator seeds. DeFoG uses independent seeds 0, 4, and 5.
+
+| Method | Degree MMD | Clustering MMD | Orbit MMD | Spectral MMD | Diameter MMD | Triangle MMD | Sparsity MMD | Mean-edge error |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Motif=False | 0.135944 | 0.120726 | 0.761679 | 0.021480 | 0.207147 | 7.944e-6 | **2.315e-10** | 226.483 |
+| Motif=True full | **0.003347** | **0.002963** | **0.007801** | **0.010271** | **0.127829** | **1.680e-8** | 6.893e-10 | 65.433 |
+| DeFoG | 0.006341 +/- 0.008510 | 0.009601 +/- 0.012100 | 0.018098 +/- 0.018100 | 0.016965 +/- 0.003040 | 0.583752 +/- 0.304000 | 6.999e-8 +/- 8.790e-8 | 3.638e-10 +/- 7.580e-11 | **63.817 +/- 11.000** |
+
+| Method | F1-PR | Precision | Recall | MMD-RBF |
+|---|---:|---:|---:|---:|
+| Motif=False | 0.392779 | 0.341667 | 0.775000 | 0.806865 |
+| Motif=True full | 0.913467 | 0.846667 | 0.996667 | **0.160813** |
+| DeFoG | **0.956353 +/- 0.042200** | **0.928333 +/- 0.063700** | **1.000000** | 0.218746 +/- 0.083200 |
+
+Compared with the earlier two-seed DeFoG table, DeFoG F1-PR rises from `0.900152` to `0.956353`. Motif=True still wins degree, clustering, orbit, spectral, diameter, triangle, and RandomGIN MMD-RBF; DeFoG now wins F1-PR, precision, recall, and mean-edge error.
+
 Updated 2026-09-17 after evaluating replacement DeFoG seed 4.
 
 ## Primary reporting policy and current completeness

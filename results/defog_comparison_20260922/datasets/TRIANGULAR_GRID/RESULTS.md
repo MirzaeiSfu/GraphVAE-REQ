@@ -1,5 +1,23 @@
 # TRIANGULAR_GRID complete available-results report
 
+## Corrected common-reference update (2026-09-23)
+
+This section supersedes the older structural and RandomGIN tables below. All methods use the exact same serialized 20-graph reference, equal graph counts, one structural implementation, and 10 RandomGIN evaluator seeds. DeFoG uses healthy seeds 0, 1, and 3.
+
+| Method | Degree MMD | Clustering MMD | Orbit MMD | Spectral MMD | Diameter MMD | Triangle MMD | Sparsity MMD | Mean-edge error |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Motif=False | 0.008932 | 0.137583 | 0.077736 | 0.018747 | 0.081433 | 6.223e-5 | 1.494e-9 | 72.717 |
+| Motif=True full | **0.001669** | **0.081536** | **0.013882** | **0.016453** | **0.031367** | **4.134e-7** | **1.291e-9** | 46.750 |
+| DeFoG | 0.013730 +/- 0.009230 | 0.996492 +/- 0.179000 | 0.083866 +/- 0.121000 | 0.030942 +/- 0.003100 | 0.214346 +/- 0.024000 | 4.029e-5 +/- 5.950e-5 | 2.832e-9 +/- 3.310e-9 | **40.767 +/- 15.300** |
+
+| Method | F1-PR | Precision | Recall | MMD-RBF |
+|---|---:|---:|---:|---:|
+| Motif=False | 0.903451 | 0.828333 | **1.000000** | 0.206531 |
+| Motif=True full | **0.927428** | **0.870000** | **1.000000** | **0.181505** |
+| DeFoG | 0.794559 +/- 0.070100 | 0.703333 +/- 0.099300 | **1.000000** | 0.240898 +/- 0.039900 |
+
+DeFoG F1-PR increases from the older `0.637496` result to `0.794559`, but Motif=True remains best on F1-PR, precision, MMD-RBF, and every listed structural MMD. Recall is tied at 1.0; DeFoG wins mean-edge error.
+
 ## Archive status (2026-09-21)
 
 LGD evaluation has been launched on system 09 in tmux `lgd_eval_triangular_s2`.

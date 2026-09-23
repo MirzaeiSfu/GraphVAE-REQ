@@ -11,9 +11,9 @@ This directory is the GitHub-facing snapshot of the verified experiment reports 
 ## Important limitations
 
 - A bold value is not a statistical-significance claim. The reports compare aggregate means and preserve their original seed/protocol qualifications.
-- GRID uses two retained healthy DeFoG seeds. AIDS and corrected MUTAG also have only two usable DeFoG seeds.
-- Some historical MUTAG and PROTEINS DeFoG artifacts are duplicated; their nominal seed SD is not independent-seed uncertainty.
-- OGB has no verified common three-way evaluation. Its attempted multihop BIF is zero bytes and is deliberately excluded.
+- GRID now uses independent DeFoG seeds 0/4/5; AIDS uses independent seeds 3/4/5; TRIANGULAR_GRID uses healthy seeds 0/1/3.
+- Corrected independent PROTEINS DeFoG outputs replace the duplicated historical collections for structural and RandomGIN reporting. Historical duplicated tables remain below the update section for provenance.
+- OGB now has a completed topology-only common terminal-chain evaluation. It must remain separate from the historical GraphVAE final-output table; a controlled final-output three-way reevaluation is still pending. The attempted OGB multihop BIF is zero bytes and is deliberately excluded.
 - LGD is outside this package, as requested.
 
 ## XML coverage

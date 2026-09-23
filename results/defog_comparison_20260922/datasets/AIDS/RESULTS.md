@@ -1,5 +1,27 @@
 # AIDS topology-only report: motif=True full at epoch 10,000 vs motif=False vs DeFoG
 
+## Corrected independent DeFoG update (2026-09-23)
+
+This section supersedes the DeFoG columns below. DeFoG now uses independent seeds 3, 4, and 5, evaluated against the same canonical 400-graph reference with 10 RandomGIN evaluator seeds. The GraphVAE values remain unchanged.
+
+| Method | Degree MMD | Clustering MMD | Orbit MMD | Spectral MMD | Diameter MMD | Triangle MMD | Sparsity MMD | Mean-edge error |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Motif=True full | **0.001448** | 0.064662 | 0.002175 | 0.007434 | 0.040486 | 0.001108 | 3.070e-7 | 109.708 |
+| Corrected DeFoG | 0.003440 +/- 0.003310 | **0.015378 +/- 0.003710** | **0.001459 +/- 0.000136** | **0.004617 +/- 0.001410** | **0.010104 +/- 0.004640** | **3.090e-7** | **5.581e-9** | **2.062 +/- 0.291** |
+
+| RandomGIN mode | Method | F1-PR | Precision | Recall | MMD-RBF |
+|---|---|---:|---:|---:|---:|
+| Topology | Motif=True | 0.893297 | 0.880417 | 0.908917 | **0.003375** |
+| Topology | Corrected DeFoG | **0.928212** | **0.887583** | **0.973250** | 0.029275 |
+| Node | Motif=True | 0.718582 | 0.696250 | 0.746250 | **0.007786** |
+| Node | Corrected DeFoG | **0.902936** | **0.873500** | **0.935250** | 0.016448 |
+| Edge | Motif=True | 0.862670 | 0.840167 | 0.890833 | **0.001140** |
+| Edge | Corrected DeFoG | **0.922816** | **0.877583** | **0.973333** | 0.029580 |
+| Node+edge | Motif=True | 0.718448 | 0.693083 | 0.750833 | **0.004214** |
+| Node+edge | Corrected DeFoG | **0.910587** | **0.888333** | **0.934833** | 0.017807 |
+
+The independent DeFoG means are broadly stable, while MMD-RBF improves substantially relative to the duplicated outputs. Motif=True still wins MMD-RBF in all four feature modes and degree MMD. DeFoG wins all four F1-PR results and most structural metrics.
+
 Generated automatically after evaluation. This is a common-protocol comparison, not a merge of historical evaluator outputs.
 
 ## Common evaluation protocol
