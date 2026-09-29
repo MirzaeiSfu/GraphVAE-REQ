@@ -1,5 +1,7 @@
 # OGBG-MOLBBBP results
 
+> **Protocol note (2026-09-23):** This report contains the historical GraphVAE final-output evaluation. Its Motif=True setting 03 F1-PR of `0.7757` beats the available Motif=False setting 01 value of `0.7259`, although the latter has only two completed seeds. A newer common terminal-chain evaluation reports Motif=True `0.577909`, Motif=False `0.661598`, and DeFoG `0.968970`, but it uses different GraphVAE artifacts (`terminal_chain_binary_matrices.npz`, chain 65) and therefore does not supersede this final-output table. Do not directly compare this report's `0.7757` with DeFoG's `0.968970`. A same-protocol final-output reevaluation is still required; retraining is not required when saved outputs are available.
+
 Collected from completed OGB runs on `cs-cl-17` and the run snapshot transferred to `cs-cl-18`.
 
 - Dataset: `ogbg-molbbbp`

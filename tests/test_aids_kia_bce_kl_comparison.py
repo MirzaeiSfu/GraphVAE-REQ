@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 from loss_weight_utils import apply_kia_bce_kl_weights
@@ -118,3 +119,55 @@ def test_aids_kia_generation_stability_command_is_validation_only_and_exact():
         (1.0, 0.1),
         (0.1, 1.0),
     }
+
+
+def test_aids_kia_generation_stability_trial_number_disambiguates_reused_worker(
+    tmp_path,
+):
+    study_root = tmp_path / "study"
+    for trial_number in (1, 2):
+        trial_root = study_root / "trials" / f"trial_{trial_number:05d}"
+        trial_root.mkdir(parents=True)
+        (trial_root / "trial_result.json").write_text(
+            json.dumps(
+                {
+                    "worker_id": "reused-worker",
+                    "trial_number": trial_number,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    with pytest.raises(stability.StabilityError, match="found 2"):
+        stability._validate_trial(
+            study_root, worker_id="reused-worker", physical_gpu=0
+        )
+
+    with pytest.raises(stability.StabilityError) as selected:
+        stability._validate_trial(
+            study_root,
+            worker_id="reused-worker",
+            physical_gpu=0,
+            trial_number=2,
+        )
+    assert "found 1" not in str(selected.value)
+
+
+def test_aids_kia_completion_rejects_kia_scaling_without_test_access():
+    completion = _json("aids_kia_bce_kl_comparison_completion.json")
+    assert completion["completed"] is True
+    assert completion["lifecycle"] == "FROZEN"
+    assert completion["selection_split"] == "validation"
+    assert completion["test_access"] is False
+    assert completion["held_out_access"] is False
+    assert completion["objective_json_path"] == (
+        "evaluation.modes.decoded_node_edge.summary.f1_pr.mean"
+    )
+    assert completion["uniform_reuse"]["mean_f1_pr"] == 0.6893517469765996
+    assert completion["decision"]["outcome"] == "no_improvement"
+    assert completion["decision"]["promotion_allowed"] is False
+    assert completion["decision"]["best_candidate_minus_uniform"] < -0.689
+    assert completion["integrity"]["reserved_trials"] == 3
+    assert completion["integrity"]["complete_trials"] == 3
+    assert completion["integrity"]["failed_trials"] == 0
+    assert completion["integrity"]["portable_restore_aggregate_outputs_match"] is True

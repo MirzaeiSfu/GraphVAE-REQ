@@ -1,0 +1,72 @@
+{
+  "schema_version": "aids-kia-bce-kl-comparison-completion-v1",
+  "date": "2026-09-06",
+  "completed": true,
+  "study_name": "aids_kia_bce_kl_comparison3_20260830a",
+  "study_contract_sha256": "262ac59a6d3b5ea96b12b4c8e2130ca98f2cca4c3ed14d06cd13de384006da0c",
+  "lifecycle": "FROZEN",
+  "objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+  "selection_split": "validation",
+  "validation_graphs": 184,
+  "test_access": false,
+  "held_out_access": false,
+  "training_seed": 0,
+  "generation_seeds": [123, 124, 125],
+  "evaluator_backend": "random_gin",
+  "evaluator_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009],
+  "statistics_losses_enabled": false,
+  "candidates": [
+    {
+      "trial_number": 0,
+      "vector_in_bce_kl_edge_node_order": [50.0, 2000.0, 1.0, 1.0],
+      "generation_seed_f1_pr": [0.000010999979555973523, 0.000012998299956884851, 0.000010998163379381938],
+      "mean_f1_pr": 0.000011665480964080104,
+      "mean_minus_uniform": -0.6893400814956355
+    },
+    {
+      "trial_number": 1,
+      "vector_in_bce_kl_edge_node_order": [50.0, 2000.0, 0.1, 1.0],
+      "generation_seed_f1_pr": [0.00001, 0.000010999980000399993, 0.000012995088329347614],
+      "mean_f1_pr": 0.000011331689443249202,
+      "mean_minus_uniform": -0.6893404152871564
+    },
+    {
+      "trial_number": 2,
+      "vector_in_bce_kl_edge_node_order": [50.0, 2000.0, 1.0, 0.1],
+      "generation_seed_f1_pr": [0.000011999060846022023, 0.00001, 0.000010999387042613865],
+      "mean_f1_pr": 0.000010999482629545296,
+      "mean_minus_uniform": -0.6893407474939701
+    }
+  ],
+  "uniform_reuse": {
+    "vector_in_bce_kl_edge_node_order": [1.0, 1.0, 1.0, 1.0],
+    "checkpoint_sha256": "d0ba5db16be2a4800675a2aa7b238bc8ae6d8ea02b868afdd509ba8eddca915b",
+    "generation_seed_f1_pr": [0.7139565805957744, 0.6757594593344738, 0.6783392009995507],
+    "mean_f1_pr": 0.6893517469765996,
+    "retrained": false
+  },
+  "decision": {
+    "outcome": "no_improvement",
+    "best_candidate_trial_by_three_seed_mean": 0,
+    "best_candidate_mean_f1_pr": 0.000011665480964080104,
+    "best_candidate_minus_uniform": -0.6893400814956355,
+    "every_candidate_seed_difference_positive": false,
+    "minimum_required_improvement": 0.02,
+    "promotion_allowed": false,
+    "interpretation": "The 50/2000 adjacency-BCE/KL scaling does not improve statistics-free GraphVAE under the practical 250-epoch AIDS contract."
+  },
+  "integrity": {
+    "reserved_trials": 3,
+    "complete_trials": 3,
+    "failed_trials": 0,
+    "replacement_trials": 0,
+    "additional_generation_evaluations": 6,
+    "cache_sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "cache_byte_length": 73822456,
+    "cache_mode": "0444",
+    "snapshot_sha256": "1c42a19ead5dc19180a9ce7d23c9bbdc54303272447ea94c89604edcf3aaa906",
+    "portable_restore_aggregate_outputs_match": true,
+    "credential_scan_matches": 0,
+    "test_or_held_out_true_matches": 0
+  }
+}

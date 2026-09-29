@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BIF VERSION="0.3"  xmlns="http://www.cs.ubc.ca/labs/lci/fopi/ve/XMLBIFv0_3"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://www.cs.ubc.ca/labs/lci/fopi/ve/XMLBIFv0_3 http://www.cs.ubc.ca/labs/lci/fopi/ve/XMLBIFv0_3/XMLBIFv0_3.xsd">
+<NETWORK>
+<NAME>proteins_dir_feat_snap_0094da_multi</NAME>
+<VARIABLE TYPE="nature">
+	<NAME>edges(nodes0,nodes1)</NAME>
+	<OUTCOME>T</OUTCOME>
+	<PROPERTY> position=(6000.0,4000.0)</PROPERTY>
+</VARIABLE>
+<VARIABLE TYPE="nature">
+	<NAME>node_feature(nodes0)</NAME>
+	<OUTCOME>1</OUTCOME>
+	<OUTCOME>2</OUTCOME>
+	<OUTCOME>3</OUTCOME>
+	<PROPERTY> position=(6200.0,4000.0)</PROPERTY>
+</VARIABLE>
+<VARIABLE TYPE="nature">
+	<NAME>node_feature(nodes1)</NAME>
+	<OUTCOME>1</OUTCOME>
+	<OUTCOME>2</OUTCOME>
+	<OUTCOME>3</OUTCOME>
+	<PROPERTY> position=(6400.0,4000.0)</PROPERTY>
+</VARIABLE>
+<VARIABLE TYPE="nature">
+	<NAME>edges(nodes1,nodes2)</NAME>
+	<OUTCOME>T</OUTCOME>
+	<PROPERTY> position=(6000.0,4200.0)</PROPERTY>
+</VARIABLE>
+<VARIABLE TYPE="nature">
+	<NAME>node_feature(nodes2)</NAME>
+	<OUTCOME>1</OUTCOME>
+	<OUTCOME>2</OUTCOME>
+	<OUTCOME>3</OUTCOME>
+	<PROPERTY> position=(6200.0,4200.0)</PROPERTY>
+</VARIABLE>
+<DEFINITION>
+	<FOR>edges(nodes0,nodes1)</FOR>
+	<TABLE> 1.0</TABLE>
+</DEFINITION>
+<DEFINITION>
+	<FOR>node_feature(nodes0)</FOR>
+	<GIVEN>edges(nodes0,nodes1)</GIVEN>
+	<GIVEN>edges(nodes1,nodes2)</GIVEN>
+	<GIVEN>node_feature(nodes1)</GIVEN>
+	<GIVEN>node_feature(nodes2)</GIVEN>
+	<TABLE> 0.781351 0.213381 0.005268 0.472497 0.517961 0.009542 0.176231 0.144148 0.679621 0.54941 0.44416 0.00643 0.208113 0.779681 0.012206 0.097062 0.393248 0.50969 0.490969 0.19692 0.312111 0.191532 0.504177 0.304291 0.210379 0.210878 0.578743</TABLE>
+</DEFINITION>
+<DEFINITION>
+	<FOR>node_feature(nodes1)</FOR>
+	<TABLE> 0.486544 0.481483 0.031973</TABLE>
+</DEFINITION>
+<DEFINITION>
+	<FOR>edges(nodes1,nodes2)</FOR>
+	<TABLE> 1.0</TABLE>
+</DEFINITION>
+<DEFINITION>
+	<FOR>node_feature(nodes2)</FOR>
+	<TABLE> 0.486544 0.481483 0.031973</TABLE>
+</DEFINITION>
+</NETWORK>
+</BIF>

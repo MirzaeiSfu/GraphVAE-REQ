@@ -668,3 +668,24 @@ parameter, limits the search to 15 trials near the current default, uses a
 simple confirmation rule, and stops early when the search signal is weak. This
 is the smallest next experiment that has a reasonable chance of producing a
 more credible answer than the completed LOBSTER and AIDS searches.
+
+## Checkpoint: statistics-free Kiarash-weight transfer test complete
+
+The separate fixed comparison completed on 2026-09-06. It tested
+`[50, 2000, 1, 1]`, `[50, 2000, 0.1, 1]`, and `[50, 2000, 1, 0.1]` in
+`[BCE, KL, edge, node]` order against the byte-identical training-seed-0
+uniform checkpoint. Each checkpoint was evaluated at generation seeds 123,
+124, and 125 with the ten fixed Random-GIN evaluators.
+
+The uniform mean was `0.6893517469765996`. The best Kiarash-style three-seed
+mean was only `0.000011665480964080104`, a difference of
+`-0.6893400814956355`. Every Kiarash-style cell was worse than its matched
+uniform cell, so the outcome is `no_improvement` and no confirmation is
+allowed. This result strengthens the roadmap's decision to search a moderate
+KL neighborhood rather than transferring GraphVAE-MM's `50/2000` scaling into
+statistics-free GraphVAE.
+
+The study consumed exactly three reservations with no failures or
+replacements, remained validation-only, froze successfully, and restored from
+its portable snapshot with matching aggregate hashes. The exact record is
+`configs/bayesian_optimization/aids_kia_bce_kl_comparison_completion.json`.
