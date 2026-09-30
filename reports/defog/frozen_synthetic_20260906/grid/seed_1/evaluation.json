@@ -1,0 +1,233 @@
+{
+  "adapter": "strict-pyg-to-dgl",
+  "campaign": {
+    "aggregation_stage": "within_training_seed",
+    "dataset": "GRID",
+    "evaluator_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "generated_provenance": {
+      "accepted_count": 20,
+      "checkpoint_selection": "best_validation",
+      "checkpoint_sha256": "937f844444ce3e288297f26189bc342cca315a131e249249759a9df598472d13",
+      "dataset": "GRID",
+      "defog_commit": "c631697b9cd5a2474d22ba12de33943c6b49e53e",
+      "feature_mode": "topology_control",
+      "feature_schema": "constant-node|export=topology_control",
+      "generation_attempts": 20,
+      "generation_seed": 12345,
+      "generator": "DeFoG",
+      "rejected_count": 0,
+      "split": "generated",
+      "training_seed": 1
+    },
+    "generation_seed": 12345,
+    "schema_version": "defog-graphvae-frozen-eval-v1",
+    "training_seed": 1
+  },
+  "engine": "legacy-dgl-random-gin",
+  "evaluation": {
+    "base_seed": 0,
+    "feature_dimensions": {
+      "edge": 0,
+      "node": 1
+    },
+    "input_contract": {
+      "edge_features": "edata['attr'] float matrix or absent",
+      "generated_graphs": 20,
+      "graph_type": "DGLGraph",
+      "node_features": "ndata['attr'] float matrix",
+      "pyg_inputs_accepted": false,
+      "reference_graphs": 20
+    },
+    "modes": {
+      "topology_control": {
+        "per_repeat": {
+          "f1_pr": [
+            1.999976471141856e-05,
+            1.9999800003999925e-05,
+            1.9999800003999925e-05,
+            1.9999800003999925e-05,
+            1.999963637685903e-05,
+            1e-05,
+            1.9999800003999925e-05,
+            1.9999800003999925e-05,
+            1.999971429387732e-05,
+            0.17779382702606608
+          ],
+          "mmd_linear": [
+            8698.484375,
+            1199.037841796875,
+            19157.48046875,
+            20981.541015625,
+            1643.2147216796875,
+            163.52159118652344,
+            10965.1494140625,
+            5302.2919921875,
+            779.5576171875,
+            281.08990478515625
+          ],
+          "mmd_rbf": [
+            0.6597431898117065,
+            0.7983845770359039,
+            0.7729690968990326,
+            0.9373241364955902,
+            0.7143304347991943,
+            0.6910091489553452,
+            0.9889493957161903,
+            0.8210905194282532,
+            0.46889662742614746,
+            0.5171046257019043
+          ],
+          "precision": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.1
+          ],
+          "recall": [
+            0.85,
+            1.0,
+            1.0,
+            1.0,
+            0.55,
+            0.0,
+            1.0,
+            1.0,
+            0.7,
+            0.8
+          ]
+        },
+        "summary": {
+          "f1_pr": {
+            "max": 0.17779382702606608,
+            "mean": 0.017796382514146825,
+            "min": 1e-05,
+            "std": 0.05333248158730382
+          },
+          "mmd_linear": {
+            "max": 20981.541015625,
+            "mean": 6917.136894226074,
+            "min": 163.52159118652344,
+            "std": 7467.462975622869
+          },
+          "mmd_rbf": {
+            "max": 0.9889493957161903,
+            "mean": 0.7369801752269268,
+            "min": 0.46889662742614746,
+            "std": 0.156388103042211
+          },
+          "precision": {
+            "max": 0.1,
+            "mean": 0.01,
+            "min": 0.0,
+            "std": 0.030000000000000002
+          },
+          "recall": {
+            "max": 1.0,
+            "mean": 0.79,
+            "min": 0.0,
+            "std": 0.3023243291566195
+          }
+        }
+      }
+    },
+    "nearest_k": 5,
+    "repeats": 10
+  },
+  "generated": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/runs/defog/frozen_eval/grid/generated/seed_1/generated_graphs.pt",
+  "generated_metadata": {
+    "accepted_count": 20,
+    "checkpoint_selection": "best_validation",
+    "checkpoint_sha256": "937f844444ce3e288297f26189bc342cca315a131e249249759a9df598472d13",
+    "dataset": "GRID",
+    "defog_commit": "c631697b9cd5a2474d22ba12de33943c6b49e53e",
+    "feature_mode": "topology_control",
+    "feature_schema": "constant-node|export=topology_control",
+    "generation_attempts": 20,
+    "generation_seed": 12345,
+    "generator": "DeFoG",
+    "rejected_count": 0,
+    "split": "generated",
+    "training_seed": 1
+  },
+  "generated_sha256": "af49d001c10ede37698e43452d8754cf61df3f7be4b5f3b135d9f6739599682f",
+  "legacy_repository": {
+    "checkout": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ",
+    "revision": "87c8167994ae6c868ae97318e1c74ded10ed8905",
+    "worktree_dirty": true
+  },
+  "reference": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/runs/defog/frozen_eval/grid/real_test_graphs.pt",
+  "reference_metadata": {
+    "accepted_source_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "dataset": "GRID",
+    "feature_mode": "topology_control",
+    "feature_schema": "constant-node|export=topology_control",
+    "postprocessing": {
+      "adjacency_threshold": 0.5,
+      "connected_components": "deterministic_largest_component",
+      "empty_graphs": "rejected",
+      "isolated_nodes": "removed",
+      "self_loops": "removed",
+      "symmetry": "logical_or"
+    },
+    "rejected": [],
+    "source_cache_sha256": "7446623693f679de25cf420db9daf32d4104f15769f6aab60037edd725c58239",
+    "source_graph_count": 20,
+    "source_split_fingerprint": "0cbcbcd3bba77d124160ea51395a10f19fde15d3477eadcf23975d30f609423b",
+    "split": "reference",
+    "split_mode": "paper_70_10_20",
+    "split_seed": 123
+  },
+  "reference_sha256": "d6f00e40b315e8556881844897534f515b14ee74e53f6d320e8c80fbd7e32566",
+  "schema_identity": {
+    "dataset": "GRID",
+    "feature_schema": "constant-node|export=topology_control"
+  },
+  "versions": {
+    "adapter": "0.1.0",
+    "dgl": "2.1.0+cu121",
+    "numpy": "1.24.3",
+    "python": "3.8.20",
+    "scikit_learn": "0.23.2",
+    "scipy": "1.10.1",
+    "torch": "2.1.2",
+    "torch_geometric": "2.6.1"
+  }
+}
