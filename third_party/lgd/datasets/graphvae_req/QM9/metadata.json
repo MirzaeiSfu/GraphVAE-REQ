@@ -1,0 +1,30 @@
+{
+  "dataset": "QM9",
+  "edge_feature_dims": [
+    2,
+    4
+  ],
+  "edge_feature_names": [
+    "adjacency",
+    "bond_type"
+  ],
+  "edge_zero_means_absent": true,
+  "exact_frozen_splits": true,
+  "force_undirected": true,
+  "format_version": 1,
+  "node_feature_dims": [
+    5,
+    4
+  ],
+  "node_feature_names": [
+    "atom_type",
+    "num_h"
+  ],
+  "source": "/local-scratch2/mirzaei/qm9_common_eval_20260917/cache/dataset/QM9_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-123_bfs-legacy_first_component_features-default.pkl",
+  "split_counts": {
+    "test": 26167,
+    "train": 91581,
+    "val": 13083
+  },
+  "topology_only": false
+}

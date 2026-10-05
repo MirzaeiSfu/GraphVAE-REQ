@@ -1,0 +1,28 @@
+{
+  "dataset": "MUTAG",
+  "edge_feature_dims": [
+    2,
+    5
+  ],
+  "edge_feature_names": [
+    "adjacency",
+    "edge_label"
+  ],
+  "edge_zero_means_absent": true,
+  "exact_frozen_splits": true,
+  "force_undirected": true,
+  "format_version": 1,
+  "node_feature_dims": [
+    7
+  ],
+  "node_feature_names": [
+    "node_label"
+  ],
+  "source": "/local-scratch2/mirzaei/mutag_edgefeat_campaign_20260910/source/DeFoG/data/mutag_edgefeat/raw",
+  "split_counts": {
+    "test": 39,
+    "train": 131,
+    "val": 18
+  },
+  "topology_only": false
+}

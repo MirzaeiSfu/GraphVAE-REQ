@@ -1,0 +1,10 @@
+name: frozen_graphvae
+identity: MUTAG
+root: ???
+train_sha256: ???
+validation_sha256: ???
+reference_sha256: ???
+feature_mode: decoded_node
+feature_schema: gin-node-label-v2|export=decoded_node
+pin_memory: false
+

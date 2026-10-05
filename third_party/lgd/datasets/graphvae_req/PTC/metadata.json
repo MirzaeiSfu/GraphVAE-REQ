@@ -1,0 +1,26 @@
+{
+  "dataset": "PTC",
+  "edge_feature_dims": [
+    2
+  ],
+  "edge_feature_names": [
+    "adjacency"
+  ],
+  "edge_zero_means_absent": true,
+  "exact_frozen_splits": true,
+  "force_undirected": true,
+  "format_version": 1,
+  "node_feature_dims": [
+    19
+  ],
+  "node_feature_names": [
+    "node_feature"
+  ],
+  "source": "/local-scratch2/mirzaei/ptc_rule_metrics_20260906/cache/PTC_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-123_bfs-legacy_first_component_features-gin-node-label-v2.pkl",
+  "split_counts": {
+    "test": 70,
+    "train": 240,
+    "val": 34
+  },
+  "topology_only": false
+}
