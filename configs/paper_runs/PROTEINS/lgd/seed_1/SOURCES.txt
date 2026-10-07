@@ -1,0 +1,2 @@
+# source: solar:/home/mirzaei/LGD_FIX_20260924/results/GraphVAEReq-encoder-PROTEINS_seed1/config.yaml
+# source: solar:/home/mirzaei/LGD_FIX_20260924/results/GraphVAEReq-diffusion-PROTEINS_seed1/config.yaml

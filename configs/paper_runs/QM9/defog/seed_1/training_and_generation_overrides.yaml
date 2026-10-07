@@ -1,0 +1,9 @@
+- +experiment=qm9_with_h
+- dataset.datadir=/localhome/mirzaei/qm9_defog_lab24_20260914/work/data/seed_0
+- train.seed=1
+- train.n_epochs=250
+- train.batch_size=128
+- train.save_model=true
+- general.name=qm9_seedfixed250_seed_1
+- general.wandb=disabled
+- general.gpus=1

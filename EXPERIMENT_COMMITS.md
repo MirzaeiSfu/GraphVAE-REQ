@@ -14,6 +14,8 @@ The **Status** column says how each entry was established:
 | **Inferred** | `main.py` in the commit shown has exactly the run's options. Other modules were not checked. |
 | **Recovered** | The code was not committed when the run was launched. It was committed later, byte-identical to the run's launch folder, on branch `recovered/paper-code-20260904`. See [Recovered code](#recovered-code). |
 
+The exact configuration of every run listed here is in [`configs/paper_runs/`](configs/paper_runs/).
+
 Run folders refer to `EXPERIMENT_ARCHIVE_20260921` unless another location is given. A copy of that archive, and of
 everything listed here, is on the external drive attached to cs-cl-18 (`/media/mirzaei/backup/`).
 
