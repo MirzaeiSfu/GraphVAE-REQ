@@ -10,12 +10,6 @@ DEFOG_GH = "https://github.com/MirzaeiSfu/defog/commit/"
 
 # Code that ran but was never committed, located on disk by exact argparse fingerprint (see report text).
 UNCOMMITTED = {
-    "643ccccbb9": ("cs-cl-17:/var/tmp/mirzaei_archive/ali/GraphVAE-REQ-kia-motif-20260904-cl17/ "
-                   "(main.py, motif_counting/motif_counter.py dated 2026-09-04 09:38)",
-                   "adds --motif_prune_score_threshold"),
-    "e1a5cc9dfa": ("cs-cl-13:/localhome/mirzaei/solar_patch_work/ (main.py 2026-09-04 15:17, data.py 15:19) "
-                   "laid over the GraphVAE-REQ-kia-motif-20260904-cl17 tree",
-                   "adds --motif_prune_score_threshold and --resume_from_latest_checkpoint"),
     "9c2290e55f": ("cs-cl-18 and cs-cl-19:/local-scratch2/mirzaei/mutag_edgefeat_campaign_20260910/source/GraphVAE-REQ/ "
                    "(identical main.py also in cs-cl-18 aids_common_eval_10k_20260917/source/GraphVAE-REQ/)",
                    "adds --alpha_degree_distribution_loss and --alpha_edge_density_loss"),
@@ -23,6 +17,20 @@ UNCOMMITTED = {
                    "cs-cl-18 and cs-cl-19:/local-scratch2/new/deploy_alpha005_20260720/GraphVAE-REQ/",
                    "adds --motif_prune_max_total_values"),
 }
+
+
+# Code that was not committed at launch but has since been committed from the launch folder,
+# byte-identical (branch recovered/paper-code-20260904).
+RECOVERED = {
+    "643ccccbb9": ("f75f761fd", "code A: launch folder cs-cl-17 ali/GraphVAE-REQ-kia-motif-20260904-cl17 "
+                                "(adds --motif_prune_score_threshold)"),
+    "e1a5cc9dfa": ("af56479bb", "code B: launch folder Solar /project/cs-schulte-lab/ali/GraphVAE-REQ-kia-motif-20260831 "
+                                "(adds --resume_from_latest_checkpoint)"),
+}
+# Runs whose launch folder was found and is byte-identical to a commit.
+VERIFIED = [(re.compile(r"^(GRID|LOBSTER|TRIANGULAR_GRID)/experiments/graphvae/"), "9f01785b4",
+             "launched from fb/GraphVAE-REQ (cs-cl-16/17/18/19): commit 946146f plus 6 changed files, "
+             "byte-identical to 9f01785 (committed 2026-08-26 05:07, after the first runs started)")]
 
 
 def git(*a):
@@ -79,7 +87,15 @@ for r in json.load(open(RUNS)):
             f"GraphVAE+RG motif=True {r['mode'] or '(mode option not yet in code)'} (lambda={r['alpha']})"
         row = dict(repo="GraphVAE-REQ", dataset=ds, model="GraphVAE-REQ", method=method, label=r["label"], seed=r["seed"],
                    started=r["start"], archive_path=r["path"])
-        if r["commit"]:
+        ver = next(((h, why) for rx, h, why in VERIFIED if rx.match(r["path"])), None)
+        if ver:
+            row.update(code_commit=ver[0], confidence="verified: launch folder byte-identical to this commit",
+                       note=ver[1], branches=on_branches(ver[0]))
+        elif r["argkeys"] in RECOVERED:
+            h, why = RECOVERED[r["argkeys"]]
+            row.update(code_commit=h, confidence="recovered: launch folder committed afterwards, byte-identical",
+                       note=why, branches="recovered/paper-code-20260904")
+        elif r["commit"]:
             dirty = r["dirty"] or 0
             row.update(code_commit=r["commit"][:9], confidence="exact (recorded at launch)",
                        note=(f"working tree had {dirty} uncommitted change(s); see git_diff.patch in the run folder"
@@ -163,6 +179,8 @@ g = [x for x in rows if x["model"] == "GraphVAE-REQ"]
 n_exact = sum(1 for x in g if x["confidence"].startswith("exact (recorded"))
 n_inf = sum(1 for x in g if x["confidence"].startswith("inferred"))
 n_git = sum(1 for x in g if x["code_commit"] == "NOT IN GIT")
+n_ver = sum(1 for x in g if x["confidence"].startswith("verified"))
+n_rec = sum(1 for x in g if x["confidence"].startswith("recovered"))
 
 
 def link(h, repo):
@@ -178,9 +196,12 @@ md.append(f"Generated {datetime.date.today()} from `EXPERIMENT_ARCHIVE_20260921`
 md.append("## Summary\n")
 md.append(f"- **GraphVAE-REQ runs:** {len(g)}\n"
           f"  - {n_exact} recorded their commit at launch (exact).\n"
+          f"  - {n_ver} were launched from a folder whose code is byte-identical to a commit (verified).\n"
+          f"  - {n_rec} ran code that was committed only afterwards, from their launch folders, on branch "
+          "`recovered/paper-code-20260904` (recovered).\n"
           f"  - {n_inf} were launched from copies of the repo without `.git`, so no commit was recorded. "
           "Their commit is inferred (see Method).\n"
-          f"  - **{n_git} ran code that was never committed.** The code still exists on lab disks; see "
+          f"  - **{n_git} ran code that is still not in git.** The code exists on lab disks; see "
           "[Code that is not in git](#code-that-is-not-in-git).\n"
           f"- **DeFoG runs:** {sum(1 for x in rows if x['model']=='DeFoG')}, all on the "
           f"[`MirzaeiSfu/defog`]({DEFOG_GH}c631697b9cd5a2474d22ba12de33943c6b49e53e) fork at `c631697`. "
@@ -196,7 +217,11 @@ md.append("1. **Exact:** `reproducibility.json` in the run folder has a `git_com
           "commit made before the run started is reported, along with the full range of matching commits. "
           "This pins `main.py` exactly but does not verify other modules (`motif_counting/`, `data.py`), so treat "
           "it as the most likely commit, not a proof.\n"
-          "3. **Not in git:** the run's argument set matches no commit, but it does match a `main.py` found on disk. "
+          "3. **Verified:** the folder the runs were launched from was found and its code files are byte-identical "
+          "to the commit shown.\n"
+          "4. **Recovered:** the code was not committed at launch; the launch folder was later committed "
+          "byte-identical on branch `recovered/paper-code-20260904` (`f75f761` code A, `af56479` code B).\n"
+          "5. **Not in git:** the run's argument set matches no commit, but it does match a `main.py` found on disk. "
           "That copy is listed as the code location.\n")
 
 md.append("## Per dataset\n")

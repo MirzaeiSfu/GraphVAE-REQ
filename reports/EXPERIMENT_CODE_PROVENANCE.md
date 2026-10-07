@@ -1,13 +1,15 @@
 # Experiment code provenance
 
-Generated 2026-10-05 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 external drive, `/media/mirzaei/backup/`). One row per archived run is in [`experiment_code_provenance.csv`](experiment_code_provenance.csv).
+Generated 2026-10-07 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 external drive, `/media/mirzaei/backup/`). One row per archived run is in [`experiment_code_provenance.csv`](experiment_code_provenance.csv).
 
 ## Summary
 
 - **GraphVAE-REQ runs:** 177
   - 32 recorded their commit at launch (exact).
-  - 93 were launched from copies of the repo without `.git`, so no commit was recorded. Their commit is inferred (see Method).
-  - **52 ran code that was never committed.** The code still exists on lab disks; see [Code that is not in git](#code-that-is-not-in-git).
+  - 27 were launched from a folder whose code is byte-identical to a commit (verified).
+  - 43 ran code that was committed only afterwards, from their launch folders, on branch `recovered/paper-code-20260904` (recovered).
+  - 66 were launched from copies of the repo without `.git`, so no commit was recorded. Their commit is inferred (see Method).
+  - **9 ran code that is still not in git.** The code exists on lab disks; see [Code that is not in git](#code-that-is-not-in-git).
 - **DeFoG runs:** 129, all on the [`MirzaeiSfu/defog`](https://github.com/MirzaeiSfu/defog/commit/c631697b9cd5a2474d22ba12de33943c6b49e53e) fork at `c631697`. That code, plus 3 uncommitted QM9/GRID changes, is in [`third_party/defog/`](../third_party/defog/).
 - **LGD runs in the archive:** 40, all from the old `LGD_3SEED_CAMPAIGN_20260920` (encoder-selection bug). The fixed `LGD_FIX_20260924` runs behind the paper's LGD numbers are not in this archive. Their code is in [`third_party/lgd/`](../third_party/lgd/).
 
@@ -15,7 +17,9 @@ Generated 2026-10-05 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 ex
 
 1. **Exact:** `reproducibility.json` in the run folder has a `git_commit`. If the working tree was dirty, the run folder also has `git_diff.patch`.
 2. **Inferred:** without a recorded commit, the run's argument names (from `reproducibility.json`) are compared with the `argparse` options of `main.py` in every commit on every branch. The newest matching commit made before the run started is reported, along with the full range of matching commits. This pins `main.py` exactly but does not verify other modules (`motif_counting/`, `data.py`), so treat it as the most likely commit, not a proof.
-3. **Not in git:** the run's argument set matches no commit, but it does match a `main.py` found on disk. That copy is listed as the code location.
+3. **Verified:** the folder the runs were launched from was found and its code files are byte-identical to the commit shown.
+4. **Recovered:** the code was not committed at launch; the launch folder was later committed byte-identical on branch `recovered/paper-code-20260904` (`f75f761` code A, `af56479` code B).
+5. **Not in git:** the run's argument set matches no commit, but it does match a `main.py` found on disk. That copy is listed as the code location.
 
 ## Per dataset
 
@@ -29,9 +33,11 @@ Generated 2026-10-05 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 ex
 | GraphVAE (motif=False) | 3 | [`3fb44e6b6`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/3fb44e6b6) | exact (recorded at launch) |
 | GraphVAE+RG motif=True (mode option not yet in code) (lambda=0.1) | 3 | [`3fb44e6b6`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/3fb44e6b6) | exact (recorded at launch) |
 | GraphVAE+RG motif=True full_matrix (lambda=0.1) | 2 | [`b7268544a`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/b7268544a) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 7 | `NOT IN GIT` | exact argparse match to an on-disk copy |
+| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 5 | [`f75f761fd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/f75f761fd) | recovered: launch folder committed afterwards, byte-identical |
+| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 2 | [`af56479bb`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) | recovered: launch folder committed afterwards, byte-identical |
 | GraphVAE+RG motif=True full_matrix (lambda=0.15) | 1 | `NOT IN GIT` | exact argparse match to an on-disk copy |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 7 | `NOT IN GIT` | exact argparse match to an on-disk copy |
+| GraphVAE+RG motif=True total_count (lambda=0.1) | 5 | [`f75f761fd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/f75f761fd) | recovered: launch folder committed afterwards, byte-identical |
+| GraphVAE+RG motif=True total_count (lambda=0.1) | 2 | [`af56479bb`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) | recovered: launch folder committed afterwards, byte-identical |
 | LGD (LGD_3SEED_CAMPAIGN_20260920) | 6 | `zhouc20/LatentGraphDiffusion f597e1d + local changes` | exact (campaign repo state) |
 
 ### GRID
@@ -39,23 +45,18 @@ Generated 2026-10-05 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 ex
 | Model / method | Runs | Code commit | Confidence |
 |---|---:|---|---|
 | DeFoG | 6 | [`c631697b9`](https://github.com/MirzaeiSfu/defog/commit/c631697b9) | exact (job_record.json) |
-| GraphVAE (motif=False) | 3 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 1 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 1 | [`613fe9e7d`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/613fe9e7d) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 1 | [`b0348ce15`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/b0348ce15) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 1 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 2 | [`b0348ce15`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/b0348ce15) | inferred: newest commit before the run with an identical main.py argument set |
+| GraphVAE (motif=False) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
+| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
+| GraphVAE+RG motif=True total_count (lambda=0.1) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
 
 ### LOBSTER
 
 | Model / method | Runs | Code commit | Confidence |
 |---|---:|---|---|
 | DeFoG | 6 | [`c631697b9`](https://github.com/MirzaeiSfu/defog/commit/c631697b9) | exact (job_record.json) |
-| GraphVAE (motif=False) | 3 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 2 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 1 | [`613fe9e7d`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/613fe9e7d) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 2 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 1 | [`613fe9e7d`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/613fe9e7d) | inferred: newest commit before the run with an identical main.py argument set |
+| GraphVAE (motif=False) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
+| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
+| GraphVAE+RG motif=True total_count (lambda=0.1) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
 | LGD (LGD_3SEED_CAMPAIGN_20260920) | 8 | `zhouc20/LatentGraphDiffusion f597e1d + local changes` | exact (campaign repo state) |
 
 ### MUTAG
@@ -96,7 +97,7 @@ Generated 2026-10-05 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 ex
 |---|---:|---|---|
 | DeFoG | 15 | `c631697 (campaign pin, not recorded per run)` | inferred from campaign |
 | GraphVAE (motif=False) | 3 | [`2a80b0aa0`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/2a80b0aa0) | inferred (low): run predates every commit with this main.py, so the code was committed after the run; first such commit shown |
-| GraphVAE+RG motif=True full_matrix (lambda=0.03) | 3 | `NOT IN GIT` | exact argparse match to an on-disk copy |
+| GraphVAE+RG motif=True full_matrix (lambda=0.03) | 3 | [`af56479bb`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) | recovered: launch folder committed afterwards, byte-identical |
 | GraphVAE+RG motif=True full_matrix (lambda=0.2) | 2 | [`b7268544a`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/b7268544a) | inferred: newest commit before the run with an identical main.py argument set |
 
 ### PTC
@@ -107,10 +108,12 @@ Generated 2026-10-05 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 ex
 | DeFoG | 10 | `c631697 (campaign pin, not recorded per run)` | inferred from campaign |
 | GraphVAE (motif=False) | 9 | [`c10bff58b`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/c10bff58b) | exact (recorded at launch) |
 | GraphVAE+RG motif=True (mode option not yet in code) (lambda=0.1) | 3 | [`c10bff58b`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/c10bff58b) | exact (recorded at launch) |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 13 | `NOT IN GIT` | exact argparse match to an on-disk copy |
+| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 7 | [`f75f761fd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/f75f761fd) | recovered: launch folder committed afterwards, byte-identical |
+| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 6 | [`af56479bb`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) | recovered: launch folder committed afterwards, byte-identical |
 | GraphVAE+RG motif=True full_matrix (lambda=0.1) | 2 | [`946146f4d`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/946146f4d) | exact (recorded at launch) |
 | GraphVAE+RG motif=True full_matrix (lambda=0.1) | 1 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 13 | `NOT IN GIT` | exact argparse match to an on-disk copy |
+| GraphVAE+RG motif=True total_count (lambda=0.1) | 7 | [`f75f761fd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/f75f761fd) | recovered: launch folder committed afterwards, byte-identical |
+| GraphVAE+RG motif=True total_count (lambda=0.1) | 6 | [`af56479bb`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) | recovered: launch folder committed afterwards, byte-identical |
 | GraphVAE+RG motif=True total_count (lambda=0.1) | 2 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | inferred (low): run predates every commit with this main.py, so the code was committed after the run; first such commit shown |
 | LGD (LGD_3SEED_CAMPAIGN_20260920) | 9 | `zhouc20/LatentGraphDiffusion f597e1d + local changes` | exact (campaign repo state) |
 
@@ -127,11 +130,9 @@ Generated 2026-10-05 from `EXPERIMENT_ARCHIVE_20260921` (copy on the cs-cl-18 ex
 | Model / method | Runs | Code commit | Confidence |
 |---|---:|---|---|
 | DeFoG | 6 | [`c631697b9`](https://github.com/MirzaeiSfu/defog/commit/c631697b9) | exact (job_record.json) |
-| GraphVAE (motif=False) | 3 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 1 | [`613fe9e7d`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/613fe9e7d) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 2 | [`b0348ce15`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/b0348ce15) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 1 | [`90ee5d6bd`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/90ee5d6bd) | inferred: newest commit before the run with an identical main.py argument set |
-| GraphVAE+RG motif=True total_count (lambda=0.1) | 2 | [`b0348ce15`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/b0348ce15) | inferred: newest commit before the run with an identical main.py argument set |
+| GraphVAE (motif=False) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
+| GraphVAE+RG motif=True full_matrix (lambda=0.1) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
+| GraphVAE+RG motif=True total_count (lambda=0.1) | 3 | [`9f01785b4`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4) | verified: launch folder byte-identical to this commit |
 | LGD (LGD_3SEED_CAMPAIGN_20260920) | 8 | `zhouc20/LatentGraphDiffusion f597e1d + local changes` | exact (campaign repo state) |
 
 ## Code that is not in git
@@ -140,15 +141,11 @@ These GraphVAE-REQ runs used `main.py` options that exist in no commit on any br
 
 | Argument fingerprint | Runs | What the code adds | Where it is |
 |---|---:|---|---|
-| `643ccccbb9` | 24 | adds --motif_prune_score_threshold | cs-cl-17:/var/tmp/mirzaei_archive/ali/GraphVAE-REQ-kia-motif-20260904-cl17/ (main.py, motif_counting/motif_counter.py dated 2026-09-04 09:38) |
-| `e1a5cc9dfa` | 19 | adds --motif_prune_score_threshold and --resume_from_latest_checkpoint | cs-cl-13:/localhome/mirzaei/solar_patch_work/ (main.py 2026-09-04 15:17, data.py 15:19) laid over the GraphVAE-REQ-kia-motif-20260904-cl17 tree |
 | `9c2290e55f` | 9 | adds --alpha_degree_distribution_loss and --alpha_edge_density_loss | cs-cl-18 and cs-cl-19:/local-scratch2/mirzaei/mutag_edgefeat_campaign_20260910/source/GraphVAE-REQ/ (identical main.py also in cs-cl-18 aids_common_eval_10k_20260917/source/GraphVAE-REQ/) |
 | `493cf42979` | 6 | adds --motif_prune_max_total_values | commit 3fb44e6 plus the git_diff.patch saved in each run folder; full tree also in cs-cl-18 and cs-cl-19:/local-scratch2/new/deploy_alpha005_20260720/GraphVAE-REQ/ |
 
 Affected runs, by label:
 
-- `643ccccbb9`: AIDS ptc-aids-motif-AIDS-full_matrix-m0.1-s0; AIDS ptc-aids-motif-AIDS-full_matrix-m0.1-s1; AIDS ptc-aids-motif-AIDS-full_matrix-m0.1-s2; AIDS ptc-aids-motif-AIDS-total_count-m0.1-s0; AIDS ptc-aids-motif-AIDS-total_count-m0.1-s1; AIDS ptc-aids-motif-AIDS-total_count-m0.1-s2; AIDS ptc-aids-motif-PTC-full_matrix-m0.1-s0; AIDS ptc-aids-motif-PTC-total_count-m0.1-s0; AIDS ptc-cl17-full_matrix-m0.1-s0; AIDS ptc-cl17-total_count-m0.1-s0; PTC ptc-aids-motif-AIDS-full_matrix-m0.1-s0; PTC ptc-aids-motif-AIDS-full_matrix-m0.1-s1; PTC ptc-aids-motif-AIDS-full_matrix-m0.1-s2; PTC ptc-aids-motif-AIDS-total_count-m0.1-s0; PTC ptc-aids-motif-AIDS-total_count-m0.1-s1; PTC ptc-aids-motif-AIDS-total_count-m0.1-s2; PTC ptc-aids-motif-PTC-full_matrix-m0.1-s0; PTC ptc-aids-motif-PTC-total_count-m0.1-s0; PTC ptc-cl17-full_matrix-m0.1-s0 (x3); PTC ptc-cl17-total_count-m0.1-s0 (x3)
-- `e1a5cc9dfa`: AIDS ptc-aids-motif-PTC-full_matrix-m0.1-s1; AIDS ptc-aids-motif-PTC-full_matrix-m0.1-s2; AIDS ptc-aids-motif-PTC-total_count-m0.1-s1; AIDS ptc-aids-motif-PTC-total_count-m0.1-s2; PROTEINS proteins-full-matrix-motif003-seed-0; PROTEINS proteins-full-matrix-motif003-seed-1; PROTEINS proteins-full-matrix-motif003-seed-2; PTC ptc-aids-motif-PTC-full_matrix-m0.1-s1 (x3); PTC ptc-aids-motif-PTC-full_matrix-m0.1-s2 (x3); PTC ptc-aids-motif-PTC-total_count-m0.1-s1 (x3); PTC ptc-aids-motif-PTC-total_count-m0.1-s2 (x3)
 - `9c2290e55f`: AIDS aids-graphvae-false-seed-1; AIDS aids-graphvae-false-seed-2; AIDS mutag-edgefeat-full-matrix-20k; MUTAG mutag-edgefeat-full-cpsmoothed-motif15-seed0; MUTAG mutag-edgefeat-full-matrix-20k (x2); MUTAG mutag-edgefeat-full-matrix-topology-aware-20k (x3)
 - `493cf42979`: AIDS solar-aids-setting01-seed0; AIDS solar-aids-setting01-seed1; AIDS solar-aids-setting01-seed2; AIDS solar-aids-setting03-seed0; AIDS solar-aids-setting03-seed1; AIDS solar-aids-setting03-seed2
 
