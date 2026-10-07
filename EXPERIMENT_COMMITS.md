@@ -12,7 +12,7 @@ The **Status** column says how each entry was established:
 | **Recorded** | The run saved its commit at launch (`reproducibility.json` or `job_record.json`). |
 | **Verified** | The run's launch folder was found, and its code files are byte-identical to the commit shown. For GRID, triangular grid and LOBSTER this is the `fb/GraphVAE-REQ` folder used on cs-cl-16, 17, 18 and 19, which equals `9f01785` (that commit was made the morning after the first runs started). |
 | **Inferred** | `main.py` in the commit shown has exactly the run's options. Other modules were not checked. |
-| **Not in git** | The code was never committed. Where it is is listed under [Code that is not in git](#code-that-is-not-in-git). |
+| **Recovered** | The code was not committed when the run was launched. It was committed later, byte-identical to the run's launch folder, on branch `recovered/paper-code-20260904`. See [Recovered code](#recovered-code). |
 
 Run folders refer to `EXPERIMENT_ARCHIVE_20260921` unless another location is given. A copy of that archive, and of
 everything listed here, is on the external drive attached to cs-cl-18 (`/media/mirzaei/backup/`).
@@ -51,8 +51,8 @@ everything listed here, is on the external drive attached to cs-cl-18 (`/media/m
 | Method | Seeds | Code | Status | Run folders |
 |---|---|---|---|---|
 | GraphVAE | 0, 1, 2 | [`c10bff5`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/c10bff58b) | Recorded (working tree had no code changes) | cs-cl-18 `/local-scratch2/new/gather/datasets/ptc/setting_01/` |
-| GraphVAE+RG (full matrix, λ=0.1) | 0 | **Code A** | Not in git | cs-cl-18 `/local-scratch2/mirzaei/motif_true_clean_20260906/ptc/full_matrix/seed_0/` |
-| GraphVAE+RG (full matrix, λ=0.1) | 1, 2 | **Code B** | Not in git | cs-cl-18 `/local-scratch2/mirzaei/motif_true_clean_20260906/ptc/full_matrix/seed_{1,2}/` |
+| GraphVAE+RG (full matrix, λ=0.1) | 0 | [`f75f761`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/f75f761fd) (code A) | Recovered (launch folder committed afterwards; byte-identical) | cs-cl-18 `/local-scratch2/mirzaei/motif_true_clean_20260906/ptc/full_matrix/seed_0/` |
+| GraphVAE+RG (full matrix, λ=0.1) | 1, 2 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B) | Recovered (launch folder committed afterwards; byte-identical) | cs-cl-18 `/local-scratch2/mirzaei/motif_true_clean_20260906/ptc/full_matrix/seed_{1,2}/` |
 | DeFoG | 0, 1, 2 | DeFoG [`c631697`](https://github.com/MirzaeiSfu/defog/commit/c631697b9cd5a2474d22ba12de33943c6b49e53e) | Recorded | `PTC/sources/cs-cl-18/defog_ptc_frozen_20260906/jobs/ptc/`; metrics in cs-cl-18 `defog_ptc_full_metrics_20260907/` |
 | LGD | 0, 1, 2 | LGD `f597e1d` + local changes | Recorded (campaign) | `LGD_FIX_20260924/` on the lab machines |
 
@@ -61,7 +61,7 @@ everything listed here, is on the external drive attached to cs-cl-18 (`/media/m
 | Method | Seeds | Code | Status | Run folders |
 |---|---|---|---|---|
 | GraphVAE | 0, 1, 2 | [`2a80b0a`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/2a80b0aa0) | Inferred (the runs predate this commit, so the code was committed afterwards) | `PROTEINS/graphvae_motif_false/setting_01/` |
-| GraphVAE+RG (full matrix, λ=0.03) | 0, 1, 2 | **Code B** | Not in git | `PROTEINS/graphvae_motif_true/alpha_003_full_matrix/`; Solar `~/proteins_full_matrix_motif003_20260910/` |
+| GraphVAE+RG (full matrix, λ=0.03) | 0, 1, 2 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B) | Recovered (launch folder committed afterwards; byte-identical) | `PROTEINS/graphvae_motif_true/alpha_003_full_matrix/`; Solar `~/proteins_full_matrix_motif003_20260910/` |
 | DeFoG | 0, 1, 2 | DeFoG [`c631697`](https://github.com/MirzaeiSfu/defog/commit/c631697b9cd5a2474d22ba12de33943c6b49e53e) | Inferred (the DeFoG commit pinned for every campaign; these runs did not record it) | `PROTEINS/defog/corrected_generation_20260922/` |
 | LGD | 0, 1, 2 | LGD `f597e1d` + local changes | Recorded (campaign) | Solar `~/LGD_FIX_20260924/results/` |
 
@@ -69,23 +69,27 @@ everything listed here, is on the external drive attached to cs-cl-18 (`/media/m
 
 | Method | Seeds | Code | Status | Run folders |
 |---|---|---|---|---|
-| GraphVAE (250 epochs) | 0, 1, 2 | **Code B** | Not in git | Solar `~/qm9_motif_false_fast250_20260915/runs/`; final models in `QM9/sources/cs-cl-18/qm9_common_eval_20260917/graphvae/false/` |
-| GraphVAE+RG (full matrix, λ=0.1, 250 epochs) | 0, 1, 2 | **Code B** | Not in git | Solar `~/qm9_full_fast250_cp_smoothed_top10_20260914/runs/full_matrix/`; final models in `QM9/sources/cs-cl-18/qm9_common_eval_20260917/graphvae/true_full/` |
+| GraphVAE (250 epochs) | 0, 1, 2 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B) | Recovered (launch folder committed afterwards; byte-identical) | Solar `~/qm9_motif_false_fast250_20260915/runs/`; final models in `QM9/sources/cs-cl-18/qm9_common_eval_20260917/graphvae/false/` |
+| GraphVAE+RG (full matrix, λ=0.1, 250 epochs) | 0, 1, 2 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B) | Recovered (launch folder committed afterwards; byte-identical) | Solar `~/qm9_full_fast250_cp_smoothed_top10_20260914/runs/full_matrix/`; final models in `QM9/sources/cs-cl-18/qm9_common_eval_20260917/graphvae/true_full/` |
 | DeFoG | 0, 1, 2 | DeFoG [`c631697`](https://github.com/MirzaeiSfu/defog/commit/c631697b9cd5a2474d22ba12de33943c6b49e53e) + 3 local files | Verified (launch folder found) | cs-cl-17 `qm9_defog_seedfixed250_batch128_20260916/`, code from `qm9_defog_lab24_20260914/work/source/` |
 | LGD | 0, 1, 2 | LGD `f597e1d` + local changes | Recorded (campaign) | Solar `~/LGD_FIX_20260924/results/` |
 
-## Code that is not in git
+## Recovered code
 
-Two versions of the code that produced paper results were never committed. Both are small changes on top of
-[`9f01785`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4):
+Two versions of the code behind paper results were never committed when the runs were launched. They were committed
+afterwards from the runs' launch folders, on branch
+[`recovered/paper-code-20260904`](https://github.com/MirzaeiSfu/GraphVAE-REQ/tree/recovered/paper-code-20260904),
+on top of [`9f01785`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/9f01785b4). Every code file (`.py`, `.sh`,
+`.yaml`, `.sbatch`) in each commit is byte-identical to its launch folder, and each `main.py` has exactly the options
+the runs recorded.
 
-| | Used for | Differs from `9f01785` in | Where the code is |
+| Commit | Used for | Changes | Taken from |
 |---|---|---|---|
-| **Code A** (2026-09-04 09:38) | PTC GraphVAE+RG seed 0 | `main.py` (adds `--motif_prune_score_threshold`), `motif_counting/motif_counter.py`, `loss_weight_utils.py` | cs-cl-17 `/var/tmp/mirzaei_archive/ali/GraphVAE-REQ-kia-motif-20260904-cl17/` |
-| **Code B** (2026-09-04 15:30) | PTC GraphVAE+RG seeds 1–2, PROTEINS GraphVAE+RG, QM9 GraphVAE and GraphVAE+RG | Code A's changes, plus `--resume_from_latest_checkpoint` in `main.py`, and `data.py` | Solar `/project/cs-schulte-lab/ali/GraphVAE-REQ-kia-motif-20260831/`; the same `main.py` and `data.py` are in cs-cl-13 `/localhome/mirzaei/solar_patch_work/` |
+| [`f75f761`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/f75f761fd) (code A, written 2026-09-04 09:38) | PTC GraphVAE+RG seed 0 | `main.py` (adds `--motif_prune_score_threshold`), `motif_counting/motif_counter.py`, `loss_weight_utils.py`, plus 37 configs and launch scripts | cs-cl-17 `/var/tmp/mirzaei_archive/ali/GraphVAE-REQ-kia-motif-20260904-cl17/` |
+| [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B, written 2026-09-04 15:30) | PTC GraphVAE+RG seeds 1–2, PROTEINS GraphVAE+RG, QM9 GraphVAE and GraphVAE+RG | code A plus `main.py` (adds `--resume_from_latest_checkpoint`), `data.py`, and the PTC/AIDS launch and monitoring scripts | Solar `/project/cs-schulte-lab/ali/GraphVAE-REQ-kia-motif-20260831/` |
 
-Both are also copied to the external drive under `POST_ARCHIVE_RESULTS_20261005/recovered_code/`. Until they are
-committed, these results cannot be reproduced from GitHub alone.
+To rerun one of these experiments, check out the commit and use the `command` saved in the run's
+`reproducibility.json`.
 
 ## Baselines
 
