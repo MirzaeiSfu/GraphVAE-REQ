@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -u
+
+ROOT=/local-scratch2/mirzaei/EXPERIMENT_ARCHIVE_20260921/TRIANGULAR_GRID
+LOG="$ROOT/manifests/transfer.log"
+mkdir -p "$ROOT"/{experiments/graphvae/motif_false,experiments/graphvae/motif_true_total_count,experiments/graphvae/motif_true_full_matrix,experiments/defog,experiments/lgd,metrics,reports,manifests}
+date -Is > "$ROOT/manifests/transfer_started.txt"
+
+run_copy() {
+  echo "[$(date -Is)] START $*" | tee -a "$LOG"
+  "$@" >> "$LOG" 2>&1
+  rc=$?
+  echo "[$(date -Is)] END rc=$rc $*" | tee -a "$LOG"
+  return "$rc"
+}
+
+for seed in 0 1 2; do
+  run_copy rsync -a --info=progress2 "/local-scratch2/mirzaei/fb/GraphVAE-REQ/runs/motif_false_3seed/triangular_grid/seed_${seed}/" "$ROOT/experiments/graphvae/motif_false/seed_${seed}/"
+  run_copy rsync -a --info=progress2 "mirzaei@cs-cl-18.cmpt.sfu.ca:/local-scratch2/mirzaei/fb/GraphVAE-REQ/runs/linkcorr_motif_true_3seed/triangular_grid/total_count/seed_${seed}/" "$ROOT/experiments/graphvae/motif_true_total_count/seed_${seed}/"
+  run_copy rsync -a --info=progress2 "mirzaei@cs-cl-18.cmpt.sfu.ca:/local-scratch2/mirzaei/fb/GraphVAE-REQ/runs/linkcorr_motif_true_3seed/triangular_grid/full_matrix/seed_${seed}/" "$ROOT/experiments/graphvae/motif_true_full_matrix/seed_${seed}/"
+done
+
+# DeFoG seed 2 is intentionally excluded as a broad outlier. Healthy seeds: 0, 1, 3.
+for seed in 0 1 3; do
+  run_copy rsync -a --info=progress2 "/local-scratch2/mirzaei/defog_frozen_benchmark_20260903/GraphVAE-REQ-full/runs/defog/frozen_eval/jobs/triangular_grid/seed_${seed}/" "$ROOT/experiments/defog/seed_${seed}/"
+done
+
+run_copy rsync -a "mirzaei@cs-cl-09.cmpt.sfu.ca:/local-scratch2/mirzaei/LGD_3SEED_CAMPAIGN_20260920/results/GraphVAEReq-encoder-TRIANGULAR_GRID_seed2/" "$ROOT/experiments/lgd/encoder_seed_2/"
+run_copy rsync -a "mirzaei@cs-cl-09.cmpt.sfu.ca:/local-scratch2/mirzaei/LGD_3SEED_CAMPAIGN_20260920/results/GraphVAEReq-diffusion-TRIANGULAR_GRID_seed2/" "$ROOT/experiments/lgd/diffusion_seed_2/"
+for seed in 0 1 3; do
+  run_copy rsync -a "mirzaei@cs-cl-18.cmpt.sfu.ca:/local-scratch2/mirzaei/defog_synthetic_evaluation_20260906/metrics/triangular_grid_seed${seed}.json" "$ROOT/metrics/"
+done
+
+date -Is > "$ROOT/manifests/transfer_finished.txt"
+find "$ROOT" -type f -printf '%P\t%s\n' | sort > "$ROOT/manifests/file_manifest.tsv"
+du -sh "$ROOT" > "$ROOT/manifests/archive_size.txt"
+echo "Archive transfer complete. Safe to exit this tmux session."
+exec bash

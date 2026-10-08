@@ -6,6 +6,7 @@ the lab disks. Each file is kept at its original path:
 - `cs-cl-18/<path>` was `/local-scratch2/mirzaei/<path>` on cs-cl-18
 - `cs-cl-19/<path>` was `/local-scratch2/mirzaei/<path>` on cs-cl-19
 - `cs-cl-17/<path>` was `/localhome/mirzaei/<path>` on cs-cl-17
+- `cs-cl-18-home/<path>` was `/localhome/mirzaei/<path>` on cs-cl-18 (includes the 2026-09-22 to 09-25 paper evaluation scripts, e.g. `evaluate_paper_s_20260925.py`, `reevaluate_ptc_structural_20260925.py`, `evaluate_proteins_baselines_20260922.sh`)
 
 Only `.py`, `.sh`, `.slurm` and `.sbatch` files are included, and only those whose content is not already in the
 repository history. Left out: vendored Python packages, upstream DeFoG/LGD code (see `third_party/` on branch
