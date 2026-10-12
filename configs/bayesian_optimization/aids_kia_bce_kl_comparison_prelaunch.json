@@ -1,0 +1,83 @@
+{
+  "schema_version": "aids-kia-bce-kl-comparison-prelaunch-v1",
+  "date": "2026-08-30",
+  "study_name": "aids_kia_bce_kl_comparison3_20260830a",
+  "study_contract_sha256": "262ac59a6d3b5ea96b12b4c8e2130ca98f2cca4c3ed14d06cd13de384006da0c",
+  "lifecycle": "READY",
+  "immutable_inputs": {
+    "source_commit": "5ba566c8bf759cdfc6044d0abdc48713e9f21fea",
+    "source_tree_sha256": "4b3124a2b106790884d57fedf2efb45a5359e4eb620bf98f641b85c9d163f595",
+    "source_file_count": 1072,
+    "deployment_manifest_sha256": "d916adc29bbb475dc0f7c0731d4fb01ff6ac27ff38f583a3f2e1a9601e031c18",
+    "study_definition_sha256": "783a5036eaec81b56af6b683baecde407ab076f3974d6c1f22aa2f6ed9bc1edc",
+    "base_config_sha256": "188417d5f649b52966ee5257d669131771cc545129e6a6a94c89e956166ceea3",
+    "reservation_plan_sha256": "a982046deef752056c31201699ec66353209f2f18feab76e42052b9702a6badd",
+    "hardware_policy_sha256": "061405c15240e1ac4e1b7422bc3dcd1eb6bb0f3e143ef170e8d20eea6acc2730",
+    "preflight_sha256": "ea069b28318f29c28b69fd0f68ade2e0592fd86e6ed1703633f4d0564889b6f7",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "cache_sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb",
+    "cache_byte_length": 73822456,
+    "cache_mode": "0444",
+    "node_feature_dimension": 56,
+    "edge_feature_dimension": 3
+  },
+  "worker_qualification": {
+    "hosts": ["cs-cl-13", "cs-cl-17"],
+    "slots": ["cs-cl-13:cuda:0", "cs-cl-17:cuda:0", "cs-cl-17:cuda:1"],
+    "gpu_model": "NVIDIA TITAN RTX",
+    "reported_vram_mib": 24576,
+    "source_manifest_exact_on_both_hosts": true,
+    "runtime_fingerprint_exact_on_both_hosts": true,
+    "cache_hash_size_and_read_only_mode_exact_on_both_hosts": true,
+    "protected_worker_environment_mode": "0600",
+    "postgresql_verify_full_load_study_on_both_hosts": true,
+    "credential_contents_recorded": false
+  },
+  "scientific_contract": {
+    "model": "GraphVAE",
+    "graph_statistics_enabled": false,
+    "motif_loss_enabled": false,
+    "adjacency_bce_weight": 50.0,
+    "kl_weight": 2000.0,
+    "objective_json_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "validation_graphs": 184,
+    "test_access": false,
+    "held_out_access": false,
+    "skip_final_evaluation": true,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "training_seed": 0,
+    "generation_seeds": [123, 124, 125],
+    "evaluator_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009]
+  },
+  "uniform_reuse_proof": {
+    "completed_kl_search_trial": 0,
+    "completed_kl_search_checkpoint_sha256": "d0ba5db16be2a4800675a2aa7b238bc8ae6d8ea02b868afdd509ba8eddca915b",
+    "bakeoff_uniform_checkpoint_sha256": "d0ba5db16be2a4800675a2aa7b238bc8ae6d8ea02b868afdd509ba8eddca915b",
+    "byte_identical": true,
+    "bakeoff_generation_seeds": [123, 124, 125],
+    "bakeoff_contract_sha256": "7c1c8a8fe4f2bf999ea821573ca8aa8e61a1ea5558636d40049f7ba4dad0b811",
+    "test_access": false
+  },
+  "reservation_budget": {
+    "total": 3,
+    "WAITING": 3,
+    "RUNNING": 0,
+    "COMPLETE": 0,
+    "FAIL": 0,
+    "OTHER": 0,
+    "UNRESERVED_GUARD": 0,
+    "max_parallel": 3,
+    "exact_wave_sizes": [3],
+    "failed_reservations_replaced": false,
+    "ambiguous_launches_duplicated": false
+  },
+  "authorization": {
+    "budget_indexes": [0, 1, 2],
+    "parameters_fixed": true,
+    "launch_authorized": true,
+    "study_launched": false,
+    "reservation_claims": 0
+  }
+}

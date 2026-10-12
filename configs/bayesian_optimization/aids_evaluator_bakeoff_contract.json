@@ -1,0 +1,128 @@
+{
+  "schema_version": "aids-evaluator-bakeoff-contract-v1",
+  "date": "2026-08-27",
+  "purpose": "Choose the primary evaluator before any new AIDS KL-weight BO",
+  "source": {
+    "minimum_generation_implementation_commit": "b80aeacc633a1ed17b0cb37ed43dc60661283cf6",
+    "historical_study": "aids_attr_f1pr_confirmation6_20260824a",
+    "historical_study_lifecycle": "FROZEN",
+    "new_graphvae_training": false,
+    "new_bo_trials": false
+  },
+  "scientific_contract": {
+    "dataset": "AIDS",
+    "split": "validation",
+    "validation_graphs": 184,
+    "feature_mode": "decoded_node_edge",
+    "feature_schema": "tu-quantile8-max40|export=decoded_node_edge",
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "nearest_k": 5,
+    "test_access": false,
+    "held_out_access": false,
+    "skip_final_evaluation": true
+  },
+  "candidates": {
+    "selected": {
+      "weights": {
+        "alpha_node_feat": 1.4240488736039931,
+        "alpha_edge_feat": 2.468932652132638
+      },
+      "checkpoints": [
+        {
+          "training_seed": 0,
+          "host": "cs-cl-13",
+          "trial_number": 0,
+          "relative_path": "trials/trial_00000/training/seed_0/model_249_6",
+          "sha256": "fca2f18837518b465ff8055b79add73f8566a06ff7279b6e2b7c4d4dd050abca"
+        },
+        {
+          "training_seed": 1,
+          "host": "cs-cl-17",
+          "trial_number": 2,
+          "relative_path": "trials/trial_00002/training/seed_1/model_249_6",
+          "sha256": "a3144f020609de7199355c61dbf422870e98d3a5032add0aaae973f895e7b26f"
+        },
+        {
+          "training_seed": 2,
+          "host": "cs-cl-17",
+          "trial_number": 4,
+          "relative_path": "trials/trial_00004/training/seed_2/model_249_6",
+          "sha256": "b86e88bdc2dfe48fabd9f4363810e26c24edaf90460d981f2ead0c4adc25dc3d"
+        }
+      ]
+    },
+    "uniform": {
+      "weights": {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0
+      },
+      "checkpoints": [
+        {
+          "training_seed": 0,
+          "host": "cs-cl-17",
+          "trial_number": 1,
+          "relative_path": "trials/trial_00001/training/seed_0/model_249_6",
+          "sha256": "d0ba5db16be2a4800675a2aa7b238bc8ae6d8ea02b868afdd509ba8eddca915b"
+        },
+        {
+          "training_seed": 1,
+          "host": "cs-cl-13",
+          "trial_number": 3,
+          "relative_path": "trials/trial_00003/training/seed_1/model_249_6",
+          "sha256": "a55fabb16f4f2ec3ae61ed7f72df9651c4ded7fe154a77693588cbd7e2e87290"
+        },
+        {
+          "training_seed": 2,
+          "host": "cs-cl-13",
+          "trial_number": 5,
+          "relative_path": "trials/trial_00005/training/seed_2/model_249_6",
+          "sha256": "9539083730c6ac0e8a83b1e88808986f851582b11c13ec7278544136aa23c5fc"
+        }
+      ]
+    }
+  },
+  "sampling": {
+    "training_seeds": [0, 1, 2],
+    "generation_seeds": [123, 124, 125],
+    "candidate_checkpoint_count": 6,
+    "generated_collection_count": 18,
+    "random_gin": {
+      "fixed_evaluator_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009],
+      "fresh_ensemble_per_job": false
+    },
+    "graphcl": {
+      "fixed_train_only_encoder_seeds": [101, 202, 303, 404, 505, 606, 707, 808, 909, 1010],
+      "epochs": 100,
+      "retrain_per_job": false
+    }
+  },
+  "matched_collection_rule": {
+    "same_generated_collection_for_both_evaluators": true,
+    "same_reference_collection_for_both_evaluators": true,
+    "collection_digests_must_match": true,
+    "partial_or_duplicate_job_forbidden": true,
+    "historical_seed_123_result_is_comparison_only": true,
+    "reason_seed_123_is_regenerated": "The historical evaluation did not retain a reusable restricted graph collection"
+  },
+  "analysis": {
+    "primary_metric": "f1_pr",
+    "aggregation": "arithmetic mean across the ten frozen evaluators",
+    "paired_difference": "selected minus uniform within training seed, generation seed, and evaluator index",
+    "dispersion": "population standard deviation of ten paired evaluator differences",
+    "generation_stability": "range across generation seeds of each candidate/training-seed ensemble mean",
+    "sign_stability": "count of the nine training-seed/generation-seed selected-minus-uniform means with the same sign as the overall mean"
+  },
+  "decision_rule": {
+    "graphcl_selected_only_if_all_conditions_hold": [
+      "both evaluators replay exactly on a frozen job",
+      "GraphCL mean paired-difference dispersion is at least 20 percent lower than Random-GIN",
+      "GraphCL mean generation-seed range is no greater than Random-GIN",
+      "GraphCL sign stability is no worse than Random-GIN",
+      "all integrity and validation-only guards pass"
+    ],
+    "otherwise": "Use ten fixed Random-GIN evaluators for search and reserve a disjoint fixed confirmation ensemble",
+    "no_hybrid_or_posthoc_objective": true,
+    "no_weight_improvement_claim_from_bakeoff": true
+  }
+}

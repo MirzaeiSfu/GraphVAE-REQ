@@ -1,0 +1,44 @@
+{
+  "schema_version": "aids-evaluator-bakeoff-split-qualification-v1",
+  "date": "2026-08-27",
+  "repository_head_before_evidence": "ea7043314034ca117d33a5aca8de81ca34284691",
+  "contract": {
+    "dataset": "AIDS",
+    "feature_schema": "tu-quantile8-max40|export=decoded_node_edge",
+    "node_feature_dimension": 56,
+    "edge_feature_dimension": 3,
+    "exported_splits": ["train", "validation"],
+    "test_access": false,
+    "split_overlap_count": 0
+  },
+  "cache": {
+    "relative_path": "cache_datasets/AIDS_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-0_bfs-all_components_features-tu-quantile8-max40.pkl",
+    "byte_length": 73822456,
+    "mode": "0444",
+    "sha256": "6edcc3309fb1c3d366b0f87065aa1b2e2c7d23cbff92bc729053f44e874909bb"
+  },
+  "artifacts": {
+    "train": {
+      "graph_count": 1294,
+      "total_nodes": 15685,
+      "directed_edge_count": 32106,
+      "collection_sha256": "3d979eb9fec89967832df54547fff6a9dfa2d6f9da8a5d357200dc5963f41650",
+      "split_fingerprint": "cbc4af1fdf217f72ea51e6b369f15aa611a72e0d23cb79cf4db24dd9b5b6e3b4"
+    },
+    "validation": {
+      "graph_count": 184,
+      "total_nodes": 2194,
+      "directed_edge_count": 4462,
+      "collection_sha256": "c0eaa2e545525e4a7a321eaa1937f6c68db76738906e2aa7f514b46dcd907e74",
+      "split_fingerprint": "ea6e38e034feb2c523263172d27f07af3ae1aaa99ea0ba875b739780706d6e66"
+    }
+  },
+  "verification": {
+    "deterministic_repeated_collection_digests": true,
+    "atomic_manifest_publication": true,
+    "matched_pyg_export_for_evaluator_reuse": true,
+    "focused_tests_passed": 11,
+    "failed_tests": 0,
+    "generated_collections_committed": false
+  }
+}

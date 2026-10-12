@@ -1,0 +1,2 @@
+# source: local:/local-scratch2/mirzaei/LGD_FIX_20260924/results/GraphVAEReq-diffusion-PTC_seed0/config.yaml
+# encoder trained earlier and reused; source: local:/local-scratch2/mirzaei/LGD_FIX_20260924/reuse_encoders/GraphVAEReq-encoder-PTC_seed0/config.yaml

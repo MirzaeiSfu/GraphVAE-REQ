@@ -1,0 +1,422 @@
+{
+  "checkpoint_count": 3,
+  "encoder": "graphcl",
+  "engine": "contrastive-pyg-upstream",
+  "feature_mode": "decoded_node",
+  "generated": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/runs/defog/proteins/generated_graphs.pt",
+  "per_checkpoint": [
+    {
+      "activation_dim": 96,
+      "activation_seconds": 0.059034109115600586,
+      "checkpoint": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/graph_evaluation/src/ggm_eval/trained_models/graphcl_gin/PROTEINS/seed_0/checkpoint.pt",
+      "checkpoint_seed": 0,
+      "encoder": "graphcl",
+      "engine": "contrastive-pyg-upstream",
+      "feature_mode": "decoded_node",
+      "generated_graphs": {
+        "directed_edge_count": 24842,
+        "edge_feature_dim": 0,
+        "graph_count": 210,
+        "node_feature_dim": 3,
+        "total_nodes": 6145
+      },
+      "generated_metadata": {
+        "archive_sha256": "ed8ada36ebfd889fb0af79f9205246ab6c0ac1b80fc4a186c6c14b99af9c4810",
+        "checkpoint_epoch": 1297,
+        "checkpoint_filename": "protein.ckpt",
+        "checkpoint_global_step": 59708,
+        "checkpoint_loaded_for_import": false,
+        "checkpoint_sha256": "7950be92f1bdc9989b4e9f8c17a109c85185357cb4ac62c2179cf2fdfc165639",
+        "dataset": "PROTEINS",
+        "defog_commit": "474f9405bdcdddc2d96cfedc3305172dffbe8fbd",
+        "feature_schema": "default|export=decoded_node",
+        "generation_seed": "not_recorded_in_artifact",
+        "generator": "DeFoG",
+        "source_file_sha256": "a576ac27898c5ec7d0e7a6b55a90ba16b644c335859c59545350bf9b797561dd",
+        "source_filename": "proteins_generated_graphs.pt",
+        "split": "generated",
+        "training_seed": 0
+      },
+      "generated_sha256": "c83b9194793a0984ff93460a5f91356c19472f58562bfd1ece9ea252362fbc19",
+      "metrics": {
+        "coverage": 0.9,
+        "density": 1.0133333333333334,
+        "f1_dc": 0.9533201396152654,
+        "f1_pr": 0.9435148761988629,
+        "fid": 43.484986139628404,
+        "mmd_linear": 6.162278175354004,
+        "mmd_rbf": 0.03160965442657471,
+        "precision": 0.9857142857142858,
+        "recall": 0.9047619047619048
+      },
+      "model": {
+        "edge_dim": 0,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 3,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "nearest_k": 5,
+      "reference_graphs": {
+        "directed_edge_count": 22938,
+        "edge_feature_dim": 0,
+        "graph_count": 210,
+        "node_feature_dim": 3,
+        "total_nodes": 6056
+      },
+      "reference_metadata": {
+        "dataset": "PROTEINS",
+        "feature_schema": "default|export=decoded_node",
+        "source_format": "dgl.save_graphs",
+        "source_logical_sha256": "975d0b9c001a6b60be9b68d24623a5bc7326f87a9ab5850949ffff2c8c7c5a0d",
+        "source_path": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/reports/protein_attributed_random_gin_20260723/00_graphvae/seed_0/reference_attributed_graphs.bin",
+        "split": "test",
+        "split_algorithm": "python_random.Random.shuffle",
+        "split_index_sha256": "d924d80e676c0118be4d5915feacab652528fc6dce60e8350de0267b6dfcce0f",
+        "split_seed": 123
+      },
+      "reference_sha256": "e653387717cb3320720d53e003a3fc6b17d38d8d56d19529bf0072f9bc45d44a",
+      "schema_identity": {
+        "dataset": "PROTEINS",
+        "feature_schema": "default|export=decoded_node"
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_metadata": {
+        "bfs_strategy": "all_components",
+        "dataset": "PROTEINS",
+        "feature_mode": "decoded_node",
+        "feature_schema": "default|export=decoded_node",
+        "producer": "GraphVAE-REQ/scripts/export_real_pyg_splits.py",
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "split": "train",
+        "split_mode": "paper_70_10_20",
+        "split_seed": 123,
+        "test_fraction": 0.20000000000000004,
+        "train_fraction": 0.7,
+        "validation_fraction": 0.1
+      },
+      "upstream": {
+        "checkout": "/local-scratch2/mirzaei/Abdolreza/upstreams/Self-Supervised-Models-for-GGM-Evaluation",
+        "expected_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+        "repository": "https://github.com/hamed1375/Self-Supervised-Models-for-GGM-Evaluation",
+        "revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+        "revision_matches": true,
+        "worktree_dirty": false
+      },
+      "upstream_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+      "versions": {
+        "adapter": "0.1.0",
+        "dgl": "2.1.0+cu121",
+        "numpy": "1.24.3",
+        "python": "3.8.20",
+        "scikit_learn": "0.23.2",
+        "scipy": "1.10.1",
+        "torch": "2.1.2",
+        "torch_geometric": "2.6.1"
+      }
+    },
+    {
+      "activation_dim": 96,
+      "activation_seconds": 0.017667055130004883,
+      "checkpoint": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/graph_evaluation/src/ggm_eval/trained_models/graphcl_gin/PROTEINS/seed_1/checkpoint.pt",
+      "checkpoint_seed": 1,
+      "encoder": "graphcl",
+      "engine": "contrastive-pyg-upstream",
+      "feature_mode": "decoded_node",
+      "generated_graphs": {
+        "directed_edge_count": 24842,
+        "edge_feature_dim": 0,
+        "graph_count": 210,
+        "node_feature_dim": 3,
+        "total_nodes": 6145
+      },
+      "generated_metadata": {
+        "archive_sha256": "ed8ada36ebfd889fb0af79f9205246ab6c0ac1b80fc4a186c6c14b99af9c4810",
+        "checkpoint_epoch": 1297,
+        "checkpoint_filename": "protein.ckpt",
+        "checkpoint_global_step": 59708,
+        "checkpoint_loaded_for_import": false,
+        "checkpoint_sha256": "7950be92f1bdc9989b4e9f8c17a109c85185357cb4ac62c2179cf2fdfc165639",
+        "dataset": "PROTEINS",
+        "defog_commit": "474f9405bdcdddc2d96cfedc3305172dffbe8fbd",
+        "feature_schema": "default|export=decoded_node",
+        "generation_seed": "not_recorded_in_artifact",
+        "generator": "DeFoG",
+        "source_file_sha256": "a576ac27898c5ec7d0e7a6b55a90ba16b644c335859c59545350bf9b797561dd",
+        "source_filename": "proteins_generated_graphs.pt",
+        "split": "generated",
+        "training_seed": 0
+      },
+      "generated_sha256": "c83b9194793a0984ff93460a5f91356c19472f58562bfd1ece9ea252362fbc19",
+      "metrics": {
+        "coverage": 0.8857142857142857,
+        "density": 0.982857142857143,
+        "f1_dc": 0.9317706211729058,
+        "f1_pr": 0.927018563839398,
+        "fid": 210.47129565450808,
+        "mmd_linear": 7.34306526184082,
+        "mmd_rbf": 0.031055539846420288,
+        "precision": 0.9666666666666667,
+        "recall": 0.8904761904761904
+      },
+      "model": {
+        "edge_dim": 0,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 3,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "nearest_k": 5,
+      "reference_graphs": {
+        "directed_edge_count": 22938,
+        "edge_feature_dim": 0,
+        "graph_count": 210,
+        "node_feature_dim": 3,
+        "total_nodes": 6056
+      },
+      "reference_metadata": {
+        "dataset": "PROTEINS",
+        "feature_schema": "default|export=decoded_node",
+        "source_format": "dgl.save_graphs",
+        "source_logical_sha256": "975d0b9c001a6b60be9b68d24623a5bc7326f87a9ab5850949ffff2c8c7c5a0d",
+        "source_path": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/reports/protein_attributed_random_gin_20260723/00_graphvae/seed_0/reference_attributed_graphs.bin",
+        "split": "test",
+        "split_algorithm": "python_random.Random.shuffle",
+        "split_index_sha256": "d924d80e676c0118be4d5915feacab652528fc6dce60e8350de0267b6dfcce0f",
+        "split_seed": 123
+      },
+      "reference_sha256": "e653387717cb3320720d53e003a3fc6b17d38d8d56d19529bf0072f9bc45d44a",
+      "schema_identity": {
+        "dataset": "PROTEINS",
+        "feature_schema": "default|export=decoded_node"
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_metadata": {
+        "bfs_strategy": "all_components",
+        "dataset": "PROTEINS",
+        "feature_mode": "decoded_node",
+        "feature_schema": "default|export=decoded_node",
+        "producer": "GraphVAE-REQ/scripts/export_real_pyg_splits.py",
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "split": "train",
+        "split_mode": "paper_70_10_20",
+        "split_seed": 123,
+        "test_fraction": 0.20000000000000004,
+        "train_fraction": 0.7,
+        "validation_fraction": 0.1
+      },
+      "upstream": {
+        "checkout": "/local-scratch2/mirzaei/Abdolreza/upstreams/Self-Supervised-Models-for-GGM-Evaluation",
+        "expected_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+        "repository": "https://github.com/hamed1375/Self-Supervised-Models-for-GGM-Evaluation",
+        "revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+        "revision_matches": true,
+        "worktree_dirty": false
+      },
+      "upstream_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+      "versions": {
+        "adapter": "0.1.0",
+        "dgl": "2.1.0+cu121",
+        "numpy": "1.24.3",
+        "python": "3.8.20",
+        "scikit_learn": "0.23.2",
+        "scipy": "1.10.1",
+        "torch": "2.1.2",
+        "torch_geometric": "2.6.1"
+      }
+    },
+    {
+      "activation_dim": 96,
+      "activation_seconds": 0.017771482467651367,
+      "checkpoint": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/graph_evaluation/src/ggm_eval/trained_models/graphcl_gin/PROTEINS/seed_2/checkpoint.pt",
+      "checkpoint_seed": 2,
+      "encoder": "graphcl",
+      "engine": "contrastive-pyg-upstream",
+      "feature_mode": "decoded_node",
+      "generated_graphs": {
+        "directed_edge_count": 24842,
+        "edge_feature_dim": 0,
+        "graph_count": 210,
+        "node_feature_dim": 3,
+        "total_nodes": 6145
+      },
+      "generated_metadata": {
+        "archive_sha256": "ed8ada36ebfd889fb0af79f9205246ab6c0ac1b80fc4a186c6c14b99af9c4810",
+        "checkpoint_epoch": 1297,
+        "checkpoint_filename": "protein.ckpt",
+        "checkpoint_global_step": 59708,
+        "checkpoint_loaded_for_import": false,
+        "checkpoint_sha256": "7950be92f1bdc9989b4e9f8c17a109c85185357cb4ac62c2179cf2fdfc165639",
+        "dataset": "PROTEINS",
+        "defog_commit": "474f9405bdcdddc2d96cfedc3305172dffbe8fbd",
+        "feature_schema": "default|export=decoded_node",
+        "generation_seed": "not_recorded_in_artifact",
+        "generator": "DeFoG",
+        "source_file_sha256": "a576ac27898c5ec7d0e7a6b55a90ba16b644c335859c59545350bf9b797561dd",
+        "source_filename": "proteins_generated_graphs.pt",
+        "split": "generated",
+        "training_seed": 0
+      },
+      "generated_sha256": "c83b9194793a0984ff93460a5f91356c19472f58562bfd1ece9ea252362fbc19",
+      "metrics": {
+        "coverage": 0.9285714285714286,
+        "density": 0.9295238095238096,
+        "f1_dc": 0.9290573749751687,
+        "f1_pr": 0.9261394524276308,
+        "fid": 33.8006595250325,
+        "mmd_linear": 6.6556596755981445,
+        "mmd_rbf": 0.03332841396331787,
+        "precision": 0.9761904761904762,
+        "recall": 0.8809523809523809
+      },
+      "model": {
+        "edge_dim": 0,
+        "hidden_dim": 32,
+        "init": "orthogonal",
+        "input_dim": 3,
+        "limit_lipschitz": true,
+        "lipschitz_factor": 1.0,
+        "num_layers": 3
+      },
+      "nearest_k": 5,
+      "reference_graphs": {
+        "directed_edge_count": 22938,
+        "edge_feature_dim": 0,
+        "graph_count": 210,
+        "node_feature_dim": 3,
+        "total_nodes": 6056
+      },
+      "reference_metadata": {
+        "dataset": "PROTEINS",
+        "feature_schema": "default|export=decoded_node",
+        "source_format": "dgl.save_graphs",
+        "source_logical_sha256": "975d0b9c001a6b60be9b68d24623a5bc7326f87a9ab5850949ffff2c8c7c5a0d",
+        "source_path": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/reports/protein_attributed_random_gin_20260723/00_graphvae/seed_0/reference_attributed_graphs.bin",
+        "split": "test",
+        "split_algorithm": "python_random.Random.shuffle",
+        "split_index_sha256": "d924d80e676c0118be4d5915feacab652528fc6dce60e8350de0267b6dfcce0f",
+        "split_seed": 123
+      },
+      "reference_sha256": "e653387717cb3320720d53e003a3fc6b17d38d8d56d19529bf0072f9bc45d44a",
+      "schema_identity": {
+        "dataset": "PROTEINS",
+        "feature_schema": "default|export=decoded_node"
+      },
+      "training": {
+        "epochs": 100,
+        "trained": true
+      },
+      "training_metadata": {
+        "bfs_strategy": "all_components",
+        "dataset": "PROTEINS",
+        "feature_mode": "decoded_node",
+        "feature_schema": "default|export=decoded_node",
+        "producer": "GraphVAE-REQ/scripts/export_real_pyg_splits.py",
+        "selection_seed": 0,
+        "source_graph_limit": 0,
+        "split": "train",
+        "split_mode": "paper_70_10_20",
+        "split_seed": 123,
+        "test_fraction": 0.20000000000000004,
+        "train_fraction": 0.7,
+        "validation_fraction": 0.1
+      },
+      "upstream": {
+        "checkout": "/local-scratch2/mirzaei/Abdolreza/upstreams/Self-Supervised-Models-for-GGM-Evaluation",
+        "expected_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+        "repository": "https://github.com/hamed1375/Self-Supervised-Models-for-GGM-Evaluation",
+        "revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+        "revision_matches": true,
+        "worktree_dirty": false
+      },
+      "upstream_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+      "versions": {
+        "adapter": "0.1.0",
+        "dgl": "2.1.0+cu121",
+        "numpy": "1.24.3",
+        "python": "3.8.20",
+        "scikit_learn": "0.23.2",
+        "scipy": "1.10.1",
+        "torch": "2.1.2",
+        "torch_geometric": "2.6.1"
+      }
+    }
+  ],
+  "reference": "/local-scratch2/mirzaei/Abdolreza/GraphVAE-REQ/runs/defog/proteins/real_test_graphs.pt",
+  "summary": {
+    "coverage": {
+      "max": 0.9285714285714286,
+      "mean": 0.9047619047619048,
+      "min": 0.8857142857142857,
+      "std": 0.017817416127494982
+    },
+    "density": {
+      "max": 1.0133333333333334,
+      "mean": 0.9752380952380953,
+      "min": 0.9295238095238096,
+      "std": 0.03463665192885296
+    },
+    "f1_dc": {
+      "max": 0.9533201396152654,
+      "mean": 0.9380493785877798,
+      "min": 0.9290573749751687,
+      "std": 0.010854723487996976
+    },
+    "f1_pr": {
+      "max": 0.9435148761988629,
+      "mean": 0.9322242974886307,
+      "min": 0.9261394524276308,
+      "std": 0.007991707574210414
+    },
+    "fid": {
+      "max": 210.47129565450808,
+      "mean": 95.91898043972299,
+      "min": 33.8006595250325,
+      "std": 81.09714847553788
+    },
+    "mmd_linear": {
+      "max": 7.34306526184082,
+      "mean": 6.720334370930989,
+      "min": 6.162278175354004,
+      "std": 0.48421871646726156
+    },
+    "mmd_rbf": {
+      "max": 0.03332841396331787,
+      "mean": 0.031997869412104286,
+      "min": 0.031055539846420288,
+      "std": 0.0009676508819672662
+    },
+    "precision": {
+      "max": 0.9857142857142858,
+      "mean": 0.9761904761904763,
+      "min": 0.9666666666666667,
+      "std": 0.007776157913597408
+    },
+    "recall": {
+      "max": 0.9047619047619048,
+      "mean": 0.892063492063492,
+      "min": 0.8809523809523809,
+      "std": 0.0097847841316968
+    }
+  },
+  "upstream": {
+    "checkout": "/local-scratch2/mirzaei/Abdolreza/upstreams/Self-Supervised-Models-for-GGM-Evaluation",
+    "expected_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+    "repository": "https://github.com/hamed1375/Self-Supervised-Models-for-GGM-Evaluation",
+    "revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+    "revision_matches": true,
+    "worktree_dirty": false
+  }
+}

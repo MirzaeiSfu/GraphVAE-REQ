@@ -1,0 +1,12 @@
+- dataset=proteins
+- +experiment=proteins
+- dataset.datadir=data/proteins_3seed_20260910/
+- train.seed=0
+- general.generation_seed=9400
+- general.name=proteins_seed_0_corrected_generation_20260922
+- general.wandb=disabled
+- general.test_only=/local-scratch2/mirzaei/proteins_defog_3seed_20260910/runs/seed_0/checkpoints/proteins_3seed_20260910_seed_0/last.ckpt
+- general.final_model_samples_to_generate=210
+- general.final_model_samples_to_save=210
+- general.final_model_chains_to_save=0
+- general.evaluate_all_checkpoints=false

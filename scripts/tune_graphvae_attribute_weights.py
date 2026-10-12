@@ -68,6 +68,7 @@ class SearchRanges:
     alpha_node_feat: tuple[float, float]
     alpha_edge_feat: tuple[float, float]
     alpha_motif_loss: tuple[float, float] | None = None
+    beta: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -154,17 +155,21 @@ def validate_log_range(name: str, bounds: tuple[float, float]) -> None:
 
 
 def build_search_ranges(args: argparse.Namespace) -> SearchRanges:
+    tune_beta = bool(getattr(args, "tune_beta", False))
     ranges = SearchRanges(
         alpha_node_feat=(args.alpha_node_feat_min, args.alpha_node_feat_max),
         alpha_edge_feat=(args.alpha_edge_feat_min, args.alpha_edge_feat_max),
         alpha_motif_loss=(args.alpha_motif_min, args.alpha_motif_max)
         if args.tune_alpha_motif
         else None,
+        beta=(args.beta_min, args.beta_max) if tune_beta else None,
     )
     validate_log_range("alpha_node_feat", ranges.alpha_node_feat)
     validate_log_range("alpha_edge_feat", ranges.alpha_edge_feat)
     if ranges.alpha_motif_loss is not None:
         validate_log_range("alpha_motif_loss", ranges.alpha_motif_loss)
+    if ranges.beta is not None:
+        validate_log_range("beta", ranges.beta)
     return ranges
 
 
@@ -183,6 +188,10 @@ def sample_search_space(trial, ranges: SearchRanges) -> dict[str, float]:
         parameters["alpha_motif_loss"] = trial.suggest_float(
             "alpha_motif_loss", *ranges.alpha_motif_loss, log=True
         )
+    if ranges.beta is not None:
+        parameters["beta"] = trial.suggest_float(
+            "beta", *ranges.beta, log=True
+        )
     return parameters
 
 
@@ -191,17 +200,41 @@ def inject_sampled_parameters(
     sampled_parameters: Mapping[str, float],
 ) -> dict[str, Any]:
     resolved = copy.deepcopy(dict(base_config))
-    allowed = {"alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss"}
+    allowed = {"alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss", "beta"}
     unexpected = sorted(set(sampled_parameters) - allowed)
     if unexpected:
         raise ValueError(f"Unsupported sampled parameters: {', '.join(unexpected)}")
     for key, value in sampled_parameters.items():
-        set_config_value(
-            resolved,
-            key,
-            float(value),
-            preferred_section="loss",
-        )
+        numeric = float(value)
+        if not math.isfinite(numeric) or numeric <= 0.0:
+            raise ValueError(f"Sampled parameter {key} must be finite and positive.")
+        if key == "beta" and _as_bool(
+            flatten_config(resolved).get("use_graphvae_mm_bce_kl_weights", False)
+        ):
+            raise ValueError(
+                "beta optimization requires use_graphvae_mm_bce_kl_weights=false."
+            )
+        if key == "beta":
+            misplaced = key in resolved and not isinstance(resolved[key], Mapping)
+            misplaced = misplaced or any(
+                section_name != "model"
+                and isinstance(section_value, Mapping)
+                and key in section_value
+                for section_name, section_value in resolved.items()
+            )
+            if misplaced:
+                raise ValueError("Sampled beta must be scoped only under model.beta.")
+            model = resolved.setdefault("model", {})
+            if not isinstance(model, dict):
+                raise ValueError("Cannot add beta: model section is not a mapping.")
+            model["beta"] = numeric
+        else:
+            set_config_value(
+                resolved,
+                key,
+                numeric,
+                preferred_section="loss",
+            )
     return resolved
 
 
@@ -217,7 +250,9 @@ def _as_bool(value: Any) -> bool:
     return bool(value)
 
 
-def validate_base_config(config: Mapping[str, Any], tune_alpha_motif: bool) -> None:
+def validate_base_config(
+    config: Mapping[str, Any], tune_alpha_motif: bool, tune_beta: bool = False
+) -> None:
     """Reject configurations that cannot provide an isolated validation objective."""
 
     flat = flatten_config(config)
@@ -250,6 +285,10 @@ def validate_base_config(config: Mapping[str, Any], tune_alpha_motif: bool) -> N
     if tune_alpha_motif and not _as_bool(flat.get("motif_loss", False)):
         raise ValueError(
             "--tune-alpha-motif requires motif_loss=true in the base configuration."
+        )
+    if tune_beta and _as_bool(flat.get("use_graphvae_mm_bce_kl_weights", False)):
+        raise ValueError(
+            "beta optimization requires use_graphvae_mm_bce_kl_weights=false."
         )
 
 
@@ -1061,9 +1100,10 @@ def _mock_evaluator_payload(
     node_log = math.log10(parameters["alpha_node_feat"])
     edge_log = math.log10(parameters["alpha_edge_feat"])
     motif_log = math.log10(parameters.get("alpha_motif_loss", 1.0))
+    beta_log = math.log10(parameters.get("beta", 1.0))
     score = max(
         0.0,
-        min(1.0, 0.92 - 0.035 * (node_log - 0.4) ** 2 - 0.045 * (edge_log + 0.1) ** 2 - 0.005 * motif_log**2),
+        min(1.0, 0.92 - 0.035 * (node_log - 0.4) ** 2 - 0.045 * (edge_log + 0.1) ** 2 - 0.005 * motif_log**2 - 0.02 * beta_log**2),
     )
     precision = max(0.0, min(1.0, score + 0.01))
     recall = max(0.0, min(1.0, score - 0.01))
@@ -1122,7 +1162,11 @@ def _mock_graphcl_payload(
 ) -> dict[str, Any]:
     node_log = math.log10(parameters["alpha_node_feat"])
     edge_log = math.log10(parameters["alpha_edge_feat"])
-    center = max(0.05, min(0.95, 0.85 - 0.03 * node_log**2 - 0.04 * edge_log**2))
+    beta_log = math.log10(parameters.get("beta", 1.0))
+    center = max(
+        0.05,
+        min(0.95, 0.85 - 0.03 * node_log**2 - 0.04 * edge_log**2 - 0.02 * beta_log**2),
+    )
     offsets = (-0.04, -0.02, 0.0, 0.02, 0.04)
     if len(encoder_checkpoints) != len(offsets):
         raise TrialExecutionError("GraphCL mock requires exactly five encoders.")
@@ -1975,13 +2019,16 @@ def write_study_outputs(
 ) -> Any | None:
     output_dir.mkdir(parents=True, exist_ok=True)
     trials = study.get_trials(deepcopy=False)
+    includes_beta = any("beta" in trial.params for trial in trials)
+    csv_fields = list(TRIAL_CSV_FIELDS)
+    if includes_beta:
+        csv_fields.insert(csv_fields.index("alpha_motif_loss") + 1, "beta")
     csv_buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(csv_buffer, fieldnames=TRIAL_CSV_FIELDS)
+    writer = csv.DictWriter(csv_buffer, fieldnames=csv_fields)
     writer.writeheader()
     for trial in trials:
         attrs = trial.user_attrs
-        writer.writerow(
-            {
+        row = {
                 "trial_number": trial.number,
                 "state": trial.state.name,
                 "validation_attr_f1pr": trial.value,
@@ -1998,7 +2045,9 @@ def write_study_outputs(
                 "checkpoint_sha256": attrs.get("checkpoint_sha256"),
                 "failure_reason": attrs.get("failure_reason"),
             }
-        )
+        if includes_beta:
+            row["beta"] = trial.params.get("beta")
+        writer.writerow(row)
     atomic_write_bytes(
         output_dir / "trials.csv", csv_buffer.getvalue().encode("utf-8")
     )
@@ -2096,7 +2145,7 @@ def optimize(args: argparse.Namespace) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     base_config = load_yaml_mapping(args.base_config)
     if not args.mock:
-        validate_base_config(base_config, args.tune_alpha_motif)
+        validate_base_config(base_config, args.tune_alpha_motif, args.tune_beta)
     else:
         # Mock mode still checks duplicate keys and motif intent, while allowing
         # intentionally tiny fixture configs that do not describe real data.
@@ -2115,6 +2164,17 @@ def optimize(args: argparse.Namespace) -> int:
         sampler_seed=args.sampler_seed,
         startup_trials=args.tpe_startup_trials,
     )
+    search_ranges = {
+        "alpha_node_feat": list(ranges.alpha_node_feat),
+        "alpha_edge_feat": list(ranges.alpha_edge_feat),
+        "alpha_motif_loss": (
+            None
+            if ranges.alpha_motif_loss is None
+            else list(ranges.alpha_motif_loss)
+        ),
+    }
+    if ranges.beta is not None:
+        search_ranges["beta"] = list(ranges.beta)
     study_definition = {
         "schema_version": "graphvae-attr-f1pr-bo-study-v1",
         "objective": OBJECTIVE_NAME,
@@ -2124,15 +2184,7 @@ def optimize(args: argparse.Namespace) -> int:
         "test_evaluation_during_optimization": False,
         "study_name": args.study_name,
         "base_config_sha256": sha256_file(args.base_config.expanduser().resolve()),
-        "search_ranges": {
-            "alpha_node_feat": list(ranges.alpha_node_feat),
-            "alpha_edge_feat": list(ranges.alpha_edge_feat),
-            "alpha_motif_loss": (
-                None
-                if ranges.alpha_motif_loss is None
-                else list(ranges.alpha_motif_loss)
-            ),
-        },
+        "search_ranges": search_ranges,
         "split_seed": split_seed,
         "training_seed": args.training_seed,
         "generation_seed": args.generation_seed,
@@ -2342,6 +2394,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--alpha-motif-min", type=float, default=1e-3)
     parser.add_argument("--alpha-motif-max", type=float, default=1e2)
+    parser.add_argument(
+        "--tune-beta",
+        action="store_true",
+        help="Also tune the GraphVAE KL coefficient in model.beta.",
+    )
+    parser.add_argument("--beta-min", type=float, default=0.25)
+    parser.add_argument("--beta-max", type=float, default=4.0)
     parser.add_argument("--split-seed", type=int, default=None)
     parser.add_argument("--training-seed", type=int, default=None)
     parser.add_argument("--generation-seed", type=int, default=None)

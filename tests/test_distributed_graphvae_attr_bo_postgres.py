@@ -43,7 +43,12 @@ from scripts.graphvae_attr_bo_distributed import (
 
 pytestmark = pytest.mark.postgres
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MICRO_PYTHON = Path("/local-scratch2/mirzaei/miniconda3/envs/micro/bin/python")
+MICRO_PYTHON = Path(
+    os.environ.get(
+        "GRAPHVAE_BO_TEST_PYTHON",
+        "/local-scratch2/mirzaei/miniconda3/envs/micro/bin/python",
+    )
+)
 
 
 def _allow_insecure(url):
@@ -345,7 +350,12 @@ def test_p01b_fixed_qualification_parameters_survive_postgres_claim(postgres_url
         storage, study_name=name, sampler_seed_value=9, create=True
     )
     definition = _definition(name, 2, max_parallel=2)
-    fixed = {"alpha_node_feat": 2.0, "alpha_edge_feat": 3.0}
+    definition["search_space"]["beta"] = {
+        "low": 0.25,
+        "high": 4.0,
+        "log": True,
+    }
+    fixed = {"alpha_node_feat": 2.0, "alpha_edge_feat": 3.0, "beta": 0.5}
     definition["search_space"]["fixed_parameters"] = fixed
     root = tmp_path / name
     root.mkdir()
@@ -361,7 +371,8 @@ def test_p01b_fixed_qualification_parameters_survive_postgres_claim(postgres_url
             guard_reserved_trial(trial, study, expected_contract_hash=contract)
             node = trial.suggest_float("alpha_node_feat", 1e-3, 1e2, log=True)
             edge = trial.suggest_float("alpha_edge_feat", 1e-4, 1e1, log=True)
-            return node + edge
+            beta = trial.suggest_float("beta", 0.25, 4.0, log=True)
+            return node + edge + beta
 
         study.optimize(objective, n_trials=2)
         assert [trial.params for trial in study.trials] == [fixed, fixed]

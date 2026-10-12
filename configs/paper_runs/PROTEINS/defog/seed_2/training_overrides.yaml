@@ -1,0 +1,13 @@
+- dataset=proteins
+- +experiment=proteins
+- dataset.datadir=data/proteins_3seed_20260910/
+- train.seed=2
+- train.n_epochs=1307
+- train.batch_size=16
+- train.save_model=true
+- general.name=proteins_3seed_20260910_seed_2
+- general.wandb=disabled
+- general.check_val_every_n_epochs=22
+- general.sample_every_val=1
+- general.samples_to_generate=40
+- general.final_model_samples_to_generate=210

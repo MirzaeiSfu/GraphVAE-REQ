@@ -1,0 +1,2 @@
+# source: solar:/home/mirzaei/LGD_FIX_20260924/results/GraphVAEReq-diffusion-QM9_seed1/config.yaml
+# encoder trained in the earlier campaign and reused; source: solar:/home/mirzaei/LGD_3SEED_CAMPAIGN_20260920/results/GraphVAEReq-encoder-QM9_seed1/config.yaml

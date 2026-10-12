@@ -1,0 +1,82 @@
+general:
+  name: generate_triangular_grid_seed_0
+  wandb: disabled
+  gpus: 1
+  resume: null
+  test_only: /local-scratch2/mirzaei/defog_frozen_benchmark_20260903/GraphVAE-REQ-full/runs/defog/frozen_eval/jobs/triangular_grid/seed_0/best_validation.ckpt
+  check_val_every_n_epochs: 500
+  sample_every_val: 1
+  val_check_interval: null
+  samples_to_generate: 10
+  samples_to_save: 9
+  chains_to_save: 1
+  log_every_steps: 50
+  number_chain_steps: 50
+  generated_path: null
+  final_model_samples_to_generate: 20
+  final_model_samples_to_save: 0
+  final_model_chains_to_save: 0
+  num_sample_fold: 1
+  evaluate_all_checkpoints: false
+  save_samples: true
+  validation_selection: loss
+  generation_seed: 12345
+  strict_generation: true
+  max_generation_attempt_factor: 10
+  defog_commit: c631697b9cd5a2474d22ba12de33943c6b49e53e
+  conditional: false
+  target: k2
+  guidance_weight: 2.0
+  sample_steps: 1000
+model:
+  transition: marginal
+  model: graph_tf
+  n_layers: 10
+  extra_features: rrwp
+  rrwp_steps: 12
+  hidden_mlp_dims:
+    X: 128
+    E: 64
+    'y': 128
+  hidden_dims:
+    dx: 256
+    de: 64
+    dy: 64
+    n_head: 8
+    dim_ffX: 256
+    dim_ffE: 64
+    dim_ffy: 256
+  lambda_train:
+  - 5
+  - 0
+train:
+  n_epochs: 10000
+  batch_size: 1
+  lr: 0.0002
+  clip_grad: null
+  save_model: true
+  num_workers: 0
+  ema_decay: 0
+  progress_bar: false
+  weight_decay: 1.0e-12
+  optimizer: adamw
+  seed: 0
+  time_distortion: identity
+dataset:
+  name: frozen_graphvae
+  identity: TRIANGULAR_GRID
+  root: /local-scratch2/mirzaei/defog_frozen_benchmark_20260903/GraphVAE-REQ-full/runs/defog/frozen_eval/triangular_grid
+  train_sha256: 3e66eb440731667af0fb4af361b77ef8291dc8b4951a8e98b083176b236d5874
+  validation_sha256: 35bd06e8a3528b56cb3a66ee56a47a494286dfe9f5580fa4d4076df6783d3e60
+  reference_sha256: 750cb77476e7246171ca59d6fba3794ce891ee41c49049ed9bbdae9f8adfe638
+  feature_mode: topology_control
+  feature_schema: constant-node|export=topology_control
+  pin_memory: false
+sample:
+  eta: 50
+  omega: 0.05
+  sample_steps: 1000
+  time_distortion: polydec
+  search: false
+  rdb: general
+  rdb_crit: dummy

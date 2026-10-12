@@ -1,0 +1,127 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-completion-v1",
+  "completed_on": "2026-08-26",
+  "scientific_contract": {
+    "objective_compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "skip_final_evaluation": true,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "held_out_or_test_evaluation_performed": false
+  },
+  "phase_a": {
+    "study_name": "lobster_graphcl_f1pr_anchors2000_20260825a",
+    "study_contract_sha256": "4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398",
+    "snapshot_sha256": "c88a8512ea3ac5f0c943ece6ecd9a6a9da121f81b4d238134bc2f845fda4af92",
+    "reserved_total": 6,
+    "complete": 6,
+    "failed": 0,
+    "uniform_mean": 0.7216081830934524,
+    "best_candidate": "uniform"
+  },
+  "phase_b": {
+    "study_name": "lobster_graphcl_f1pr_promoted10000_20260826b",
+    "study_contract_sha256": "9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8",
+    "snapshot_sha256": "c22b74cd2ff061fa6901c4b77eed4ba9e9f825926c3f7df1d25d1dc449daa082",
+    "reserved_total": 3,
+    "complete": 3,
+    "failed": 0,
+    "uniform_mean": 0.51299782675377,
+    "edge_emphasis_mean": 0.6217187852365449,
+    "edge_emphasis_minus_uniform_absolute": 0.10872095848277485,
+    "edge_emphasis_minus_uniform_percent": 21.193259076896442,
+    "spearman_phase_a_vs_phase_b": -1.0,
+    "minimum_spearman": 0.5,
+    "previous_nonuniform_vs_uniform_sign_reversal": true
+  },
+  "generation_stability": {
+    "output_root": "runs/lobster_graphcl_f1pr_generation_stability_20260826b",
+    "contract_file_sha256": "9f10b25c39dbf60fdd605210aba30ea6f9caabc7fda7e199caca1ae33cdc86f4",
+    "completion_file_sha256": "17150494473c3970145d27390044ee07fab461e555a4a868e77cbf2f6a5d9d6e",
+    "complete_marker_sha256": "dfdd95c70b12def600057bd159f8f25d5e07dbde9f433408ba25ca59ed9aef9b",
+    "candidate_count": 2,
+    "training_seed_count": 2,
+    "generation_seeds": [123, 124, 125],
+    "reused_phase_b_evaluations": 4,
+    "new_evaluations": 8,
+    "new_generated_graph_files": 8,
+    "new_objective_files": 8,
+    "uniform_generation_seed_mean_range": 0.11861985803510722,
+    "edge_emphasis_generation_seed_mean_range": 0.2938981909190103,
+    "maximum_within_candidate_range": 0.2938981909190103,
+    "dominance_threshold": 0.10872095848277485,
+    "dominance_rule_passed": false,
+    "generation_seed_variation_dominates_candidate_difference": true,
+    "failed_a_root_preserved_empty": true,
+    "failed_a_scientific_evaluations_consumed": 0
+  },
+  "integrity": {
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "source_commit": "3b55d3e1fda84c1603908c0ef8ea73ac71591358",
+    "source_tree_sha256": "d73c5c4a40d67331b9cadb8eecbd4b6f6fc68fca28f27db3b62ec30f3d2b9b7e",
+    "cache_sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+    "cache_size_bytes": 59295793,
+    "cache_mode": "0444",
+    "stability_text_files_scanned": 155,
+    "credential_assignment_hits": 0,
+    "storage_url_hits": 0,
+    "password_assignment_hits": 0,
+    "test_access_true_hits": 0
+  },
+  "tests": {
+    "non_postgresql_distributed_attribute_and_graphcl": 161,
+    "isolated_postgresql": 19,
+    "final_failed": 0,
+    "final_skipped": 0,
+    "residual_isolated_postgresql_studies": 0,
+    "postgresql_test_transport": "protected_verify_full_with_explicit_test_environment_and_uuid_study_isolation",
+    "operational_attempts_preserved": [
+      {
+        "location": "cs-cl-18",
+        "result": "endpoint_unreachable_from_controller",
+        "passed": 1,
+        "failed": 18,
+        "scientific_reservations_consumed": 0
+      },
+      {
+        "location": "cs-cl-09_scratch_staging",
+        "result": "hard_coded_controller_python_not_portable",
+        "passed": 13,
+        "failed": 6,
+        "scientific_reservations_consumed": 0
+      },
+      {
+        "location": "cs-cl-09_scratch_staging",
+        "result": "scratch_source_missing_git_identity",
+        "passed": 18,
+        "failed": 1,
+        "scientific_reservations_consumed": 0
+      },
+      {
+        "location": "cs-cl-09_scratch_staging",
+        "result": "one_transient_stale_heartbeat_timing_failure",
+        "passed": 18,
+        "failed": 1,
+        "scientific_reservations_consumed": 0
+      },
+      {
+        "location": "cs-cl-09_scratch_staging",
+        "result": "passed",
+        "passed": 19,
+        "failed": 0,
+        "scientific_reservations_consumed": 0
+      }
+    ]
+  },
+  "conclusion": {
+    "gate5_passed": false,
+    "decision": "qualification_failed",
+    "adaptive_bo_authorized": false,
+    "gate6_authorized": false,
+    "bo_improves_uniform_graphvae": "not_demonstrated",
+    "fixed_anchor_observation": "Edge emphasis (alpha_node_feat=0.25, alpha_edge_feat=4.0) exceeded uniform at the single Phase-B generation seed, but the fidelity ranking reversed and generation-seed variation exceeded that candidate difference.",
+    "scientific_interpretation": "The current GraphCL-F1PR objective is too sensitive to training fidelity and generated validation samples to support a reliable BO improvement claim. The fixed edge-emphasis signal is exploratory only and must not be presented as a qualified BO result.",
+    "next_action": "Stop this campaign at Gate 5; do not launch adaptive BO, Gate 6, or held-out/test evaluation under this contract."
+  }
+}

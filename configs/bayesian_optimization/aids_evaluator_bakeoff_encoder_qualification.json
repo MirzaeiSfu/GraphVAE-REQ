@@ -1,0 +1,63 @@
+{
+  "schema_version": "aids-evaluator-bakeoff-encoder-qualification-v1",
+  "date": "2026-08-27",
+  "host": "cs-cl-17",
+  "source_commit": "057a23cdc597db4212ed80acaa82e9a3aec5e94a",
+  "dataset": "AIDS",
+  "training_split": "train",
+  "test_access": false,
+  "training_graph_count": 1294,
+  "training_collection_sha256": "3d979eb9fec89967832df54547fff6a9dfa2d6f9da8a5d357200dc5963f41650",
+  "training_split_fingerprint": "cbc4af1fdf217f72ea51e6b369f15aa611a72e0d23cb79cf4db24dd9b5b6e3b4",
+  "feature_mode": "decoded_node_edge",
+  "feature_schema": "tu-quantile8-max40|export=decoded_node_edge",
+  "upstream_revision": "fb6bc26237eb21d7617fd41b22b4bb26ab29bf95",
+  "epochs_per_encoder": 100,
+  "seeds": [101, 202, 303, 404, 505, 606, 707, 808, 909, 1010],
+  "bundle": {
+    "checkpoint_count": 10,
+    "bundle_sha256": "64072b02095be1211f2929e3158faae97ab3f4943f13494e31efca60d55f0e2c",
+    "runtime_sha256": "e56f840f1d40ab66eab8075ba4a9bb1ec950f37223c9c056e5a8107e77296260",
+    "dependency_tree_sha256": "f1ce500ac0f9e3faa426be8ea564c7d036dced212006320a8da57442aba512ca",
+    "total_elapsed_seconds": 1698.4155223369598,
+    "training_loss_min": 8.250724587589502,
+    "training_loss_max": 9.270731453597545,
+    "mode": "0444",
+    "independent_verification": true
+  },
+  "checkpoints": [
+    {"seed": 101, "sha256": "a2c40ee6fd22fcbbe3f2a78fb36be0951f115cbac6d9bf49dd94c6b962cc4e92", "byte_length": 128098, "mode": "0444"},
+    {"seed": 202, "sha256": "c9956e588bd512bf7b6b3c8c151ebb3c3e27f2eeb063fcf5e8391b8f4d57b570", "byte_length": 128098, "mode": "0444"},
+    {"seed": 303, "sha256": "b1c9cb3ef9b110faeab0971f167d3ba825ccddcac53a184c96f9e18ccf553fb8", "byte_length": 128098, "mode": "0444"},
+    {"seed": 404, "sha256": "bd1c78db56a384d407e925c83d014fe5048c5a9134cdee4c19a1bcb75c704a0a", "byte_length": 128098, "mode": "0444"},
+    {"seed": 505, "sha256": "0fa5fec764608dd1418966940b7665ec90350e0081fff105802c69df17657303", "byte_length": 128098, "mode": "0444"},
+    {"seed": 606, "sha256": "cbde1a99c232fae9171f9fd4207d58be34e44ba73caf3829eea4a6e212f9e872", "byte_length": 128098, "mode": "0444"},
+    {"seed": 707, "sha256": "cc11609a08853be3c3f3f9f1419badfcbb845234ba20fe9d27f8d8562ca379eb", "byte_length": 128098, "mode": "0444"},
+    {"seed": 808, "sha256": "3828f01697c34dbd6aab4af35c87c6fc0ac1c5155aa324f788991919b36830c8", "byte_length": 128098, "mode": "0444"},
+    {"seed": 909, "sha256": "863e31873aebddb9b8958cd071414cb0474cf5bd03c5e3c614fbafbe8f97ad3f", "byte_length": 128098, "mode": "0444"},
+    {"seed": 1010, "sha256": "a3a009c7d5c96e5400dcbb97a67e2d9a125de39ffcd5e36d7c96125ffa9db61c", "byte_length": 128098, "mode": "0444"}
+  ],
+  "preserved_failed_attempts": [
+    {
+      "root": "encoders/gpu0",
+      "seed": 101,
+      "failure": "GraphCL dependency path was relative and became unreachable after the worker changed directory",
+      "checkpoint_created": false
+    },
+    {
+      "root": "encoders/gpu1",
+      "seed": 606,
+      "failure": "GraphCL dependency path was relative and became unreachable after the worker changed directory",
+      "checkpoint_created": false
+    }
+  ],
+  "qualification": {
+    "exact_seed_set": true,
+    "train_only": true,
+    "finite_state_tensors": true,
+    "runtime_imports_verified": true,
+    "immutable_bundle_verified": true,
+    "credential_material_present": false,
+    "qualified": true
+  }
+}

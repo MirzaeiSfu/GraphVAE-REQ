@@ -1,0 +1,154 @@
+inventory_version: 1
+recorded_at: 2026-09-01
+
+source_archive:
+  path: /local-scratch2/mirzaei/Abdolreza/Defog_CKPT_PT.zip
+  size_bytes: 507099008
+  sha256: ed8ada36ebfd889fb0af79f9205246ab6c0ac1b80fc4a186c6c14b99af9c4810
+  zip_integrity: passed
+  extracted_to: runs/defog/imported/Defog_CKPT_PT
+  git_policy: ignored
+
+repositories:
+  graphvae_commit_at_import: 446de2a3d985c6c9f0252e331c96b9dbb9b2aa13
+  defog_commit: 474f9405bdcdddc2d96cfedc3305172dffbe8fbd
+
+safety:
+  generated_graphs: loaded with torch weights_only restriction and validated
+  checkpoints: not loaded
+  checkpoint_metadata: inspected statically from archive/data.pkl opcodes
+
+warnings:
+  - The archive checkpoint filenames for AIDS and ENZYMES are swapped.
+  - aids.ckpt identifies itself as the ENZYMES checkpoint.
+  - enzymes.ckpt identifies itself as the AIDS checkpoint.
+  - Generation seeds are not embedded in the supplied graph artifacts.
+
+artifacts:
+  AIDS:
+    checkpoint:
+      source_filename: enzymes.ckpt
+      size_bytes: 112603374
+      sha256: 128f7643406899395de14e4057f8b12277afe256699130bab4d6f63df99d34ad
+      embedded_dataset_path: data/aids/
+      epoch: 1591
+      global_step: 140096
+      configured_epochs: 1592
+      configured_batch_size: 16
+      training_seed: 0
+    generated:
+      source_filename: aids_generated_graphs.pt
+      source_size_bytes: 2077294
+      source_sha256: 7cef97ebc55d89e06e93eb9d86782038a5b1189d97e4dc8fea3de69c4d892c97
+      canonical_path: runs/defog/aids/generated_graphs.pt
+      canonical_size_bytes: 2077934
+      canonical_file_sha256: f0cb3096e21f6370a40c759171c5a502d1778c118a6ea54fe0af6c80f57d2e9c
+      collection_sha256: 0e0edfb851b64353122ca2bd0290cf9ce9ae6616b029a0d21753107bb85c506f
+      graph_count: 400
+      node_feature_dim: 59
+      edge_feature_dim: 3
+      feature_schema: tu-quantile8-maxall|export=decoded_node_edge
+
+  ENZYMES:
+    checkpoint:
+      source_filename: aids.ckpt
+      size_bytes: 111487214
+      sha256: d423d94a5119f9d6d216d1e1b7ef1c82692f45fde7a48bb90edae2e6c4f13920
+      embedded_dataset_path: data/enzyme/
+      epoch: 749
+      global_step: 39750
+      configured_epochs: 755
+      configured_batch_size: 8
+      training_seed: 0
+    generated:
+      source_filename: enzymes_generated_graphs.pt
+      source_size_bytes: 2057390
+      source_sha256: 3a80d1fdd112a3edd626c34158cc526bac6166d9a0ccf7806fccadd98243d2e5
+      canonical_path: runs/defog/enzymes/generated_graphs.pt
+      canonical_size_bytes: 2058030
+      canonical_file_sha256: 7a3807eec629bd39b7911d7541b1730467e494bb802156c42a746cdea92af714
+      collection_sha256: 1a58841177dfd93c758b2ef59e6f2435f5006243773c7557ebea0dbdbfb7e7dd
+      graph_count: 120
+      node_feature_dim: 115
+      edge_feature_dim: 0
+      feature_schema: tu-quantile8-maxall|export=decoded_node
+
+  MUTAG:
+    checkpoint:
+      source_filename: mutag.ckpt
+      size_bytes: 111404399
+      sha256: 7e4230118b3812bb80b81046f4b4841fd6870caa2455c05d91816b14f4326bb8
+      embedded_dataset_path: data/mutag/
+      epoch: 19999
+      global_step: 20000
+      configured_epochs: 20000
+      configured_batch_size: 131
+      training_seed: 0
+    generated:
+      source_filename: mutag_generated_graphs.pt
+      source_size_bytes: 80393
+      source_sha256: 1cc84d533f856d8536f9a8bc69a744c27e26b6154548f1ea3794b7f61b029cdb
+      canonical_path: runs/defog/mutag/generated_graphs.pt
+      canonical_size_bytes: 81033
+      canonical_file_sha256: 62b32d5cadce3c5404ca074d846c61f60bc33cc78c81dd93f4be99b0c491deeb
+      collection_sha256: ea72bf2acc9ffd9311c71cddcc55f8b68fa3652eb0b5e6871c92dbb55b54b6bd
+      graph_count: 39
+      node_feature_dim: 7
+      edge_feature_dim: 0
+      feature_schema: gin-node-label-v2|export=decoded_node
+
+  PROTEINS:
+    checkpoint:
+      source_filename: protein.ckpt
+      size_bytes: 112404399
+      sha256: 7950be92f1bdc9989b4e9f8c17a109c85185357cb4ac62c2179cf2fdfc165639
+      embedded_dataset_path: data/proteins/
+      epoch: 1297
+      global_step: 59708
+      configured_epochs: 1307
+      configured_batch_size: 16
+      training_seed: 0
+    generated:
+      source_filename: proteins_generated_graphs.pt
+      source_size_bytes: 685712
+      source_sha256: a576ac27898c5ec7d0e7a6b55a90ba16b644c335859c59545350bf9b797561dd
+      canonical_path: runs/defog/proteins/generated_graphs.pt
+      canonical_size_bytes: 686416
+      canonical_file_sha256: 239059fd90c722e008d4987f3aec5eb166e196c01e7ac2a0ce5fba046258ce07
+      collection_sha256: a5d6b0b8b95aa21e4e4b70ae076b80b567684137e64de93a1467a2a966f8b672
+      graph_count: 210
+      node_feature_dim: 3
+      edge_feature_dim: 0
+      feature_schema: default|export=decoded_node
+    reference:
+      path: runs/defog/proteins/real_test_graphs.pt
+      file_size_bytes: 654160
+      file_sha256: 8badf9cfb0f0bdc1a949f2cb0797d352041c1c4e077285401b029ea0b1f04010
+      collection_sha256: b2d3b6d8d68441bb209310e0543c768514f8242a2296348c66ee397541ab31d9
+      graph_count: 210
+      split_seed: 123
+      split_index_sha256: d924d80e676c0118be4d5915feacab652528fc6dce60e8350de0267b6dfcce0f
+
+  PTC:
+    checkpoint:
+      source_filename: ptc.ckpt
+      size_bytes: 111377775
+      sha256: 7b5d65148e0fb1fa00e7456c411ec150f08f46d6c5191e4b0c1540bf48b14f44
+      embedded_dataset_path: data/ptc/
+      epoch: 999
+      global_step: 20000
+      configured_epochs: 1000
+      configured_batch_size: 12
+      training_seed: 0
+    generated:
+      source_filename: ptc_generated_graphs.pt
+      source_size_bytes: 252692
+      source_sha256: 040a35133b2c9ebc8f8975fe54c353814257c48978928269d724fec38ecf3ccf
+      canonical_path: runs/defog/ptc/generated_graphs.pt
+      canonical_size_bytes: 253396
+      canonical_file_sha256: f6aace9d02d4f6a8f7f882ea2b432a856de99ea6c260b309edacec1128b12e1c
+      collection_sha256: bd60a2984ba6a2d399c71cf3d538987a9872acf25663aeb6b7355beec2683ab4
+      graph_count: 70
+      node_feature_dim: 19
+      edge_feature_dim: 0
+      feature_schema: gin-node-label-v2|export=decoded_node

@@ -1,0 +1,2 @@
+# source: cs-cl-16:/local-scratch/mirzaei/LGD_FIX_20260924/results/GraphVAEReq-diffusion-PTC_seed2/config.yaml
+# encoder trained in the earlier campaign and reused; source: cs-cl-16:/local-scratch/mirzaei/LGD_3SEED_CAMPAIGN_20260920/results/GraphVAEReq-encoder-PTC_seed2/config.yaml

@@ -154,6 +154,54 @@ def test_optional_motif_weight_is_sampled_only_when_requested():
     validate_base_config(config, tune_alpha_motif=True)
 
 
+def test_optional_beta_is_log_sampled_and_injected_only_into_model():
+    trial = RecordingTrial()
+    sampled = sample_search_space(
+        trial,
+        SearchRanges((0.5, 2.0), (0.5, 2.0), None, (0.25, 4.0)),
+    )
+    assert sampled == {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0,
+        "beta": 1.0,
+    }
+    assert trial.calls[-1] == ("beta", 0.25, 4.0, True)
+
+    config = base_config()
+    config["model"] = {"beta": None}
+    config["loss"]["use_graphvae_mm_bce_kl_weights"] = False
+    resolved = inject_sampled_parameters(config, sampled)
+    assert resolved["model"]["beta"] == 1.0
+    assert "beta" not in resolved["loss"]
+    assert flatten_config(resolved)["beta"] == 1.0
+
+
+@pytest.mark.parametrize("invalid", [0.0, -1.0, float("inf"), float("nan")])
+def test_beta_injection_rejects_nonpositive_or_nonfinite_values(invalid):
+    with pytest.raises(ValueError, match="finite and positive"):
+        inject_sampled_parameters(
+            base_config(),
+            {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": invalid},
+        )
+
+
+def test_beta_injection_rejects_legacy_bundle_and_wrong_section():
+    legacy = base_config()
+    legacy["loss"]["use_graphvae_mm_bce_kl_weights"] = True
+    with pytest.raises(ValueError, match="use_graphvae_mm_bce_kl_weights=false"):
+        inject_sampled_parameters(
+            legacy,
+            {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 1.0},
+        )
+    misplaced = base_config()
+    misplaced["loss"]["beta"] = 1.0
+    with pytest.raises(ValueError, match="model.beta"):
+        inject_sampled_parameters(
+            misplaced,
+            {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0, "beta": 1.0},
+        )
+
+
 def test_objective_parser_is_structural_and_deterministic():
     first = parse_attr_f1pr_payload(attributed_payload(), expected_split="validation")
     second = parse_attr_f1pr_payload(attributed_payload(), expected_split="validation")

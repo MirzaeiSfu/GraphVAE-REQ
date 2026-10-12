@@ -1,0 +1,66 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-search-supervisor-recovery-v1",
+  "date": "2026-08-27",
+  "study_name": "aids_attr_f1pr_kl_search15_20260827a",
+  "study_contract_sha256": "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78",
+  "review": "configs/bayesian_optimization/aids_attr_f1pr_kl_search_wave2_pretrial_review.json",
+  "implementation": {
+    "repair_commit": "694d05842063efdec2bee2502ffbebcd7b9499fe",
+    "review_commit": "8a9bd639e85dfa78bf2aa066c27895b0e3da695e",
+    "supervisor_sha256": "d06b8ef6d7a6aa16410198d1b2b9815e4bfdc44de5e385efc8c1ae19dc2beada",
+    "staged_outside_immutable_source_root": true,
+    "staged_mode": "0500",
+    "focused_tests_passed": 106
+  },
+  "recovery_launch": {
+    "launch_manifest_wave": 3,
+    "launch_manifest_sha256": "d9a4dbf42e2c53514b15f07225368962957e25711096f5cbb7de07e5e4fb81a9",
+    "worker_run_ids": [
+      "cs-cl-13-aids-prod-gpu0-dispatch-3000000",
+      "cs-cl-17-aids-prod-gpu0-dispatch-3000001",
+      "cs-cl-17-aids-prod-gpu1-dispatch-3000002"
+    ],
+    "hosts": ["cs-cl-13", "cs-cl-17"],
+    "physical_gpus": [0, 0, 1],
+    "launch_state": "SSH_ACKNOWLEDGED",
+    "all_run_info_present": true,
+    "all_heartbeats_present": true,
+    "all_tmux_sessions_active": true,
+    "probe_status": "ACTIVE_AMBIGUOUS"
+  },
+  "first_observation": {
+    "reserved_states": {
+      "RESERVED_TOTAL": 15,
+      "WAITING": 9,
+      "RUNNING": 3,
+      "COMPLETE": 3,
+      "FAIL": 0,
+      "OTHER": 0,
+      "UNRESERVED_GUARD": 0
+    },
+    "supervisor_action": "WAIT",
+    "test_access": false
+  },
+  "background_supervision": {
+    "host": "cs-cl-18",
+    "tmux_session": "graphvae-bo-supervisor-aids-kl-search15-20260827a",
+    "ssh_owned_session_verified_active": true,
+    "poll_seconds": 300,
+    "reviewed_pretrial_allowlist_count": 3,
+    "unattended_continuation_enabled": true
+  },
+  "safety": {
+    "previous_pretrial_attempts_preserved": true,
+    "previous_pretrial_attempts_duplicated": false,
+    "consumed_failure_replaced": false,
+    "waiting_reservations_claimed_exactly": 3,
+    "credential_contents_recorded": false,
+    "storage_url_recorded": false,
+    "test_access": false
+  },
+  "immutable_worker_source": {
+    "commit": "df81ff2da942cec91257fc7f0e54a83eb4f398c4",
+    "tree_sha256": "32cc87a26f77a65395a8f4d5b61298d6d4ccd0c7d981b40b4c23c4236c30adb0",
+    "recovery_commits_deployed_to_workers": false
+  }
+}

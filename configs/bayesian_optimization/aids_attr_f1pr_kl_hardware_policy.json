@@ -1,0 +1,14 @@
+{
+  "attr_f1pr_abs_tolerance": 0.02,
+  "training_loss_tolerance": {
+    "absolute_floor": 0.001,
+    "relative": 0.05,
+    "formula": "abs(a-b) <= max(1e-3, 0.05*max(abs(a),abs(b)))"
+  },
+  "checkpoint_byte_equality_expected": false,
+  "homogeneous_production_pool": [
+    "cs-cl-13:cuda:0",
+    "cs-cl-17:cuda:0",
+    "cs-cl-17:cuda:1"
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "schema_version": "lobster-graphcl-f1pr-gate5-phase-a-completion-v1",
+  "completed_on": "2026-08-26",
+  "study": {
+    "name": "lobster_graphcl_f1pr_anchors2000_20260825a",
+    "lifecycle": "FROZEN",
+    "study_contract_sha256": "4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398",
+    "reserved_states": {
+      "RESERVED_TOTAL": 6,
+      "WAITING": 0,
+      "RUNNING": 0,
+      "COMPLETE": 6,
+      "FAIL": 0,
+      "OTHER": 0,
+      "UNRESERVED_GUARD": 0
+    },
+    "snapshot": "study_snapshot.sqlite3",
+    "snapshot_sha256": "c88a8512ea3ac5f0c943ece6ecd9a6a9da121f81b4d238134bc2f845fda4af92"
+  },
+  "immutable_inputs": {
+    "source_commit": "3c47bd61f5c12e2a258dbecdc1007265ea976431",
+    "source_tree_sha256": "c809e11c479d4cdee255b1a64b3a26c621ee11c732d325a83050d4d99830ae30",
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "graphcl_runtime_sha256": "980433997b5ae2df27e8be37a639d27c9b28670e0dcef04b81475d95cb44d4b7",
+    "encoder_bundle_manifest_sha256": "638b51662d64d484e8d63e59372d27e4f71be1c73285f8101908a7696c321451",
+    "validation_reference_file_sha256": "698ede5e978e9a6e2bb728859570531dea34b1b1e585b973d915df3d60f96de4",
+    "dataset_cache": {
+      "relative_path": "cache_datasets/LOBSTER_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-0_bfs-legacy_first_component_features-lobster-optimal_v2.pkl",
+      "size_bytes": 59295793,
+      "sha256": "928852f9402119e6d1f261ef364de5679d7f92f8c6408cf254e03d3dd27a8660",
+      "mode": "0444"
+    }
+  },
+  "objective_contract": {
+    "primary_path": "summary.f1_pr.mean",
+    "compatibility_path": "evaluation.modes.decoded_node_edge.summary.f1_pr.mean",
+    "selection_split": "validation",
+    "test_access": false,
+    "node_feature_decoder_required": true,
+    "edge_feature_decoder_required": true,
+    "graphcl_encoder_count": 5,
+    "validation_graph_count": 10,
+    "graphvae_training_seeds": [
+      0,
+      1
+    ]
+  },
+  "execution": {
+    "host": "cs-cl-09",
+    "physical_gpu": 1,
+    "max_parallel": 1,
+    "worker_run_ids": [
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-1000000",
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-2000000",
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-3000000",
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-4000000",
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-5000000",
+      "cs-cl-09-lobster-graphcl-gate5-gpu1-dispatch-6000000"
+    ],
+    "replacement_reservations": 0,
+    "duplicate_dispatches": 0,
+    "failed_reservations": 0,
+    "total_candidate_elapsed_seconds": 4819.94987122342,
+    "mean_candidate_elapsed_seconds": 803.3249785372367,
+    "median_candidate_elapsed_seconds": 786.1812308151275
+  },
+  "results": [
+    {
+      "budget_index": 0,
+      "label": "uniform",
+      "weights": {
+        "alpha_node_feat": 1.0,
+        "alpha_edge_feat": 1.0
+      },
+      "seed_values": [
+        0.6066050204656112,
+        0.8366113457212938
+      ],
+      "mean": 0.7216081830934524,
+      "population_standard_deviation": 0.11500316262784133,
+      "coefficient_of_variation": 0.15937064645641325,
+      "delta_from_uniform": 0.0,
+      "relative_delta_percent": 0.0,
+      "rank": 1,
+      "total_elapsed_seconds": 750.9998709112406
+    },
+    {
+      "budget_index": 1,
+      "label": "previous_random_gin",
+      "weights": {
+        "alpha_node_feat": 5.229045672,
+        "alpha_edge_feat": 0.0538641483
+      },
+      "seed_values": [
+        0.6363190188371393,
+        0.7812161183837067
+      ],
+      "mean": 0.708767568610423,
+      "population_standard_deviation": 0.07244854977328374,
+      "coefficient_of_variation": 0.10221764225939828,
+      "delta_from_uniform": -0.012840614483029422,
+      "relative_delta_percent": -1.7794441337933786,
+      "rank": 2,
+      "total_elapsed_seconds": 770.85726518929
+    },
+    {
+      "budget_index": 2,
+      "label": "common_weak",
+      "weights": {
+        "alpha_node_feat": 0.25,
+        "alpha_edge_feat": 0.25
+      },
+      "seed_values": [
+        0.7085244530633537,
+        0.501844072603385
+      ],
+      "mean": 0.6051842628333693,
+      "population_standard_deviation": 0.10334019022998431,
+      "coefficient_of_variation": 0.17075822452183934,
+      "delta_from_uniform": -0.11642392026008308,
+      "relative_delta_percent": -16.133952328670517,
+      "rank": 6,
+      "total_elapsed_seconds": 761.8503658883274
+    },
+    {
+      "budget_index": 3,
+      "label": "common_strong",
+      "weights": {
+        "alpha_node_feat": 4.0,
+        "alpha_edge_feat": 4.0
+      },
+      "seed_values": [
+        0.5494625986900494,
+        0.7311533529528464
+      ],
+      "mean": 0.6403079758214479,
+      "population_standard_deviation": 0.09084537713139851,
+      "coefficient_of_variation": 0.14187762851907854,
+      "delta_from_uniform": -0.08130020727200449,
+      "relative_delta_percent": -11.266530670907823,
+      "rank": 5,
+      "total_elapsed_seconds": 921.8628637064248
+    },
+    {
+      "budget_index": 4,
+      "label": "node_emphasis",
+      "weights": {
+        "alpha_node_feat": 4.0,
+        "alpha_edge_feat": 0.25
+      },
+      "seed_values": [
+        0.5655797370934467,
+        0.8058662585392851
+      ],
+      "mean": 0.6857229978163659,
+      "population_standard_deviation": 0.1201432607229192,
+      "coefficient_of_variation": 0.1752066958604371,
+      "delta_from_uniform": -0.035885185277086507,
+      "relative_delta_percent": -4.972946000037138,
+      "rank": 3,
+      "total_elapsed_seconds": 812.8743090871722
+    },
+    {
+      "budget_index": 5,
+      "label": "edge_emphasis",
+      "weights": {
+        "alpha_node_feat": 0.25,
+        "alpha_edge_feat": 4.0
+      },
+      "seed_values": [
+        0.590487882062214,
+        0.6959620497682435
+      ],
+      "mean": 0.6432249659152287,
+      "population_standard_deviation": 0.05273708385301473,
+      "coefficient_of_variation": 0.08198855244677336,
+      "delta_from_uniform": -0.07838321717822372,
+      "relative_delta_percent": -10.862296051328542,
+      "rank": 4,
+      "total_elapsed_seconds": 801.5051964409649
+    }
+  ],
+  "phase_a_threshold_audit": {
+    "finite_objectives": 6,
+    "anchors_at_or_below_population_cv_0p20": 6,
+    "minimum_required_anchors_at_or_below_population_cv_0p20": 4,
+    "maximum_observed_population_cv": 0.1752066958604371,
+    "maximum_mean_above_f1_pr_floor_0p05": true,
+    "phase_a_checks_passed": true,
+    "phase_a_best_budget_index": 0,
+    "phase_a_best_label": "uniform",
+    "phase_a_best_mean": 0.7216081830934524,
+    "best_nonuniform_budget_index": 1,
+    "best_nonuniform_label": "previous_random_gin",
+    "best_nonuniform_mean": 0.708767568610423,
+    "gate5_decision": "pending_phase_b_and_generation_stability",
+    "adaptive_bo_authorized": false
+  },
+  "promotion_contract_status": {
+    "status": "requires_fail_closed_unique_candidate_clarification",
+    "reason": "Uniform is both the explicitly required promotion and the maximum finite Phase A mean. The frozen three-candidate policy must be implemented with deterministic de-duplication consistent with the predeclared roadmap before a Phase B study is created.",
+    "phase_b_study_created": false,
+    "phase_b_training_started": false
+  },
+  "portable_restore": {
+    "postgresql_access": false,
+    "runtime_fingerprint": "e142a6b3516ef87ac4f0aa29092a41cf26ecfa91aa08a8c2702edbbcff12a1e1",
+    "semantic_fingerprint": "ddf0028162478917693b1153a1df3de4df243bbd188e5eea5fccd3bed251f9d0",
+    "aggregate_outputs_match": true,
+    "best_trial_number": 0,
+    "best_validation_attr_f1pr": 0.7216081830934524,
+    "first_bare_shell_attempt": "failed_closed_runtime_fingerprint_mismatch",
+    "qualified_runtime_retry": "passed"
+  },
+  "integrity_audit": {
+    "cache_hash_and_mode_reverified_after_trials": true,
+    "storage_url_file_hits": 0,
+    "credential_pattern_file_hits": 0,
+    "test_access_true_file_hits": 0,
+    "all_launches_reconciled_terminal": true,
+    "aggregate_outputs_match_restore": true
+  },
+  "operational_incident": {
+    "last_pre_reboot_probe_unix": 1787763564.3568647,
+    "controller_reboot_unix": 1787763586,
+    "effect": "Temporary exact-source PostgreSQL firewall rules were lost; one collection attempt and one status attempt timed out without changing a reservation.",
+    "recovery": "Restored the exact cs-cl-09 /32 TCP-5432 rule and added it to /etc/firewall.bash before resuming.",
+    "persistent_host_script_rule_verified": true,
+    "ansible_source_persistence_independently_verified": false,
+    "scientific_trials_affected": 0
+  },
+  "scientific_checkpoint": {
+    "preliminary_conclusion": "At 2000 epochs, uniform weights rank first and no fixed nonuniform anchor improves the grouped validation GraphCL-F1PR objective.",
+    "final_improvement_claim_allowed": false,
+    "reason": "The frozen 10000-epoch fidelity and generation-seed stability checks remain incomplete.",
+    "held_out_or_test_evaluation": false,
+    "adaptive_bo": false
+  }
+}

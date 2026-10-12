@@ -1,0 +1,76 @@
+{
+  "schema_version": "aids-attr-f1pr-kl-search-supervisor-launch-v1",
+  "date": "2026-08-27",
+  "study_name": "aids_attr_f1pr_kl_search15_20260827a",
+  "study_contract_sha256": "cf2defdc577ca878208f3777ada534c071d2551fc0bcc978d22aa1fd402a2e78",
+  "implementation": {
+    "commit": "155fd10bc97725be54c4c326101f94ff84b3f16d",
+    "supervisor_sha256": "5dd990f23aa63b74cb3a7705f64b8c7fff28e5dc5c0757146031dfd04c446f7b",
+    "collector_sha256": "df4814861e0ea30ec500e5c89f5ae8e2ab9e5d7bce79b341642effa2b453ac73",
+    "staged_outside_immutable_source_root": true,
+    "staged_script_mode": "0500",
+    "staged_state_directory_mode": "0700",
+    "focused_tests_passed": 99
+  },
+  "launch": {
+    "host": "cs-cl-18",
+    "tmux_session": "graphvae-bo-supervisor-aids-kl-search15-20260827a",
+    "detached": true,
+    "poll_seconds": 300,
+    "single_supervisor_lock": true,
+    "protected_controller_environment_sourced": true,
+    "credential_contents_recorded": false
+  },
+  "multi_host_collection": {
+    "hosts": ["cs-cl-13", "cs-cl-17"],
+    "remote_run_root": "runs/bayesian_optimization/aids_attr_f1pr_kl_search15_20260827a",
+    "exact_destination": true,
+    "checksum_transport": true,
+    "staging_before_promotion": true,
+    "differing_collision_quarantine": true,
+    "study_manifest_required": true
+  },
+  "first_wave": {
+    "launch_manifest_sha256": "420db4b2459da41282f3c283c5ed865456007d8c352cdb663ee1f87d0a2130ae",
+    "budget_indexes": [0, 1, 2],
+    "fixed_parameters_only": true,
+    "launch_state": "SSH_ACKNOWLEDGED",
+    "ambiguous": false,
+    "worker_run_ids": [
+      "cs-cl-13-aids-prod-gpu0-dispatch-1000000",
+      "cs-cl-17-aids-prod-gpu0-dispatch-1000001",
+      "cs-cl-17-aids-prod-gpu1-dispatch-1000002"
+    ],
+    "dispatch_seeds": [2346563559, 3196280789, 2389983283]
+  },
+  "first_supervisor_observation": {
+    "action": "WAIT",
+    "reserved_states": {
+      "RESERVED_TOTAL": 15,
+      "WAITING": 12,
+      "RUNNING": 3,
+      "COMPLETE": 0,
+      "FAIL": 0,
+      "OTHER": 0,
+      "UNRESERVED_GUARD": 0
+    },
+    "test_access": false,
+    "supervisor_log_bytes": 0
+  },
+  "automation_contract": {
+    "supported_controller_operations": ["probe", "status", "run"],
+    "supported_collection_operation": "staged multi-host exact-destination collection",
+    "launch_requires_all_prior_attempts_reconciled_terminal": true,
+    "active_work_is_never_duplicated": true,
+    "consumed_failure_is_never_replaced": true,
+    "stops_for_any_nonactive_nonterminal_probe": true,
+    "stops_for_inexact_budget_or_guard_row": true,
+    "held_out_or_test_evaluation": false,
+    "finalize_or_freeze_automatic": false
+  },
+  "immutable_worker_source": {
+    "commit": "df81ff2da942cec91257fc7f0e54a83eb4f398c4",
+    "tree_sha256": "32cc87a26f77a65395a8f4d5b61298d6d4ccd0c7d981b40b4c23c4236c30adb0",
+    "later_supervisor_and_evidence_commits_deployed": false
+  }
+}

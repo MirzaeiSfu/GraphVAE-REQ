@@ -1,0 +1,20 @@
+{
+  "schema_version": "graphvae-attr-f1pr-reservation-plan-v1",
+  "reservations": [
+    {
+      "budget_index": 0,
+      "parameters": {"alpha_node_feat": 1.0, "alpha_edge_feat": 1.0},
+      "training_seed": 0
+    },
+    {
+      "budget_index": 1,
+      "parameters": {"alpha_node_feat": 1.0, "alpha_edge_feat": 0.1},
+      "training_seed": 0
+    },
+    {
+      "budget_index": 2,
+      "parameters": {"alpha_node_feat": 0.1, "alpha_edge_feat": 1.0},
+      "training_seed": 0
+    }
+  ]
+}

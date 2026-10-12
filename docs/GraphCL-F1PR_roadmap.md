@@ -761,5 +761,195 @@ exactly six `WAITING` reservations and zero RUNNING, COMPLETE, FAIL, or guard
 rows. No worker or real training has started. Exact prelaunch evidence is in
 `lobster_graphcl_f1pr_gate5_phase_a_launch.json`; the next action is one GPU-1
 worker wave, followed by truthful monitoring of that reservation.
+
+Gate 5 Phase A is now complete. Study
+`lobster_graphcl_f1pr_anchors2000_20260825a` consumed exactly its six fixed
+reservations, each with GraphVAE seeds 0 and 1, and finished with six
+`COMPLETE` rows and zero waiting, running, failed, other, or guard rows. No
+reservation was replaced or duplicated. The grouped validation GraphCL-F1PR
+means, in budget order, are `0.7216081830934524` for uniform,
+`0.708767568610423` for the previous Random-GIN pair,
+`0.6051842628333693` for common weak, `0.6403079758214479` for common strong,
+`0.6857229978163659` for node emphasis, and `0.6432249659152287` for edge
+emphasis. Uniform ranks first at 2,000 epochs; no fixed nonuniform anchor
+improves it. All six population training-seed coefficients of variation are at
+or below the frozen `0.20` threshold, so the Phase A-only stability checks
+pass, but this is not a final improvement or Gate 5 pass claim.
+
+The controller rebooted 22 seconds after the fifth launch probe and removed a
+temporary PostgreSQL firewall rule. The completed fifth reservation was
+preserved; collection and status failed with definite connection timeouts,
+the sixth reservation remained unclaimed, and no ambiguous work was launched.
+The exact cs-cl-09 `/32` TCP-5432 rule was restored and added to the host boot
+script before supported `verify-full` status/probe checks resumed. The cache
+still matches its frozen SHA-256, byte length, and mode `0444`; credential,
+storage-URL, and `test_access=true` scans have zero hits.
+
+The study is frozen under contract `4dc72a2f0a70b56ed346665007a070d84e921fa845d3516eee2f10444ce87398`.
+Its portable snapshot SHA-256 is
+`c88a8512ea3ac5f0c943ece6ecd9a6a9da121f81b4d238134bc2f845fda4af92`.
+A bare-shell restore correctly failed closed because it resolved the wrong
+NumPy copy; the retry under the exact qualified runtime passed without
+PostgreSQL and reproduced every aggregate hash. Machine-checked details are in
+`lobster_graphcl_f1pr_gate5_phase_a_completion.json`.
+
+Adaptive BO remains unauthorized. Before creating Phase B, implement and test
+a fail-closed unique-candidate interpretation of the predeclared promotion
+rule: uniform is explicitly required but is also the maximum finite Phase A
+candidate. The three-promotion contract must deterministically de-duplicate
+that overlap, remain consistent with the roadmap's uniform/best/contrast
+design, and be committed before any 10,000-epoch reservation is created.
+
+The Phase B promotion ambiguity is now resolved without modifying the original
+frozen policy. `select_lobster_graphcl_f1pr_promotions.py` requires the frozen
+six-complete Phase A evidence, exact validation-only objective contract, finite
+unique weights, and passing Phase A thresholds. It selects exact uniform once,
+then the highest-mean nonuniform candidate with the predeclared budget-index
+tie break, then the first weight-unique candidate in the frozen contrast
+priority. The resulting unique 10,000-epoch promotions are uniform `(1,1)`,
+previous Random-GIN `(5.229045672,0.0538641483)`, and edge emphasis `(0.25,4)`.
+The selector fails closed for an unfrozen study, test access, failed thresholds,
+or duplicate weights, and reproduces the committed contract and three-entry
+reservation plan exactly. The new fidelity configuration retains both
+GraphVAE seeds, all ten validation graphs, the five encoders, 7,200/1,200-second
+phase limits, `skip_final_evaluation=true`, and `max_parallel=1`. Twenty focused
+promotion and GraphCL contract tests pass. No Phase B study or training has
+started; the next action is to commit and deploy this contract, then preflight
+and initialize its fresh three-reservation study.
+
+The first Phase B initialization name,
+`lobster_graphcl_f1pr_promoted10000_20260826a`, created an empty PostgreSQL
+study and then failed before definition/reservation creation because the
+staging-only cache-manifest path was wrong after source redeployment. The study
+has exactly zero trials, no worker was launched, and no reservation was
+consumed. It is preserved, marked unusable by the committed contract, and will
+never be reused or deleted. The frozen Phase A cache manifest independently
+reverified the deployed read-only cache, and the corrected fresh identity is
+`lobster_graphcl_f1pr_promoted10000_20260826b`. This correction must be tested,
+committed, pushed, and redeployed before creating the `b` study.
+
+The recovery correction is committed and deployed as source commit `3b55d3e`.
+Fresh Phase B study `lobster_graphcl_f1pr_promoted10000_20260826b` is now
+initialized under immutable contract
+`9115373a3a6259589d28ac70ad93775c8a4d0383a91963c484c2c031933140c8`.
+Protected `verify-full` PostgreSQL authentication, the exact source and runtime,
+the frozen read-only LOBSTER cache, GraphCL inputs, schemas, and the dedicated
+physical GPU-1 slot all pass supported preflight. Status is `READY` with exactly
+three `WAITING` reservations and zero running, complete, failed, other, or guard
+rows. A supported launch probe records no launches. The unusable `a` study
+still has zero trials. No worker or 10,000-epoch training has started. Exact
+prelaunch evidence is in
+`lobster_graphcl_f1pr_gate5_phase_b_launch.json`; the next action is one GPU-1
+worker wave, followed by truthful monitoring and collection of that exact
+reservation. The live study remains bound to source commit `3b55d3e`; later
+evidence-only commits must not be redeployed over its immutable source root.
+
+An unattended fail-closed wave supervisor is now implemented in
+`supervise_distributed_graphvae_attr_bo.py`. It uses only the supported
+probe/status/collect/run operations, holds a single-supervisor file lock, and
+launches a later wave only when every attempted prior launch is
+`RECONCILED_TERMINAL`. Active work is never duplicated; unreachable, missing,
+conflicting, pretrial, guard, test-access, or inexact-budget evidence stops for
+operator review. Consumed failures remain consumed and do not create a
+replacement reservation. Ninety focused supervisor, launcher, and controller
+tests pass. After commit, the standalone standard-library supervisor will be
+checksum-staged outside the immutable live source root and started in detached
+`tmux`; this avoids changing the source tree bound to the active study.
+
+The supervisor implementation is committed as `2b65e5b`, and its exact
+SHA-256 was verified after staging with mode `0500` outside the live source
+root. Detached session
+`graphvae-bo-supervisor-lobster-graphcl-phaseb-20260826b` is active on
+`cs-cl-09` with a five-minute poll interval. Its first atomic observation is
+`WAIT`: the exact budget remains one running and two waiting, with zero
+complete, failed, other, or guard rows and `test_access=false`. The immutable
+`3b55d3e` deployment manifest reverified after supervisor startup. The
+supervisor will collect and launch only terminally reconciled waves, and will
+stop rather than guess on any unsafe state. It intentionally does not finalize,
+freeze, restore, run generation-seed stability, or make a scientific decision;
+those audited steps remain for the controller after the three reservations are
+consumed. Exact launch evidence is in
+`lobster_graphcl_f1pr_gate5_phase_b_supervisor_launch.json`.
+Gate 5 Phase B is now frozen and portably restored. All three exact promoted
+reservations are `COMPLETE`; all three launches reconcile terminally, and no
+reservation failed, was replaced, or was duplicated. At 10,000 epochs the
+validation GraphCL-F1PR means are `0.51299782675377` for uniform,
+`0.5394144240677171` for the previous Random-GIN weights, and
+`0.6217187852365449` for edge emphasis `(0.25,4)`. Edge emphasis is therefore
+`0.10872095848277485` absolute (`21.193259076896442%` relative) above uniform
+within Phase B. This is a fixed-anchor result, not an adaptive BO result.
+
+The promoted ranking is exactly reversed from Phase A: Spearman correlation is
+`-1.0`, below the frozen `0.5` minimum. The previous best nonuniform anchor also
+changes from `-0.012840614483029422` below uniform in Phase A to
+`0.026416597313947077` above uniform in Phase B, violating the frozen
+no-sign-reversal rule. Gate 5 is therefore already `qualification_failed`, and
+adaptive GraphCL-F1PR BO/Gate 6 is not authorized; generation-seed stability
+cannot rescue that decision but remains to be run as the predeclared final
+characterization. The portable snapshot SHA-256 is
+`c22b74cd2ff061fa6901c4b77eed4ba9e9f825926c3f7df1d25d1dc449daa082`.
+Restore ran with PostgreSQL variables removed and reproduced every aggregate
+hash. The cache remains exact and mode `0444`; scans of 305 text artifacts have
+zero storage-URL, credential-assignment, or `test_access=true` hits. Full
+machine-checked evidence is in
+`lobster_graphcl_f1pr_gate5_phase_b_completion.json`.
+
+The final generation-seed characterization now has an explicit fail-closed
+contract. The frozen policy's `uniform` and `phase_a_best` names collapse to
+the same `(1,1)` candidate, so duplicate work is forbidden. Uniform is evaluated
+once, and the unique Phase-B best edge-emphasis candidate is added because the
+predeclared dominance threshold is explicitly the Phase-B best-minus-uniform
+difference. This clarification cannot change the existing Gate-5 no-go
+decision. Exact Phase-B seed-123 evaluations are reused by hash; only seeds 124
+and 125 are newly evaluated for both training checkpoints of both candidates,
+for exactly eight new validation-only evaluations. The runner refuses partial
+roots, validates both feature decoders and all objective paths, uses one GPU,
+and never accesses held-out/test data. Forty-one focused contract, evaluator,
+and backend tests pass. The contract and runner must be committed before they
+are checksum-staged outside the immutable live source root and launched.
+
+The first stability output identity ending in `20260826a` failed before graph
+generation because the standalone runner did not mirror the worker's GraphCL
+dependency `PYTHONPATH`; `GCL` therefore could not import. The contracted root
+and both diagnostic evaluator directories are preserved. Both evaluator roots
+contain zero files: no generated graph, encoder evaluation, objective, or
+scientific evaluation was consumed. The `a` root is marked unusable and will
+never be reused. The runner now constructs the same dependency and
+`graph_evaluation/src` import order as the frozen worker, and the corrected
+fresh output identity ends in `20260826b`. This recovery must be tested,
+committed, checksum-staged, and verified before launching `b`.
+
+The corrected generation-seed characterization ending in `20260826b` is now
+complete. It reused the four exact Phase-B seed-123 evaluations and performed
+exactly eight new validation-only evaluations: seeds 124 and 125 for both
+GraphVAE training checkpoints of uniform and edge emphasis. No held-out/test
+data or final evaluation was accessed. Uniform's generation-seed mean range is
+`0.11861985803510722`; edge emphasis ranges by
+`0.2938981909190103`. The latter is far greater than the frozen Phase-B
+edge-emphasis-minus-uniform difference of `0.10872095848277485`, so the
+generation-seed dominance rule fails. The apparent edge-emphasis gain at seed
+123 is not stable enough to support a model-improvement claim.
+
+Gate 5 is complete with a truthful `qualification_failed` decision. The
+complete current non-PostgreSQL distributed, attribute-BO, and GraphCL suite
+passes `161/161`; the protected, UUID-isolated PostgreSQL suite passes `19/19`
+from `cs-cl-09`, and its final catalog audit contains zero residual
+`graphvae_bo_pytest_*` studies. The PostgreSQL test runtime is now explicitly
+overridable so qualification can run on a network-authorized host without
+altering its frozen Python environment. Failed operational attempts are
+retained in the final evidence: the controller-local PostgreSQL route was
+unreachable, initial scratch staging exposed the hard-coded Python and missing
+Git identity, and one stale-heartbeat timing check required a clean-suite
+rerun. None consumed a scientific reservation.
+
+The final answer to the campaign question is **no demonstrated improvement**:
+this work did not run adaptive BO because its predeclared qualification gates
+failed. Edge emphasis `(alpha_node_feat=0.25, alpha_edge_feat=4.0)` beat
+uniform at the single 10,000-epoch seed-123 comparison, but the promoted order
+reversed between fidelities and generation-seed variation dominated that
+difference. Gate 6, adaptive BO, and held-out/test evaluation remain forbidden.
+Exact final evidence is frozen in
+`lobster_graphcl_f1pr_gate5_generation_stability_completion.json` and
+`lobster_graphcl_f1pr_gate5_completion.json`.
 This section must be updated after every commit so a resumed agent never guesses
 the campaign state.

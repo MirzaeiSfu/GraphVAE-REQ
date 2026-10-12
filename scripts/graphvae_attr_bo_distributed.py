@@ -514,7 +514,12 @@ def validate_reservation_plan(
         raise DistributedContractError(
             "Reservation plan must contain exactly one entry per reserved trial."
         )
-    allowed_parameters = {"alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss"}
+    allowed_parameters = {
+        "alpha_node_feat",
+        "alpha_edge_feat",
+        "alpha_motif_loss",
+        "beta",
+    }
     normalized: dict[int, dict[str, Any]] = {}
     for raw in plan:
         if not isinstance(raw, Mapping):
@@ -553,6 +558,7 @@ def validate_reservation_plan(
             if (
                 isinstance(value, bool)
                 or not math.isfinite(numeric)
+                or numeric <= 0.0
                 or numeric < float(entry["low"])
                 or numeric > float(entry["high"])
             ):
@@ -703,7 +709,12 @@ def initialize_reserved_study(
         fixed_parameters = {}
     if not isinstance(fixed_parameters, Mapping):
         raise DistributedContractError("Fixed qualification parameters must be a mapping.")
-    allowed_fixed = {"alpha_node_feat", "alpha_edge_feat", "alpha_motif_loss"}
+    allowed_fixed = {
+        "alpha_node_feat",
+        "alpha_edge_feat",
+        "alpha_motif_loss",
+        "beta",
+    }
     if set(fixed_parameters) - allowed_fixed:
         raise DistributedContractError("Fixed qualification parameters contain an unknown key.")
     for name, value in fixed_parameters.items():
@@ -715,6 +726,7 @@ def initialize_reserved_study(
         numeric = float(value)
         if (
             not math.isfinite(numeric)
+            or numeric <= 0.0
             or numeric < float(search_entry["low"])
             or numeric > float(search_entry["high"])
         ):
@@ -1143,6 +1155,42 @@ def audit_trial_result(
             path = resolve_artifact_path(study_root, result[path_field])
             if sha256_file(path) != result[hash_field]:
                 raise DistributedContractError(f"Artifact hash mismatch for {path_field}.")
+        resolved_config_path = resolve_artifact_path(
+            study_root, result["resolved_config"]
+        )
+        resolved_config = yaml.safe_load(
+            resolved_config_path.read_text(encoding="utf-8")
+        )
+        if not isinstance(resolved_config, Mapping):
+            raise DistributedContractError("Resolved trial config is not a mapping.")
+        flattened: dict[str, Any] = {}
+        for section, value in resolved_config.items():
+            if isinstance(value, Mapping):
+                for name, nested in value.items():
+                    if name in flattened:
+                        raise DistributedContractError(
+                            f"Resolved trial config duplicates {name}."
+                        )
+                    flattened[str(name)] = nested
+            else:
+                flattened[str(section)] = value
+        if "beta" in trial.params:
+            model = resolved_config.get("model")
+            loss = resolved_config.get("loss")
+            legacy_weights = flattened.get("use_graphvae_mm_bce_kl_weights", False)
+            legacy_enabled = legacy_weights is True or (
+                isinstance(legacy_weights, str)
+                and legacy_weights.strip().lower() in {"true", "1", "yes", "on"}
+            )
+            if (
+                not isinstance(model, Mapping)
+                or model.get("beta") != trial.params["beta"]
+                or (isinstance(loss, Mapping) and "beta" in loss)
+                or legacy_enabled
+            ):
+                raise DistributedContractError(
+                    "Resolved beta must be exact, model-scoped, and use direct KL weighting."
+                )
         evaluator_path = resolve_artifact_path(study_root, result["evaluator_output"])
         try:
             try:

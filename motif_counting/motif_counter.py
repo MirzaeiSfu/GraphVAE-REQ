@@ -1,4 +1,22 @@
-# motif_counting/motif_counter.py
+"""Evaluate cached relational motifs on graph batches.
+
+CP-smoothed pruning workflow
+----------------------------
+Selecting ``motif_cp_table_source=cp_smoothed`` changes the runtime pipeline:
+
+1. Load every combination from the cached ``_CP_smoothed`` tables.
+2. Count each combination over all graphs in the active training split; the
+   aggregate count is that combination's ``local_mult``.
+3. Copy ``prior`` from the ordinary ``_CP`` table by matching the first
+   functor's child value.
+4. For each fixed assignment of the remaining parent functors, compute
+   ``CP = local_mult / sum(local_mult across child values)``.
+5. Apply the existing likelihood-based rule-pruning score to the derived
+   metadata and use only the retained combinations for training targets.
+
+This derivation stays in memory because local multiplicities and the resulting
+pruning decision are specific to the current graph split.
+"""
 
 import os
 import math
