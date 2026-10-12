@@ -59,6 +59,19 @@ Outputs: `<workspace>/outputs/<DATASET>/<method>/seed_N/`. Logs: `<workspace>/lo
 - **LGD:** `pretrain.py --cfg encoder.yaml`, then `select_best_encoder_ckpt.py` (lowest validation `loss_recon`), then
   `train_diffusion.py --cfg diffusion.yaml`, then `sample_tu.py --cfg diffusion.yaml`.
 
+## Tests (2026-10-11)
+
+Each kind of run was launched with `launch.py` from a fresh clone on its original lab machine:
+
+- **GraphVAE** (PTC GraphVAE+RG seed 0, cs-cl-17): the first 100 epochs logged the same losses as the original code
+  (code A, `f75f761`) run with its original command on the same GPU model, on every logged field.
+- **LGD** (PTC seed 0, cs-cl-18): the encoder trained all 200 epochs. Its saved config equals the paper run's except
+  for the data and output paths.
+- **DeFoG** (GRID seed 0, cs-cl-18): training started. Its resolved Hydra config equals the paper run's except for
+  `dataset.root` (the data path).
+
+The test runs were stopped after these checks; they were not trained to the end.
+
 ## Notes
 
 - The original system of the PROTEINS GraphVAE runs is not recorded; pass `--host`.

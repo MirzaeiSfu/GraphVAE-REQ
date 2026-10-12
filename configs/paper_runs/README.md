@@ -38,6 +38,9 @@ python main.py --config configs/paper_runs/PTC/graphvae_rg/seed_0.yaml \
   --dataset_cache_dir /my/cache/PTC --motif_cache_dir /my/motif_cache
 ```
 
+To retrain a run on its original system (clone, data copy and start, from these files), use
+[`scripts/retrain/launch.py`](../../scripts/retrain/).
+
 **Checked on this branch (2026-10-11):**
 
 - All 36 input files load, and the settings `main.py` records match the paper run's `seed_N.effective.yaml` exactly
