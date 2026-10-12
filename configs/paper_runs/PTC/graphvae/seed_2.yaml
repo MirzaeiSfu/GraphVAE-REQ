@@ -1,10 +1,8 @@
-# PTC | GraphVAE (motif loss off) | seed 2
-# Code: https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/c10bff58b
-# Values the run actually used (reproducibility.json `args`, including command-line overrides).
-# Source run: cs-cl-18:/local-scratch2/new/gather/datasets/ptc/setting_01/seed_2
-# Original launch command: main.py --config configs/cluster_tests/ptc_table2_01_graphvae_pruned.yaml --seed 2 --third_party_eval_seed 2 --graph_save_path /project/cs-schulte-lab/ali/GraphVAE-REQ-mutag-ptc-pruned-20260716/runs/solar_20260716/ptc/setting_01/seed_2 --dataset_cache_dir /project/cs-schulte-lab/ali/GraphVAE-REQ-mutag-ptc-pruned-20260716/runs/solar_20260716/ptc/setting_01/seed_2/dataset_cache --run_label solar-ptc-setting01-pruned-seed2 --model_path /project/cs-schulte-lab/ali/GraphVAE-REQ-mutag-ptc-pruned-20260716/runs/solar_20260716/ptc/setting_01/seed_2/best_model
-# Reproduce: git checkout c10bff58b && python main.py --config <this file>
-# Paths (data_dir, dataset_cache_dir, graph_save_path, motif_cache_dir) are those of the original machine.
+# INPUT config for PTC | graphvae | seed 2.  Run:  python main.py --config configs/paper_runs/PTC/graphvae/seed_2.yaml
+# Built from the original base config `configs/cluster_tests/ptc_table2_01_graphvae_pruned.yaml` (code c10bff58b) + the original command-line flags.
+# Paths below are those of the original machine; pass --graph_save_path / --dataset_cache_dir / --motif_cache_dir
+# (and --data_dir, --model_path where present) on the command line to point them elsewhere.
+# Command-line values are kept as strings: main.py converts them exactly as it did on the command line.
 PATH: /project/cs-schulte-lab/ali/GraphVAE-REQ-mutag-ptc-pruned-20260716/runs/solar_20260716/ptc/setting_01/seed_2/best_model
 UseGPU: true
 Vis_step: 1000
@@ -39,9 +37,8 @@ graph_type: homogeneous
 ideal_Evalaution: false
 interactive: false
 keep_best_validation_mmd: true
-lobster_feature_schema: optimal_v2
 lr: 0.0003
-model: kipf
+model: GraphVAE
 motif_batch_size: 240
 motif_cache_dir: cache_motifs
 motif_loss: false
@@ -49,9 +46,6 @@ motif_loss_mode: calibrated_gaussian
 motif_prune_max_values_per_rule: null
 motif_temperature_anneal_start_frac: 1.0
 motif_temperature_end: 1.0
-motif_temperature_guard_ratio: 0.0
-motif_temperature_guard_relax_factor: 1.05
-motif_temperature_guard_sharpen_factor: 0.995
 motif_temperature_start: 1.0
 plot_testGraphs: false
 prepare_motif_cache_only: false
@@ -61,7 +55,7 @@ run_label: solar-ptc-setting01-pruned-seed2
 sanity_check: false
 sanity_check_only: false
 save_validation_checkpoints: false
-seed: 2
+seed: '2'
 split_mode: paper_70_10_20
 split_seed: 123
 syntactic_literal_rule_mode: original
@@ -71,16 +65,13 @@ third_party_eval_device: same
 third_party_eval_json_filename: graph_realism_random_gin.json
 third_party_eval_max_graphs: 1000
 third_party_eval_repeats: 10
-third_party_eval_seed: 2
+third_party_eval_seed: '2'
 third_party_eval_strict: true
 third_party_eval_structural_features: true
 tiny_overfit: false
 tiny_overfit_size: 1
 train_batch_size: 240
 train_fraction: 0.7
-tu_attribute_bins: 8
-tu_max_nodes: null
 use_feature: true
-use_graphvae_mm_bce_kl_weights: false
 use_syntactic_literal_rules: false
 val_fraction: 0.1
