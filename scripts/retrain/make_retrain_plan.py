@@ -86,7 +86,7 @@ for r in pkg["runs"]:
         stages = [st for st in ("training", "generation", "training_and_generation") if f"{st}_overrides.yaml" in files]
         root = {"QM9": f"defog/QM9/seed_{s}", "PROTEINS": None}.get(ds, f"defog/{ds}")
         entry.update(kind="defog", code=DEFOG_CODE.get(ds, "third_party/defog_c631697"),
-                     pythonpath=DEFOG_PYTHONPATH.get(ds, DEFOG_PYTHONPATH_FROZEN),
+                     pythonpath=list(DEFOG_PYTHONPATH.get(ds, DEFOG_PYTHONPATH_FROZEN)),
                      stages={st: f"{cdir}/{st}_overrides.yaml" for st in stages},
                      dataset_key="dataset.datadir" if ds == "QM9" else ("dataset.root" if root else None),
                      dataset_path=root)
