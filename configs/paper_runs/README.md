@@ -45,7 +45,7 @@ python main.py --config configs/paper_runs/PTC/graphvae_rg/seed_0.yaml \
 - Training is identical to the original commits. In paired runs on the same GPU model (TITAN RTX), the original
   commit with its original command and this branch with the input file logged identical losses for the first 100
   epochs, on every logged field: `9f01785` (GRID GraphVAE+RG), `f75f761` (PTC GraphVAE+RG), `c10bff5` (PTC GraphVAE)
-  and `2a80b0a` (PROTEINS GraphVAE). `af56479` is the base of this branch.
+  and `2a80b0a` (PROTEINS GraphVAE). `af56479` is the base of this branch. A longer run for `c10bff5` (PTC GraphVAE, 2,010 epochs) also matched through two validations: the same validation scores, the same selected checkpoints (epochs 999 and 1,999), all 57 values in `best_validation_mmd.json`, and a byte-identical best model.
 
 ## DeFoG and LGD
 

@@ -64,7 +64,7 @@ everything listed here, is on the external drive attached to cs-cl-18 (`/media/m
 |---|---|---|---|---|
 | GraphVAE | 0, 1, 2 | [`2a80b0a`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/2a80b0aa0) | Inferred (the runs predate this commit, so the code was committed afterwards) | `PROTEINS/graphvae_motif_false/setting_01/` |
 | GraphVAE+RG (full matrix, λ=0.03) | 0, 1, 2 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B) | Recovered (launch folder committed afterwards; byte-identical) | `PROTEINS/graphvae_motif_true/alpha_003_full_matrix/`; Solar `~/proteins_full_matrix_motif003_20260910/` |
-| DeFoG | 0, 1, 2 | DeFoG [`c631697`](https://github.com/MirzaeiSfu/defog/commit/c631697b9cd5a2474d22ba12de33943c6b49e53e) | Inferred (the DeFoG commit pinned for every campaign; these runs did not record it) | `PROTEINS/defog/corrected_generation_20260922/` |
+| DeFoG | 0, 1, 2 | modified DeFoG copy (`third_party/defog_proteins/` on branch `paper-final`; 9 files differ from `c631697`) | Verified (launch folder found; byte-identical) | `PROTEINS/defog/campaign/runs/` (training), `PROTEINS/defog/corrected_generation_20260922/` (generation) |
 | LGD | 0, 1, 2 | LGD `f597e1d` + local changes | Recorded (campaign) | Solar `~/LGD_FIX_20260924/results/` |
 
 ### QM9
@@ -96,13 +96,17 @@ To rerun one of these experiments, check out the commit and use the `command` sa
 ## Baselines
 
 - **DeFoG**: fork [`MirzaeiSfu/defog`](https://github.com/MirzaeiSfu/defog), branch `feat/frozen-graphvae-benchmark`,
-  commit `c631697`. The QM9 runs also used uncommitted changes to `src/main.py`, `src/datasets/qm9_dataset.py` and
-  `src/analysis/ggmeval/evaluation/models/gin/gin.py`.
+  commit `c631697`, in three variants:
+  - GRID, TRIANGULAR_GRID, LOBSTER and PTC ran `c631697` unmodified (`third_party/defog_c631697/`).
+  - QM9 ran `c631697` with uncommitted seed fixes in `src/main.py`, `src/datasets/qm9_dataset.py` and
+    `src/analysis/ggmeval/evaluation/models/gin/gin.py` (`third_party/defog/`). These change model initialization,
+    so the other datasets must not use this variant.
+  - PROTEINS ran a modified copy with 9 changed files (`third_party/defog_proteins/`).
 - **LGD**: upstream [`zhouc20/LatentGraphDiffusion`](https://github.com/zhouc20/LatentGraphDiffusion) commit `f597e1d`
   plus local changes, from the `LGD_FIX_20260924` campaign, where the encoder checkpoint is chosen by validation
-  `loss_recon` and never epoch 0.
-- The code for both baselines, with the local changes, is in `third_party/defog/` and `third_party/lgd/` on branch
-  [`baselines-code-and-provenance`](https://github.com/MirzaeiSfu/GraphVAE-REQ/tree/baselines-code-and-provenance).
+  `loss_recon` and never epoch 0 (`third_party/lgd/`; PTC seed 2 sampled with
+  `third_party/lgd/legacy_LGD_3SEED_CAMPAIGN_20260920/sample_tu.py`).
+- All baseline code is on branch `paper-final`; each variant is byte-identical to the folder its runs were launched from.
 
 ## Other experiments
 
@@ -113,8 +117,9 @@ on branch `baselines-code-and-provenance`, with the method used for each entry.
 
 ## Evaluation code
 
-The paper numbers were computed by evaluation scripts that are not in git:
-`aids_common_eval_10k_20260917/scripts/`, `qm9_common_eval_20260917/`, `lgd_common_eval_20260925/scripts/`,
-`defog_synthetic_evaluation_20260906/`, `proteins_3way_comparison_20260913/` and `rule_mmd_20260923/`, all on cs-cl-18.
-Copies are on the external drive. `PAPER_RESULTS_AUDIT_20260924/NUMERICAL_AUDIT.json` on cs-cl-18 lists the source
+The paper numbers were computed by evaluation scripts that were never committed at the time. They are now in
+`experiment_scripts/` on branch `paper-final`, grouped by the machine they came from, for example
+`experiment_scripts/cs-cl-18/qm9_common_eval_20260917/` and
+`experiment_scripts/cs-cl-18-home/evaluate_paper_s_20260925.py`. The GraphVAE-REQ code they import is in
+`experiment_scripts/dependencies/`. `PAPER_RESULTS_AUDIT_20260924/NUMERICAL_AUDIT.json` on cs-cl-18 lists the source
 file and checksum behind each of the 126 checked table values.
