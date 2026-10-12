@@ -1,0 +1,46 @@
+name: lgd_env
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch=2.0.1
+  - torchvision=0.15.2
+  - torchaudio=2.0.2
+  - pytorch-cuda=11.7
+  - numpy=1.25.2
+  - scipy=1.11.1
+  - scikit-learn=1.3.0
+  - networkx=3.1
+  - pandas=2.0.3
+  - pip:
+      # Official PyG binary wheels matching PyTorch 2.0.x and CUDA 11.7.
+      - --find-links=https://data.pyg.org/whl/torch-2.0.1+cu117.html
+      - pyg-lib==0.3.1+pt20cu117
+      - torch-cluster==1.6.3+pt20cu117
+      - torch-geometric==2.5.3
+      - torch-scatter==2.1.2+pt20cu117
+      - torch-sparse==0.6.18+pt20cu117
+      - torch-spline-conv==1.2.2+pt20cu117
+      - pytorch-lightning==2.1.2
+      - torchmetrics==1.0.3
+      - yacs==0.1.8
+      - einops==0.7.0
+      - performer-pytorch==1.1.4
+      - local-attention==1.9.0
+      - axial-positional-embedding==0.2.1
+      - ogb==1.3.6
+      - tensorboardx==2.6.2.2
+      - matplotlib==3.8.2
+      - seaborn==0.13.1
+      - rdkit==2023.9.2
+      - fcd-torch==1.0.7
+      - wandb==0.18.7
+      - dill==0.3.7
+      # Required to unpickle GraphVAE-REQ frozen dataset caches (`data.py`).
+      - dgl==1.1.3
+      - pyemd==1.0.0
+      - pyyaml==6.0.1
+      - tqdm==4.65.0

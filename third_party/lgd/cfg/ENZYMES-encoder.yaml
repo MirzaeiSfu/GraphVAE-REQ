@@ -1,0 +1,98 @@
+out_dir: results
+metric_best: loss
+metric_agg: argmin
+accelerator: "cuda:0"
+seed: 123
+wandb:
+  use: False
+  project: ENZYMES
+  name: ENZYMES
+dataset:
+  format: PyG-TUDataset
+  name: ENZYMES
+  task: graph
+  task_type: regression
+  split_mode: graphvae_paper_70_10_20
+  split: [0.7, 0.1, 0.2]
+  transductive: False
+  node_encoder: True
+  node_encoder_name: TypeDictNode
+  node_encoder_num_types: 3
+  edge_encoder: True
+  edge_encoder_name: TypeDictEdge
+  edge_encoder_num_types: 2
+  add_virtual_node_edge: False
+  subgraph: False
+train:
+  mode: pretrain_encoder
+  batch_size: 8
+  eval_period: 50
+  enable_ckpt: True
+  ckpt_best: False
+  ckpt_clean: False
+  ensemble_repeat: 1
+  ensemble_mode: none
+  pretrain:
+    mask_node_prob: 0.0
+    mask_edge_prob: 0.0
+    mask_label_prob: 0.0
+    recon: all
+    original_task: False
+    input_target: False
+    node_factor: 1.0
+    node_attr_factor: 1.0
+    edge_factor: 1.0
+    graph_factor: 0.0
+model:
+  type: GraphTransformerStructureEncoder
+  loss_fun: l1
+  edge_decoding: dot
+  graph_pooling: add
+posenc_RRWP:
+  enable: True
+  ksteps: 16
+encoder:
+  model_type: GraphTransformerStructureEncoder
+  in_dim: 48
+  prefix_dim: 96
+  posenc_in_dim: 16
+  posenc_in_dim_edge: 16
+  posenc_dim: 48
+  hid_dim: 96
+  out_dim: 32
+  node_attr_dim: 18
+  use_time: False
+  temb_dim: 0
+  num_heads: 4
+  num_layers: 5
+  dropout: 0.2
+  attn_dropout: 0.5
+  residual: True
+  layer_norm: False
+  batch_norm: True
+  act: relu
+  norm_e: True
+  O_e: True
+  ff_e: False
+  update_e: True
+  pool: add
+  pool_edge: True
+  pool_vn: False
+  post_pool: False
+  prefix_type: add_virtual
+  label_embed_type: add_virtual
+  num_task: 1
+  task_type: regression
+  node_encoder_num_types: 3
+  edge_encoder_num_types: 2
+  add_virtual_node_edge: False
+  attn:
+    clamp: 5.
+    act: relu
+    full_attn: True
+    edge_enhance: True
+    O_e: True
+    norm_e: True
+    fwl: False
+    signed_sqrt: True
+    score_act: True

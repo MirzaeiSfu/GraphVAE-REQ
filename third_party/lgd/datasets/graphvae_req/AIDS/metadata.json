@@ -1,0 +1,36 @@
+{
+  "dataset": "AIDS",
+  "edge_feature_dims": [
+    2,
+    4
+  ],
+  "edge_feature_names": [
+    "adjacency",
+    "edge_label"
+  ],
+  "edge_zero_means_absent": true,
+  "exact_frozen_splits": true,
+  "force_undirected": true,
+  "format_version": 1,
+  "node_feature_dims": [
+    38,
+    3,
+    2,
+    8,
+    8
+  ],
+  "node_feature_names": [
+    "node_label",
+    "node_attr_00",
+    "node_attr_01",
+    "node_attr_02",
+    "node_attr_03"
+  ],
+  "source": "/local-scratch2/mirzaei/aids_common_eval_10k_20260917/cache/dataset/AIDS_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-123_bfs-all_components_features-tu-quantile8-maxall.pkl",
+  "split_counts": {
+    "test": 400,
+    "train": 1400,
+    "val": 200
+  },
+  "topology_only": false
+}

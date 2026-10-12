@@ -1,0 +1,27 @@
+from torch_geometric.graphgym.register import register_config
+
+
+@register_config('dataset_cfg')
+def dataset_cfg(cfg):
+    """Dataset-specific config options.
+    """
+
+    # The number of node types to expect in TypeDictNodeEncoder.
+    cfg.dataset.node_encoder_num_types = 0
+
+    # The number of edge types to expect in TypeDictEdgeEncoder.
+    cfg.dataset.edge_encoder_num_types = 0
+
+    # Independent categorical fields used by prepared GraphVAE-REQ bundles.
+    # The exact values are loaded from metadata before model construction.
+    cfg.dataset.node_feature_dims = []
+    cfg.dataset.edge_feature_dims = []
+
+    # VOC/COCO Superpixels dataset version based on SLIC compactness parameter.
+    cfg.dataset.slic_compactness = 10
+
+    cfg.dataset.add_virtual_node_edge = True
+
+    cfg.dataset.subgraph = False
+
+    cfg.dataset.num_hop = 0

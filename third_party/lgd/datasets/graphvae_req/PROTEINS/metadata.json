@@ -1,0 +1,26 @@
+{
+  "dataset": "PROTEINS",
+  "edge_feature_dims": [
+    2
+  ],
+  "edge_feature_names": [
+    "adjacency"
+  ],
+  "edge_zero_means_absent": true,
+  "exact_frozen_splits": true,
+  "force_undirected": true,
+  "format_version": 1,
+  "node_feature_dims": [
+    3
+  ],
+  "node_feature_names": [
+    "node_feature"
+  ],
+  "source": "/local-scratch2/mirzaei/rule_mmd_20260923/datasets/PROTEINS/dataset_cache.pkl",
+  "split_counts": {
+    "test": 210,
+    "train": 731,
+    "val": 104
+  },
+  "topology_only": false
+}
