@@ -1,0 +1,118 @@
+#===============================
+# Data arguments
+#===============================
+data:
+  dataset: QM9
+  use_feature: true
+  bfsOrdering: true
+  bfs_strategy: all_components
+  directed: false
+  database_name: qm9_experiment
+  graph_type: homogeneous
+  graph_index_start: null
+  graph_index_end: null
+  data_dir: null
+  lobster_feature_schema: optimal_v2
+  tu_attribute_bins: 8
+  tu_max_nodes: null
+  split_mode: legacy_80_20
+  seed: 0
+  deterministic: true
+  deterministic_warn_only: false
+
+#===============================
+# Model arguments
+#===============================
+model:
+  model: GraphVAE
+  encoder_type: AvePool
+  decoder: FC
+  graphEmDim: 1024
+  beta: null
+  # false reproduces Kia's variance-scaled posterior sampling. Set true only
+  # for corrected runs of our model.
+  correct_reparameterization: false
+
+#===============================
+# Experiment arguments
+#===============================
+experiment:
+  epoch_number: 20000
+  Vis_step: 2
+  redraw: false
+  lr: 0.0003
+  train_batch_size: 200
+  task: graphGeneration
+
+#===============================
+# Motif arguments
+#===============================
+motif:
+  motif_loss: false
+  # full_matrix, row_column_marginals, marginal_histogram, or total_count.
+  # Legacy matrix/count names remain accepted as aliases.
+  motif_output_mode: total_count
+  # null inherits motif_output_mode / motif_loss_mode. Set these independently
+  # to use different statistics for original and syntactic-literal motifs.
+  non_literal_motif_output_mode: null
+  syntactic_literal_motif_output_mode: null
+  motif_histogram_num_bins: 16
+  motif_histogram_smoothing: 0.25
+  use_syntactic_literal_rules: true
+  syntactic_literal_rule_mode: both
+  motif_loss_mode: abs_log_ratio
+  non_literal_motif_loss_mode: null
+  syntactic_literal_motif_loss_mode: null
+  motif_temperature_start: 1.0
+  motif_temperature_end: 0.5
+  motif_temperature_anneal_start_frac: 0.5
+  # null uses the runtime default: 2.0 when temperature annealing sharpens
+  # motif logits, otherwise 0.0. Set 0.0 explicitly to disable the guard.
+  motif_temperature_guard_ratio: null
+  motif_temperature_guard_relax_factor: 1.05
+  motif_temperature_guard_sharpen_factor: 0.995
+  motif_cp_table_source: cp
+  rule_prune: false
+  motif_batch_size: 50000
+
+#===============================
+# Loss arguments
+#===============================
+loss:
+  alpha_kernel_cost: 1.0
+  alpha_node_feat: 1.0
+  alpha_edge_feat: 1.0
+  alpha_motif_loss: 0.0
+  alpha_syntactic_literal_motif_loss: null
+  use_graphvae_mm_bce_kl_weights: false
+  alpha_adj_recon: 0.0
+
+#===============================
+# Runtime, output, and evaluation arguments
+#===============================
+runtime:
+  graph_save_path: null
+  dataset_cache_dir: null
+  motif_cache_dir: null
+  PATH: model
+  UseGPU: true
+  device: cuda
+  plot_testGraphs: true
+  ideal_Evalaution: false
+  keep_best_validation_mmd: true
+  best_validation_mmd_metric: table3_priority
+  save_validation_checkpoints: false
+  checkpoint_interval_epochs: 1000
+  third_party_eval: true
+  third_party_eval_repeats: 10
+  third_party_eval_max_graphs: 1000
+  third_party_eval_seed: 0
+  third_party_eval_device: same
+  third_party_eval_structural_features: true
+  third_party_eval_json_filename: graph_realism_random_gin.json
+  third_party_eval_strict: true
+  tiny_overfit: false
+  tiny_overfit_size: 32
+  interactive: false
+  sanity_check: false
+  sanity_check_only: false

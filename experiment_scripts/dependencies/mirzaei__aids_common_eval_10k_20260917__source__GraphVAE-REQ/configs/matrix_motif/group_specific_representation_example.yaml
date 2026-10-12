@@ -1,0 +1,21 @@
+# This partial config uses main.py's other defaults. It demonstrates one
+# canonical full-matrix motif count feeding two group-specific objectives.
+motif:
+  motif_loss: true
+  syntactic_literal_rule_mode: both
+
+  # Backward-compatible fallbacks; explicit group settings below take priority.
+  motif_output_mode: total_count
+  motif_loss_mode: calibrated_gaussian
+
+  # Original FactorBase/relational motifs.
+  non_literal_motif_output_mode: full_matrix
+  non_literal_motif_loss_mode: calibrated_gaussian
+
+  # Injected node/edge literal motifs.
+  syntactic_literal_motif_output_mode: row_column_marginals
+  syntactic_literal_motif_loss_mode: calibrated_gaussian
+
+loss:
+  alpha_motif_loss: 1.0
+  alpha_syntactic_literal_motif_loss: 1.0
