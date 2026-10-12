@@ -61,7 +61,10 @@ def main():
         run(cmd, code, env, a.dry_run)
 
     elif r["kind"] == "defog":
-        env["PYTHONPATH"] = code + os.pathsep + os.path.join(code, "src") + os.pathsep + env.get("PYTHONPATH", "")
+        # same PYTHONPATH as the original launcher of this run (frozen runs need GraphVAE-REQ's ggm_eval)
+        pp = [x.replace("@REPO", REPO).replace("@CODE", code) for x in r["pythonpath"]]
+        env["PYTHONPATH"] = os.pathsep.join(pp + [env.get("PYTHONPATH", "")])
+        print("PYTHONPATH=" + env["PYTHONPATH"], flush=True)
         for stage, ofile in r["stages"].items():
             overrides = []
             for o in yaml.safe_load(open(os.path.join(REPO, ofile))) or []:

@@ -30,6 +30,10 @@ DATA_SOURCES = {
 CODE_B_RUNS = {"PTC/graphvae_rg/seed_1", "PTC/graphvae_rg/seed_2"} | {
     f"{d}/{m}/seed_{s}" for d, m in (("PROTEINS", "graphvae_rg"), ("QM9", "graphvae"), ("QM9", "graphvae_rg")) for s in (0, 1, 2)}
 DEFOG_CODE = {"QM9": "third_party/defog", "PROTEINS": "third_party/defog_proteins"}
+# PYTHONPATH exactly as each original DeFoG launcher set it (@REPO = repository root, @CODE = the DeFoG folder):
+# frozen-protocol runs: GraphVAE-REQ's run_defog_job.py; QM9: qm9_defog_lab24 run script; PROTEINS: launch_defog_proteins.sh
+DEFOG_PYTHONPATH = {"QM9": ["@CODE/src", "@CODE"], "PROTEINS": ["@CODE", "@CODE/src"]}
+DEFOG_PYTHONPATH_FROZEN = ["@REPO/graph_evaluation/src", "@CODE"]
 
 
 def graphvae_paths(ds, method, s):
@@ -82,6 +86,7 @@ for r in pkg["runs"]:
         stages = [st for st in ("training", "generation", "training_and_generation") if f"{st}_overrides.yaml" in files]
         root = {"QM9": f"defog/QM9/seed_{s}", "PROTEINS": None}.get(ds, f"defog/{ds}")
         entry.update(kind="defog", code=DEFOG_CODE.get(ds, "third_party/defog_c631697"),
+                     pythonpath=DEFOG_PYTHONPATH.get(ds, DEFOG_PYTHONPATH_FROZEN),
                      stages={st: f"{cdir}/{st}_overrides.yaml" for st in stages},
                      dataset_key="dataset.datadir" if ds == "QM9" else ("dataset.root" if root else None),
                      dataset_path=root)

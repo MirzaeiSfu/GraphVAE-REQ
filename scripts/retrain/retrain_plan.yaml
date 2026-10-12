@@ -178,6 +178,9 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: &id001
+    - '@REPO/graph_evaluation/src'
+    - '@CODE'
     stages:
       training: configs/paper_runs/GRID/defog/seed_0/training_overrides.yaml
       generation: configs/paper_runs/GRID/defog/seed_0/generation_overrides.yaml
@@ -196,6 +199,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/GRID/defog/seed_4/training_overrides.yaml
       generation: configs/paper_runs/GRID/defog/seed_4/generation_overrides.yaml
@@ -214,6 +218,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/GRID/defog/seed_5/training_overrides.yaml
       generation: configs/paper_runs/GRID/defog/seed_5/generation_overrides.yaml
@@ -415,6 +420,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/LOBSTER/defog/seed_0/training_overrides.yaml
       generation: configs/paper_runs/LOBSTER/defog/seed_0/generation_overrides.yaml
@@ -433,6 +439,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/LOBSTER/defog/seed_1/training_overrides.yaml
       generation: configs/paper_runs/LOBSTER/defog/seed_1/generation_overrides.yaml
@@ -451,6 +458,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/LOBSTER/defog/seed_2/training_overrides.yaml
       generation: configs/paper_runs/LOBSTER/defog/seed_2/generation_overrides.yaml
@@ -658,6 +666,9 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_proteins
+    pythonpath: &id002
+    - '@CODE'
+    - '@CODE/src'
     stages:
       training: configs/paper_runs/PROTEINS/defog/seed_0/training_overrides.yaml
       generation: configs/paper_runs/PROTEINS/defog/seed_0/generation_overrides.yaml
@@ -675,6 +686,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_proteins
+    pythonpath: *id002
     stages:
       training: configs/paper_runs/PROTEINS/defog/seed_1/training_overrides.yaml
       generation: configs/paper_runs/PROTEINS/defog/seed_1/generation_overrides.yaml
@@ -692,6 +704,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_proteins
+    pythonpath: *id002
     stages:
       training: configs/paper_runs/PROTEINS/defog/seed_2/training_overrides.yaml
       generation: configs/paper_runs/PROTEINS/defog/seed_2/generation_overrides.yaml
@@ -953,6 +966,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/PTC/defog/seed_0/training_overrides.yaml
       generation: configs/paper_runs/PTC/defog/seed_0/generation_overrides.yaml
@@ -971,6 +985,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/PTC/defog/seed_1/training_overrides.yaml
       generation: configs/paper_runs/PTC/defog/seed_1/generation_overrides.yaml
@@ -989,6 +1004,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/PTC/defog/seed_2/training_overrides.yaml
       generation: configs/paper_runs/PTC/defog/seed_2/generation_overrides.yaml
@@ -1235,6 +1251,9 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog
+    pythonpath: &id003
+    - '@CODE/src'
+    - '@CODE'
     stages:
       training_and_generation: configs/paper_runs/QM9/defog/seed_0/training_and_generation_overrides.yaml
     dataset_key: dataset.datadir
@@ -1252,6 +1271,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog
+    pythonpath: *id003
     stages:
       training_and_generation: configs/paper_runs/QM9/defog/seed_1/training_and_generation_overrides.yaml
     dataset_key: dataset.datadir
@@ -1269,6 +1289,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog
+    pythonpath: *id003
     stages:
       training_and_generation: configs/paper_runs/QM9/defog/seed_2/training_and_generation_overrides.yaml
     dataset_key: dataset.datadir
@@ -1469,6 +1490,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/TRIANGULAR_GRID/defog/seed_0/training_overrides.yaml
       generation: configs/paper_runs/TRIANGULAR_GRID/defog/seed_0/generation_overrides.yaml
@@ -1487,6 +1509,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/TRIANGULAR_GRID/defog/seed_1/training_overrides.yaml
       generation: configs/paper_runs/TRIANGULAR_GRID/defog/seed_1/generation_overrides.yaml
@@ -1505,6 +1528,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog_c631697
+    pythonpath: *id001
     stages:
       training: configs/paper_runs/TRIANGULAR_GRID/defog/seed_3/training_overrides.yaml
       generation: configs/paper_runs/TRIANGULAR_GRID/defog/seed_3/generation_overrides.yaml
