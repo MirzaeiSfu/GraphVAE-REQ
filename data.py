@@ -278,6 +278,7 @@ class Datasets():
         self.list_Xs               = list_Xs
         self.labels                = graphlabels
         self.list_adjs             = list_adjs
+        self._order_ids            = list(range(len(list_adjs)))
         self.list_node_onehot      = list_node_onehot
         self.list_edge_onehot      = list_edge_onehot
         self.motif_counts          = None
@@ -496,6 +497,10 @@ class Datasets():
         indx = list(range(len(self.list_adjs)))
         np.random.shuffle(indx)
 
+        if not hasattr(self, "_order_ids") or len(self._order_ids) != len(self.list_adjs):
+            self._order_ids = list(range(len(self.list_adjs)))
+        self._order_ids = [self._order_ids[i] for i in indx]
+
         if self.list_Xs is not None:
             self.list_Xs = [self.list_Xs[i] for i in indx]
         else:
@@ -559,6 +564,77 @@ class Datasets():
 
         # Motif masks and histogram specifications are shared across graphs
         # and therefore must not be shuffled.
+        if len(self.subgraph_indexes) > 0:
+            self.adj_s            = [self.adj_s[i]            for i in indx]
+            self.x_s              = [self.x_s[i]              for i in indx]
+            self.node_onehot_s    = [self.node_onehot_s[i]    for i in indx]
+            self.edge_onehot_s    = [self.edge_onehot_s[i]    for i in indx]
+            self.num_nodes        = [self.num_nodes[i]        for i in indx]
+            self.subgraph_indexes = [self.subgraph_indexes[i] for i in indx]
+
+    def get_order_ids(self):
+        if not hasattr(self, "_order_ids") or len(self._order_ids) != len(self.list_adjs):
+            self._order_ids = list(range(len(self.list_adjs)))
+        return list(self._order_ids)
+
+    def restore_order_ids(self, order_ids):
+        current_order = self.get_order_ids()
+        if len(order_ids) != len(current_order) or set(order_ids) != set(current_order):
+            raise ValueError("Saved dataset order does not match this dataset.")
+
+        position_by_id = {order_id: idx for idx, order_id in enumerate(current_order)}
+        indx = [position_by_id[order_id] for order_id in order_ids]
+        self._order_ids = [self._order_ids[i] for i in indx]
+
+        if self.list_Xs is not None:
+            self.list_Xs = [self.list_Xs[i] for i in indx]
+
+        self.list_adjs = [self.list_adjs[i] for i in indx]
+
+        if self.list_node_onehot is not None:
+            self.list_node_onehot = [self.list_node_onehot[i] for i in indx]
+        if self.list_edge_onehot is not None:
+            self.list_edge_onehot = [self.list_edge_onehot[i] for i in indx]
+
+        if self.featureList is not None:
+            for el_i, element in enumerate(self.featureList):
+                self.featureList[el_i] = element[indx]
+
+        if self.labels is not None:
+            self.labels = [self.labels[i] for i in indx]
+
+        if self.motif_counts is not None:
+            if torch.is_tensor(self.motif_counts) or isinstance(self.motif_counts, np.ndarray):
+                self.motif_counts = self.motif_counts[indx]
+            else:
+                self.motif_counts = [self.motif_counts[i] for i in indx]
+
+        if self.motif_matrices is not None:
+            if torch.is_tensor(self.motif_matrices) or isinstance(self.motif_matrices, np.ndarray):
+                self.motif_matrices = self.motif_matrices[indx]
+            else:
+                self.motif_matrices = [self.motif_matrices[i] for i in indx]
+
+        if self.motif_statistics is not None:
+            if torch.is_tensor(self.motif_statistics) or isinstance(
+                self.motif_statistics,
+                np.ndarray,
+            ):
+                self.motif_statistics = self.motif_statistics[indx]
+            else:
+                self.motif_statistics = [self.motif_statistics[i] for i in indx]
+
+        if self.motif_full_matrices is not None:
+            if torch.is_tensor(self.motif_full_matrices) or isinstance(
+                self.motif_full_matrices,
+                np.ndarray,
+            ):
+                self.motif_full_matrices = self.motif_full_matrices[indx]
+            else:
+                self.motif_full_matrices = [
+                    self.motif_full_matrices[i] for i in indx
+                ]
+
         if len(self.subgraph_indexes) > 0:
             self.adj_s            = [self.adj_s[i]            for i in indx]
             self.x_s              = [self.x_s[i]              for i in indx]
