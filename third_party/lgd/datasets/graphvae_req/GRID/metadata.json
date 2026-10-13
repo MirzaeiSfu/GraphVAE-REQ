@@ -1,0 +1,26 @@
+{
+  "dataset": "GRID",
+  "edge_feature_dims": [
+    2
+  ],
+  "edge_feature_names": [
+    "adjacency"
+  ],
+  "edge_zero_means_absent": true,
+  "exact_frozen_splits": true,
+  "force_undirected": true,
+  "format_version": 1,
+  "node_feature_dims": [
+    1
+  ],
+  "node_feature_names": [
+    "constant"
+  ],
+  "source": "/local-scratch2/mirzaei/Abdolreza/harvest/cs-cl-19/local-scratch2__mirzaei__fb__GraphVAE-REQ/runs/count_distance_3seed/grid/dataset_cache/GRID_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-123_bfs-legacy_first_component_features-default.pkl",
+  "split_counts": {
+    "test": 20,
+    "train": 70,
+    "val": 10
+  },
+  "topology_only": true
+}
