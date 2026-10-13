@@ -17,6 +17,25 @@ repository uses a GraphVAE architecture: a DGL graph-convolution encoder, graph
 pooling to a single graph embedding, and an MLP decoder that reconstructs the
 whole adjacency matrix.
 
+## Reproducing the paper
+
+Everything needed to retrain the runs behind the paper tables is on `main` (tag `paper-reproduction-v1`):
+
+| What | Where |
+|---|---|
+| Config of every paper run (GraphVAE, GraphVAE+RG, DeFoG, LGD; 6 datasets; 3 seeds) | [`configs/paper_runs/`](configs/paper_runs/) |
+| Retrain a run on the machine it originally ran on | [`scripts/retrain/`](scripts/retrain/) |
+| DeFoG and LGD code, as the runs used it | [`third_party/`](third_party/) |
+| Which code produced each table entry | [`EXPERIMENT_COMMITS.md`](EXPERIMENT_COMMITS.md) |
+| Scripts that computed the table numbers | [`experiment_scripts/`](experiment_scripts/) |
+
+```bash
+# on cs-cl-18
+git clone https://github.com/MirzaeiSfu/GraphVAE-REQ.git && cd GraphVAE-REQ
+python3 scripts/retrain/launch.py PTC/graphvae_rg/seed_0 --dry-run   # show what it will do
+python3 scripts/retrain/launch.py PTC/graphvae_rg/seed_0             # clone, copy data, start
+```
+
 ## Related Paper
 
 The rule-learning motivation is related to:

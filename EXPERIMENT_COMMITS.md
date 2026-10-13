@@ -14,7 +14,8 @@ The **Status** column says how each entry was established:
 | **Inferred** | `main.py` in the commit shown has exactly the run's options. Other modules were not checked. |
 | **Recovered** | The code was not committed when the run was launched. It was committed later, byte-identical to the run's launch folder, on branch `recovered/paper-code-20260904`. See [Recovered code](#recovered-code). |
 
-The exact configuration of every run listed here is in [`configs/paper_runs/`](configs/paper_runs/).
+The exact configuration of every run listed here is in [`configs/paper_runs/`](configs/paper_runs/). To retrain a run on
+its original system from a fresh clone, use [`scripts/retrain/launch.py`](scripts/retrain/).
 
 Run folders refer to `EXPERIMENT_ARCHIVE_20260921` unless another location is given. A copy of that archive, and of
 everything listed here, is on the external drive attached to cs-cl-18 (`/media/mirzaei/backup/`).
@@ -64,7 +65,7 @@ everything listed here, is on the external drive attached to cs-cl-18 (`/media/m
 |---|---|---|---|---|
 | GraphVAE | 0, 1, 2 | [`2a80b0a`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/2a80b0aa0) | Inferred (the runs predate this commit, so the code was committed afterwards) | `PROTEINS/graphvae_motif_false/setting_01/` |
 | GraphVAE+RG (full matrix, λ=0.03) | 0, 1, 2 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B) | Recovered (launch folder committed afterwards; byte-identical) | `PROTEINS/graphvae_motif_true/alpha_003_full_matrix/`; Solar `~/proteins_full_matrix_motif003_20260910/` |
-| DeFoG | 0, 1, 2 | DeFoG [`c631697`](https://github.com/MirzaeiSfu/defog/commit/c631697b9cd5a2474d22ba12de33943c6b49e53e) | Inferred (the DeFoG commit pinned for every campaign; these runs did not record it) | `PROTEINS/defog/corrected_generation_20260922/` |
+| DeFoG | 0, 1, 2 | modified DeFoG copy (`third_party/defog_proteins/`; 9 files differ from `c631697`) | Verified (launch folder found; byte-identical) | `PROTEINS/defog/campaign/runs/` (training), `PROTEINS/defog/corrected_generation_20260922/` (generation) |
 | LGD | 0, 1, 2 | LGD `f597e1d` + local changes | Recorded (campaign) | Solar `~/LGD_FIX_20260924/results/` |
 
 ### QM9
@@ -90,31 +91,33 @@ the runs recorded.
 | [`f75f761`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/f75f761fd) (code A, written 2026-09-04 09:38) | PTC GraphVAE+RG seed 0 | `main.py` (adds `--motif_prune_score_threshold`), `motif_counting/motif_counter.py`, `loss_weight_utils.py`, plus 37 configs and launch scripts | cs-cl-17 `/var/tmp/mirzaei_archive/ali/GraphVAE-REQ-kia-motif-20260904-cl17/` |
 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B, written 2026-09-04 15:30) | PTC GraphVAE+RG seeds 1–2, PROTEINS GraphVAE+RG, QM9 GraphVAE and GraphVAE+RG | code A plus `main.py` (adds `--resume_from_latest_checkpoint`), `data.py`, and the PTC/AIDS launch and monitoring scripts | Solar `/project/cs-schulte-lab/ali/GraphVAE-REQ-kia-motif-20260831/` |
 
-To rerun one of these experiments, check out the commit and use the `command` saved in the run's
-`reproducibility.json`.
+Both versions are merged into `main`, so these runs can be retrained from `main` with their configs in
+`configs/paper_runs/`. Training on `main` matches them: for code A, a retrain logged identical losses; code B differs
+from `main` only by an extra output file (`motif_selection_manifest.json`) and loss weights for AIDS, which these
+runs do not use.
 
 ## Baselines
 
 - **DeFoG**: fork [`MirzaeiSfu/defog`](https://github.com/MirzaeiSfu/defog), branch `feat/frozen-graphvae-benchmark`,
-  commit `c631697`. The QM9 runs also used uncommitted changes to `src/main.py`, `src/datasets/qm9_dataset.py` and
-  `src/analysis/ggmeval/evaluation/models/gin/gin.py`.
+  commit `c631697`, in three variants:
+  - GRID, TRIANGULAR_GRID, LOBSTER and PTC ran `c631697` unmodified (`third_party/defog_c631697/`).
+  - QM9 ran `c631697` with uncommitted seed fixes in `src/main.py`, `src/datasets/qm9_dataset.py` and
+    `src/analysis/ggmeval/evaluation/models/gin/gin.py` (`third_party/defog/`). These change model initialization,
+    so the other datasets must not use this variant.
+  - PROTEINS ran a modified copy with 9 changed files (`third_party/defog_proteins/`).
 - **LGD**: upstream [`zhouc20/LatentGraphDiffusion`](https://github.com/zhouc20/LatentGraphDiffusion) commit `f597e1d`
   plus local changes, from the `LGD_FIX_20260924` campaign, where the encoder checkpoint is chosen by validation
-  `loss_recon` and never epoch 0.
-- The code for both baselines, with the local changes, is in `third_party/defog/` and `third_party/lgd/` on branch
-  [`baselines-code-and-provenance`](https://github.com/MirzaeiSfu/GraphVAE-REQ/tree/baselines-code-and-provenance).
+  `loss_recon` and never epoch 0 (`third_party/lgd/`; PTC seed 2 sampled with
+  `third_party/lgd/legacy_LGD_3SEED_CAMPAIGN_20260920/sample_tu.py`).
+- Each baseline variant in `third_party/` is byte-identical to the folder its runs were launched from.
 
 ## Other experiments
 
 All 346 runs in `EXPERIMENT_ARCHIVE_20260921`, including AIDS, MUTAG, OGB and runs not in the paper, are listed one
-per row in
-[`reports/experiment_code_provenance.csv`](https://github.com/MirzaeiSfu/GraphVAE-REQ/blob/baselines-code-and-provenance/reports/experiment_code_provenance.csv)
-on branch `baselines-code-and-provenance`, with the method used for each entry.
+per row in [`reports/experiment_code_provenance.csv`](reports/experiment_code_provenance.csv), with the method used
+for each entry.
 
 ## Evaluation code
 
-The paper numbers were computed by evaluation scripts that are not in git:
-`aids_common_eval_10k_20260917/scripts/`, `qm9_common_eval_20260917/`, `lgd_common_eval_20260925/scripts/`,
-`defog_synthetic_evaluation_20260906/`, `proteins_3way_comparison_20260913/` and `rule_mmd_20260923/`, all on cs-cl-18.
-Copies are on the external drive. `PAPER_RESULTS_AUDIT_20260924/NUMERICAL_AUDIT.json` on cs-cl-18 lists the source
-file and checksum behind each of the 126 checked table values.
+The paper numbers were computed by evaluation scripts run after training. They are in
+[`experiment_scripts/`](experiment_scripts/), whose README lists which script computed each table number.
