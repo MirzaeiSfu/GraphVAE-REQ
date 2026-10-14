@@ -28,6 +28,7 @@ records the choice in `SELECTION.json`. The earlier campaign (`LGD_3SEED_CAMPAIG
 always epoch 0, an untrained encoder. Diffusion is retrained on the selected encoder, and every run ends with a
 sampling check (`GATE.json`).
 
-The old campaign's versions of the two files that changed are kept in
-[`legacy_LGD_3SEED_CAMPAIGN_20260920/`](legacy_LGD_3SEED_CAMPAIGN_20260920/), because the LGD runs in
-`EXPERIMENT_ARCHIVE_20260921` come from that campaign.
+The old campaign differs from this code only in these two files (`select_best_encoder_ckpt.py` and
+`sample_tu.py`, which gained a sample cap for QM9). The old versions are in git history (commit `92b2635`,
+`third_party/lgd/legacy_LGD_3SEED_CAMPAIGN_20260920/`) and on the lab machines; the paper's LGD numbers do not
+depend on them.

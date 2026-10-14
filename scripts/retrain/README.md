@@ -53,7 +53,9 @@ Outputs: `<workspace>/outputs/<DATASET>/<method>/seed_N/`. Logs: `<workspace>/lo
 
 - **GraphVAE:** `python main.py --config configs/paper_runs/<id>.yaml`, plus output, cache and data paths. To check a
   rerun's settings, compare its `reproducibility.json` with `configs/paper_runs/<id>.effective.yaml`.
-- **DeFoG:** `python src/main.py <overrides>` in the run's DeFoG folder, with the overrides in
+- **DeFoG:** `python src/main.py <overrides>` in `third_party/defog/`, or for QM9 and PROTEINS in a copy with
+  `variants/qm9.patch` or `variants/proteins.patch` applied (built in the run's output folder, and every file checked
+  against the paper's code before the run starts), with the overrides in
   `configs/paper_runs/<id>/training_overrides.yaml`, then `generation_overrides.yaml`. Generation uses the checkpoint
   the original run used (best validation loss, or the last one for PROTEINS). To generate from an existing
   checkpoint without training, run `run_experiment.py <id> --ckpt <file> ...`.
@@ -65,7 +67,7 @@ Outputs: `<workspace>/outputs/<DATASET>/<method>/seed_N/`. Logs: `<workspace>/lo
 | Method | Result |
 |---|---|
 | GraphVAE, GraphVAE+RG | **Identical**, when run uninterrupted on the same GPU model with the same environment. Checked by retraining GRID and TRIANGULAR_GRID GraphVAE+RG (seeds 0–2) on their original machines: identical losses for all 20,000 epochs, and identical models, generated graphs and metrics. |
-| DeFoG | **Generation: identical. Training: close, not guaranteed identical.** Generating GRID seed 0 from the paper's checkpoint (`run_experiment.py GRID/defog/seed_0 --ckpt ...`) gave byte-identical graphs. DeFoG training sets the seed but not PyTorch's deterministic mode, and the original runs kept no per-epoch log to compare with (a GRID training run takes about 2.5 days), so a retrained model may differ slightly. |
+| DeFoG | **Generation: identical. Training: close, not guaranteed identical.** Generating from the paper's checkpoints with `run_experiment.py <id> --ckpt ...` reproduced the paper's graphs for GRID seed 0 (byte-identical) and PROTEINS seed 0 (identical graphs and metrics, using the PROTEINS version built from `variants/proteins.patch`). The QM9 version built from `variants/qm9.patch` starts from exactly the paper run's initial weights (same checksum, `d9c0a758...`, for seed 0). DeFoG training sets the seed but not PyTorch's deterministic mode, and the original runs kept no per-epoch log to compare with (a GRID training run takes about 2.5 days), so a retrained model may differ slightly. |
 | LGD | **Close, not identical.** LGD is not deterministic on GPU: two runs with the same code, config, seed and GPU differ from the second epoch on (training loss 13.5422 vs 13.5446). A full retrain of PTC seed 0 ran through all four steps, but picked a different encoder checkpoint (epoch 24 vs 74) and its quick sample check differs from the paper run's (degree MMD 0.053 vs 0.032, clustering 0.072 vs 0.110). |
 
 ## Notes

@@ -61,8 +61,8 @@ To retrain a run on its original machine (clone, data copy and start), use
 These are copied unchanged from the configs the runs saved:
 
 - **DeFoG:** Hydra files (`.hydra/config.yaml` and `overrides.yaml`) of each training and generation run. For QM9 one
-  Hydra run covered both, so its files are named `training_and_generation_*`. The code is in `third_party/`, in the
-  variant each dataset used (see [`EXPERIMENT_COMMITS.md`](../../EXPERIMENT_COMMITS.md#baselines)).
+  Hydra run covered both, so its files are named `training_and_generation_*`. The code is `third_party/defog/`; QM9
+  and PROTEINS ran a modified version, stored as a patch in `third_party/defog/variants/`.
 - **LGD:** yacs `config.yaml` files from the `LGD_FIX_20260924` campaign; code in `third_party/lgd/`. For PTC and QM9
   the encoder was trained in the earlier `LGD_3SEED_CAMPAIGN_20260920` campaign and reused (its training code is
   identical). `SOURCES.txt` in each seed folder says where each file came from.

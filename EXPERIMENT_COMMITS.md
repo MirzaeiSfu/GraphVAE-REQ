@@ -65,7 +65,7 @@ everything listed here, is on the external drive attached to cs-cl-18 (`/media/m
 |---|---|---|---|---|
 | GraphVAE | 0, 1, 2 | [`2a80b0a`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/2a80b0aa0) | Inferred (the runs predate this commit, so the code was committed afterwards) | `PROTEINS/graphvae_motif_false/setting_01/` |
 | GraphVAE+RG (full matrix, λ=0.03) | 0, 1, 2 | [`af56479`](https://github.com/MirzaeiSfu/GraphVAE-REQ/commit/af56479bb) (code B) | Recovered (launch folder committed afterwards; byte-identical) | `PROTEINS/graphvae_motif_true/alpha_003_full_matrix/`; Solar `~/proteins_full_matrix_motif003_20260910/` |
-| DeFoG | 0, 1, 2 | modified DeFoG copy (`third_party/defog_proteins/`; 9 files differ from `c631697`) | Verified (launch folder found; byte-identical) | `PROTEINS/defog/campaign/runs/` (training), `PROTEINS/defog/corrected_generation_20260922/` (generation) |
+| DeFoG | 0, 1, 2 | DeFoG `c631697` + PROTEINS changes (`third_party/defog/variants/proteins.patch`) | Verified (launch folder found; byte-identical) | `PROTEINS/defog/campaign/runs/` (training), `PROTEINS/defog/corrected_generation_20260922/` (generation) |
 | LGD | 0, 1, 2 | LGD `f597e1d` + local changes | Recorded (campaign) | Solar `~/LGD_FIX_20260924/results/` |
 
 ### QM9
@@ -99,17 +99,19 @@ runs do not use.
 ## Baselines
 
 - **DeFoG**: fork [`MirzaeiSfu/defog`](https://github.com/MirzaeiSfu/defog), branch `feat/frozen-graphvae-benchmark`,
-  commit `c631697`, in three variants:
-  - GRID, TRIANGULAR_GRID, LOBSTER and PTC ran `c631697` unmodified (`third_party/defog_c631697/`).
-  - QM9 ran `c631697` with uncommitted seed fixes in `src/main.py`, `src/datasets/qm9_dataset.py` and
-    `src/analysis/ggmeval/evaluation/models/gin/gin.py` (`third_party/defog/`). These change model initialization,
-    so the other datasets must not use this variant.
-  - PROTEINS ran a modified copy with 9 changed files (`third_party/defog_proteins/`).
+  commit `c631697`, which is in `third_party/defog/`. Three versions ran:
+  - GRID, TRIANGULAR_GRID, LOBSTER and PTC: `c631697` unmodified.
+  - QM9: `c631697` plus seed fixes in 3 files (`third_party/defog/variants/qm9.patch`). They change model
+    initialization, so the other datasets must not use this version.
+  - PROTEINS: an earlier copy with 9 changed files (`third_party/defog/variants/proteins.patch` plus
+    `proteins_files/`).
+  `scripts/retrain/run_experiment.py` builds each version from `third_party/defog/` and checks every file against the
+  paper's launch folders (`third_party/defog/variants/*.sha256`). The scripts that launched and evaluated the GRID,
+  TRIANGULAR_GRID, LOBSTER and PTC runs are in `baselines/defog/frozen_eval/`.
 - **LGD**: upstream [`zhouc20/LatentGraphDiffusion`](https://github.com/zhouc20/LatentGraphDiffusion) commit `f597e1d`
   plus local changes, from the `LGD_FIX_20260924` campaign, where the encoder checkpoint is chosen by validation
-  `loss_recon` and never epoch 0 (`third_party/lgd/`; PTC seed 2 sampled with
-  `third_party/lgd/legacy_LGD_3SEED_CAMPAIGN_20260920/sample_tu.py`).
-- Each baseline variant in `third_party/` is byte-identical to the folder its runs were launched from.
+  `loss_recon` and never epoch 0 (`third_party/lgd/`). PTC seed 2 was sampled with the earlier campaign's
+  `sample_tu.py`, which differs only by a sample cap that applies to QM9, so it behaves the same.
 
 ## Other experiments
 

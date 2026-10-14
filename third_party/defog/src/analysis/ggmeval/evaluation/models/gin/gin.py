@@ -13,13 +13,11 @@ import torch.nn.functional as F
 import dgl.function as fn
 from dgl.utils import expand_as_pair
 from dgl.nn.pytorch.glob import SumPooling, AvgPooling, MaxPooling
-
-# Do not seed global RNGs at module import time.  This evaluator is imported
-# dynamically by molecular training and the former hard-coded seed of 0 reset
-# the caller's Python, NumPy, and PyTorch RNG streams.  Consequently, DeFoG
-# training runs requested with different seeds initialized identical models.
-# Evaluator entry points must use their own local/configured seeds instead of
-# mutating application-wide state during import.
+import numpy as np
+import  random
+random.seed(0)
+np.random.seed(0)
+torch.manual_seed(0)
 
 class GINConv(nn.Module):
     r"""

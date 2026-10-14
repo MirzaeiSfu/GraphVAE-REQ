@@ -1,0 +1,119 @@
+diff --git a/src/analysis/ggmeval/evaluation/models/gin/gin.py b/src/analysis/ggmeval/evaluation/models/gin/gin.py
+index 4bfa402..13c8d12 100644
+--- a/src/analysis/ggmeval/evaluation/models/gin/gin.py
++++ b/src/analysis/ggmeval/evaluation/models/gin/gin.py
+@@ -13,11 +13,13 @@ import torch.nn.functional as F
+ import dgl.function as fn
+ from dgl.utils import expand_as_pair
+ from dgl.nn.pytorch.glob import SumPooling, AvgPooling, MaxPooling
+-import numpy as np
+-import  random
+-random.seed(0)
+-np.random.seed(0)
+-torch.manual_seed(0)
++
++# Do not seed global RNGs at module import time.  This evaluator is imported
++# dynamically by molecular training and the former hard-coded seed of 0 reset
++# the caller's Python, NumPy, and PyTorch RNG streams.  Consequently, DeFoG
++# training runs requested with different seeds initialized identical models.
++# Evaluator entry points must use their own local/configured seeds instead of
++# mutating application-wide state during import.
+ 
+ class GINConv(nn.Module):
+     r"""
+diff --git a/src/datasets/qm9_dataset.py b/src/datasets/qm9_dataset.py
+index 94e7e86..1e2e652 100644
+--- a/src/datasets/qm9_dataset.py
++++ b/src/datasets/qm9_dataset.py
+@@ -1,6 +1,7 @@
+ import os
+ import os.path as osp
+ import pathlib
++import random
+ from typing import Any, Sequence
+ 
+ import torch
+@@ -144,15 +145,22 @@ class QM9Dataset(InMemoryDataset):
+ 
+         dataset = pd.read_csv(self.raw_paths[1])
+ 
+-        n_samples = len(dataset)
+-        n_train = 100000
+-        n_test = int(0.1 * n_samples)
+-        n_val = n_samples - (n_train + n_test)
+-
+-        # Shuffle dataset with df.sample, then split
+-        train, val, test = np.split(
+-            dataset.sample(frac=1, random_state=42), [n_train, n_val + n_train]
+-        )
++        # Match GraphVAE-REQ's paper_70_10_20 split exactly. PyG's QM9
++        # dataset excludes the uncharacterized molecule indices before it is
++        # shuffled, so reproduce that filtering and Python Random(123) order.
++        with open(self.raw_paths[-1], "r") as handle:
++            excluded = {
++                int(line.split()[0]) - 1
++                for line in handle.read().split("\n")[9:-2]
++                if line.strip()
++            }
++        indices = [index for index in range(len(dataset)) if index not in excluded]
++        random.Random(123).shuffle(indices)
++        n_train = int(0.7 * len(indices))
++        n_val = int(0.1 * len(indices))
++        train = dataset.loc[indices[:n_train]]
++        val = dataset.loc[indices[n_train:n_train + n_val]]
++        test = dataset.loc[indices[n_train + n_val:]]
+ 
+         train.to_csv(os.path.join(self.raw_dir, "train.csv"))
+         val.to_csv(os.path.join(self.raw_dir, "val.csv"))
+diff --git a/src/main.py b/src/main.py
+index d55e7b5..f46e6a4 100644
+--- a/src/main.py
++++ b/src/main.py
+@@ -1,5 +1,6 @@
+ import os
+ os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")  # override by exporting CUDA_VISIBLE_DEVICES before launch
++import hashlib
+ import pathlib
+ import warnings
+ 
+@@ -33,7 +34,7 @@ warnings.filterwarnings("ignore", category=PossibleUserWarning)
+ 
+ @hydra.main(version_base="1.3", config_path="../configs", config_name="config")
+ def main(cfg: DictConfig):
+-    pl.seed_everything(cfg.train.seed)
++    pl.seed_everything(cfg.train.seed, workers=True)
+     dataset_config = cfg["dataset"]
+ 
+     if dataset_config["name"] in [
+@@ -434,8 +435,31 @@ def main(cfg: DictConfig):
+     }
+ 
+     utils.create_folders(cfg)
++
++    # Dataset-specific metric modules are imported dynamically above.  An
++    # evaluator used to reset Python, NumPy, and PyTorch to seed 0 at import
++    # time, silently making every requested training seed initialize the same
++    # model.  Re-apply the configured training seed after all dynamic imports
++    # and immediately before model construction.  This also protects training
++    # initialization from any future third-party module with import-time RNG
++    # side effects.
++    pl.seed_everything(int(cfg.train.seed), workers=True)
+     model = GraphDiscreteFlowModel(cfg=cfg, **model_kwargs)
+ 
++    # This diagnostic is RNG-neutral and makes seed independence auditable in
++    # each run log without changing the initialized parameters.
++    initialization_digest = hashlib.sha256()
++    for parameter_name, parameter_value in model.state_dict().items():
++        initialization_digest.update(parameter_name.encode("utf-8"))
++        initialization_digest.update(
++            parameter_value.detach().cpu().contiguous().numpy().tobytes()
++        )
++    print(
++        "Training initialization: "
++        f"seed={int(cfg.train.seed)} "
++        f"sha256={initialization_digest.hexdigest()}"
++    )
++
+     callbacks = []
+     if cfg.train.save_model:
+         if cfg.general.validation_selection == "loss":

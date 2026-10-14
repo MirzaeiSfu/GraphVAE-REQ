@@ -1,7 +1,6 @@
 import os
 import os.path as osp
 import pathlib
-import random
 from typing import Any, Sequence
 
 import torch
@@ -145,22 +144,15 @@ class QM9Dataset(InMemoryDataset):
 
         dataset = pd.read_csv(self.raw_paths[1])
 
-        # Match GraphVAE-REQ's paper_70_10_20 split exactly. PyG's QM9
-        # dataset excludes the uncharacterized molecule indices before it is
-        # shuffled, so reproduce that filtering and Python Random(123) order.
-        with open(self.raw_paths[-1], "r") as handle:
-            excluded = {
-                int(line.split()[0]) - 1
-                for line in handle.read().split("\n")[9:-2]
-                if line.strip()
-            }
-        indices = [index for index in range(len(dataset)) if index not in excluded]
-        random.Random(123).shuffle(indices)
-        n_train = int(0.7 * len(indices))
-        n_val = int(0.1 * len(indices))
-        train = dataset.loc[indices[:n_train]]
-        val = dataset.loc[indices[n_train:n_train + n_val]]
-        test = dataset.loc[indices[n_train + n_val:]]
+        n_samples = len(dataset)
+        n_train = 100000
+        n_test = int(0.1 * n_samples)
+        n_val = n_samples - (n_train + n_test)
+
+        # Shuffle dataset with df.sample, then split
+        train, val, test = np.split(
+            dataset.sample(frac=1, random_state=42), [n_train, n_val + n_train]
+        )
 
         train.to_csv(os.path.join(self.raw_dir, "train.csv"))
         val.to_csv(os.path.join(self.raw_dir, "val.csv"))

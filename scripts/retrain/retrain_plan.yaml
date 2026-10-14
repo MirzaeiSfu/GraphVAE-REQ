@@ -177,7 +177,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -199,7 +200,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -221,7 +223,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -255,7 +258,6 @@ runs:
     encoder_config: configs/paper_runs/GRID/lgd/seed_0/encoder.yaml
     diffusion_config: configs/paper_runs/GRID/lgd/seed_0/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   GRID/lgd/seed_1:
@@ -280,7 +282,6 @@ runs:
     encoder_config: configs/paper_runs/GRID/lgd/seed_1/encoder.yaml
     diffusion_config: configs/paper_runs/GRID/lgd/seed_1/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   GRID/lgd/seed_2:
@@ -305,7 +306,6 @@ runs:
     encoder_config: configs/paper_runs/GRID/lgd/seed_2/encoder.yaml
     diffusion_config: configs/paper_runs/GRID/lgd/seed_2/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   LOBSTER/graphvae/seed_0:
@@ -426,7 +426,8 @@ runs:
       gpu: Quadro RTX 4000 (8 GB) x1
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -448,7 +449,8 @@ runs:
       gpu: Quadro RTX 4000 (8 GB) x1
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -470,7 +472,8 @@ runs:
       gpu: Quadro RTX 4000 (8 GB) x1
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -496,7 +499,6 @@ runs:
     encoder_config: configs/paper_runs/LOBSTER/lgd/seed_0/encoder.yaml
     diffusion_config: configs/paper_runs/LOBSTER/lgd/seed_0/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   LOBSTER/lgd/seed_1:
@@ -513,7 +515,6 @@ runs:
     encoder_config: configs/paper_runs/LOBSTER/lgd/seed_1/encoder.yaml
     diffusion_config: configs/paper_runs/LOBSTER/lgd/seed_1/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   LOBSTER/lgd/seed_2:
@@ -530,7 +531,6 @@ runs:
     encoder_config: configs/paper_runs/LOBSTER/lgd/seed_2/encoder.yaml
     diffusion_config: configs/paper_runs/LOBSTER/lgd/seed_2/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   PROTEINS/graphvae/seed_0:
@@ -681,7 +681,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_proteins
+    code: third_party/defog
+    variant: proteins
     pythonpath:
     - '@CODE'
     - '@CODE/src'
@@ -702,7 +703,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_proteins
+    code: third_party/defog
+    variant: proteins
     pythonpath:
     - '@CODE'
     - '@CODE/src'
@@ -723,7 +725,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_proteins
+    code: third_party/defog
+    variant: proteins
     pythonpath:
     - '@CODE'
     - '@CODE/src'
@@ -756,7 +759,6 @@ runs:
     encoder_config: configs/paper_runs/PROTEINS/lgd/seed_0/encoder.yaml
     diffusion_config: configs/paper_runs/PROTEINS/lgd/seed_0/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   PROTEINS/lgd/seed_1:
@@ -781,7 +783,6 @@ runs:
     encoder_config: configs/paper_runs/PROTEINS/lgd/seed_1/encoder.yaml
     diffusion_config: configs/paper_runs/PROTEINS/lgd/seed_1/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   PROTEINS/lgd/seed_2:
@@ -806,7 +807,6 @@ runs:
     encoder_config: configs/paper_runs/PROTEINS/lgd/seed_2/encoder.yaml
     diffusion_config: configs/paper_runs/PROTEINS/lgd/seed_2/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   PTC/graphvae/seed_0:
@@ -988,7 +988,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -1010,7 +1011,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -1032,7 +1034,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -1058,7 +1061,6 @@ runs:
     encoder_config: configs/paper_runs/PTC/lgd/seed_0/encoder.yaml
     diffusion_config: configs/paper_runs/PTC/lgd/seed_0/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   PTC/lgd/seed_1:
@@ -1075,7 +1077,6 @@ runs:
     encoder_config: configs/paper_runs/PTC/lgd/seed_1/encoder.yaml
     diffusion_config: configs/paper_runs/PTC/lgd/seed_1/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   PTC/lgd/seed_2:
@@ -1092,7 +1093,6 @@ runs:
     encoder_config: configs/paper_runs/PTC/lgd/seed_2/encoder.yaml
     diffusion_config: configs/paper_runs/PTC/lgd/seed_2/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: legacy_LGD_3SEED_CAMPAIGN_20260920/sample_tu.py
     data:
     - lgd/graphvae_req
   QM9/graphvae/seed_0:
@@ -1283,6 +1283,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog
+    variant: qm9
     pythonpath:
     - '@CODE/src'
     - '@CODE'
@@ -1303,6 +1304,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog
+    variant: qm9
     pythonpath:
     - '@CODE/src'
     - '@CODE'
@@ -1323,6 +1325,7 @@ runs:
       note: ''
     kind: defog
     code: third_party/defog
+    variant: qm9
     pythonpath:
     - '@CODE/src'
     - '@CODE'
@@ -1354,7 +1357,6 @@ runs:
     encoder_config: configs/paper_runs/QM9/lgd/seed_0/encoder.yaml
     diffusion_config: configs/paper_runs/QM9/lgd/seed_0/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   QM9/lgd/seed_1:
@@ -1379,7 +1381,6 @@ runs:
     encoder_config: configs/paper_runs/QM9/lgd/seed_1/encoder.yaml
     diffusion_config: configs/paper_runs/QM9/lgd/seed_1/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   QM9/lgd/seed_2:
@@ -1404,7 +1405,6 @@ runs:
     encoder_config: configs/paper_runs/QM9/lgd/seed_2/encoder.yaml
     diffusion_config: configs/paper_runs/QM9/lgd/seed_2/diffusion.yaml
     dataset_dir: lgd/graphvae_req
-    sampler: sample_tu.py
     data:
     - lgd/graphvae_req
   TRIANGULAR_GRID/graphvae/seed_0:
@@ -1525,7 +1525,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -1547,7 +1548,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'
@@ -1569,7 +1571,8 @@ runs:
       gpu: NVIDIA GeForce GTX 1080 Ti (11 GB) x2
       note: ''
     kind: defog
-    code: third_party/defog_c631697
+    code: third_party/defog
+    variant: c631697
     pythonpath:
     - '@REPO/graph_evaluation/src'
     - '@CODE'

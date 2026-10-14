@@ -13,7 +13,7 @@ adds nothing but paths.
   LGD:       pretrain.py --cfg encoder.yaml -> select_best_encoder_ckpt.py -> train_diffusion.py --cfg diffusion.yaml
              -> sample_tu.py --cfg diffusion.yaml
 """
-import argparse, glob, os, shlex, subprocess, sys
+import argparse, glob, hashlib, os, shlex, shutil, subprocess, sys
 import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,6 +35,51 @@ def resolve(value, data, out):
     if value.startswith("@REPO"):
         return REPO + value[5:]
     return os.path.join(data, value)
+
+
+SKIP_TOP = {"README.md", "UPSTREAM_README.md", "FROZEN_GRAPHVAE_BENCHMARK.md", "images", "variants"}
+
+
+def file_hashes(root):
+    """sha256 of every file the code can use (docs, images, __pycache__ and *.egg-info left out)."""
+    rows = {}
+    for d, dirs, files in os.walk(root):
+        rel = os.path.relpath(d, root)
+        dirs[:] = [x for x in dirs if x != "__pycache__" and not x.endswith(".egg-info")
+                   and not (rel == "." and x in SKIP_TOP)]
+        for f in files:
+            if not (rel == "." and f in SKIP_TOP):
+                p = os.path.join(d, f)
+                rows[os.path.relpath(p, root)] = hashlib.sha256(open(p, "rb").read()).hexdigest()
+    return rows
+
+
+def defog_version(base, variant, out, dry):
+    """The DeFoG code the run used: third_party/defog itself, or a copy with variants/<variant>.patch applied.
+    Either way every file is checked against variants/<variant>.sha256, made from the paper runs' launch folders."""
+    vdir = os.path.join(base, "variants")
+    code = base
+    if variant != "c631697":
+        code = os.path.join(out, f"defog_{variant}")
+        print(f"building DeFoG version '{variant}' in {code}", flush=True)
+        if not dry:
+            shutil.rmtree(code, ignore_errors=True)
+            shutil.copytree(base, code, ignore=shutil.ignore_patterns("variants", "__pycache__"))
+            subprocess.run(["git", "apply", os.path.join(vdir, f"{variant}.patch")], cwd=code, check=True,
+                           env=dict(os.environ, GIT_CEILING_DIRECTORIES=os.path.dirname(code)))  # patch this folder only
+            extra = os.path.join(vdir, f"{variant}_files")
+            if os.path.isdir(extra):
+                shutil.copytree(extra, code, dirs_exist_ok=True)
+    if not dry:
+        want = dict(reversed(l.split("  ", 1)) for l in open(os.path.join(vdir, f"{variant}.sha256")).read().splitlines())
+        have = file_hashes(code)
+        bad = sorted(k for k in want if want[k] != have.get(k))
+        if bad:
+            sys.exit(f"DeFoG '{variant}' differs from the paper's code in {len(bad)} files, e.g. {bad[:5]}")
+        extra = sorted(set(have) - set(want))  # e.g. files a previous run created; reported, not used by the paper run
+        print(f"DeFoG '{variant}': all {len(want)} files match the paper's code"
+              + (f" ({len(extra)} extra files: {extra[:3]})" if extra else ""), flush=True)
+    return code
 
 
 def trained_defog_checkpoint(out, which, dry):
@@ -72,6 +117,7 @@ def main():
         run(cmd, code, env, a.dry_run)
 
     elif r["kind"] == "defog":
+        code = defog_version(code, r["variant"], out, a.dry_run)
         # same PYTHONPATH as the original launcher of this run (frozen runs need GraphVAE-REQ's ggm_eval)
         pp = [x.replace("@REPO", REPO).replace("@CODE", code) for x in r["pythonpath"]]
         env["PYTHONPATH"] = os.pathsep.join(pp + [env.get("PYTHONPATH", "")])
@@ -103,7 +149,7 @@ def main():
         enc_dir = os.path.dirname(ckpt_dirs[0]) if ckpt_dirs else f"{out}/encoder/<run>"
         enc = run([py, "select_best_encoder_ckpt.py", enc_dir], code, env, a.dry_run, capture=True) or "<selected encoder>"
         print(f"selected encoder checkpoint (lowest validation loss_recon): {enc}", flush=True)
-        for script in ("train_diffusion.py", r["sampler"]):
+        for script in ("train_diffusion.py", "sample_tu.py"):
             extra = ["--run-id", str(r["seed"])] if "sample_tu" in script else ["--repeat", "1"]
             run([py, script, "--cfg", os.path.join(REPO, r["diffusion_config"])] + extra +
                 ["out_dir", f"{out}/diffusion"] + common + ["diffusion.first_stage_config", enc], code, env, a.dry_run)

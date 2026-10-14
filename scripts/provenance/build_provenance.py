@@ -257,13 +257,13 @@ md.append("- **DeFoG**: fork `MirzaeiSfu/defog`, branch `feat/frozen-graphvae-be
           "(2026-09-01, *Add frozen GraphVAE benchmark adapter*). The frozen-benchmark runs record "
           "`defog_commit` in `job_record.json`. The QM9 campaigns (`qm9_defog_campaign_20260914`, "
           "`qm9_defog_lab24_20260914`, `QM9_FULL_TEST_20260925`) and `GRID_DEFOG_SEED6_20260924` ran with 3 "
-          "uncommitted files, which are included in `third_party/defog/`: `src/main.py`, "
+          "uncommitted files, which are in `third_party/defog/variants/qm9.patch`: `src/main.py`, "
           "`src/datasets/qm9_dataset.py`, `src/analysis/ggmeval/evaluation/models/gin/gin.py`.\n"
           "- **LGD**: upstream `zhouc20/LatentGraphDiffusion` commit `f597e1d` (2024-12-17) plus local changes "
           "(GraphVAE-REQ dataset export and loader, TU generation and sampling, configs). `third_party/lgd/` holds "
           "the fixed `LGD_FIX_20260924` state: encoder checkpoint chosen by validation `loss_recon`, never epoch 0. "
           "The old `LGD_3SEED_CAMPAIGN_20260920` differs in `sample_tu.py` and `select_best_encoder_ckpt.py`; "
-          "those versions are in `third_party/lgd/legacy_LGD_3SEED_CAMPAIGN_20260920/`.\n")
+          "those versions are in git history (commit `92b2635`, `third_party/lgd/legacy_LGD_3SEED_CAMPAIGN_20260920/`).\n")
 md.append("## Fixed LGD runs (not in the archive)\n")
 md.append("The LGD numbers in the paper come from `LGD_FIX_20260924`, which ran after the archive was made. Code: "
           "`third_party/lgd/` (upstream `f597e1d` plus the fixed local changes). Run folders, now also copied to "

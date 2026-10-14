@@ -1,0 +1,151 @@
+schema_version: defog-graphvae-frozen-eval-v1
+status: references_frozen
+
+repositories:
+  graphvae_required_ancestor: a40eb4d184b939b80034b00dfa03aa77b836b3ef
+  defog_base_commit: 474f9405bdcdddc2d96cfedc3305172dffbe8fbd
+  defog_benchmark_commit: c631697b9cd5a2474d22ba12de33943c6b49e53e
+
+protocol:
+  split_mode: paper_70_10_20
+  split_seed: 123
+  train_fraction: 0.7
+  validation_fraction: 0.1
+  test_fraction: 0.2
+  training_seeds: [0, 1, 2]
+  generation_seed: 12345
+  adjacency_threshold: 0.5
+  directed_output: false
+  self_loops: reject
+  duplicate_directed_edges: reject
+  connected_components: deterministic_largest_component
+  isolated_nodes: remove
+  empty_graphs: reject_and_count
+  node_count_conditioning: unconditional_train_plus_validation
+  generated_count: accepted_reference_count
+
+evaluator:
+  implementation: third_party/ggmeval Random-GIN
+  modes: [decoded_node, topology_control]
+  evaluator_seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  nearest_k: 5
+  layers: 3
+  hidden_dimension: 35
+  mlp_layers: 2
+  neighbor_pooling: sum
+  graph_pooling: sum
+  initialization: orthogonal
+  feature_standardization: StandardScaler_fit_reference_only
+  rbf_base_sigmas: [0.01, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0]
+  rbf_bandwidth_multiplier: sqrt_mean_generated_reference_squared_distance
+  metrics: [f1_pr, precision, recall, mmd_rbf, mmd_linear]
+  aggregation:
+    within_training_seed: arithmetic_mean_across_evaluator_seeds
+    across_training_seeds: arithmetic_mean_and_sample_sd_ddof_1
+  files:
+    - path: eval/attributed_gin.py
+      sha256: ec3739e0ab0611cde34187b5f5c01ac946e4bf1e8d3829a5907fce0a6c18af24
+    - path: third_party/ggmeval/evaluation/gin_evaluation.py
+      sha256: 7607101bd73762fb1a5e5fa7e20f0d79dc8dfe03051348aace2c9ff47b4d73c2
+    - path: third_party/ggmeval/evaluation/models/gin/gin.py
+      sha256: da76a18d436554710ba93449851cdcd241b080369c037f1e73c7ce432fa3ba7f
+    - path: graph_evaluation/src/ggm_eval/adapters.py
+      sha256: 5d3bd5b9b7811fde97c9c2b92da5381791b702a5b4edf33e479435d88746a44c
+    - path: graph_evaluation/src/ggm_eval/contract.py
+      sha256: 5022c6223a52c481925e9a8d00427a54f872eaba4e56aedf41f82c198b085d46
+    - path: graph_evaluation/src/ggm_eval/worker.py
+      sha256: fa524227ad6e9c5ac9ff450a940a83e238834403eda456a39f9f7e2b2bdacf07
+
+datasets:
+  MUTAG:
+    source_cache: /local-scratch2/mirzaei/node_feature_eval_cache_v4/MUTAG_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-123_bfs-legacy_first_component_features-gin-node-label-v2.pkl
+    source_cache_sha256: 5cb27100afff44f8d444f589ce8f2da43da3a7383236282ec98c6ac96ee348e1
+    source_feature_schema: gin-node-label-v2
+    feature_mode: decoded_node
+    feature_schema: gin-node-label-v2|export=decoded_node
+    node_feature_dim: 7
+    edge_feature_dim: 0
+    raw_counts: {train: 131, validation: 18, reference: 39}
+    accepted_counts: {train: 131, validation: 18, reference: 39}
+    split_fingerprints:
+      train: 0b4347cc7a79ded83e0610e3d2a44b54ddb0e0f40ddf039d7cc734990ab1676b
+      validation: ade6cd90856a77524d2b2e106cf265e1ec9d15ff01e557fe15a9650e9164d380
+      reference: 9f44527a34604b754a8f3f457a2e8b6d27d8ce1a1022d966617f5a78645bf2d3
+    collection_sha256:
+      train: f930505c12919a367e9c926761f5d181a168e2a9d5b52f290381c5f60b3c64f4
+      validation: e9a3bbd977a3d41f4fd24159c6fbe60acd46f912e12b0b41f700452aff5ba10d
+      reference: f0d3cc38a08c1c3c26b0f36eeea87195c8d2477f1ebab84490826675bb2e1b85
+    node_schema_fingerprint: cdb09b9517d77c4611093184ee09aee0a988d99497e3b537e94f4156772731b6
+  PROTEINS:
+    source_cache: /local-scratch2/mirzaei/node_feature_eval_cache_v4/PROTEINS_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-123_bfs-legacy_first_component_features-default.pkl
+    source_cache_sha256: 5ba9d90c41d66ee26e1446f0e89fc35e2cf7da96f11fa8858e03d61aeddce953
+    source_feature_schema: default
+    feature_mode: decoded_node
+    feature_schema: default|export=decoded_node
+    node_feature_dim: 3
+    edge_feature_dim: 0
+    raw_counts: {train: 731, validation: 104, reference: 210}
+    accepted_counts: {train: 728, validation: 104, reference: 209}
+    split_fingerprints:
+      train: 7c6a7bc509c173aa29c20b98f1279710c0da1e8bd7dbb777fa969085fa75e923
+      validation: e2ea1cf895f92dc2968c07b3e8423630b496ff272975f92739583150dc741070
+      reference: 5e903aebf8f2e099776bc67bbe07f1ef2fdc599ebc4c0b812ada337c1e062a9e
+    collection_sha256:
+      train: 25f5169fce46475c7a22ca43b1331b111fd914efe544a2e32871f8c1e50805a4
+      validation: 7cba88f5381a979ebec661d75151888428604d2b0d8e979cd7c3a6e467c98aaa
+      reference: 08991d0fb31af92a83842325034cd640ce767bcff6d4e0cf29b0f587c8391f8f
+    node_schema_fingerprint: 9e22277a9e81871e86d2d775a7d3cc8347aa092afc21c9ce5b8a7376089ba293
+  GRID:
+    source_cache: /local-scratch2/new/grid_tri_v3_20260715/GraphVAE-REQ/experiments/grid_tri_v3_20260715/shared/grid_dataset_cache/GRID_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_bfs-legacy_first_component_features-grid-intrinsic_v3.pkl
+    source_cache_sha256: 7446623693f679de25cf420db9daf32d4104f15769f6aab60037edd725c58239
+    source_feature_schema: grid-intrinsic_v3
+    feature_mode: topology_control
+    feature_schema: constant-node|export=topology_control
+    node_feature_dim: 1
+    edge_feature_dim: 0
+    raw_counts: {train: 70, validation: 10, reference: 20}
+    accepted_counts: {train: 70, validation: 10, reference: 20}
+    split_fingerprints:
+      train: 6e4df09d42bb2050769c3983b2a20683dd51df5265d52643344421c6199b3a4d
+      validation: c417609043f43edfb501a9ec8a7daf69d1629e2ea7492b6d8cbef61dbda01413
+      reference: 0cbcbcd3bba77d124160ea51395a10f19fde15d3477eadcf23975d30f609423b
+    collection_sha256:
+      train: c821ad9fa50a3c4e39ff73ab009221dfad88e72b34c5456f94ea2cb2c1c8b74b
+      validation: 8099953cc34770cb2b5a9d2af1bd04baaaf61a0a0d78fc538eea2ef55c85e363
+      reference: d6f00e40b315e8556881844897534f515b14ee74e53f6d320e8c80fbd7e32566
+  LOBSTER:
+    source_cache: runs/defog/frozen_eval/source_caches/LOBSTER_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_loaderseed-123_bfs-legacy_first_component_features-lobster-optimal_v2.pkl
+    source_cache_sha256: c6f5f55396145160bea3c8b0f3a984dc767f36b5c389a909aeb6e0653534b7f3
+    source_feature_schema: lobster-optimal_v2
+    feature_mode: topology_control
+    feature_schema: constant-node|export=topology_control
+    node_feature_dim: 1
+    edge_feature_dim: 0
+    raw_counts: {train: 70, validation: 10, reference: 20}
+    accepted_counts: {train: 70, validation: 10, reference: 20}
+    split_fingerprints:
+      train: 4aca05b0d3c62c26975c21a3a5b203dfa43e7dfc332cf5e8ce0c9d3a5b3b2cc3
+      validation: 8289cd2ee49c376b178411cdf748fbbc5116ea9396b5a77a7b0768d7791944dc
+      reference: 97d97480627fadcd045fee7a97f30e186b1a9f2a79c1ece1be8d4bc574d8277a
+    collection_sha256:
+      train: 3ddb284ca5ef7cb60065b427b610966c57abc189507a952abf86d157e2b33b6f
+      validation: b8c54f153f989a454079b338ff45071c89d595610b9e3552d6547ccb6e3fdadb
+      reference: 9fabc272cbec32dcc53ca720343635b39c8736e1939fab2585dd574a27f381da
+  TRIANGULAR_GRID:
+    source_cache: /local-scratch2/new/grid_tri_v3_20260715/GraphVAE-REQ/experiments/grid_tri_v3_20260715/shared/triangular_grid_dataset_cache/TRIANGULAR_GRID_split-paper_70_10_20_train0p7_val0p1_test0p2_seed123_bfs-legacy_first_component_features-triangular-grid-intrinsic_v3.pkl
+    source_cache_sha256: 64149e3d02b777b4285f87e632d75b989b1151d938065a85160abad84d861375
+    source_feature_schema: triangular-grid-intrinsic_v3
+    feature_mode: topology_control
+    feature_schema: constant-node|export=topology_control
+    node_feature_dim: 1
+    edge_feature_dim: 0
+    raw_counts: {train: 70, validation: 10, reference: 20}
+    accepted_counts: {train: 70, validation: 10, reference: 20}
+    split_fingerprints:
+      train: 88d549c222bebe91c19b64f10b7da656a6344964a82f05d7088ecf678ac37bed
+      validation: 20c3cf3dd59c915df42cb2a495e05b719f3818d77c09ce8762ae182cbb6287f5
+      reference: 016cd7645d17a8699f64958c9486e0ede98705b168418801c41ada676fa6f962
+    collection_sha256:
+      train: 3e66eb440731667af0fb4af361b77ef8291dc8b4951a8e98b083176b236d5874
+      validation: 35bd06e8a3528b56cb3a66ee56a47a494286dfe9f5580fa4d4076df6783d3e60
+      reference: 750cb77476e7246171ca59d6fba3794ce891ee41c49049ed9bbdae9f8adfe638

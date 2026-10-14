@@ -1,6 +1,5 @@
 import os
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")  # override by exporting CUDA_VISIBLE_DEVICES before launch
-import hashlib
 import pathlib
 import warnings
 
@@ -34,7 +33,7 @@ warnings.filterwarnings("ignore", category=PossibleUserWarning)
 
 @hydra.main(version_base="1.3", config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
-    pl.seed_everything(cfg.train.seed, workers=True)
+    pl.seed_everything(cfg.train.seed)
     dataset_config = cfg["dataset"]
 
     if dataset_config["name"] in [
@@ -435,30 +434,7 @@ def main(cfg: DictConfig):
     }
 
     utils.create_folders(cfg)
-
-    # Dataset-specific metric modules are imported dynamically above.  An
-    # evaluator used to reset Python, NumPy, and PyTorch to seed 0 at import
-    # time, silently making every requested training seed initialize the same
-    # model.  Re-apply the configured training seed after all dynamic imports
-    # and immediately before model construction.  This also protects training
-    # initialization from any future third-party module with import-time RNG
-    # side effects.
-    pl.seed_everything(int(cfg.train.seed), workers=True)
     model = GraphDiscreteFlowModel(cfg=cfg, **model_kwargs)
-
-    # This diagnostic is RNG-neutral and makes seed independence auditable in
-    # each run log without changing the initialized parameters.
-    initialization_digest = hashlib.sha256()
-    for parameter_name, parameter_value in model.state_dict().items():
-        initialization_digest.update(parameter_name.encode("utf-8"))
-        initialization_digest.update(
-            parameter_value.detach().cpu().contiguous().numpy().tobytes()
-        )
-    print(
-        "Training initialization: "
-        f"seed={int(cfg.train.seed)} "
-        f"sha256={initialization_digest.hexdigest()}"
-    )
 
     callbacks = []
     if cfg.train.save_model:
