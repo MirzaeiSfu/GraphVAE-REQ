@@ -155,6 +155,16 @@ each fixed parent assignment. Only then is the existing pruning score applied.
 The derived split-specific metadata is not written back into the flag-neutral
 database cache.
 
+The pruning score is chosen with `rule_prune_score`. A value row is kept when its
+score is above `motif_prune_score_threshold` (default 0):
+
+| `rule_prune_score` | Score | Keeps |
+|---|---|---|
+| `original` (default, used for the paper) | `2 * local_mult * (ln CP - ln prior) - ln local_mult` | rows whose association is strong enough for how often they occur |
+| `no_local_mult` | `2 * (ln CP - ln prior)` | every row with `CP > prior`, including rarely occurring combinations |
+
+Single-atom rules always keep all their rows.
+
 ## Common Runs
 
 Baseline GraphVAE on the default QM9 config:

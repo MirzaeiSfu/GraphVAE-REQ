@@ -453,12 +453,11 @@ class RelationalMotifCounter:
             local_mult = float(row[local_idx])
             cp_value = float(row[cp_idx])
             prior_value = float(row[prior_idx])
-            if local_mult <= 0.0 or cp_value <= 0.0 or prior_value <= 0.0:
+            if cp_value <= 0.0 or prior_value <= 0.0:
                 continue
-            score = (
-                2.0 * local_mult * (math.log(cp_value) - math.log(prior_value))
-                - math.log(local_mult)
-            )
+            if local_mult <= 0.0 and self._rule_prune_score_mode() == "original":
+                continue
+            score = self._rule_prune_score(local_mult, cp_value, prior_value)
             threshold = float(getattr(self.args, "motif_prune_score_threshold", 0.0) or 0.0)
             if score > threshold:
                 scored_rows.append((score, row))
@@ -1207,6 +1206,52 @@ class RelationalMotifCounter:
         # the explicit false state, for which it uses the complement.
         return relation_value != 'F'
 
+    def _rule_prune_score_mode(self) -> str:
+        return str(getattr(self.args, "rule_prune_score", "original") or "original")
+
+    def _rule_prune_score(self, local_mult: float, cp_value: float, prior_value: float) -> float:
+        """Rule-pruning score of one value row; the row is kept when score > threshold.
+
+        original:      2 * local_mult * (ln CP - ln prior) - ln local_mult
+        no_local_mult: 2 * (ln CP - ln prior), so a row is kept whenever CP > prior,
+                       however rarely the combination occurs.
+        """
+        log_ratio = math.log(cp_value) - math.log(prior_value)
+        if self._rule_prune_score_mode() == "no_local_mult":
+            return 2.0 * log_ratio
+        return 2.0 * local_mult * log_ratio - math.log(local_mult)
+
+    def _rescore_cp_rows(self, rule_idx: int, rows: List) -> List:
+        """Prune one rule's full `_CP` rows with the selected score (used for no_local_mult;
+        the cache stores rows pruned with the original score)."""
+        rule = self.rules[rule_idx]
+        if len(rule) == 1 or self.rule_sources[rule_idx] != "factorbase":
+            return list(rows)
+        columns = self.value_columns[rule_idx]
+        threshold = float(getattr(self.args, "motif_prune_score_threshold", 0.0) or 0.0)
+        scored = []
+        for row in rows:
+            size = len(row)
+            if "CP" in columns and "prior" in columns:
+                cp_value, prior_value = row[columns.index("CP")], row[columns.index("prior")]
+            elif self.multiples[rule_idx]:  # same column positions as motif_store
+                cp_value, prior_value = row[size - 3], row[size - 1]
+            else:
+                cp_value, prior_value = row[size - 5], row[size - 1]
+            try:
+                cp_value, prior_value = float(cp_value), float(prior_value)
+            except (TypeError, ValueError):
+                continue
+            if cp_value <= 0.0 or prior_value <= 0.0:
+                continue
+            score = self._rule_prune_score(1.0, cp_value, prior_value)
+            if score > threshold:
+                scored.append((score, row))
+        max_values = getattr(self.args, "motif_prune_max_values_per_rule", None)
+        if max_values is not None and max_values > 0:
+            scored = sorted(scored, key=lambda item: item[0], reverse=True)[:max_values]
+        return [row for _, row in scored]
+
     def _select_motif_values(self, data: Dict, pickle_path: Path):
         """Select motif rows while preserving every single-atom rule.
 
@@ -1243,14 +1288,20 @@ class RelationalMotifCounter:
             )
             return values
 
-        values = [
-            list(full_rows) if len(rule) == 1 else list(pruned_rows)
-            for rule, full_rows, pruned_rows in zip(
-                self.rules,
-                data["values_full"],
-                data["values_pruned"],
-            )
-        ]
+        if self._rule_prune_score_mode() == "no_local_mult":
+            values = [
+                self._rescore_cp_rows(rule_idx, full_rows)
+                for rule_idx, full_rows in enumerate(data["values_full"])
+            ]
+        else:
+            values = [
+                list(full_rows) if len(rule) == 1 else list(pruned_rows)
+                for rule, full_rows, pruned_rows in zip(
+                    self.rules,
+                    data["values_full"],
+                    data["values_pruned"],
+                )
+            ]
         restored_rule_indices = []
         if protect_unit_relations:
             for rule_idx, rule in enumerate(self.rules):
@@ -1276,7 +1327,7 @@ class RelationalMotifCounter:
         print(
             "  rule_prune=True: "
             f"{n_selected} / {n_full} value combinations kept "
-            "(formula-pruned; single-atom rules keep all rows)"
+            f"(score={self._rule_prune_score_mode()}; single-atom rules keep all rows)"
         )
         if protect_unit_relations:
             print(

@@ -1337,6 +1337,17 @@ parser.add_argument(
     )
 )
 parser.add_argument(
+    '--rule_prune_score',
+    choices=['original', 'no_local_mult'],
+    default='original',
+    help=(
+        'Rule-pruning score (used with --rule_prune True). original: '
+        '2*local_mult*(ln CP - ln prior) - ln local_mult. no_local_mult: '
+        '2*(ln CP - ln prior), which keeps every row with CP > prior, '
+        'including combinations with small counts.'
+    )
+)
+parser.add_argument(
     '--motif_prune_score_threshold',
     type=float,
     default=0.0,
