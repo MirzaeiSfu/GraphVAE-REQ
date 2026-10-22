@@ -19,6 +19,7 @@ pruning decision are specific to the current graph split.
 """
 
 import os
+import json
 import math
 import torch
 import pickle
@@ -230,6 +231,7 @@ class RelationalMotifCounter:
             self.values = self._select_motif_values(data, pickle_path)
 
         self._filter_rules_for_runtime_mode()
+        self._apply_motif_value_selection()
         self._build_motif_group_masks()
 
         self.device = getattr(self.args, 'device', 'cuda')
@@ -1360,6 +1362,47 @@ class RelationalMotifCounter:
             f"  syntactic_literal_rule_mode={mode}: "
             f"{len(keep_indices)} / {len(self.rules)} rules kept after loading cache"
         )
+        self._keep_rule_indices(keep_indices)
+
+    def _apply_motif_value_selection(self) -> None:
+        """Train only on the rules (functor-value combinations) listed in --motif_value_selection.
+
+        The file is JSON: {"rules": [{"rule": [functor, ...], "values": [[value, ...], ...]}, ...]}, each value list
+        in the rule's functor order. Functor sets not listed are dropped. Every listed combination must exist in the
+        loaded rows (use --rule_prune False to choose from all of them), otherwise loading stops.
+        """
+        path = getattr(self.args, "motif_value_selection", None)
+        if not path:
+            return
+        if getattr(self, "data_driven_smoothed_pruning_pending", False):
+            raise RuntimeError("--motif_value_selection cannot be combined with cp_smoothed rule pruning; "
+                               "use --rule_prune False or --motif_cp_table_source cp.")
+        with open(path) as handle:
+            spec = json.load(handle)
+        wanted = {}
+        for entry in spec["rules"]:
+            wanted.setdefault(tuple(entry["rule"]), set()).update(
+                tuple(str(v) for v in values) for values in entry["values"])
+        keep_indices, kept, missing = [], 0, []
+        for rule_idx, rule in enumerate(self.rules):
+            combos = wanted.pop(tuple(rule), None)
+            if not combos:
+                continue
+            columns = self.value_columns[rule_idx]
+            positions = [columns.index(functor) for functor in rule]
+            rows = [row for row in self.values[rule_idx]
+                    if tuple(str(row[i]) for i in positions) in combos]
+            found = {tuple(str(row[i]) for i in positions) for row in rows}
+            missing += [(rule, combo) for combo in combos - found]
+            self.values[rule_idx] = rows
+            keep_indices.append(rule_idx)
+            kept += len(rows)
+        missing += [(rule, None) for rule in wanted]
+        if missing:
+            raise RuntimeError(f"--motif_value_selection: {len(missing)} listed combinations or functor sets are not "
+                               f"in the loaded motif rows, e.g. {missing[:3]}")
+        print(f"  motif_value_selection={path}: {kept} combinations in {len(keep_indices)} / {len(self.rules)} "
+              "functor sets kept")
         self._keep_rule_indices(keep_indices)
 
     def _keep_rule_indices(self, keep_indices: List[int]) -> None:

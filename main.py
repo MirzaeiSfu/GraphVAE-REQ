@@ -1337,6 +1337,16 @@ parser.add_argument(
     )
 )
 parser.add_argument(
+    '--motif_value_selection',
+    type=str,
+    default=None,
+    help=(
+        'JSON file listing the exact motif rules (functor-value combinations) to train on: '
+        '{"rules": [{"rule": [functor, ...], "values": [[value, ...], ...]}]}. '
+        'Functor sets not listed are dropped. Use with --rule_prune False.'
+    )
+)
+parser.add_argument(
     '--rule_prune_score',
     choices=['original', 'no_local_mult'],
     default='original',
