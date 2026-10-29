@@ -29,6 +29,10 @@ original command-line flags. Command-line values are kept as strings, so `main.p
 the command line. The effective record can't be used as input, because `main.py` writes some derived values back
 into the settings it records.
 
+Each input file has `rule_prune_score: original`, the rule-pruning score the paper used. Change it to
+`no_local_mult` to keep every rule with CP > prior (score `2*(ln CP - ln prior)`); it only matters when
+`rule_prune` is true.
+
 Paths in the input files (`graph_save_path`, `dataset_cache_dir`, `motif_cache_dir`, and `data_dir` / `PATH` where
 present) are the original machine's. Point them at your own folders on the command line, after `--config`:
 

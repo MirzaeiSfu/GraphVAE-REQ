@@ -57,6 +57,7 @@ redraw: false
 require_existing_dataset_cache: 'false'
 resume_from_latest_checkpoint: 'true'
 rule_prune: true
+rule_prune_score: original   # rule-pruning score: original (paper) or no_local_mult
 run_label: proteins-full-matrix-motif003-seed-1
 sanity_check: false
 sanity_check_only: false

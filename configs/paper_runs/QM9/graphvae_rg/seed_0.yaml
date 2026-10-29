@@ -57,6 +57,7 @@ redraw: false
 require_existing_dataset_cache: 'true'
 resume_from_latest_checkpoint: 'true'
 rule_prune: 'false'
+rule_prune_score: original   # rule-pruning score: original (paper) or no_local_mult
 run_label: qm9-full-fast250-cp10-seed-0
 sanity_check: false
 sanity_check_only: false

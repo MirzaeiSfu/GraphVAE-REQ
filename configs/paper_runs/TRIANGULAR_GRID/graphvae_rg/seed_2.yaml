@@ -55,6 +55,7 @@ plot_testGraphs: true
 prepare_motif_cache_only: false
 redraw: false
 rule_prune: true
+rule_prune_score: original   # rule-pruning score: original (paper) or no_local_mult
 run_label: triangular-grid-linkcorr-motif-true-full_matrix-3seed
 sanity_check: false
 sanity_check_only: false
